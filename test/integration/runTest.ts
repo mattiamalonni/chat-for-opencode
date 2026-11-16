@@ -1,3 +1,4 @@
+import { execFileSync } from "node:child_process";
 import { chmodSync, mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
@@ -22,7 +23,17 @@ async function main(): Promise<void> {
     writeFileSync(fake, `#!/bin/sh\nMOCK_STATE_FILE="${stateFile}" exec "${process.execPath}" "${mock}" "$@"\n`);
     chmodSync(fake, 0o755);
   }
-  writeFileSync(join(workspace, ".vscode", "settings.json"), JSON.stringify({ "opencode.executablePath": fake }, null, 2));
+  const real = process.env.OC_IT_REAL === "1";
+  const settings = real
+    ? { "opencode.executablePath": "opencode", "opencode.sessionPermissions": [{ action: "edit", resource: "*", effect: "ask" }] }
+    : { "opencode.executablePath": fake };
+  writeFileSync(join(workspace, ".vscode", "settings.json"), JSON.stringify(settings, null, 2));
+  if (real) {
+    writeFileSync(join(workspace, "a.txt"), "a\n");
+    execFileSync("git", ["init", "-q"], { cwd: workspace });
+    execFileSync("git", ["add", "."], { cwd: workspace });
+    execFileSync("git", ["-c", "user.email=it@test", "-c", "user.name=it", "commit", "-qm", "init"], { cwd: workspace });
+  }
 
   const version = process.env.VSCODE_TEST_VERSION ?? "stable";
   await runTests({
@@ -30,7 +41,7 @@ async function main(): Promise<void> {
     extensionDevelopmentPath: root,
     extensionTestsPath: join(__dirname, "suite", "index.js"),
     launchArgs: [workspace, "--disable-extensions", "--disable-workspace-trust", "--skip-welcome", "--skip-release-notes"],
-    extensionTestsEnv: { OC_IT_WORKSPACE: workspace },
+    extensionTestsEnv: { OC_IT_WORKSPACE: workspace, OC_IT_SUITE: real ? "real.test.js" : "extension.test.js" },
   });
 }
 

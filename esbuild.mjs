@@ -1,7 +1,10 @@
 import * as esbuild from "esbuild";
+import { rmSync } from "node:fs";
 
 const production = process.argv.includes("--production");
 const watch = process.argv.includes("--watch");
+
+if (production) rmSync("dist", { recursive: true, force: true });
 
 /** @type {import('esbuild').BuildOptions[]} */
 const builds = [

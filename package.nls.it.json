@@ -1,0 +1,21 @@
+{
+  "displayName": "OpenCode Chat",
+  "description": "Chat in stile Copilot nella barra laterale per l'agente OpenCode (client di `opencode serve`).",
+  "container.title": "OpenCode",
+  "view.chat": "Chat",
+  "command.newSession": "Nuova sessione",
+  "command.reconnect": "Riconnetti / riavvia server",
+  "command.addSelectionToChat": "Aggiungi selezione alla chat",
+  "command.addFileToChat": "Aggiungi file alla chat",
+  "command.focus": "Vai alla chat",
+  "command.showLogs": "Mostra log",
+  "command.setServerPassword": "Imposta password del server…",
+  "command.stopServer": "Arresta server",
+  "command.showChanges": "Mostra file modificati",
+  "config.executablePath": "Percorso dell'eseguibile `opencode` usato per avviare `opencode serve` (un processo per cartella dell'area di lavoro).",
+  "config.endpoint": "URL di un server OpenCode già in esecuzione (es. `http://127.0.0.1:4096`). Se impostato non viene avviato alcun processo; usa **OpenCode: Imposta password del server…** per salvarne la password nel portachiavi di sistema.",
+  "config.autoContext": "Allega file attivo e selezione a ogni messaggio (ogni elemento può essere rimosso prima dell'invio).",
+  "config.startupTimeout": "Millisecondi di attesa perché `opencode serve` risponda.",
+  "config.autoRestart": "Riavvia automaticamente il server gestito se termina in modo inatteso (max 5 volte in 2 minuti).",
+  "config.sessionPermissions": "Regole di autorizzazione (`action`, `resource`, `effect`) aggiunte alle nuove sessioni, es. `[{\"action\":\"edit\",\"resource\":\"*\",\"effect\":\"ask\"}]` per chiedere sempre prima delle modifiche. Vedi https://opencode.ai/docs/permissions/."
+}
