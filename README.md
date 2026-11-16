@@ -1,4 +1,8 @@
-# OpenCode Chat for VS Code
+# Chat for OpenCode
+
+[![CI](https://github.com/mattiamalonni/vscode-opencode/actions/workflows/ci.yml/badge.svg)](https://github.com/mattiamalonni/vscode-opencode/actions/workflows/ci.yml)
+
+> **Unofficial.** This extension is a community project and is not affiliated with or endorsed by the OpenCode team.
 
 A Copilot-style chat in the VS Code sidebar for [OpenCode](https://opencode.ai), the open-source
 coding agent. The extension is a **client** of the OpenCode v2 server (`opencode serve`) running
@@ -128,6 +132,10 @@ npm run test:integration:real  # extension in VS Code + real `opencode serve` (u
 
 The Playwright browser is installed with `npx playwright install chromium`.
 Integration tests download VS Code into `.vscode-test/` (`VSCODE_TEST_VERSION=1.99.3` to test the minimum version).
+
+## Releasing
+
+See [docs/RELEASING.md](docs/RELEASING.md).
 
 ## License
 

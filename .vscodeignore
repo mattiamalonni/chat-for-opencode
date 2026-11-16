@@ -8,3 +8,4 @@
 !CHANGELOG.md
 !LICENSE
 dist/**/*.map
+!THIRD_PARTY_NOTICES.md

@@ -8,9 +8,18 @@
   "author": "Mattia Malonni",
   "repository": {
     "type": "git",
-    "url": "https://github.com/mattiamalonni/vscode-opencode"
+    "url": "https://github.com/mattiamalonni/vscode-opencode.git"
   },
+  "bugs": {
+    "url": "https://github.com/mattiamalonni/vscode-opencode/issues"
+  },
+  "homepage": "https://github.com/mattiamalonni/vscode-opencode#readme",
   "icon": "media/icon.png",
+  "galleryBanner": {
+    "color": "#1e1e2e",
+    "theme": "dark"
+  },
+  "pricing": "Free",
   "engines": {
     "vscode": "^1.99.0"
   },
@@ -22,7 +31,10 @@
     "opencode",
     "ai",
     "chat",
-    "agent"
+    "agent",
+    "coding agent",
+    "llm",
+    "assistant"
   ],
   "main": "./dist/extension.js",
   "l10n": "./l10n",

@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.1.0 — 2026-11-16
 
 - The chat view now lives in the **Secondary Side Bar** (right, like Copilot Chat) on VS Code 1.104+.
 - Activates on startup, reveals the chat on first run and adds an **OpenCode** status bar entry
@@ -8,8 +8,6 @@
 - New command *OpenCode: Move Chat View…* (also in the view's `…` menu).
 - Custom themed pickers for agent, model (searchable, grouped by provider), reasoning effort and
   workspace folder, replacing native `<select>`s; composer redesigned as a single input box.
-
-## 0.1.0 — 2026-11-16
 
 Initial release.
 
