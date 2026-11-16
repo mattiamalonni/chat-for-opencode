@@ -70,6 +70,7 @@ export const STRINGS = {
   emptyResponse: "(no text)",
   tokens: "{0} tokens",
   dismiss: "Dismiss",
+  details: "Details",
   // actions
   "action.reconnect": "Reconnect",
   "action.showLogs": "Show logs",

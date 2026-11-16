@@ -320,7 +320,7 @@ function ErrorBlock({ error, onDismiss }: { error: UiError; onDismiss?: () => vo
       </div>
       {error.detail && (
         <details class="banner-detail">
-          <summary>{t("error")}</summary>
+          <summary>{t("details")}</summary>
           <pre>{error.detail}</pre>
         </details>
       )}

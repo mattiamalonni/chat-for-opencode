@@ -248,7 +248,8 @@ export class ChatController implements vscode.Disposable {
     this.agents = agents.filter((a) => a.mode !== "subagent" && !a.hidden);
     const saved = this.ctx.globalState.get<ModelRef>(MODEL_KEY);
     const exists = (ref?: ModelRef) => !!ref && this.models.some((m) => m.id === ref.id && m.providerID === ref.providerID);
-    this.selectedModel = exists(saved) ? saved : defaultModel ? { id: defaultModel.id, providerID: defaultModel.providerID } : undefined;
+    const fallback = defaultModel ?? this.models[0];
+    this.selectedModel = exists(saved) ? saved : fallback ? { id: fallback.id, providerID: fallback.providerID } : undefined;
     const savedAgent = this.ctx.globalState.get<string>(AGENT_KEY);
     this.selectedAgent = this.agents.some((a) => a.id === savedAgent)
       ? savedAgent
@@ -267,7 +268,7 @@ export class ChatController implements vscode.Disposable {
       this.postCatalog();
       this.post({ type: "session", session: null });
     }
-    if (this.models.length === 0 || !defaultModel) {
+    if (this.models.length === 0) {
       const s = translatedStrings();
       this.setStatus("error", { kind: "noProvider", message: s["error.noProvider"], actions: ["login", "reconnect", "showLogs"] });
     } else {
