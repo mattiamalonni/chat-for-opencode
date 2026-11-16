@@ -35,9 +35,15 @@ test or a manual probe actually ran.
 
 - **Orphaned servers if VS Code crashes.** Managed servers are stopped on `deactivate`; if the
   extension host is killed, `opencode serve` may survive (it has no parent-watch flag).
-- **OpenCode's default permissions** allow edits and shell commands in a project without asking
-  (observed with 2.2.7). The extension shows every request the server makes, but it cannot make
-  the server ask. Use `opencode.sessionPermissions` or OpenCode's `permissions` config.
+- **OpenCode's base policy** allows every action without asking (observed with 2.2.7). Sessions
+  created by the extension start with `edit`, `shell` and `external_directory` set to `ask` (the
+  `opencode.sessionPermissions` default). Sessions created elsewhere, or after setting that option
+  to `[]`, still follow OpenCode's permissive defaults. **Always allow** saves a project-scoped
+  approval; use OpenCode's `permissions` config for stricter, global rules.
+- **Session rules override `opencode.json` rules** (verified with 2.2.7: a config rule
+  `shell echo * allow` was still prompted with the default `shell * ask` session rule). Users with
+  an allowlist in their OpenCode config must copy it into `opencode.sessionPermissions` or set that
+  option to `[]`.
 - **Todo list** requires OpenCode's experimental flag `experimental.todo` (tool `todowrite`);
   without it there is no todo data to show.
 - **Session diff** (`GET /session/{id}/diff`) is empty outside git repositories; per-tool diffs from

@@ -2,7 +2,7 @@
   "name": "chat-for-opencode",
   "displayName": "%displayName%",
   "description": "%description%",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "publisher": "mattiamalonni",
   "license": "MIT",
   "author": "Mattia Malonni",
@@ -218,7 +218,23 @@
         },
         "opencode.sessionPermissions": {
           "type": "array",
-          "default": [],
+          "default": [
+            {
+              "action": "edit",
+              "resource": "*",
+              "effect": "ask"
+            },
+            {
+              "action": "shell",
+              "resource": "*",
+              "effect": "ask"
+            },
+            {
+              "action": "external_directory",
+              "resource": "*",
+              "effect": "ask"
+            }
+          ],
           "items": {
             "type": "object",
             "required": [

@@ -17,6 +17,6 @@
   "config.autoContext": "Allega file attivo e selezione a ogni messaggio (ogni elemento può essere rimosso prima dell'invio).",
   "config.startupTimeout": "Millisecondi di attesa perché `opencode serve` risponda.",
   "config.autoRestart": "Riavvia automaticamente il server gestito se termina in modo inatteso (max 5 volte in 2 minuti).",
-  "config.sessionPermissions": "Regole di autorizzazione (`action`, `resource`, `effect`) aggiunte alle nuove sessioni, es. `[{\"action\":\"edit\",\"resource\":\"*\",\"effect\":\"ask\"}]` per chiedere sempre prima delle modifiche. Vedi https://opencode.ai/docs/permissions/.",
+  "config.sessionPermissions": "Regole di autorizzazione (`action`, `resource`, `effect`) aggiunte alle nuove sessioni. Per impostazione predefinita l'estensione chiede conferma prima di modifiche, comandi shell e accessi fuori dal workspace; imposta `[]` per ripristinare i permessi permissivi di OpenCode. Vedi https://opencode.ai/docs/permissions/.",
   "command.moveView": "Sposta vista chat… (barra laterale sinistra/destra, pannello)"
 }

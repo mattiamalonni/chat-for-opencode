@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.2.0 — 2026-11-16
+
+**Behaviour change**
+
+- New sessions now ask for approval before edits, shell commands and access outside the workspace
+  by default; OpenCode's base policy silently allowed them. Set `opencode.sessionPermissions` to
+  `[]` to restore the previous behaviour.
+- Session rules take precedence over the `permissions` in `opencode.json`: if you keep an allowlist
+  there, copy it into `opencode.sessionPermissions` or set that option to `[]`.
+
 ## 0.1.1 — 2026-11-16
 
 - Repository renamed to `mattiamalonni/chat-for-opencode`; Marketplace links (repository, issues, homepage) updated.

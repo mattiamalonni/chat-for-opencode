@@ -18,6 +18,7 @@ import type {
 import { STRINGS, type StringKey, type Strings } from "../shared/strings";
 import { ContextTracker, FileIndex, selectionAttachment } from "./context";
 import { DiffService } from "./diff";
+import { DEFAULT_SESSION_PERMISSIONS } from "./permissions";
 
 const PASSWORD_KEY = (endpoint: string) => `opencode.password:${endpoint}`;
 const SESSION_KEY = (folder: string) => `opencode.session:${folder}`;
@@ -660,7 +661,7 @@ export class ChatController implements vscode.Disposable {
       if (!this.sessionId) {
         const permissions = vscode.workspace
           .getConfiguration("opencode", this.folder.uri)
-          .get<PermissionRule[]>("sessionPermissions", []);
+          .get<PermissionRule[]>("sessionPermissions", DEFAULT_SESSION_PERMISSIONS);
         const info = await client.createSession({
           directory: this.folder.uri.fsPath,
           agent: this.selectedAgent,

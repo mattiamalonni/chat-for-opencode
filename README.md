@@ -97,10 +97,19 @@ Press **F5** in this repository to launch an Extension Development Host.
 | `opencode.autoContext` | `true` | Attach active file and selection to messages (removable per message). |
 | `opencode.startupTimeout` | `30000` | ms to wait for the server to become healthy. |
 | `opencode.autoRestart` | `true` | Restart the managed server if it crashes (max 5 times in 2 minutes). |
-| `opencode.sessionPermissions` | `[]` | Permission rules added to new sessions, e.g. `[{"action":"edit","resource":"*","effect":"ask"}]` to approve every edit. |
+| `opencode.sessionPermissions` | ask before edits, shell and external files | Rules added to new sessions. Set `[]` to restore OpenCode's permissive defaults. |
 
-OpenCode's own defaults allow many actions without asking; use `opencode.sessionPermissions`
-or OpenCode's `permissions` config ([docs](https://opencode.ai/docs/permissions/)) to require approval.
+By default new sessions ask before editing files, running shell commands or accessing files outside
+the workspace: OpenCode's base policy (`{"action":"*","effect":"allow"}`) would otherwise approve
+them silently. Choose **Always allow** on a permission card to save an approval for the project.
+Set `opencode.sessionPermissions` to `[]`, or use OpenCode's `permissions` config
+([docs](https://opencode.ai/docs/permissions/)), to change the defaults.
+
+> **Note:** session rules take precedence over the `permissions` in your `opencode.json`. With the
+> default setting, an allowlist there such as `{"action":"shell","resource":"git status *","effect":"allow"}`
+> is overridden by the extension's `shell * ask`. Either copy those rules into
+> `opencode.sessionPermissions` (after the defaults, since the last matching rule wins) or set it to
+> `[]` to rely only on your OpenCode config.
 
 ## How it works
 
