@@ -89,5 +89,7 @@
   "Select some text in a file first.": "Seleziona prima del testo in un file.",
   "changes": "modifiche",
   "proposed": "proposta",
-  "{0} (OpenCode {1})": "{0} (OpenCode {1})"
+  "{0} (OpenCode {1})": "{0} (OpenCode {1})",
+  "Search models": "Cerca modelli",
+  "No matching models": "Nessun modello corrispondente"
 }

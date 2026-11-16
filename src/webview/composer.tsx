@@ -3,6 +3,7 @@ import type { AgentInfo, ModelInfo, ModelRef } from "../shared/api";
 import { composerAction } from "../shared/keys";
 import type { Attachment, ContextItem } from "../shared/protocol";
 import { isolateKeys } from "./env";
+import { Picker } from "./picker";
 import { useT } from "./i18n";
 import { IconAt, IconClose, IconFile, IconSelection, IconSend, IconStop } from "./icons";
 import { getPersisted, post, setPersisted } from "./vscode";
@@ -130,21 +131,20 @@ export function Composer(props: ComposerProps) {
   };
 
   const visibleContext = props.context.filter((c) => !props.excluded.has(c.id));
-  const modelGroups = useMemo(() => {
-    const groups = new Map<string, ModelInfo[]>();
-    for (const m of props.models) {
-      const list = groups.get(m.providerID) ?? [];
-      list.push(m);
-      groups.set(m.providerID, list);
-    }
-    return [...groups.entries()];
-  }, [props.models]);
+  const modelItems = useMemo(
+    () =>
+      [...props.models]
+        .sort((a, b) => a.providerID.localeCompare(b.providerID))
+        .map((m) => ({ value: `${m.providerID}/${m.id}`, label: m.name, group: m.providerID, description: m.id })),
+    [props.models],
+  );
   const modelKey = props.selectedModel ? `${props.selectedModel.providerID}/${props.selectedModel.id}` : "";
   const currentModel = props.models.find((m) => `${m.providerID}/${m.id}` === modelKey);
   const listId = "mention-list";
 
   return (
     <div class="composer">
+      <div class="composer-box">
       {(visibleContext.length > 0 || props.attachments.length > 0) && (
         <ul class="chips" aria-label={t("context")}>
           {visibleContext.map((c) => (
@@ -255,64 +255,43 @@ export function Composer(props: ComposerProps) {
           <IconAt />
         </button>
         {props.agents.length > 0 && (
-          <select
-            class="select"
-            aria-label={t("agent")}
-            title={props.agents.find((a) => a.id === props.selectedAgent)?.description ?? t("agent")}
+          <Picker
+            label={t("agent")}
+            class="agent"
+            items={props.agents.map((a) => ({ value: a.id, label: a.name, description: a.description }))}
             value={props.selectedAgent}
-            onChange={(e) => post({ type: "setAgent", agent: (e.target as HTMLSelectElement).value })}
-          >
-            {props.agents.map((a) => (
-              <option key={a.id} value={a.id}>
-                {a.name}
-              </option>
-            ))}
-          </select>
+            onChange={(agent) => post({ type: "setAgent", agent })}
+          />
         )}
         {props.models.length > 0 && (
-          <select
-            class="select model"
-            aria-label={t("model")}
-            title={currentModel ? `${currentModel.providerID}/${currentModel.id}` : t("model")}
+          <Picker
+            label={t("model")}
+            class="model"
+            searchable={props.models.length > 6}
+            searchPlaceholder={t("searchModels")}
+            emptyText={t("noModelsFound")}
+            placeholder={t("model")}
+            items={modelItems}
             value={modelKey}
-            onChange={(e) => {
-              const [providerID, ...rest] = (e.target as HTMLSelectElement).value.split("/");
+            onChange={(key) => {
+              const [providerID, ...rest] = key.split("/");
               post({ type: "setModel", model: { providerID, id: rest.join("/") } });
             }}
-          >
-            {!currentModel && <option value="">{t("model")}</option>}
-            {modelGroups.map(([provider, models]) => (
-              <optgroup key={provider} label={provider}>
-                {models.map((m) => (
-                  <option key={`${m.providerID}/${m.id}`} value={`${m.providerID}/${m.id}`}>
-                    {m.name}
-                  </option>
-                ))}
-              </optgroup>
-            ))}
-          </select>
+          />
         )}
         {currentModel && currentModel.variants.length > 0 && (
-          <select
-            class="select variant"
-            aria-label={t("variant")}
-            title={t("variant")}
+          <Picker
+            label={t("variant")}
+            class="variant"
+            items={[{ value: "", label: t("defaultVariant") }, ...currentModel.variants.map((v) => ({ value: v.id, label: v.id }))]}
             value={props.selectedModel?.variant ?? ""}
-            onChange={(e) => {
-              const v = (e.target as HTMLSelectElement).value;
+            onChange={(v) =>
               post({
                 type: "setModel",
                 model: { providerID: currentModel.providerID, id: currentModel.id, ...(v ? { variant: v } : {}) },
-              });
-            }}
-          >
-            <option value="">{t("defaultVariant")}</option>
-            {currentModel.variants.map((v) => (
-              <option key={v.id} value={v.id}>
-                {v.id}
-              </option>
-            ))}
-          </select>
+              })
+            }
+          />
         )}
         <span class="spacer" />
         {props.busy ? (
@@ -324,6 +303,7 @@ export function Composer(props: ComposerProps) {
             <IconSend />
           </button>
         )}
+      </div>
       </div>
     </div>
   );

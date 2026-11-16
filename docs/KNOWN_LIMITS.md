@@ -29,6 +29,10 @@ test or a manual probe actually ran.
 
 ## Behaviour limits
 
+- **VS Code 1.99–1.103** cannot contribute to the Secondary Side Bar: the chat opens in the Explorer
+  there (move it with *OpenCode: Move Chat View…*). VS Code remembers a view moved by the user, so
+  users upgrading from such a setup keep their custom location.
+
 - **Orphaned servers if VS Code crashes.** Managed servers are stopped on `deactivate`; if the
   extension host is killed, `opencode serve` may survive (it has no parent-watch flag).
 - **OpenCode's default permissions** allow edits and shell commands in a project without asking

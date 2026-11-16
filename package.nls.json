@@ -17,5 +17,6 @@
   "config.autoContext": "Attach the active file and selection to each message (each chip can be removed before sending).",
   "config.startupTimeout": "Milliseconds to wait for `opencode serve` to become healthy.",
   "config.autoRestart": "Restart the managed server automatically if it exits unexpectedly (max 5 times in 2 minutes).",
-  "config.sessionPermissions": "Permission rules (`action`, `resource`, `effect`) added to new sessions, e.g. `[{\"action\":\"edit\",\"resource\":\"*\",\"effect\":\"ask\"}]` to always ask before edits. See https://opencode.ai/docs/permissions/."
+  "config.sessionPermissions": "Permission rules (`action`, `resource`, `effect`) added to new sessions, e.g. `[{\"action\":\"edit\",\"resource\":\"*\",\"effect\":\"ask\"}]` to always ask before edits. See https://opencode.ai/docs/permissions/.",
+  "command.moveView": "Move Chat View… (left/right side bar, panel)"
 }

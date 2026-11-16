@@ -17,6 +17,8 @@ export const STRINGS = {
   model: "Model",
   variant: "Reasoning effort",
   defaultVariant: "Default",
+  searchModels: "Search models",
+  noModelsFound: "No matching models",
   agent: "Agent",
   folder: "Workspace folder",
   thinking: "Thinking",

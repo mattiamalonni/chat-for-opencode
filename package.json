@@ -29,7 +29,7 @@
   "activationEvents": [],
   "contributes": {
     "viewsContainers": {
-      "activitybar": [
+      "secondarySidebar": [
         {
           "id": "opencode",
           "title": "%container.title%",
@@ -96,6 +96,12 @@
         "title": "%command.showChanges%",
         "category": "OpenCode",
         "icon": "$(diff-multiple)"
+      },
+      {
+        "command": "opencode.moveView",
+        "title": "%command.moveView%",
+        "category": "OpenCode",
+        "icon": "$(arrow-swap)"
       }
     ],
     "menus": {
@@ -117,6 +123,11 @@
         },
         {
           "command": "opencode.showLogs",
+          "when": "view == opencode.chatView",
+          "group": "overflow"
+        },
+        {
+          "command": "opencode.moveView",
           "when": "view == opencode.chatView",
           "group": "overflow"
         }

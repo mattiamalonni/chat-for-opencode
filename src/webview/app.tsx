@@ -8,6 +8,7 @@ import { env } from "./env";
 import { StringsContext, useT } from "./i18n";
 import { IconCheck, IconChevron, IconClose, IconDiff, IconError, IconHistory, IconPlus, IconRefresh, IconTrash, IconWarning } from "./icons";
 import { setCopyLabel } from "./markdown";
+import { Picker } from "./picker";
 import { ActionButton, FileList, FormCard, MessageView, PermissionCard } from "./messages";
 import { onHostMessage, post } from "./vscode";
 
@@ -197,18 +198,14 @@ function Header(props: { title: string; folders: { list: FolderInfo[]; active?: 
         <IconChevron class={`chevron ${props.showSessions ? "down" : ""}`} />
       </button>
       {props.folders.list.length > 1 && (
-        <select
-          class="select folder"
-          aria-label={t("folder")}
+        <Picker
+          label={t("folder")}
+          class="folder"
+          placement="bottom"
+          items={props.folders.list.map((f) => ({ value: f.uri, label: f.name }))}
           value={props.folders.active}
-          onChange={(e) => post({ type: "selectFolder", uri: (e.target as HTMLSelectElement).value })}
-        >
-          {props.folders.list.map((f) => (
-            <option key={f.uri} value={f.uri}>
-              {f.name}
-            </option>
-          ))}
-        </select>
+          onChange={(uri) => post({ type: "selectFolder", uri })}
+        />
       )}
       <button type="button" class="icon-button" title={t("newSession")} aria-label={t("newSession")} onClick={() => post({ type: "newSession" })}>
         <IconPlus />

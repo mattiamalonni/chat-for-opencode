@@ -46,6 +46,11 @@ export function activate(context: vscode.ExtensionContext): ExtensionApi {
       await focusView();
       chat.addAttachment({ uri: target.toString(), name: path.basename(target.fsPath), kind: "file", detail: vscode.workspace.asRelativePath(target) });
     }),
+    vscode.commands.registerCommand("opencode.moveView", async () => {
+      await focusView();
+      // Built-in "View: Move View" quick pick (primary/secondary side bar, panel).
+      await vscode.commands.executeCommand("workbench.action.moveFocusedView");
+    }),
     vscode.commands.registerCommand("opencode.showLogs", () => output.show(true)),
     vscode.commands.registerCommand("opencode.setServerPassword", () => chat.setPassword()),
     vscode.commands.registerCommand("opencode.stopServer", () => registry?.reset()),

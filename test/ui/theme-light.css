@@ -48,3 +48,4 @@
   --vscode-debugTokenExpression-number: #098658;
   --vscode-chat-requestBackground: #ffffff;
 }
+:root { --vscode-quickInputList-focusBackground: #e8e8e8; --vscode-quickInputList-focusForeground: #000000; --vscode-quickInput-background: #f8f8f8; --vscode-widget-shadow: rgba(0,0,0,0.16); --vscode-disabledForeground: rgba(97,97,97,0.5); }

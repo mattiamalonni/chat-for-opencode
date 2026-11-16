@@ -59,6 +59,22 @@ working. IME: `isComposing`/`keyCode 229`/`key === "Process"` never trigger send
 No todo endpoint/event exists; with `experimental.todo` the agent uses a `todowrite` tool whose
 input contains `todos[]`. The UI shows the latest call's list.
 
+## D10 — Secondary Side Bar container
+
+`contributes.viewsContainers.secondarySidebar` exists only from VS Code 1.104 (checked in
+`viewsExtensionPoint.ts` at tags 1.103.0 / 1.104.0). We keep `engines.vscode ^1.99.0` and contribute
+only that container: on 1.99–1.103 VS Code logs a warning and places the view in the Explorer
+(verified by the integration suite on 1.99.3), from where it can be moved with
+*OpenCode: Move Chat View…* (`workbench.action.moveFocusedView`). An extra Activity Bar container
+was rejected because it would create a duplicate, empty icon on new VS Code versions.
+
+## D11 — Custom pickers instead of `<select>`
+
+Native selects render with OS chrome inside webviews and cannot show descriptions, groups or a
+search box. `Picker` (button + `listbox` popup) follows the ARIA listbox pattern (ArrowUp/Down,
+Home/End, Enter, Escape, type-to-search for the model list) and is styled with `--vscode-quickInput*`
+variables so it looks like VS Code's own quick picks.
+
 ## D9 — Permission requests are rendered inside the tool card that triggered them
 
 `permission.asked.source.id` equals the tool call id, so the request is attached to that tool card;

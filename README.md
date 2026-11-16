@@ -5,9 +5,9 @@ coding agent. The extension is a **client** of the OpenCode v2 server (`opencode
 on your machine. It does not reimplement the agent, never reads or stores provider API keys and
 sends **no telemetry**.
 
-| Conversation | Inline permission | Light theme |
-| --- | --- | --- |
-| ![Conversation](docs/images/conversation-dark.png) | ![Permission](docs/images/permission-dark.png) | ![Light](docs/images/permission-light.png) |
+| Conversation | Inline permission | Model picker | Light theme |
+| --- | --- | --- | --- |
+| ![Conversation](docs/images/conversation-dark.png) | ![Permission](docs/images/permission-dark.png) | ![Model picker](docs/images/model-picker-dark.png) | ![Light](docs/images/permission-light.png) |
 
 > Screenshots come from the automated UI tests (`npm run test:ui`). They render real OpenCode
 > 2.2.7 event streams in a fake VS Code host.
@@ -17,7 +17,8 @@ sends **no telemetry**.
 - **Streaming chat** with Markdown, syntax highlighting and copy buttons on code blocks.
 - **Collapsible reasoning** ("Thoughts") and **tool cards** that work with any tool name (input, output, errors).
 - **Sessions**: list, create, switch, resume and delete. The last session of each folder is restored when VS Code restarts.
-- **Model, reasoning-effort and agent pickers** filled with what your server actually returns (e.g. *Build* / *Plan*).
+- **Opens on the right** in the Secondary Side Bar, like Copilot Chat (VS Code 1.104+); movable anywhere with *OpenCode: Move Chat View…* or drag and drop.
+- **Model, reasoning-effort and agent pickers** (custom, searchable, grouped by provider) filled with what your server actually returns (e.g. *Build* / *Plan*).
 - **Stop** a running response (button or `Esc` in the input).
 - **Editor context**: the active file and selection are attached automatically as chips you can remove before sending.
 - **`@` mentions** with fuzzy workspace file search, **Add Selection to Chat** / **Add File to Chat** in the editor and explorer context menus.
@@ -57,7 +58,9 @@ Press **F5** in this repository to launch an Extension Development Host.
 
 ## Usage
 
-1. Open a folder and click the **OpenCode** icon in the Activity Bar (or `Cmd/Ctrl+Alt+O`).
+1. Open a folder and press `Cmd/Ctrl+Alt+O` (or click the **OpenCode** icon in the Secondary Side Bar on the right).
+   On VS Code 1.99–1.103, which cannot contribute to the Secondary Side Bar, the chat appears in the Explorer;
+   use *OpenCode: Move Chat View…* to move it to the right.
 2. The extension starts `opencode serve` for the folder in the background (status shown at the top).
 3. Type a message. `Enter` sends, `Shift+Enter` adds a new line, `@` attaches files, `Esc` stops a running response.
 4. Pick the agent (*Build*, *Plan*, …), model and reasoning effort in the toolbar below the input.
@@ -75,6 +78,7 @@ Press **F5** in this repository to launch an Extension Development Host.
 | OpenCode: New Session | – |
 | OpenCode: Reconnect / Restart Server | – |
 | OpenCode: Show Changed Files | – |
+| OpenCode: Move Chat View… | – (left/right side bar or panel) |
 | OpenCode: Show Logs | – |
 | OpenCode: Set Server Password… | – (external server only) |
 | OpenCode: Stop Server | – |

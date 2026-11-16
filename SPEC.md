@@ -24,7 +24,7 @@ keys and sends no telemetry.
 │   DiffService (chat/diff.ts)  patch → before/after virtual docs → vscode.diff │
 └───────────────────────────────▲───────────────────────────────────────────────┘
                      postMessage │ (typed protocol, src/shared/protocol.ts)
-┌───────────────────────────────▼───────────── Webview View (sidebar) ──────────┐
+┌───────────────────────────────▼───────────── Webview View (Secondary Side Bar) ──────────┐
 │ Preact UI (src/webview)                                                       │
 │   chat reducer (src/shared/chatReducer.ts) folds history + live events        │
 │   markdown (marked + DOMPurify) + highlight.js                                │

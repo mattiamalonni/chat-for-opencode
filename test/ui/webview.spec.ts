@@ -259,14 +259,73 @@ test("@ mentions search files and attach the selection", async ({ page }) => {
   expect(send && "attachments" in send && send.attachments.map((a) => a.uri)).toEqual(["file:///work/src/apply.ts"]);
 });
 
-test("model, variant and agent selectors post changes", async ({ page }) => {
+test("custom pickers: agent, variant and searchable model (mouse + keyboard)", async ({ page }) => {
   await boot(page);
-  await page.getByRole("combobox", { name: STRINGS.agent }).selectOption("plan");
+  expect(await page.locator("select").count()).toBe(0);
+
+  const agent = page.getByRole("button", { name: `${STRINGS.agent}: Build` });
+  await agent.click();
+  const agentList = page.getByRole("listbox", { name: STRINGS.agent });
+  await expect(agentList).toBeVisible();
+  await expect(agentList.getByRole("option", { name: /Build/ })).toHaveAttribute("aria-selected", "true");
+  await page.waitForTimeout(150);
+  await page.screenshot({ path: join(SHOTS, "09-agent-picker-dark.png") });
+  await agentList.getByRole("option", { name: /Plan/ }).click();
   expect(await lastPosted(page, "setAgent")).toEqual({ type: "setAgent", agent: "plan" });
-  await page.getByRole("combobox", { name: STRINGS.variant }).selectOption("high");
+  await expect(agentList).toHaveCount(0);
+
+  // Keyboard: open with ArrowDown, move, confirm with Enter; Escape closes without changing.
+  const variant = page.getByRole("button", { name: new RegExp(`^${STRINGS.variant}:`) });
+  await variant.focus();
+  await page.keyboard.press("ArrowDown");
+  await expect(page.getByRole("listbox", { name: STRINGS.variant })).toBeVisible();
+  await page.keyboard.press("ArrowDown");
+  await page.keyboard.press("ArrowDown");
+  await page.keyboard.press("Enter");
   expect(await lastPosted(page, "setModel")).toEqual({ type: "setModel", model: { providerID: "opencode", id: "hy4-flash-free", variant: "high" } });
-  await page.getByRole("combobox", { name: STRINGS.model }).selectOption("github-copilot/claude-sonnet-5.5");
+  await expect(variant).toBeFocused();
+  await page.keyboard.press("ArrowDown");
+  await page.keyboard.press("Escape");
+  await expect(page.getByRole("listbox", { name: STRINGS.variant })).toHaveCount(0);
+
+  await page.getByRole("button", { name: `${STRINGS.model}: Hy4 flash Free` }).click();
+  const models = page.getByRole("listbox", { name: STRINGS.model });
+  await expect(models.locator(".picker-group")).toHaveText(["github-copilot", "opencode"]);
+  await page.waitForTimeout(150);
+  await page.screenshot({ path: join(SHOTS, "10-model-picker-dark.png") });
+  await models.getByRole("option", { name: /Claude Sonnet/ }).click();
   expect(await lastPosted(page, "setModel")).toEqual({ type: "setModel", model: { providerID: "github-copilot", id: "claude-sonnet-5.5" } });
+
+  // Clicking outside closes.
+  await page.getByRole("button", { name: `${STRINGS.agent}: Build` }).click();
+  await page.locator(".conversation").click({ position: { x: 20, y: 20 } });
+  await expect(page.getByRole("listbox", { name: STRINGS.agent })).toHaveCount(0);
+});
+
+test("model picker search filters when there are many models", async ({ page }) => {
+  await boot(page);
+  const many = Array.from({ length: 12 }, (_, i) => ({ id: `m${i}`, modelID: `m${i}`, providerID: i % 2 ? "alpha" : "beta", name: `Model ${i}`, enabled: true, variants: [] }));
+  many.push({ id: "gpt-x", modelID: "gpt-x", providerID: "alpha", name: "GPT X", enabled: true, variants: [] });
+  await host(page, { type: "catalog", models: many as never, agents: AGENTS as never, selectedModel: { id: "m0", providerID: "beta" }, selectedAgent: "build" });
+  await page.getByRole("button", { name: `${STRINGS.model}: Model 0` }).click();
+  const search = page.getByRole("combobox", { name: STRINGS.searchModels });
+  await expect(search).toBeFocused();
+  await page.keyboard.type("gpt");
+  await expect(page.getByRole("option")).toHaveCount(1);
+  await page.keyboard.press("Enter");
+  expect(await lastPosted(page, "setModel")).toEqual({ type: "setModel", model: { providerID: "alpha", id: "gpt-x" } });
+  await page.getByRole("button", { name: new RegExp(`^${STRINGS.model}:`) }).click();
+  await page.keyboard.type("zzz");
+  await expect(page.locator(".picker-empty")).toHaveText(STRINGS.noModelsFound);
+});
+
+test("picker popup stays inside a narrow view", async ({ page }) => {
+  await page.setViewportSize({ width: 260, height: 600 });
+  await boot(page);
+  await page.getByRole("button", { name: new RegExp(`^${STRINGS.variant}:`) }).click();
+  const box = await page.locator(".picker-popup").boundingBox();
+  expect(box!.x).toBeGreaterThanOrEqual(0);
+  expect(box!.x + box!.width).toBeLessThanOrEqual(260);
 });
 
 test("session list: switch and delete with confirmation", async ({ page }) => {

@@ -47,6 +47,7 @@ describe("opencode-chat extension", () => {
       "opencode.setServerPassword",
       "opencode.stopServer",
       "opencode.showChanges",
+      "opencode.moveView",
     ]) {
       assert.ok(all.includes(c), `missing command ${c}`);
     }
@@ -60,6 +61,17 @@ describe("opencode-chat extension", () => {
     assert.deepEqual(catalog.models.map((m) => m.id), ["mock-fast", "mock-smart"]);
     assert.deepEqual(catalog.agents.map((a) => a.id), ["build", "plan"]);
     assert.deepEqual(catalog.selectedModel, { id: "mock-fast", providerID: "mock" });
+  });
+
+  it("lives in the secondary side bar (right) on VS Code >= 1.104", async function () {
+    const [major, minor] = vscode.version.split(".").map(Number);
+    if (major === 1 && minor < 104) this.skip();
+    await vscode.commands.executeCommand("opencode.focus");
+    await waitFor(() => controller.isVisible, "view visible");
+    await vscode.commands.executeCommand("workbench.action.closeAuxiliaryBar");
+    await waitFor(() => !controller.isVisible, "hidden with the secondary side bar", 5000);
+    await vscode.commands.executeCommand("workbench.action.focusAuxiliaryBar");
+    await waitFor(() => controller.isVisible, "visible again with the secondary side bar", 5000);
   });
 
   it("sends a prompt and streams the reply", async () => {

@@ -57,3 +57,4 @@
   --vscode-progressBar-background: #0078d4;
   --vscode-chat-requestBackground: #262626;
 }
+:root { --vscode-quickInputList-focusBackground: #04395e; --vscode-quickInputList-focusForeground: #ffffff; --vscode-disabledForeground: rgba(204,204,204,0.5); }

@@ -113,26 +113,6 @@ details[open] > summary > .chevron,
   background: var(--vscode-toolbar-hoverBackground);
 }
 
-.select {
-  background: var(--vscode-dropdown-background);
-  color: var(--vscode-dropdown-foreground);
-  border: 1px solid var(--vscode-dropdown-border, transparent);
-  border-radius: 3px;
-  padding: 2px 4px;
-  font: inherit;
-  font-size: 0.92em;
-  max-width: 100%;
-  min-width: 0;
-}
-
-.select.model {
-  max-width: 45%;
-}
-
-.select.folder {
-  max-width: 35%;
-}
-
 /* ---- session list ---------------------------------------------------------------------- */
 
 .session-list {
@@ -890,10 +870,25 @@ button:disabled {
 
 .composer {
   padding: 6px 8px 8px;
-  border-top: 1px solid var(--vscode-widget-border, var(--vscode-panel-border, transparent));
+}
+
+.composer-box {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 2px;
+  border: 1px solid var(--vscode-input-border, var(--vscode-widget-border, transparent));
+  border-radius: 6px;
+  background: var(--vscode-input-background);
+  padding: 4px;
+  transition: border-color 0.1s ease;
+}
+
+.composer-box:focus-within {
+  border-color: var(--vscode-focusBorder);
+}
+
+.composer-box > .chips {
+  padding: 2px 2px 0;
 }
 
 .chips {
@@ -911,7 +906,7 @@ button:disabled {
   gap: 4px;
   max-width: 100%;
   padding: 1px 2px 1px 6px;
-  border-radius: 3px;
+  border-radius: 4px;
   border: 1px solid var(--vscode-widget-border, var(--vscode-input-border, transparent));
   background: var(--vscode-badge-background);
   color: var(--vscode-badge-foreground);
@@ -960,20 +955,20 @@ button:disabled {
 .input {
   width: 100%;
   resize: none;
-  min-height: 44px;
+  min-height: 40px;
   max-height: 240px;
-  padding: 6px 8px;
-  border-radius: 4px;
-  border: 1px solid var(--vscode-input-border, transparent);
-  background: var(--vscode-input-background);
+  padding: 4px 6px;
+  border: none;
+  background: transparent;
   color: var(--vscode-input-foreground);
   font: inherit;
   line-height: 1.4;
+  display: block;
 }
 
-.input:focus {
-  outline: 1px solid var(--vscode-focusBorder);
-  outline-offset: -1px;
+.input:focus,
+.input:focus-visible {
+  outline: none;
 }
 
 .input::placeholder {
@@ -982,34 +977,34 @@ button:disabled {
 
 .mention-popup {
   position: absolute;
-  bottom: calc(100% + 2px);
-  left: 0;
-  right: 0;
+  bottom: calc(100% + 6px);
+  left: -4px;
+  right: -4px;
   z-index: 10;
   list-style: none;
   margin: 0;
-  padding: 2px;
+  padding: 4px;
   max-height: 220px;
   overflow: auto;
-  background: var(--vscode-editorSuggestWidget-background, var(--vscode-quickInput-background));
-  border: 1px solid var(--vscode-editorSuggestWidget-border, var(--vscode-widget-border));
-  border-radius: 4px;
-  box-shadow: 0 2px 8px var(--vscode-widget-shadow, rgba(0, 0, 0, 0.3));
+  background: var(--vscode-quickInput-background, var(--vscode-editorWidget-background));
+  border: 1px solid var(--vscode-widget-border, var(--vscode-editorSuggestWidget-border));
+  border-radius: 6px;
+  box-shadow: 0 4px 16px var(--vscode-widget-shadow, rgba(0, 0, 0, 0.3));
 }
 
 .mention-popup li {
   display: flex;
   align-items: center;
   gap: 6px;
-  padding: 2px 6px;
-  border-radius: 3px;
+  padding: 3px 6px;
+  border-radius: 4px;
   cursor: pointer;
   white-space: nowrap;
 }
 
 .mention-popup li.active {
-  background: var(--vscode-editorSuggestWidget-selectedBackground, var(--vscode-list-activeSelectionBackground));
-  color: var(--vscode-editorSuggestWidget-selectedForeground, var(--vscode-list-activeSelectionForeground));
+  background: var(--vscode-quickInputList-focusBackground, var(--vscode-list-activeSelectionBackground));
+  color: var(--vscode-quickInputList-focusForeground, var(--vscode-list-activeSelectionForeground));
 }
 
 .mention-path {
@@ -1019,6 +1014,11 @@ button:disabled {
   font-size: 0.9em;
 }
 
+.mention-popup li.active .mention-path {
+  color: inherit;
+  opacity: 0.8;
+}
+
 .mention-empty {
   color: var(--vscode-descriptionForeground);
 }
@@ -1026,7 +1026,7 @@ button:disabled {
 .toolbar {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 2px;
   min-width: 0;
 }
 
@@ -1038,9 +1038,12 @@ button:disabled {
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  flex: none;
   border: none;
   border-radius: 4px;
-  padding: 4px 8px;
+  width: 26px;
+  height: 24px;
+  padding: 0;
   background: var(--vscode-button-background);
   color: var(--vscode-button-foreground);
   cursor: pointer;
@@ -1050,9 +1053,187 @@ button:disabled {
   background: var(--vscode-button-hoverBackground);
 }
 
+.send:disabled {
+  background: transparent;
+  color: var(--vscode-disabledForeground, var(--vscode-descriptionForeground));
+}
+
 .send.stop {
   background: var(--vscode-button-secondaryBackground);
   color: var(--vscode-button-secondaryForeground);
+}
+
+/* ---- picker (custom dropdown) ----------------------------------------------------------- */
+
+.picker {
+  position: relative;
+  min-width: 0;
+  flex: 0 1 auto;
+}
+
+.picker.model {
+  flex-shrink: 2;
+}
+
+.picker-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  max-width: 100%;
+  height: 24px;
+  padding: 0 4px 0 6px;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--vscode-descriptionForeground);
+  font-size: 0.92em;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.picker-trigger:hover,
+.picker-trigger.open {
+  background: var(--vscode-toolbar-hoverBackground);
+  color: var(--vscode-foreground);
+}
+
+.picker-value {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+
+.picker-chevron {
+  flex: none;
+  width: 12px;
+  height: 12px;
+  transform: rotate(90deg);
+  opacity: 0.8;
+}
+
+.header .picker-trigger {
+  color: var(--vscode-foreground);
+}
+
+.picker-popup {
+  position: absolute;
+  left: 0;
+  z-index: 30;
+  min-width: 180px;
+  max-width: min(320px, calc(100vw - 12px));
+  display: flex;
+  flex-direction: column;
+  background: var(--vscode-quickInput-background, var(--vscode-editorWidget-background));
+  color: var(--vscode-quickInput-foreground, var(--vscode-foreground));
+  border: 1px solid var(--vscode-widget-border, var(--vscode-contrastBorder, transparent));
+  border-radius: 6px;
+  box-shadow: 0 4px 16px var(--vscode-widget-shadow, rgba(0, 0, 0, 0.3));
+  padding: 4px;
+  animation: picker-in 0.08s ease-out;
+}
+
+.picker-popup.above {
+  bottom: calc(100% + 6px);
+}
+
+.picker-popup.below {
+  top: calc(100% + 4px);
+  right: 0;
+  left: auto;
+}
+
+@keyframes picker-in {
+  from {
+    opacity: 0;
+    transform: translateY(2px);
+  }
+}
+
+.picker-search {
+  margin-bottom: 4px;
+  padding: 4px 6px;
+  border-radius: 4px;
+  border: 1px solid var(--vscode-input-border, transparent);
+  background: var(--vscode-input-background);
+  color: var(--vscode-input-foreground);
+  font: inherit;
+}
+
+.picker-search:focus {
+  outline: 1px solid var(--vscode-focusBorder);
+  outline-offset: -1px;
+}
+
+.picker-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-height: 280px;
+  overflow-y: auto;
+}
+
+.picker-list:focus {
+  outline: none;
+}
+
+.picker-group {
+  padding: 6px 8px 2px;
+  font-size: 0.8em;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--vscode-descriptionForeground);
+}
+
+.picker-option {
+  display: flex;
+  align-items: flex-start;
+  gap: 4px;
+  padding: 4px 8px 4px 4px;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.picker-option.active {
+  background: var(--vscode-quickInputList-focusBackground, var(--vscode-list-activeSelectionBackground));
+  color: var(--vscode-quickInputList-focusForeground, var(--vscode-list-activeSelectionForeground));
+}
+
+.picker-check {
+  width: 16px;
+  height: 16px;
+  flex: none;
+  display: inline-flex;
+}
+
+.picker-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.picker-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.picker-desc {
+  font-size: 0.88em;
+  color: var(--vscode-descriptionForeground);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.picker-option.active .picker-desc {
+  color: inherit;
+  opacity: 0.8;
+}
+
+.picker-empty {
+  padding: 6px 8px;
+  color: var(--vscode-descriptionForeground);
 }
 
 @media (prefers-reduced-motion: reduce) {
