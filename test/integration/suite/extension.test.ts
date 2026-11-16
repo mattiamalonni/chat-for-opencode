@@ -35,6 +35,10 @@ describe("opencode-chat extension", () => {
     controller.onDidPost((m) => posted.push(m));
   });
 
+  it("activates on startup and reveals the chat on first run", async () => {
+    await waitFor(() => controller.isVisible, "chat revealed without user action", 15_000);
+  });
+
   it("registers its commands", async () => {
     const all = await vscode.commands.getCommands(true);
     for (const c of [

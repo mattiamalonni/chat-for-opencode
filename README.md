@@ -58,7 +58,8 @@ Press **F5** in this repository to launch an Extension Development Host.
 
 ## Usage
 
-1. Open a folder and press `Cmd/Ctrl+Alt+O` (or click the **OpenCode** icon in the Secondary Side Bar on the right).
+1. Open a folder. The chat opens automatically the first time; afterwards use `Cmd/Ctrl+Alt+O`,
+   the **OpenCode** item in the status bar, or the OpenCode icon in the Secondary Side Bar on the right.
    On VS Code 1.99–1.103, which cannot contribute to the Secondary Side Bar, the chat appears in the Explorer;
    use *OpenCode: Move Chat View…* to move it to the right.
 2. The extension starts `opencode serve` for the folder in the background (status shown at the top).

@@ -70,6 +70,21 @@ export function activate(context: vscode.ExtensionContext): ExtensionApi {
     }),
   );
 
+  // The Secondary Side Bar is often closed: keep a visible entry point and reveal the chat once.
+  const status = vscode.window.createStatusBarItem("opencode.status", vscode.StatusBarAlignment.Right, 100);
+  status.name = "OpenCode";
+  status.text = "$(comment-discussion) OpenCode";
+  status.tooltip = vscode.l10n.t("Open OpenCode chat");
+  status.command = "opencode.focus";
+  status.show();
+  context.subscriptions.push(status);
+
+  const REVEALED_KEY = "opencode.revealedOnce";
+  if (!context.globalState.get<boolean>(REVEALED_KEY)) {
+    void context.globalState.update(REVEALED_KEY, true);
+    void focusView();
+  }
+
   return { controller: chat };
 }
 
