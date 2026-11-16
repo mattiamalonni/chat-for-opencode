@@ -47,7 +47,7 @@ jobs:
         id: package
         run: |
           version=$(node -p "require('./package.json').version")
-          file="opencode-chat-$version.vsix"
+          file="chat-for-opencode-$version.vsix"
           npx vsce package --out "$file"
           echo "file=$file" >> "$GITHUB_OUTPUT"
           echo "version=$version" >> "$GITHUB_OUTPUT"

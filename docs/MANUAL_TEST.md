@@ -3,7 +3,7 @@
 Prerequisites: OpenCode v2 on `PATH` (`opencode --version`), a provider configured
 (`opencode models` lists models), the `.vsix` built with `npx @vscode/vsce package`.
 
-1. **Install**: `code --install-extension opencode-chat-0.1.0.vsix`, reload the window.
+1. **Install**: `code --install-extension chat-for-opencode-0.1.0.vsix`, reload the window.
 2. **Prepare a project**:
    ```sh
    mkdir /tmp/oc-manual && cd /tmp/oc-manual && git init && echo a > a.txt && git add . && git commit -m init

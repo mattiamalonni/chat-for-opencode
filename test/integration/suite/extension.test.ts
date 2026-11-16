@@ -26,9 +26,9 @@ function eventPosted(type: string, since: number) {
   return posted.slice(since).find((m) => m.type === "event" && m.event.type === type);
 }
 
-describe("opencode-chat extension", () => {
+describe("chat-for-opencode extension", () => {
   before(async () => {
-    const ext = vscode.extensions.getExtension("mattiamalonni.opencode-chat");
+    const ext = vscode.extensions.getExtension("mattiamalonni.chat-for-opencode");
     assert.ok(ext, "extension found");
     const api = (await ext.activate()) as { controller: ChatController };
     controller = api.controller;

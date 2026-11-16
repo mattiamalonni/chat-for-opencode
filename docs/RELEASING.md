@@ -33,3 +33,9 @@ git push origin v0.1.1
 
 `Actions → Release → Run workflow` with *dry-run* checked builds and uploads the `.vsix` artifact
 without publishing.
+
+## Notes
+
+- The Marketplace requires both the extension `name` and the `displayName` to be unique across
+  **all** publishers (`opencode-chat` and "OpenCode Chat" were already taken). Check before renaming:
+  search https://marketplace.visualstudio.com/ for the exact name.

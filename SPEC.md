@@ -1,4 +1,4 @@
-# opencode-chat — Specification
+# chat-for-opencode — Specification
 
 ## Goal
 

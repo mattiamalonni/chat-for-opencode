@@ -545,7 +545,7 @@ export class ChatController implements vscode.Disposable {
         this.output.show(true);
         return;
       case "openSettings":
-        await vscode.commands.executeCommand("workbench.action.openSettings", "@ext:mattiamalonni.opencode-chat");
+        await vscode.commands.executeCommand("workbench.action.openSettings", "@ext:mattiamalonni.chat-for-opencode");
         return;
       case "install":
         await vscode.env.openExternal(vscode.Uri.parse("https://opencode.ai/docs/"));

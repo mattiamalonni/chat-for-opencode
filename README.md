@@ -45,7 +45,7 @@ sends **no telemetry**.
 From a release `.vsix`:
 
 ```sh
-code --install-extension opencode-chat-0.1.0.vsix
+code --install-extension chat-for-opencode-0.1.0.vsix
 ```
 
 or *Extensions view → … → Install from VSIX…*.
@@ -55,7 +55,7 @@ From source:
 ```sh
 npm install
 npm run compile
-npx @vscode/vsce package     # produces opencode-chat-0.1.0.vsix
+npx @vscode/vsce package     # produces chat-for-opencode-0.1.0.vsix
 ```
 
 Press **F5** in this repository to launch an Extension Development Host.

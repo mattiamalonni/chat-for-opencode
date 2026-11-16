@@ -24,7 +24,7 @@ const done = (since: number) =>
 
 describe("real opencode serve inside VS Code", () => {
   before(async () => {
-    const ext = vscode.extensions.getExtension("mattiamalonni.opencode-chat")!;
+    const ext = vscode.extensions.getExtension("mattiamalonni.chat-for-opencode")!;
     controller = ((await ext.activate()) as { controller: ChatController }).controller;
     controller.onDidPost((m) => posted.push(m));
     await vscode.commands.executeCommand("opencode.focus");
