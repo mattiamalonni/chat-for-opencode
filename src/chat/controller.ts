@@ -141,24 +141,38 @@ export class ChatController implements vscode.Disposable {
 
   attachView(view: vscode.WebviewView): void {
     this.view = view;
-    const sub = view.webview.onDidReceiveMessage((msg: WebviewMessage) => {
-      this.handle(msg).catch((err: unknown) => {
-        this.output.error(`[chat] ${msg.type} failed: ${String(err)}`);
-        this.post({ type: "notice", error: toUiError(err) });
-      });
-    });
+    const sub = view.webview.onDidReceiveMessage((msg: WebviewMessage) => void this.receive(msg));
     view.onDidDispose(() => {
       sub.dispose();
       if (this.view === view) this.view = undefined;
     });
   }
 
+  /** Entry point for webview messages (also used by integration tests). */
+  async receive(msg: WebviewMessage): Promise<void> {
+    try {
+      await this.handle(msg);
+    } catch (err) {
+      this.output.error(`[chat] ${msg.type} failed: ${String(err)}`);
+      this.post({ type: "notice", error: toUiError(err) });
+    }
+  }
+
   get isVisible(): boolean {
     return this.view?.visible ?? false;
   }
 
+  private readonly postListeners = new Set<(msg: HostMessage) => void>();
+
   post(msg: HostMessage): void {
     void this.view?.webview.postMessage(msg);
+    for (const l of this.postListeners) l(msg);
+  }
+
+  /** Observes messages sent to the webview (used by integration tests). */
+  onDidPost(listener: (msg: HostMessage) => void): vscode.Disposable {
+    this.postListeners.add(listener);
+    return new vscode.Disposable(() => this.postListeners.delete(listener));
   }
 
   private pickFolder(): vscode.WorkspaceFolder | undefined {
@@ -701,6 +715,7 @@ export class ChatController implements vscode.Disposable {
 
   // Exposed for integration tests.
   get debugState() {
-    return { status: this.status, sessionId: this.sessionId, folder: this.folder?.uri.fsPath, baseUrl: this.client?.conn.baseUrl };
+    const storedSession = this.folder ? this.ctx.workspaceState.get<string>(SESSION_KEY(this.folder.uri.toString())) : undefined;
+    return { status: this.status, sessionId: this.sessionId, storedSession, folder: this.folder?.uri.fsPath, baseUrl: this.client?.conn.baseUrl };
   }
 }

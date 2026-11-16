@@ -7,3 +7,4 @@ test-results/
 playwright-report/
 test/ui/screenshots/*.png
 !test/ui/screenshots/.gitkeep
+src/**/*.js

@@ -162,3 +162,4 @@ session.tool.success {"content":[{"type":"text","text":"Todos updated: 0/3 compl
 
 The extension derives the todo panel from the latest `todowrite` call in the session
 (status values seen: `pending`, `in_progress`; `completed` assumed from the summary text).
+- The real server rejects `order` combined with `cursor` on `GET …/message` (400 "Cursor cannot be combined with order"); only send `order` on the first page. Found by the e2e test.

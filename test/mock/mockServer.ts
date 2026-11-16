@@ -8,6 +8,7 @@
  * Only erasable TypeScript syntax is used so Node can run this file directly.
  */
 import * as http from "node:http";
+import * as fs from "node:fs";
 import { randomBytes } from "node:crypto";
 
 type Json = Record<string, unknown>;
@@ -21,6 +22,8 @@ export interface MockOptions {
   /** Delay between streamed events. */
   stepMs?: number;
   noModels?: boolean;
+  /** Persist sessions to this JSON file so a restarted mock keeps its history. */
+  stateFile?: string;
 }
 
 interface MockSession {
@@ -95,6 +98,16 @@ export function startMockServer(opts: MockOptions = {}): Promise<MockServer> {
   const requests: MockServer["requests"] = [];
   const expected = "Basic " + Buffer.from(`opencode:${password}`).toString("base64");
 
+  if (opts.stateFile && fs.existsSync(opts.stateFile)) {
+    const saved = JSON.parse(fs.readFileSync(opts.stateFile, "utf8")) as Pick<MockSession, "info" | "messages" | "files">[];
+    for (const s of saved) sessions.set(s.info.id, { ...s, permissions: [], forms: [], interrupted: false, waiters: new Map() });
+  }
+  function persist(): void {
+    if (!opts.stateFile) return;
+    const data = [...sessions.values()].map((s) => ({ info: s.info, messages: s.messages, files: s.files }));
+    fs.writeFileSync(opts.stateFile, JSON.stringify(data));
+  }
+
   const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
   function emit(event: Json): void {
@@ -149,6 +162,7 @@ export function startMockServer(opts: MockOptions = {}): Promise<MockServer> {
     if (body?.permissions) info.permissions = body.permissions;
     const s: MockSession = { info, messages: [], permissions: [], forms: [], interrupted: false, waiters: new Map(), files: [] };
     sessions.set(sid, s);
+    persist();
     emit({ type: "session.created", data: { sessionID: sid, slug: "mock", version: "mock", projectID: "proj_mock", location } });
     return s;
   }
@@ -329,6 +343,7 @@ export function startMockServer(opts: MockOptions = {}): Promise<MockServer> {
   function finish(s: MockSession): void {
     const now = Date.now();
     s.info.time = { ...(s.info.time as Json), idle: now, updated: now };
+    persist();
   }
 
   function interrupted(s: MockSession, msgId: string): void {
@@ -389,6 +404,7 @@ export function startMockServer(opts: MockOptions = {}): Promise<MockServer> {
       if (rest === "" && req.method === "GET") return send(res, 200, { data: s.info });
       if (rest === "" && req.method === "DELETE") {
         sessions.delete(s.info.id);
+        persist();
         emit({ type: "session.deleted", data: { sessionID: s.info.id } });
         return send(res, 204);
       }
@@ -397,6 +413,9 @@ export function startMockServer(opts: MockOptions = {}): Promise<MockServer> {
         return send(res, 200, { data: s.info });
       }
       if (rest === "message") {
+        if (url.searchParams.has("cursor") && url.searchParams.has("order")) {
+          return send(res, 400, { _tag: "InvalidCursorError", message: "Cursor cannot be combined with order" });
+        }
         const order = url.searchParams.get("order") ?? "desc";
         const list = order === "asc" ? s.messages : [...s.messages].reverse();
         return send(res, 200, { data: list, cursor: {} });
@@ -493,7 +512,7 @@ if (isCli) {
     console.error("mock: simulated startup failure");
     process.exit(2);
   }
-  void startMockServer({ port, password: envPassword, directory: process.cwd() }).then((srv) => {
+  void startMockServer({ port, password: envPassword, directory: process.cwd(), stateFile: process.env.MOCK_STATE_FILE }).then((srv) => {
     console.log(`server listening on ${srv.url}`);
     if (!envPassword) console.log(`server password ${srv.password}`);
     const stop = () => void srv.close().then(() => process.exit(0));

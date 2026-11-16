@@ -233,7 +233,7 @@
     "test": "npm run test:unit && npm run test:ui && npm run test:integration",
     "test:unit": "vitest run",
     "test:ui": "node esbuild.mjs && playwright test",
-    "test:integration": "node esbuild.mjs && tsc -p test/integration && node out/integration/runTest.js",
+    "test:integration": "node esbuild.mjs && tsc -p test/integration && node out/test/integration/runTest.js",
     "test:e2e": "vitest run --config vitest.e2e.config.mts",
     "package": "vsce package"
   },
@@ -253,7 +253,7 @@
     "@vscode/vsce": "^4.1.1",
     "esbuild": "^0.28.2",
     "eslint": "^10.15.0",
-    "mocha": "^12.0.3",
+    "mocha": "^11.8.0",
     "typescript": "~6.0.3",
     "typescript-eslint": "^8.73.0",
     "vitest": "^5.1.0"

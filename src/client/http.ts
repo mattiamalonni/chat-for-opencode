@@ -143,7 +143,8 @@ export class OpenCodeClient {
       const res = await this.request<{ data: SessionMessage[]; cursor?: { next?: string | null } }>(
         "GET",
         `api/session/${encodeURIComponent(id)}/message`,
-        { query: { order: "asc", limit: 200, cursor } },
+        // The server rejects `order` together with `cursor` ("Cursor cannot be combined with order").
+        { query: cursor ? { limit: 200, cursor } : { order: "asc", limit: 200 } },
       );
       out.push(...res.data);
       cursor = res.data.length > 0 ? (res.cursor?.next ?? undefined) : undefined;
