@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.3.0 — 2026-11-17
 
 - The model picker shows each model's context window (e.g. `200K`, `1M`).
 - A context meter next to the send button shows how much of the selected model's context window
