@@ -1,0 +1,65 @@
+# Decisions
+
+## D1 — Direct HTTP/SSE instead of an SDK
+
+* `@opencode-ai/sdk` (1.19.x) targets the **v1** API (`/session`, `/event`); the installed server is
+  v2.2.7 and exposes everything under `/api/*`. Incompatible.
+* `@opencode/client` (2.3.0) is the v2 client but: it is described on npm as a *"Private
+  generation target"*, it is ESM-only (VS Code extensions load CJS), it is newer than the
+  installed server (2.2.7) so generated types may not match, it pulls `@opencode/schema` and
+  `@opencode/protocol` (~1.2 MB unpacked for the client alone), and its event subscriptions have
+  "no replay or automatic reconnection" anyway.
+* We use ~20 endpoints. A thin hand-written client with types taken from the server's own
+  `/openapi.json` (saved in `docs/openapi-2.2.7.json`) is small, testable against a mock server,
+  and lets us implement reconnection exactly as we need.
+
+## D2 — Managed server: random password via `OPENCODE_PASSWORD`
+
+v2 servers always require Basic auth. Documented env var `OPENCODE_PASSWORD` sets it; we
+generate 32 random bytes per spawn and keep them in memory only. `--port 0` lets the OS pick a
+free port; the URL is parsed from the `server listening on <url>` stdout line, then `/api/info` is
+polled as a health check.
+
+## D3 — One process per workspace folder, cwd = folder
+
+The server's default location is its cwd, and sessions are created with an explicit
+`location.directory`, so each folder's server sees only its own project. Processes start lazily
+(first time the chat view needs that folder).
+
+## D4 — Reducer in the webview, server as source of truth
+
+History is re-fetched on view creation and after every SSE reconnect; live events are forwarded
+unchanged. This keeps the host stateless w.r.t. message content, avoids `retainContextWhenHidden`
+(memory), and makes the reducer a pure function testable in Node.
+
+## D5 — Preact + marked + DOMPurify + highlight.js (common subset)
+
+Preact is ~4 KB; marked is fast and dependency-free; DOMPurify because model output may contain
+HTML; highlight.js `lib/common` covers ~35 languages and works with VS Code theme colours via CSS
+variables. Total webview bundle stays well under 1 MB.
+
+## D6 — Diffs from patches
+
+The server returns unified patches (tool `metadata.files[]`, `permission.asked.metadata.files[]`,
+`GET /session/{id}/diff`). The extension reconstructs the other side by applying the patch to the
+current file content (forward for proposed changes, reverse for applied ones) and opens
+`vscode.diff` with virtual documents. If the patch doesn't apply cleanly we show the raw patch.
+
+## D7 — Keyboard isolation
+
+The VS Code webview preload forwards every `keydown` that reaches `window` (bubble phase) to the
+workbench keybinding service (verified in `src/vs/workbench/contrib/webview/browser/pre/index.html`).
+The composer calls `stopPropagation()` for keys it owns (plain keys, Ctrl/Alt combos such as
+Ctrl+J, Ctrl+R, Ctrl+K, AltGr chars), and lets a small allowlist through (clipboard, undo/redo,
+Cmd/Ctrl+Shift+P, Cmd/Ctrl+P, F-keys, …) so the preload's Electron clipboard handling keeps
+working. IME: `isComposing`/`keyCode 229`/`key === "Process"` never trigger send.
+
+## D8 — Todo list from `todowrite`
+
+No todo endpoint/event exists; with `experimental.todo` the agent uses a `todowrite` tool whose
+input contains `todos[]`. The UI shows the latest call's list.
+
+## D9 — Permission requests are rendered inside the tool card that triggered them
+
+`permission.asked.source.id` equals the tool call id, so the request is attached to that tool card;
+requests without a source are shown at the end of the conversation.

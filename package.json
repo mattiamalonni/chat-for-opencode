@@ -1,0 +1,261 @@
+{
+  "name": "opencode-chat",
+  "displayName": "%displayName%",
+  "description": "%description%",
+  "version": "0.1.0",
+  "publisher": "mattiamalonni",
+  "license": "MIT",
+  "author": "Mattia Malonni",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/mattiamalonni/vscode-opencode"
+  },
+  "icon": "media/icon.png",
+  "engines": {
+    "vscode": "^1.99.0"
+  },
+  "categories": [
+    "AI",
+    "Chat"
+  ],
+  "keywords": [
+    "opencode",
+    "ai",
+    "chat",
+    "agent"
+  ],
+  "main": "./dist/extension.js",
+  "l10n": "./l10n",
+  "activationEvents": [],
+  "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "opencode",
+          "title": "%container.title%",
+          "icon": "media/opencode.svg"
+        }
+      ]
+    },
+    "views": {
+      "opencode": [
+        {
+          "type": "webview",
+          "id": "opencode.chatView",
+          "name": "%view.chat%",
+          "icon": "media/opencode.svg"
+        }
+      ]
+    },
+    "commands": [
+      {
+        "command": "opencode.newSession",
+        "title": "%command.newSession%",
+        "category": "OpenCode",
+        "icon": "$(add)"
+      },
+      {
+        "command": "opencode.reconnect",
+        "title": "%command.reconnect%",
+        "category": "OpenCode",
+        "icon": "$(debug-restart)"
+      },
+      {
+        "command": "opencode.addSelectionToChat",
+        "title": "%command.addSelectionToChat%",
+        "category": "OpenCode"
+      },
+      {
+        "command": "opencode.addFileToChat",
+        "title": "%command.addFileToChat%",
+        "category": "OpenCode"
+      },
+      {
+        "command": "opencode.focus",
+        "title": "%command.focus%",
+        "category": "OpenCode"
+      },
+      {
+        "command": "opencode.showLogs",
+        "title": "%command.showLogs%",
+        "category": "OpenCode",
+        "icon": "$(output)"
+      },
+      {
+        "command": "opencode.setServerPassword",
+        "title": "%command.setServerPassword%",
+        "category": "OpenCode"
+      },
+      {
+        "command": "opencode.stopServer",
+        "title": "%command.stopServer%",
+        "category": "OpenCode"
+      },
+      {
+        "command": "opencode.showChanges",
+        "title": "%command.showChanges%",
+        "category": "OpenCode",
+        "icon": "$(diff-multiple)"
+      }
+    ],
+    "menus": {
+      "view/title": [
+        {
+          "command": "opencode.newSession",
+          "when": "view == opencode.chatView",
+          "group": "navigation@1"
+        },
+        {
+          "command": "opencode.showChanges",
+          "when": "view == opencode.chatView",
+          "group": "navigation@2"
+        },
+        {
+          "command": "opencode.reconnect",
+          "when": "view == opencode.chatView",
+          "group": "navigation@3"
+        },
+        {
+          "command": "opencode.showLogs",
+          "when": "view == opencode.chatView",
+          "group": "overflow"
+        }
+      ],
+      "editor/context": [
+        {
+          "command": "opencode.addSelectionToChat",
+          "when": "editorHasSelection",
+          "group": "opencode@1"
+        },
+        {
+          "command": "opencode.addFileToChat",
+          "when": "resourceScheme == file",
+          "group": "opencode@2"
+        }
+      ],
+      "explorer/context": [
+        {
+          "command": "opencode.addFileToChat",
+          "when": "resourceScheme == file",
+          "group": "opencode@1"
+        }
+      ],
+      "commandPalette": [
+        {
+          "command": "opencode.addSelectionToChat",
+          "when": "editorHasSelection"
+        }
+      ]
+    },
+    "keybindings": [
+      {
+        "command": "opencode.focus",
+        "key": "ctrl+alt+o",
+        "mac": "cmd+alt+o"
+      },
+      {
+        "command": "opencode.addSelectionToChat",
+        "key": "ctrl+alt+l",
+        "mac": "cmd+alt+l",
+        "when": "editorTextFocus && editorHasSelection"
+      }
+    ],
+    "configuration": {
+      "title": "OpenCode",
+      "properties": {
+        "opencode.executablePath": {
+          "type": "string",
+          "default": "opencode",
+          "scope": "machine-overridable",
+          "markdownDescription": "%config.executablePath%"
+        },
+        "opencode.endpoint": {
+          "type": "string",
+          "default": "",
+          "scope": "machine-overridable",
+          "markdownDescription": "%config.endpoint%"
+        },
+        "opencode.autoContext": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "%config.autoContext%"
+        },
+        "opencode.startupTimeout": {
+          "type": "number",
+          "default": 30000,
+          "minimum": 2000,
+          "markdownDescription": "%config.startupTimeout%"
+        },
+        "opencode.autoRestart": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "%config.autoRestart%"
+        },
+        "opencode.sessionPermissions": {
+          "type": "array",
+          "default": [],
+          "items": {
+            "type": "object",
+            "required": [
+              "action",
+              "resource",
+              "effect"
+            ],
+            "properties": {
+              "action": {
+                "type": "string"
+              },
+              "resource": {
+                "type": "string"
+              },
+              "effect": {
+                "type": "string",
+                "enum": [
+                  "allow",
+                  "deny",
+                  "ask"
+                ]
+              }
+            }
+          },
+          "markdownDescription": "%config.sessionPermissions%"
+        }
+      }
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile:prod",
+    "compile": "npm run typecheck && node esbuild.mjs",
+    "compile:prod": "npm run typecheck && node esbuild.mjs --production",
+    "typecheck": "tsc -p . --noEmit && tsc -p src/webview --noEmit",
+    "watch": "node esbuild.mjs --watch",
+    "lint": "eslint .",
+    "test": "npm run test:unit && npm run test:ui && npm run test:integration",
+    "test:unit": "vitest run",
+    "test:ui": "node esbuild.mjs && playwright test",
+    "test:integration": "node esbuild.mjs && tsc -p test/integration && node out/integration/runTest.js",
+    "test:e2e": "vitest run --config vitest.e2e.config.mts",
+    "package": "vsce package"
+  },
+  "dependencies": {
+    "dompurify": "^3.4.18",
+    "highlight.js": "^11.12.0",
+    "marked": "^18.2.1",
+    "preact": "^11.2.0"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@playwright/test": "^1.65.1",
+    "@types/mocha": "^10.0.10",
+    "@types/node": "^22.20.5",
+    "@types/vscode": "1.99.0",
+    "@vscode/test-electron": "^3.1.0",
+    "@vscode/vsce": "^4.1.1",
+    "esbuild": "^0.28.2",
+    "eslint": "^10.15.0",
+    "mocha": "^12.0.3",
+    "typescript": "~6.0.3",
+    "typescript-eslint": "^8.73.0",
+    "vitest": "^5.1.0"
+  }
+}

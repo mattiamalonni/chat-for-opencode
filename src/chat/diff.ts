@@ -1,0 +1,68 @@
+import * as path from "node:path";
+import * as vscode from "vscode";
+import { applyPatch, sidesFromPatch } from "../shared/patch";
+
+export const DIFF_SCHEME = "opencode-diff";
+
+/** Serves the read-only "other side" of OpenCode diffs as virtual documents. */
+export class DiffService implements vscode.TextDocumentContentProvider {
+  private readonly contents = new Map<string, string>();
+  private counter = 0;
+
+  provideTextDocumentContent(uri: vscode.Uri): string {
+    return this.contents.get(uri.toString()) ?? "";
+  }
+
+  private virtual(file: string, label: string, content: string): vscode.Uri {
+    const uri = vscode.Uri.from({
+      scheme: DIFF_SCHEME,
+      path: "/" + file.replace(/\\/g, "/").replace(/^\/+/, ""),
+      query: `${label}-${++this.counter}`,
+    });
+    this.contents.set(uri.toString(), content);
+    // Keep memory bounded.
+    if (this.contents.size > 200) this.contents.delete(this.contents.keys().next().value as string);
+    return uri;
+  }
+
+  /**
+   * Opens a native diff for `patch`.
+   * `applied: true`  → the change is already on disk: left = reconstructed original, right = file.
+   * `applied: false` → proposed change (permission request): left = file, right = patched preview.
+   */
+  async open(root: vscode.Uri, file: string, patch: string, applied: boolean): Promise<void> {
+    const target = path.isAbsolute(file) ? vscode.Uri.file(file) : vscode.Uri.joinPath(root, file);
+    let current: string | undefined;
+    try {
+      current = new TextDecoder().decode(await vscode.workspace.fs.readFile(target));
+    } catch {
+      current = undefined;
+    }
+    const name = path.basename(file);
+    const fallback = sidesFromPatch(patch);
+    let left: vscode.Uri;
+    let right: vscode.Uri;
+
+    if (applied) {
+      const original = current !== undefined ? applyPatch(current, patch, { reverse: true }) : undefined;
+      if (current !== undefined && original !== undefined) {
+        left = this.virtual(file, "before", original);
+        right = target;
+      } else {
+        left = this.virtual(file, "before", fallback.before);
+        right = this.virtual(file, "after", current ?? fallback.after);
+      }
+    } else {
+      const proposed = applyPatch(current ?? "", patch);
+      if (proposed !== undefined) {
+        left = current !== undefined ? target : this.virtual(file, "before", "");
+        right = this.virtual(file, "proposed", proposed);
+      } else {
+        left = this.virtual(file, "before", fallback.before);
+        right = this.virtual(file, "proposed", fallback.after);
+      }
+    }
+    const title = vscode.l10n.t("{0} (OpenCode {1})", name, applied ? vscode.l10n.t("changes") : vscode.l10n.t("proposed"));
+    await vscode.commands.executeCommand("vscode.diff", left, right, title, { preview: true });
+  }
+}

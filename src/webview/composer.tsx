@@ -1,0 +1,330 @@
+import { useEffect, useMemo, useRef, useState } from "preact/hooks";
+import type { AgentInfo, ModelInfo, ModelRef } from "../shared/api";
+import { composerAction } from "../shared/keys";
+import type { Attachment, ContextItem } from "../shared/protocol";
+import { isolateKeys } from "./env";
+import { useT } from "./i18n";
+import { IconAt, IconClose, IconFile, IconSelection, IconSend, IconStop } from "./icons";
+import { getPersisted, post, setPersisted } from "./vscode";
+
+export interface ComposerProps {
+  busy: boolean;
+  disabled: boolean;
+  models: ModelInfo[];
+  agents: AgentInfo[];
+  selectedModel?: ModelRef;
+  selectedAgent?: string;
+  context: ContextItem[];
+  excluded: Set<string>;
+  onExclude: (id: string) => void;
+  attachments: Attachment[];
+  onRemoveAttachment: (uri: string) => void;
+  onAddAttachment: (a: Attachment) => void;
+  fileResults: { query: string; items: Attachment[] };
+  onSend: (text: string) => void;
+  focusToken: number;
+}
+
+const MENTION_RE = /(^|\s)@([^\s@]*)$/;
+
+export function Composer(props: ComposerProps) {
+  const t = useT();
+  const [text, setText] = useState(() => getPersisted().draft ?? "");
+  const [mention, setMention] = useState<{ query: string; start: number } | undefined>();
+  const [active, setActive] = useState(0);
+  const ref = useRef<HTMLTextAreaElement>(null);
+  const composing = useRef(false);
+
+  useEffect(() => {
+    ref.current?.focus();
+  }, [props.focusToken]);
+
+  useEffect(() => {
+    const handle = setTimeout(() => setPersisted({ ...getPersisted(), draft: text }), 300);
+    return () => clearTimeout(handle);
+  }, [text]);
+
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = `${Math.min(el.scrollHeight, 240)}px`;
+  }, [text]);
+
+  useEffect(() => {
+    if (!mention) return;
+    const handle = setTimeout(() => post({ type: "searchFiles", query: mention.query }), 100);
+    return () => clearTimeout(handle);
+  }, [mention?.query]);
+
+  const results = mention && props.fileResults.query === mention.query ? props.fileResults.items : [];
+  useEffect(() => setActive(0), [results.length, mention?.query]);
+
+  const updateMention = (value: string, caret: number) => {
+    const m = MENTION_RE.exec(value.slice(0, caret));
+    setMention(m ? { query: m[2], start: caret - m[2].length - 1 } : undefined);
+  };
+
+  const pick = (item: Attachment) => {
+    if (!mention) return;
+    const el = ref.current;
+    const caret = el?.selectionStart ?? text.length;
+    const label = `@${item.detail ?? item.name} `;
+    const next = text.slice(0, mention.start) + label + text.slice(caret);
+    setText(next);
+    setMention(undefined);
+    props.onAddAttachment(item);
+    requestAnimationFrame(() => {
+      const pos = mention.start + label.length;
+      el?.focus();
+      el?.setSelectionRange(pos, pos);
+    });
+  };
+
+  const send = () => {
+    const value = text.trim();
+    if (!value || props.disabled) return;
+    if (props.busy) return;
+    props.onSend(value);
+    setText("");
+    setMention(undefined);
+  };
+
+  const onKeyDown = (e: KeyboardEvent) => {
+    isolateKeys(e);
+    if (mention && results.length > 0 && !composing.current && !e.isComposing) {
+      if (e.key === "ArrowDown") {
+        e.preventDefault();
+        setActive((a) => (a + 1) % results.length);
+        return;
+      }
+      if (e.key === "ArrowUp") {
+        e.preventDefault();
+        setActive((a) => (a - 1 + results.length) % results.length);
+        return;
+      }
+      if (e.key === "Enter" || e.key === "Tab") {
+        e.preventDefault();
+        e.stopPropagation();
+        pick(results[active]);
+        return;
+      }
+    }
+    if (mention && e.key === "Escape") {
+      e.preventDefault();
+      e.stopPropagation();
+      setMention(undefined);
+      return;
+    }
+    if (e.key === "Escape" && props.busy) {
+      e.preventDefault();
+      e.stopPropagation();
+      post({ type: "abort" });
+      return;
+    }
+    const action = composerAction(e, composing.current);
+    if (action === "send") {
+      e.preventDefault();
+      send();
+    }
+  };
+
+  const visibleContext = props.context.filter((c) => !props.excluded.has(c.id));
+  const modelGroups = useMemo(() => {
+    const groups = new Map<string, ModelInfo[]>();
+    for (const m of props.models) {
+      const list = groups.get(m.providerID) ?? [];
+      list.push(m);
+      groups.set(m.providerID, list);
+    }
+    return [...groups.entries()];
+  }, [props.models]);
+  const modelKey = props.selectedModel ? `${props.selectedModel.providerID}/${props.selectedModel.id}` : "";
+  const currentModel = props.models.find((m) => `${m.providerID}/${m.id}` === modelKey);
+  const listId = "mention-list";
+
+  return (
+    <div class="composer">
+      {(visibleContext.length > 0 || props.attachments.length > 0) && (
+        <ul class="chips" aria-label={t("context")}>
+          {visibleContext.map((c) => (
+            <li class={`chip ${c.kind === "file" ? "implicit" : ""}`} key={c.id} title={c.detail ?? c.uri}>
+              {c.kind === "selection" ? <IconSelection /> : <IconFile />}
+              <span>{c.label}</span>
+              <span class="chip-kind">{c.kind === "file" ? t("currentFile") : t("selection")}</span>
+              <button type="button" class="chip-remove" aria-label={`${t("removeContext")}: ${c.label}`} onClick={() => props.onExclude(c.id)}>
+                <IconClose />
+              </button>
+            </li>
+          ))}
+          {props.attachments.map((a) => (
+            <li class="chip" key={a.uri} title={a.detail ?? a.uri}>
+              {a.kind === "selection" ? <IconSelection /> : <IconFile />}
+              <span>{a.kind === "selection" ? (a.detail ?? a.name) : a.name}</span>
+              <button type="button" class="chip-remove" aria-label={`${t("removeContext")}: ${a.name}`} onClick={() => props.onRemoveAttachment(a.uri)}>
+                <IconClose />
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+      <div class="input-wrap">
+        {mention && (
+          <ul class="mention-popup" role="listbox" id={listId} aria-label={t("attachFile")}>
+            {results.length === 0 ? (
+              <li class="mention-empty" role="option" aria-disabled="true" aria-selected="false">
+                {t("noFilesFound")}
+              </li>
+            ) : (
+              results.map((r, i) => (
+                <li
+                  key={r.uri}
+                  id={`mention-${i}`}
+                  role="option"
+                  aria-selected={i === active}
+                  class={i === active ? "active" : ""}
+                  onMouseDown={(e) => {
+                    e.preventDefault();
+                    pick(r);
+                  }}
+                >
+                  <IconFile />
+                  <span class="mention-name">{r.name}</span>
+                  <span class="mention-path">{r.detail}</span>
+                </li>
+              ))
+            )}
+          </ul>
+        )}
+        <textarea
+          ref={ref}
+          class="input"
+          rows={2}
+          value={text}
+          placeholder={t("inputPlaceholder")}
+          aria-label={t("inputLabel")}
+          aria-autocomplete="list"
+          aria-expanded={!!mention}
+          aria-controls={mention ? listId : undefined}
+          aria-activedescendant={mention && results.length > 0 ? `mention-${active}` : undefined}
+          disabled={props.disabled}
+          onInput={(e) => {
+            const el = e.currentTarget as HTMLTextAreaElement;
+            setText(el.value);
+            if (!composing.current) updateMention(el.value, el.selectionStart);
+          }}
+          onKeyDown={onKeyDown}
+          onKeyUp={(e) => {
+            isolateKeys(e);
+            const el = e.currentTarget as HTMLTextAreaElement;
+            if ((e.key === "ArrowLeft" || e.key === "ArrowRight" || e.key === "Home" || e.key === "End") && !composing.current) {
+              updateMention(el.value, el.selectionStart);
+            }
+          }}
+          onCompositionStart={() => (composing.current = true)}
+          onCompositionEnd={(e) => {
+            // WebKit fires compositionend before the Enter keydown that confirms the IME candidate.
+            setTimeout(() => (composing.current = false), 0);
+            const el = e.currentTarget as HTMLTextAreaElement;
+            updateMention(el.value, el.selectionStart);
+          }}
+          onBlur={() => setTimeout(() => setMention(undefined), 150)}
+        />
+      </div>
+      <div class="toolbar">
+        <button
+          type="button"
+          class="icon-button"
+          title={t("attachFile")}
+          aria-label={t("attachFile")}
+          onClick={() => {
+            const el = ref.current;
+            if (!el) return;
+            const pos = el.selectionStart ?? text.length;
+            const prefix = pos > 0 && !/\s$/.test(text.slice(0, pos)) ? " @" : "@";
+            const next = text.slice(0, pos) + prefix + text.slice(pos);
+            setText(next);
+            const caret = pos + prefix.length;
+            requestAnimationFrame(() => {
+              el.focus();
+              el.setSelectionRange(caret, caret);
+              updateMention(next, caret);
+            });
+          }}
+        >
+          <IconAt />
+        </button>
+        {props.agents.length > 0 && (
+          <select
+            class="select"
+            aria-label={t("agent")}
+            title={props.agents.find((a) => a.id === props.selectedAgent)?.description ?? t("agent")}
+            value={props.selectedAgent}
+            onChange={(e) => post({ type: "setAgent", agent: (e.target as HTMLSelectElement).value })}
+          >
+            {props.agents.map((a) => (
+              <option key={a.id} value={a.id}>
+                {a.name}
+              </option>
+            ))}
+          </select>
+        )}
+        {props.models.length > 0 && (
+          <select
+            class="select model"
+            aria-label={t("model")}
+            title={currentModel ? `${currentModel.providerID}/${currentModel.id}` : t("model")}
+            value={modelKey}
+            onChange={(e) => {
+              const [providerID, ...rest] = (e.target as HTMLSelectElement).value.split("/");
+              post({ type: "setModel", model: { providerID, id: rest.join("/") } });
+            }}
+          >
+            {!currentModel && <option value="">{t("model")}</option>}
+            {modelGroups.map(([provider, models]) => (
+              <optgroup key={provider} label={provider}>
+                {models.map((m) => (
+                  <option key={`${m.providerID}/${m.id}`} value={`${m.providerID}/${m.id}`}>
+                    {m.name}
+                  </option>
+                ))}
+              </optgroup>
+            ))}
+          </select>
+        )}
+        {currentModel && currentModel.variants.length > 0 && (
+          <select
+            class="select variant"
+            aria-label={t("variant")}
+            title={t("variant")}
+            value={props.selectedModel?.variant ?? ""}
+            onChange={(e) => {
+              const v = (e.target as HTMLSelectElement).value;
+              post({
+                type: "setModel",
+                model: { providerID: currentModel.providerID, id: currentModel.id, ...(v ? { variant: v } : {}) },
+              });
+            }}
+          >
+            <option value="">{t("defaultVariant")}</option>
+            {currentModel.variants.map((v) => (
+              <option key={v.id} value={v.id}>
+                {v.id}
+              </option>
+            ))}
+          </select>
+        )}
+        <span class="spacer" />
+        {props.busy ? (
+          <button type="button" class="send stop" title={`${t("stop")} (Esc)`} aria-label={t("stop")} onClick={() => post({ type: "abort" })}>
+            <IconStop />
+          </button>
+        ) : (
+          <button type="button" class="send" title={`${t("send")} (Enter)`} aria-label={t("send")} disabled={props.disabled || !text.trim()} onClick={send}>
+            <IconSend />
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
