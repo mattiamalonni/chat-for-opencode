@@ -7,6 +7,7 @@ import { STRINGS } from "../../src/shared/strings";
 
 const HARNESS = "file://" + join(__dirname, "harness.html");
 const SHOTS = join(__dirname, "screenshots");
+const ISSUES_URL = "https://github.com/mattiamalonni/chat-for-opencode/issues";
 
 function fixture(name: string): ServerEvent[] {
   return readFileSync(join(__dirname, "../fixtures", name), "utf8")
@@ -49,7 +50,7 @@ async function boot(page: Page, theme: "dark" | "light" = "dark"): Promise<strin
   await page.goto(HARNESS);
   if (theme === "light") await page.evaluate(() => document.getElementById("theme")!.setAttribute("href", "theme-light.css"));
   await expect.poll(async () => (await posted(page)).some((m) => m.type === "ready")).toBe(true);
-  await host(page, { type: "init", strings: { ...STRINGS }, platform: "windows", folders: [{ uri: "file:///work", name: "work" }], activeFolder: "file:///work" });
+  await host(page, { type: "init", strings: { ...STRINGS }, platform: "windows", folders: [{ uri: "file:///work", name: "work" }], activeFolder: "file:///work", issuesUrl: ISSUES_URL });
   await host(page, { type: "connection", status: "connected" });
   await host(page, { type: "catalog", models: MODELS as never, agents: AGENTS as never, selectedModel: { id: "hy4-flash-free", providerID: "opencode" }, selectedAgent: "build" });
   await host(page, { type: "sessions", items: [{ id: S1, title: "Hello world reply", updated: Date.now() - 120_000, busy: false }] });
@@ -390,4 +391,38 @@ test("localized strings from the host are used", async ({ page }) => {
   await host(page, { type: "init", strings: { ...STRINGS, send: "Invia", inputLabel: "Messaggio per OpenCode" }, platform: "mac", folders: [], activeFolder: undefined });
   await expect(page.getByRole("button", { name: "Invia" })).toBeVisible();
   await expect(page.getByRole("textbox", { name: "Messaggio per OpenCode" })).toBeVisible();
+});
+
+test("untested OpenCode version shows a dismissible warning", async ({ page }) => {
+  await boot(page);
+  await expect(page.locator(".banner.warning")).toHaveCount(0);
+
+  await host(page, { type: "connection", status: "connected", version: "2.9.0", compatibility: "untested" });
+  const banner = page.locator(".banner.warning");
+  await expect(banner).toContainText("2.9.0");
+  await expect(banner).toContainText("2.2.7");
+
+  await banner.getByRole("button", { name: STRINGS.dismiss }).click();
+  await expect(page.locator(".banner.warning")).toHaveCount(0);
+  expect(await lastPosted(page, "dismissCompatibility")).toEqual({ type: "dismissCompatibility", version: "2.9.0" });
+  // Dismissal sticks for this version, but a new one warns again.
+  await host(page, { type: "connection", status: "connected", version: "2.9.0", compatibility: "untested" });
+  await expect(page.locator(".banner.warning")).toHaveCount(0);
+  await host(page, { type: "connection", status: "connected", version: "2.10.0", compatibility: "untested" });
+  await expect(page.locator(".banner.warning")).toContainText("2.10.0");
+  // After a reload the host reports the stored dismissal for that version.
+  await host(page, { type: "connection", status: "connected", version: "2.10.0", compatibility: "untested", compatibilityDismissed: true });
+  await expect(page.locator(".banner.warning")).toHaveCount(0);
+});
+
+test("unsupported OpenCode version shows an error banner with a report link", async ({ page }) => {
+  await boot(page);
+  await host(page, { type: "connection", status: "connected", version: "3.0.0", compatibility: "unsupported" });
+  const banner = page.getByRole("alert").filter({ hasText: "3.0.0" });
+  await expect(banner).toContainText("2.2.7");
+  await banner.getByRole("button", { name: STRINGS.reportIssue }).click();
+  expect(await lastPosted(page, "openLink")).toEqual({
+    type: "openLink",
+    href: ISSUES_URL,
+  });
 });

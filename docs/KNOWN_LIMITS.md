@@ -44,6 +44,10 @@ test or a manual probe actually ran.
   `shell echo * allow` was still prompted with the default `shell * ask` session rule). Users with
   an allowlist in their OpenCode config must copy it into `opencode.sessionPermissions` or set that
   option to `[]`.
+- **Other OpenCode versions** are not supported: only 2.2.7's contract (types and SSE fixtures) was
+  verified. Other 2.2.x patch releases are assumed compatible without a warning; the chat warns for
+  another minor (untested) or major (unsupported) version, but does not adapt to changed event
+  shapes or endpoints.
 - **Todo list** requires OpenCode's experimental flag `experimental.todo` (tool `todowrite`);
   without it there is no todo data to show.
 - **Session diff** (`GET /session/{id}/diff`) is empty outside git repositories; per-tool diffs from

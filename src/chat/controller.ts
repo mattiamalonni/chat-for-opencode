@@ -4,6 +4,7 @@ import { EventStream } from "../client/sse";
 import { ExternalServer, ManagedServer, ServerError, type ServerHandle, type ServerState } from "../server/server";
 import type { AgentInfo, FileAttachment, ModelInfo, ModelRef, ServerEvent, SessionInfo } from "../shared/api";
 import { eventSessionId } from "../shared/chatReducer";
+import { checkCompatibility } from "../shared/compatibility";
 import type {
   ActionId,
   Attachment,
@@ -24,6 +25,7 @@ const PASSWORD_KEY = (endpoint: string) => `opencode.password:${endpoint}`;
 const SESSION_KEY = (folder: string) => `opencode.session:${folder}`;
 const MODEL_KEY = "opencode.lastModel";
 const AGENT_KEY = "opencode.lastAgent";
+const COMPAT_DISMISSED_KEY = "opencode.compatibilityDismissedFor";
 
 export function translatedStrings(): Strings {
   const out = {} as Strings;
@@ -190,13 +192,25 @@ export class ChatController implements vscode.Disposable {
       platform,
       folders: (vscode.workspace.workspaceFolders ?? []).map((f) => ({ uri: f.uri.toString(), name: f.name })),
       activeFolder: this.folder?.uri.toString(),
+      issuesUrl: (this.ctx.extension.packageJSON as { bugs?: { url?: string } }).bugs?.url,
+    });
+  }
+
+  private postConnection(status: ConnectionStatus = this.status, error = this.lastError): void {
+    this.post({
+      type: "connection",
+      status,
+      error,
+      version: this.version,
+      compatibility: checkCompatibility(this.version),
+      compatibilityDismissed: !!this.version && this.ctx.globalState.get<string>(COMPAT_DISMISSED_KEY) === this.version,
     });
   }
 
   private setStatus(status: ConnectionStatus, error?: UiError): void {
     this.status = status;
     this.lastError = error;
-    this.post({ type: "connection", status, error, version: this.version });
+    this.postConnection(status, error);
   }
 
   // ---- connection -------------------------------------------------------------------------
@@ -574,7 +588,7 @@ export class ChatController implements vscode.Disposable {
     switch (msg.type) {
       case "ready":
         this.postInit();
-        this.post({ type: "connection", status: this.status, error: this.lastError, version: this.version });
+        this.postConnection();
         if (this.client && this.status !== "error") {
           await this.loadAll();
         } else {
@@ -643,6 +657,9 @@ export class ChatController implements vscode.Disposable {
         return this.switchFolder(vscode.workspace.workspaceFolders?.find((f) => f.uri.toString() === msg.uri));
       case "refreshChanges":
         return this.refreshChanges();
+      case "dismissCompatibility":
+        await this.ctx.globalState.update(COMPAT_DISMISSED_KEY, msg.version);
+        return;
     }
   }
 

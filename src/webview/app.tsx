@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useReducer, useRef, useState } from "preact/hooks";
 import type { AgentInfo, FileDiff, ModelInfo, ModelRef, ServerEvent } from "../shared/api";
 import { chatReducer, initialChatState, orphanForms, orphanPermissions, selectTodos } from "../shared/chatReducer";
+import { SUPPORTED_SERVER_VERSION, type Compatibility } from "../shared/compatibility";
 import type { Attachment, ConnectionStatus, ContextItem, FolderInfo, HostMessage, SessionSummary, UiError } from "../shared/protocol";
 import { STRINGS, type Strings } from "../shared/strings";
 import { Composer } from "./composer";
@@ -23,6 +24,11 @@ export function App() {
   const [strings, setStrings] = useState<Strings>({ ...STRINGS });
   const [chat, dispatch] = useReducer(chatReducer, initialChatState);
   const [status, setStatus] = useState<{ status: ConnectionStatus; error?: UiError }>({ status: "idle" });
+  const [compatibility, setCompatibility] = useState<{ status: Compatibility; version?: string; dismissed: boolean }>({
+    status: "unknown",
+    dismissed: false,
+  });
+  const [issuesUrl, setIssuesUrl] = useState<string | undefined>();
   const [catalog, setCatalog] = useState<Catalog>({ models: [], agents: [] });
   const [sessions, setSessions] = useState<SessionSummary[]>([]);
   const [folders, setFolders] = useState<{ list: FolderInfo[]; active?: string }>({ list: [] });
@@ -52,9 +58,11 @@ export function App() {
           setCopyLabel(msg.strings.copy);
           env.platform = msg.platform;
           setFolders({ list: msg.folders, active: msg.activeFolder });
+          setIssuesUrl(msg.issuesUrl);
           break;
         case "connection":
           setStatus({ status: msg.status, error: msg.error });
+          setCompatibility({ status: msg.compatibility ?? "unknown", version: msg.version, dismissed: !!msg.compatibilityDismissed });
           break;
         case "catalog":
           setCatalog({ models: msg.models, agents: msg.agents, selectedModel: msg.selectedModel, selectedAgent: msg.selectedAgent });
@@ -152,6 +160,14 @@ export function App() {
         />
         {showSessions && <SessionList sessions={sessions} currentId={chat.sessionId} onClose={() => setShowSessions(false)} />}
         <StatusBanner status={status.status} error={status.error} />
+        {(compatibility.status === "untested" || compatibility.status === "unsupported") && !compatibility.dismissed && (
+          <CompatibilityBanner
+            key={`${compatibility.status}:${compatibility.version ?? "?"}`}
+            status={compatibility.status}
+            version={compatibility.version}
+            issuesUrl={issuesUrl}
+          />
+        )}
         {notice && <NoticeBanner error={notice} onDismiss={() => setNotice(undefined)} />}
         <Conversation chat={chat} />
         <div class="sr-only" role="status" aria-live="polite">
@@ -326,6 +342,41 @@ function ErrorBlock({ error, onDismiss }: { error: UiError; onDismiss?: () => vo
           <ActionButton key={a} id={a} />
         ))}
       </div>
+    </div>
+  );
+}
+
+/** Warns when the server version differs from the one this extension was verified against. */
+function CompatibilityBanner(props: { status: "untested" | "unsupported"; version?: string; issuesUrl?: string }) {
+  const { status, version, issuesUrl } = props;
+  const t = useT();
+  const [dismissed, setDismissed] = useState(false);
+  if (dismissed) return null;
+  const unsupported = status === "unsupported";
+  return (
+    <div class={`banner ${unsupported ? "error" : "warning"}`} role={unsupported ? "alert" : "status"}>
+      <div class="banner-main">
+        <IconWarning />
+        <strong>
+          {unsupported
+            ? t("unsupportedVersion", version ?? "?", SUPPORTED_SERVER_VERSION)
+            : t("untestedVersion", version ?? "?", SUPPORTED_SERVER_VERSION)}
+        </strong>
+        <button type="button" class="icon-button dismiss" aria-label={t("dismiss")} onClick={() => {
+            setDismissed(true);
+            // Remembered by the host so the banner stays hidden for this version across reloads.
+            if (version) post({ type: "dismissCompatibility", version });
+          }}>
+          <IconClose />
+        </button>
+      </div>
+      {issuesUrl && (
+        <div class="banner-actions">
+          <button type="button" class="link-button" onClick={() => post({ type: "openLink", href: issuesUrl })}>
+            {t("reportIssue")}
+          </button>
+        </div>
+      )}
     </div>
   );
 }

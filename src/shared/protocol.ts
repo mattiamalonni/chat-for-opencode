@@ -10,6 +10,7 @@ import type {
   ServerEvent,
   SessionMessage,
 } from "./api";
+import type { Compatibility } from "./compatibility";
 import type { Strings } from "./strings";
 
 export type ConnectionStatus = "idle" | "starting" | "connected" | "reconnecting" | "error";
@@ -80,8 +81,23 @@ export interface SessionPayload {
 }
 
 export type HostMessage =
-  | { type: "init"; strings: Strings; platform: "mac" | "windows" | "linux"; folders: FolderInfo[]; activeFolder?: string }
-  | { type: "connection"; status: ConnectionStatus; error?: UiError; version?: string }
+  | {
+      type: "init";
+      strings: Strings;
+      platform: "mac" | "windows" | "linux";
+      folders: FolderInfo[];
+      activeFolder?: string;
+      issuesUrl?: string;
+    }
+  | {
+      type: "connection";
+      status: ConnectionStatus;
+      error?: UiError;
+      version?: string;
+      compatibility?: Compatibility;
+      /** The user already dismissed the compatibility warning for this server version. */
+      compatibilityDismissed?: boolean;
+    }
   | {
       type: "catalog";
       models: ModelInfo[];
@@ -119,4 +135,5 @@ export type WebviewMessage =
   | { type: "copy"; text: string }
   | { type: "action"; id: ActionId }
   | { type: "selectFolder"; uri: string }
-  | { type: "refreshChanges" };
+  | { type: "refreshChanges" }
+  | { type: "dismissCompatibility"; version: string };

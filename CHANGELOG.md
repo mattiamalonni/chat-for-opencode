@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+- The chat now warns when the connected OpenCode version differs from the one tested (2.2.x):
+  a dismissible banner distinguishes untested minor versions from unsupported major versions and
+  links to the issue tracker. Patch releases (2.2.*) don't warn, and a dismissed warning stays
+  hidden for that server version across reloads.
+
 ## 0.2.0 — 2026-11-16
 
 **Behaviour change**

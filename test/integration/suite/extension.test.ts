@@ -78,6 +78,16 @@ describe("chat-for-opencode extension", () => {
     await waitFor(() => controller.isVisible, "visible again with the secondary side bar", 5000);
   });
 
+  it("remembers a dismissed compatibility warning for that server version", async () => {
+    const mark = posted.length;
+    await controller.receive({ type: "dismissCompatibility", version: "2.2.7-mock" });
+    await controller.receive({ type: "ready" });
+    const conn = await waitFor(() => lastPosted("connection", mark), "connection");
+    assert.equal(conn.compatibilityDismissed, true);
+    const init = await waitFor(() => lastPosted("init", mark), "init");
+    assert.equal(init.issuesUrl, "https://github.com/mattiamalonni/chat-for-opencode/issues");
+  });
+
   it("sends a prompt and streams the reply", async () => {
     const mark = posted.length;
     await controller.receive({ type: "send", text: "hello there", attachments: [], context: [] });

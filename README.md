@@ -36,7 +36,8 @@ sends **no telemetry**.
 
 - VS Code **1.99** or newer.
 - **OpenCode v2** installed and on your `PATH` (tested with 2.2.7):
-  `curl -fsSL https://opencode.ai/v2/install | bash` (see https://opencode.ai/docs/).
+  `curl -fsSL https://opencode.ai/v2/install | bash` (see https://opencode.ai/docs/). The chat shows
+  a dismissible warning if your server's minor or major version differs from the tested one.
 - At least one model provider configured in OpenCode (`opencode auth login`). The extension
   shows a *Configure a provider* button that runs it in a terminal for you.
 
