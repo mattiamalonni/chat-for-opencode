@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.1.1 — 2026-11-16
+
+- Repository renamed to `mattiamalonni/chat-for-opencode`; Marketplace links (repository, issues, homepage) updated.
+
 ## 0.1.0 — 2026-11-16
 
 - The chat view now lives in the **Secondary Side Bar** (right, like Copilot Chat) on VS Code 1.104+.
