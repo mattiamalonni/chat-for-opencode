@@ -1,6 +1,6 @@
 # Chat for OpenCode
 
-[![CI](https://github.com/mattiamalonni/vscode-opencode/actions/workflows/ci.yml/badge.svg)](https://github.com/mattiamalonni/vscode-opencode/actions/workflows/ci.yml)
+[![CI](https://github.com/mattiamalonni/chat-for-opencode/actions/workflows/ci.yml/badge.svg)](https://github.com/mattiamalonni/chat-for-opencode/actions/workflows/ci.yml)
 
 > **Unofficial.** This extension is a community project and is not affiliated with or endorsed by the OpenCode team.
 

@@ -12,10 +12,10 @@ when a tag `vX.Y.Z` matching `package.json` `version` is pushed.
    ```sh
    npx vsce verify-pat mattiamalonni
    ```
-3. **GitHub secret** in the `marketplace` environment (created automatically on first run, or
-   under *Settings → Environments*). Run this yourself; it prompts for the value:
+3. **GitHub secret** `VSCE_PAT`, either at repository level (current setup) or in the `marketplace`
+   environment (*Settings → Environments*). Run this yourself; it prompts for the value:
    ```sh
-   gh secret set VSCE_PAT --env marketplace --repo mattiamalonni/vscode-opencode
+   gh secret set VSCE_PAT --env marketplace --repo mattiamalonni/chat-for-opencode
    ```
    Optionally add *Required reviewers* to the `marketplace` environment so every publish needs a click.
 

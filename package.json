@@ -8,12 +8,12 @@
   "author": "Mattia Malonni",
   "repository": {
     "type": "git",
-    "url": "https://github.com/mattiamalonni/vscode-opencode.git"
+    "url": "https://github.com/mattiamalonni/chat-for-opencode.git"
   },
   "bugs": {
-    "url": "https://github.com/mattiamalonni/vscode-opencode/issues"
+    "url": "https://github.com/mattiamalonni/chat-for-opencode/issues"
   },
-  "homepage": "https://github.com/mattiamalonni/vscode-opencode#readme",
+  "homepage": "https://github.com/mattiamalonni/chat-for-opencode#readme",
   "icon": "media/icon.png",
   "galleryBanner": {
     "color": "#1e1e2e",
