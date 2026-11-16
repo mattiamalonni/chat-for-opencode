@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- The model picker shows each model's context window (e.g. `200K`, `1M`).
+- A context meter next to the send button shows how much of the selected model's context window
+  the conversation uses (percentage, turns amber at 75% and red at 90%; exact counts in the tooltip).
 - The chat now warns when the connected OpenCode version differs from the one tested (2.2.x):
   a dismissible banner distinguishes untested minor versions from unsupported major versions and
   links to the issue tracker. Patch releases (2.2.*) don't warn, and a dismissed warning stays

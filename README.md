@@ -22,6 +22,8 @@ sends **no telemetry**.
 - **Collapsible reasoning** ("Thoughts") and **tool cards** that work with any tool name (input, output, errors).
 - **Sessions**: list, create, switch, resume and delete. The last session of each folder is restored when VS Code restarts.
 - **Opens on the right** in the Secondary Side Bar, like Copilot Chat (VS Code 1.104+); movable anywhere with *OpenCode: Move Chat View…* or drag and drop.
+- **Context window at a glance**: each model in the picker shows its context size, and a meter
+  next to the send button shows how much of it the conversation already uses.
 - **Model, reasoning-effort and agent pickers** (custom, searchable, grouped by provider) filled with what your server actually returns (e.g. *Build* / *Plan*).
 - **Stop** a running response (button or `Esc` in the input).
 - **Editor context**: the active file and selection are attached automatically as chips you can remove before sending.

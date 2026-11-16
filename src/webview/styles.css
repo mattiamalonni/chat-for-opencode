@@ -1231,6 +1231,65 @@ button:disabled {
   opacity: 0.8;
 }
 
+.picker-meta {
+  margin-left: auto;
+  padding-left: 12px;
+  align-self: center;
+  font-size: 0.85em;
+  font-variant-numeric: tabular-nums;
+  color: var(--vscode-descriptionForeground);
+  white-space: nowrap;
+}
+
+.picker-option.active .picker-meta {
+  color: inherit;
+  opacity: 0.8;
+}
+
+.context-meter {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  flex: none;
+  height: 24px;
+  padding: 0 4px;
+  font-size: 0.85em;
+  font-variant-numeric: tabular-nums;
+  color: var(--vscode-descriptionForeground);
+  cursor: default;
+}
+
+.context-meter .track {
+  fill: none;
+  stroke: var(--vscode-descriptionForeground);
+  stroke-opacity: 0.3;
+  stroke-width: 2.5;
+}
+
+.context-meter .fill {
+  fill: none;
+  stroke: var(--vscode-progressBar-background, var(--vscode-focusBorder));
+  stroke-width: 2.5;
+  stroke-linecap: round;
+  transition: stroke-dasharray 0.3s ease;
+}
+
+.context-meter.high .fill {
+  stroke: var(--vscode-editorWarning-foreground, #cca700);
+}
+
+.context-meter.critical .fill {
+  stroke: var(--vscode-errorForeground, #f85149);
+}
+
+.context-meter.high .context-percent {
+  color: var(--vscode-editorWarning-foreground, #cca700);
+}
+
+.context-meter.critical .context-percent {
+  color: var(--vscode-errorForeground, #f85149);
+}
+
 .picker-empty {
   padding: 6px 8px;
   color: var(--vscode-descriptionForeground);

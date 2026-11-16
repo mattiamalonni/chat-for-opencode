@@ -163,3 +163,12 @@ session.tool.success {"content":[{"type":"text","text":"Todos updated: 0/3 compl
 The extension derives the todo panel from the latest `todowrite` call in the session
 (status values seen: `pending`, `in_progress`; `completed` assumed from the summary text).
 - The real server rejects `order` combined with `cursor` on `GET …/message` (400 "Cursor cannot be combined with order"); only send `order` on the first page. Found by the e2e test.
+
+## Context window and usage (verified 2.2.7)
+
+- `GET /api/model` items carry `limit: {context, input?, output}` (present on all 78 models seen).
+- No endpoint reports the context size in tokens (`GET /session/{id}/context` returns messages).
+  Usage is derived from the last step's `tokens` (`session.step.ended` or `assistant.tokens` in
+  history). `input` **excludes** cached tokens: step 1 `input 6943 + cache.read 1536 = 8479`,
+  step 2 `input 324 + cache.read 8192 = 8516` (same prompt plus the new message). The extension uses
+  `input + cache.read + cache.write + output + reasoning`.

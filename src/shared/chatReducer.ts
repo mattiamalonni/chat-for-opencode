@@ -81,6 +81,8 @@ export interface ChatState {
   retry?: { attempt: number; message: string; next?: number };
   lastError?: StructuredError;
   usage?: { cost: number; tokens: TokenUsage };
+  /** Estimated tokens in the model context after the last step (undefined until known / after compaction). */
+  contextTokens?: number;
   agent?: string;
   model?: ModelRef;
 }
@@ -122,12 +124,28 @@ export function chatReducer(state: ChatState, action: ChatAction): ChatState {
   }
 }
 
+/**
+ * Tokens the conversation occupies after a step: the prompt (`input` excludes cached tokens, as
+ * verified against opencode 2.2.7) plus what the model produced in that step.
+ */
+export function contextTokensOf(tokens: TokenUsage | undefined): number | undefined {
+  if (!tokens) return undefined;
+  const total = tokens.input + tokens.cache.read + tokens.cache.write + tokens.output + tokens.reasoning;
+  return total > 0 ? total : undefined;
+}
+
 function loadHistory(action: Extract<ChatAction, { type: "load" }>): ChatState {
   const sorted = [...action.messages].sort((a, b) => a.time.created - b.time.created || cmp(a.id, b.id));
   const messages: UiMessage[] = [];
   for (const m of sorted) {
     const ui = fromHistory(m);
     if (ui) messages.push(ui);
+  }
+  let contextTokens: number | undefined;
+  for (const m of sorted) {
+    if (m.type === "assistant") contextTokens = contextTokensOf(m.tokens) ?? contextTokens;
+    // A completed compaction replaces the context with a summary of unknown size.
+    else if (m.type === "compaction" && (m as { status?: string }).status === "completed") contextTokens = undefined;
   }
   const last = sorted[sorted.length - 1];
   const busy = action.busy ?? (last !== undefined && last.type !== "idle" && isIncomplete(last));
@@ -140,6 +158,7 @@ function loadHistory(action: Extract<ChatAction, { type: "load" }>): ChatState {
     permissions: action.permissions,
     forms: action.forms,
     busy,
+    contextTokens,
   };
 }
 
@@ -424,7 +443,7 @@ export function applyEvent(state: ChatState, event: ServerEvent): ChatState {
       );
     }
     case "session.step.ended":
-      return updateAssistant(state, msgId, (m) => ({
+      return updateAssistant({ ...state, contextTokens: contextTokensOf(d.tokens as TokenUsage | undefined) ?? state.contextTokens }, msgId, (m) => ({
         ...m,
         done: true,
         finish: str(d, "finish") || m.finish,
@@ -485,7 +504,7 @@ export function applyEvent(state: ChatState, event: ServerEvent): ChatState {
     case "session.model.selected":
       return { ...state, model: d.model as ModelRef };
     case "session.compaction.ended":
-      return { ...state, messages: [...state.messages, notice(event.id ?? `cmp-${created}`, created, "info", "compaction", "")] };
+      return { ...state, contextTokens: undefined, messages: [...state.messages, notice(event.id ?? `cmp-${created}`, created, "info", "compaction", "")] };
     case "permission.asked": {
       const req = d as unknown as PermissionRequest;
       if (state.permissions.some((p) => p.id === req.id)) return state;

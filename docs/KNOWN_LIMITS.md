@@ -48,6 +48,10 @@ test or a manual probe actually ran.
   verified. Other 2.2.x patch releases are assumed compatible without a warning; the chat warns for
   another minor (untested) or major (unsupported) version, but does not adapt to changed event
   shapes or endpoints.
+- **Context meter is an estimate** from the last step's token usage (see API_NOTES). It is unknown
+  until the first reply and after a compaction, it is computed against the *selected* model (the
+  one the next message will use), and whether reasoning tokens stay in context depends on the
+  provider.
 - **Todo list** requires OpenCode's experimental flag `experimental.todo` (tool `todowrite`);
   without it there is no todo data to show.
 - **Session diff** (`GET /session/{id}/diff`) is empty outside git repositories; per-tool diffs from

@@ -8,6 +8,9 @@ export interface PickerItem {
   label: string;
   description?: string;
   group?: string;
+  /** Short right-aligned detail, e.g. the context window size. */
+  meta?: string;
+  metaLabel?: string;
 }
 
 export interface PickerProps {
@@ -221,6 +224,12 @@ export function Picker(props: PickerProps) {
                       <span class="picker-label">{item.label}</span>
                       {item.description && <span class="picker-desc">{item.description}</span>}
                     </span>
+                    {item.meta && (
+                      <span class="picker-meta" title={item.metaLabel}>
+                        <span aria-hidden="true">{item.meta}</span>
+                        {item.metaLabel && <span class="sr-only">{item.metaLabel}</span>}
+                      </span>
+                    )}
                   </li>
                 </Fragment>
               );

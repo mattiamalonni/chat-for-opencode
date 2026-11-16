@@ -21,8 +21,8 @@ const S2 = "ses_e1a6c6a18ffeykSYEWYa5gpP3I";
 const S3 = "ses_e1a69c3cbffe81j4RaR5lg6YJH";
 
 const MODELS = [
-  { id: "hy4-flash-free", modelID: "hy4-flash-free", providerID: "opencode", name: "Hy4 flash Free", enabled: true, variants: [{ id: "none" }, { id: "high" }] },
-  { id: "claude-sonnet-5.5", modelID: "claude-sonnet-5.5", providerID: "github-copilot", name: "Claude Sonnet 5.5", enabled: true, variants: [] },
+  { id: "hy4-flash-free", modelID: "hy4-flash-free", providerID: "opencode", name: "Hy4 flash Free", enabled: true, variants: [{ id: "none" }, { id: "high" }], limit: { context: 1048576, output: 65536 } },
+  { id: "claude-sonnet-5.5", modelID: "claude-sonnet-5.5", providerID: "github-copilot", name: "Claude Sonnet 5.5", enabled: true, variants: [], limit: { context: 200000, output: 64000 } },
 ];
 const AGENTS = [
   { id: "build", name: "Build", description: "The default agent.", mode: "primary", hidden: false },
@@ -425,4 +425,34 @@ test("unsupported OpenCode version shows an error banner with a report link", as
     type: "openLink",
     href: ISSUES_URL,
   });
+});
+
+test("model picker shows context windows and the meter shows context usage", async ({ page }) => {
+  await boot(page);
+  const meter = page.getByRole("img", { name: /^Context:/ });
+  await expect(meter).toHaveAttribute("aria-label", "Context: 1M tokens window, usage available after the first reply");
+
+  await page.getByRole("button", { name: `${STRINGS.model}: Hy4 flash Free` }).click();
+  const models = page.getByRole("listbox", { name: STRINGS.model });
+  await expect(models.getByRole("option", { name: /Claude Sonnet/ }).locator(".picker-meta")).toHaveText("200K200K context window");
+  await expect(models.getByRole("option", { name: /Hy4/ }).locator(".picker-meta [aria-hidden]")).toHaveText("1M");
+  await page.waitForTimeout(150);
+  await page.screenshot({ path: join(SHOTS, "11-model-context-dark.png") });
+  await page.keyboard.press("Escape");
+
+  // One step of a real session, then a big one against the 200K model.
+  await host(page, { type: "catalog", models: MODELS as never, agents: AGENTS as never, selectedModel: { id: "claude-sonnet-5.5", providerID: "github-copilot" }, selectedAgent: "build" });
+  await openSession(page, "ses_ctx", [
+    { type: "session.step.ended", data: { sessionID: "ses_ctx", assistantMessageID: "m1", finish: "stop", tokens: { input: 324, output: 3, reasoning: 17, cache: { read: 8192, write: 0 } } } },
+  ]);
+  await expect(meter).toHaveAttribute("aria-label", "Context: 8.5K of 200K tokens used (4%)");
+  await expect(meter.locator(".context-percent")).toHaveText("4%");
+  await host(page, {
+    type: "event",
+    event: { type: "session.step.ended", data: { sessionID: "ses_ctx", assistantMessageID: "m2", finish: "stop", tokens: { input: 2000, output: 1000, reasoning: 0, cache: { read: 180000, write: 0 } } } },
+  });
+  await expect(meter).toHaveClass(/critical/);
+  await expect(meter.locator(".context-percent")).toHaveText("92%");
+  await page.waitForTimeout(400);
+  await page.screenshot({ path: join(SHOTS, "12-context-meter-dark.png"), clip: { x: 0, y: 700, width: 380, height: 60 } });
 });

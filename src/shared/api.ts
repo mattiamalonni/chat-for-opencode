@@ -174,6 +174,7 @@ export interface ModelInfo {
   status?: string;
   variants: { id: string }[];
   capabilities?: { tools: boolean; input: string[]; output: string[] };
+  limit?: { context: number; input?: number; output: number };
 }
 
 export interface AgentInfo {

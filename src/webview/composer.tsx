@@ -3,6 +3,8 @@ import type { AgentInfo, ModelInfo, ModelRef } from "../shared/api";
 import { composerAction } from "../shared/keys";
 import type { Attachment, ContextItem } from "../shared/protocol";
 import { isolateKeys } from "./env";
+import { formatTokens } from "../shared/format";
+import { ContextMeter } from "./contextMeter";
 import { Picker } from "./picker";
 import { useT } from "./i18n";
 import { IconAt, IconClose, IconFile, IconSelection, IconSend, IconStop } from "./icons";
@@ -24,6 +26,8 @@ export interface ComposerProps {
   fileResults: { query: string; items: Attachment[] };
   onSend: (text: string) => void;
   focusToken: number;
+  /** Estimated tokens currently in the session context. */
+  contextTokens?: number;
 }
 
 const MENTION_RE = /(^|\s)@([^\s@]*)$/;
@@ -135,8 +139,16 @@ export function Composer(props: ComposerProps) {
     () =>
       [...props.models]
         .sort((a, b) => a.providerID.localeCompare(b.providerID))
-        .map((m) => ({ value: `${m.providerID}/${m.id}`, label: m.name, group: m.providerID, description: m.id })),
-    [props.models],
+        .map((m) => ({
+          value: `${m.providerID}/${m.id}`,
+          label: m.name,
+          group: m.providerID,
+          description: m.id,
+          meta: m.limit?.context ? formatTokens(m.limit.context) : undefined,
+          metaLabel: m.limit?.context ? t("contextWindow", formatTokens(m.limit.context)) : undefined,
+        })),
+    // `t` is a new function each render; depend on the translated template instead.
+    [props.models, t("contextWindow", "")],
   );
   const modelKey = props.selectedModel ? `${props.selectedModel.providerID}/${props.selectedModel.id}` : "";
   const currentModel = props.models.find((m) => `${m.providerID}/${m.id}` === modelKey);
@@ -294,6 +306,7 @@ export function Composer(props: ComposerProps) {
           />
         )}
         <span class="spacer" />
+        {currentModel?.limit?.context ? <ContextMeter used={props.contextTokens} limit={currentModel.limit.context} /> : null}
         {props.busy ? (
           <button type="button" class="send stop" title={`${t("stop")} (Esc)`} aria-label={t("stop")} onClick={() => post({ type: "abort" })}>
             <IconStop />

@@ -177,6 +177,7 @@ export function App() {
         {changes.length > 0 && <ChangesPanel files={changes} />}
         <Composer
           busy={chat.busy}
+          contextTokens={chat.contextTokens}
           disabled={!connected}
           models={catalog.models}
           agents={catalog.agents}
