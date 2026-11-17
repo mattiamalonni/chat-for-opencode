@@ -64,6 +64,7 @@ describe("chat-for-opencode extension", () => {
     const catalog = await waitFor(() => lastPosted("catalog"), "catalog");
     assert.deepEqual(catalog.models.map((m) => m.id), ["mock-fast", "mock-smart"]);
     assert.deepEqual(catalog.agents.map((a) => a.id), ["build", "plan"]);
+    assert.deepEqual(catalog.skills.map((s) => s.id), ["mock-review"]);
     assert.deepEqual(catalog.selectedModel, { id: "mock-fast", providerID: "mock" });
   });
 

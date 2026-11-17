@@ -8,6 +8,7 @@ import type {
   ModelRef,
   PermissionDecision,
   PermissionRequest,
+  SkillInfo,
   ServerInfo,
   SessionInfo,
   SessionMessage,
@@ -230,6 +231,11 @@ export class OpenCodeClient {
 
   async agents(): Promise<AgentInfo[]> {
     const res = await this.request<{ data: AgentInfo[] }>("GET", "api/agent");
+    return res.data;
+  }
+
+  async skills(): Promise<SkillInfo[]> {
+    const res = await this.request<{ data: SkillInfo[] }>("GET", "api/skill");
     return res.data;
   }
 

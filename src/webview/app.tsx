@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useReducer, useRef, useState } from "preact/hooks";
-import type { AgentInfo, FileDiff, ModelInfo, ModelRef, ServerEvent } from "../shared/api";
+import type { AgentInfo, FileDiff, ModelInfo, ModelRef, ServerEvent, SkillSuggestion } from "../shared/api";
 import { chatReducer, initialChatState, orphanForms, orphanPermissions, selectTodos } from "../shared/chatReducer";
 import { SUPPORTED_SERVER_VERSION, type Compatibility } from "../shared/compatibility";
 import type { Attachment, ConnectionStatus, ContextItem, FolderInfo, HostMessage, SessionSummary, UiError } from "../shared/protocol";
@@ -16,6 +16,7 @@ import { onHostMessage, post } from "./vscode";
 interface Catalog {
   models: ModelInfo[];
   agents: AgentInfo[];
+  skills: SkillSuggestion[];
   selectedModel?: ModelRef;
   selectedAgent?: string;
 }
@@ -29,7 +30,7 @@ export function App() {
     dismissed: false,
   });
   const [issuesUrl, setIssuesUrl] = useState<string | undefined>();
-  const [catalog, setCatalog] = useState<Catalog>({ models: [], agents: [] });
+  const [catalog, setCatalog] = useState<Catalog>({ models: [], agents: [], skills: [] });
   const [sessions, setSessions] = useState<SessionSummary[]>([]);
   const [folders, setFolders] = useState<{ list: FolderInfo[]; active?: string }>({ list: [] });
   const [context, setContext] = useState<ContextItem[]>([]);
@@ -65,7 +66,7 @@ export function App() {
           setCompatibility({ status: msg.compatibility ?? "unknown", version: msg.version, dismissed: !!msg.compatibilityDismissed });
           break;
         case "catalog":
-          setCatalog({ models: msg.models, agents: msg.agents, selectedModel: msg.selectedModel, selectedAgent: msg.selectedAgent });
+          setCatalog({ models: msg.models, agents: msg.agents, skills: msg.skills, selectedModel: msg.selectedModel, selectedAgent: msg.selectedAgent });
           break;
         case "sessions":
           setSessions(msg.items);
@@ -138,7 +139,12 @@ export function App() {
   const todos = useMemo(() => selectTodos(chat), [chat.messages]);
   const send = (text: string) => {
     const ctx = context.filter((c) => !excluded.has(c.id));
-    post({ type: "send", text, attachments, context: ctx });
+    const skillCommand = /(^|\s)\/(\S+)(?=\s|$)/.exec(text);
+    const skill = skillCommand && catalog.skills.find((item) => item.id === skillCommand[2]);
+    const prompt = skillCommand && skill
+      ? `${text.slice(0, skillCommand.index)}${skillCommand[1]}@${skill.id}${text.slice(skillCommand.index + skillCommand[0].length)}`
+      : text;
+    post({ type: "send", text: prompt, attachments, context: ctx });
     setAttachments([]);
     setNotice(undefined);
   };
@@ -181,6 +187,7 @@ export function App() {
           disabled={!connected}
           models={catalog.models}
           agents={catalog.agents}
+          skills={catalog.skills}
           selectedModel={catalog.selectedModel}
           selectedAgent={catalog.selectedAgent}
           context={context}

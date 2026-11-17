@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.3.2 — 2026-11-17
+
+- The composer suggests available OpenCode skills when typing `/`. Selecting a skill adds its
+  slash command; before sending, the extension translates it to OpenCode's `@skill-id` syntax so
+  the server loads the skill with the prompt. Other slash commands are unchanged.
+- Skills are loaded from OpenCode's default location so global skills are included, and only their
+  ID, name and description are sent to the webview.
+
 ## 0.3.1 — 2026-11-17
 
 - Question options now show the title above its description in a single column, with a larger

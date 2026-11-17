@@ -4,7 +4,7 @@
  */
 export const STRINGS = {
   appName: "OpenCode",
-  inputPlaceholder: "Ask OpenCode… (@ to attach files, Enter to send, Shift+Enter for newline)",
+  inputPlaceholder: "Ask OpenCode… (@ for files, / for skills, Enter to send, Shift+Enter for newline)",
   inputLabel: "Message to OpenCode",
   send: "Send",
   stop: "Stop",
@@ -47,7 +47,8 @@ export const STRINGS = {
   currentFile: "Current file",
   selection: "Selection",
   attachFile: "Attach file",
-  noFilesFound: "No matching files",
+  suggestions: "Files and skills",
+  noFilesOrSkillsFound: "No matching suggestions",
   permissionTitle: "Permission required",
   permissionAllowOnce: "Allow once",
   permissionAllowAlways: "Always allow",

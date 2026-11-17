@@ -86,6 +86,17 @@ const AGENTS = [
   { id: "title", name: "Title", mode: "primary", hidden: true, permissions: [] },
 ];
 
+const SKILLS = [
+  {
+    id: "mock-review",
+    name: "Code review",
+    description: "Review code changes.",
+    autoinvoke: true,
+    path: "/work/.opencode/skills/review/SKILL.md",
+    content: "---\nname: Code review\n---\nReview code changes.",
+  },
+];
+
 const PATCH = "Index: src/a.txt\n===================================================================\n--- src/a.txt\n+++ src/a.txt\n@@ -1,1 +1,1 @@\n-a\n+b\n";
 
 export function startMockServer(opts: MockOptions = {}): Promise<MockServer> {
@@ -372,6 +383,7 @@ export function startMockServer(opts: MockOptions = {}): Promise<MockServer> {
     if (path === "/api/model") return send(res, 200, { location: { directory }, data: noModels ? [] : MODELS });
     if (path === "/api/model/default") return send(res, 200, { location: { directory }, data: noModels ? null : MODELS[0] });
     if (path === "/api/agent") return send(res, 200, { location: { directory }, data: AGENTS });
+    if (path === "/api/skill") return send(res, 200, { location: { directory }, data: SKILLS });
     if (path === "/api/event") {
       res.writeHead(200, { "content-type": "text/event-stream", "cache-control": "no-cache", connection: "keep-alive" });
       res.write(`data: ${JSON.stringify({ id: id("evt"), type: "server.connected", data: {} })}\n\n`);

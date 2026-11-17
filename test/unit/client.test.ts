@@ -54,6 +54,8 @@ describe("OpenCodeClient against the mock server", () => {
     expect(mock.requests.at(-1)?.path).toBe("/api/model?types=chat");
     expect((await client.defaultModel())?.id).toBe("mock-fast");
     expect((await client.agents()).map((a) => a.id)).toContain("plan");
+    expect((await client.skills()).map((s) => s.id)).toEqual(["mock-review"]);
+    expect(mock.requests.at(-1)?.path).toBe("/api/skill");
   });
 
   it("replies to permissions and interrupts", async () => {

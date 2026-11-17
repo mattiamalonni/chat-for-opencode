@@ -2,7 +2,7 @@ import * as vscode from "vscode";
 import { ApiError, OpenCodeClient, type PermissionRule } from "../client/http";
 import { EventStream } from "../client/sse";
 import { ExternalServer, ManagedServer, ServerError, type ServerHandle, type ServerState } from "../server/server";
-import type { AgentInfo, FileAttachment, ModelInfo, ModelRef, ServerEvent, SessionInfo } from "../shared/api";
+import type { AgentInfo, FileAttachment, ModelInfo, ModelRef, ServerEvent, SessionInfo, SkillInfo } from "../shared/api";
 import { eventSessionId } from "../shared/chatReducer";
 import { checkCompatibility } from "../shared/compatibility";
 import type {
@@ -112,6 +112,7 @@ export class ChatController implements vscode.Disposable {
   private version: string | undefined;
   private models: ModelInfo[] = [];
   private agents: AgentInfo[] = [];
+  private skills: SkillInfo[] = [];
   private selectedModel: ModelRef | undefined;
   private selectedAgent: string | undefined;
   private fileIndex: FileIndex | undefined;
@@ -268,13 +269,18 @@ export class ChatController implements vscode.Disposable {
   private async loadAll(): Promise<void> {
     const client = this.client;
     if (!client || !this.folder) return;
-    const [models, defaultModel, agents] = await Promise.all([
+    const [models, defaultModel, agents, skills] = await Promise.all([
       client.models().catch(() => [] as ModelInfo[]),
       client.defaultModel().catch(() => null),
       client.agents().catch(() => [] as AgentInfo[]),
+      client.skills().catch((err: unknown) => {
+        this.output.warn(`[chat] failed to load skills: ${String(err)}`);
+        return [] as SkillInfo[];
+      }),
     ]);
     this.models = models.filter((m) => m.enabled !== false);
     this.agents = agents.filter((a) => a.mode !== "subagent" && !a.hidden);
+    this.skills = skills;
     const saved = this.ctx.globalState.get<ModelRef>(MODEL_KEY);
     const exists = (ref?: ModelRef) => !!ref && this.models.some((m) => m.id === ref.id && m.providerID === ref.providerID);
     const fallback = defaultModel ?? this.models[0];
@@ -311,6 +317,7 @@ export class ChatController implements vscode.Disposable {
       type: "catalog",
       models: this.models,
       agents: this.agents,
+      skills: this.skills.map(({ id, name, description }) => ({ id, name, description })),
       selectedModel: this.selectedModel,
       selectedAgent: this.selectedAgent,
     });

@@ -62,6 +62,7 @@ Omitted → the server's cwd. Sessions carry their own `location` (set at creati
 | Models | `GET /api/model?types=chat` | `{data: Model[]}`; Model has `id, modelID, providerID, name, enabled, variants[{id}]` |
 | Default model | `GET /api/model/default` | `{data: Model \| null}` |
 | Agents | `GET /api/agent` | `{data: [{id,name,description?,mode: primary\|subagent\|all, hidden}]}`; seen: build, plan (primary, visible), general, explore (subagent), compaction/title/summary (hidden) |
+| Skills | `GET /api/skill` | `{location, data: [{id,name,description?,autoinvoke?,path,content}]}`; uses the server's default location and includes global skill sources |
 | Providers | `GET /api/provider` | `{data: [{id, name, activation}]}` |
 | File search | `GET /api/fs/find?query=<q>&type=file&limit=N` | `{data:[{path (relative), type}]}` |
 | Events | `GET /api/event` | SSE, see below |

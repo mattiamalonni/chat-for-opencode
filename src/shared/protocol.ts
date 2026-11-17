@@ -7,6 +7,7 @@ import type {
   ModelRef,
   PermissionDecision,
   PermissionRequest,
+  SkillSuggestion,
   ServerEvent,
   SessionMessage,
 } from "./api";
@@ -102,6 +103,7 @@ export type HostMessage =
       type: "catalog";
       models: ModelInfo[];
       agents: AgentInfo[];
+      skills: SkillSuggestion[];
       selectedModel?: ModelRef;
       selectedAgent?: string;
     }

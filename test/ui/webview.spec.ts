@@ -52,7 +52,7 @@ async function boot(page: Page, theme: "dark" | "light" = "dark"): Promise<strin
   await expect.poll(async () => (await posted(page)).some((m) => m.type === "ready")).toBe(true);
   await host(page, { type: "init", strings: { ...STRINGS }, platform: "windows", folders: [{ uri: "file:///work", name: "work" }], activeFolder: "file:///work", issuesUrl: ISSUES_URL });
   await host(page, { type: "connection", status: "connected" });
-  await host(page, { type: "catalog", models: MODELS as never, agents: AGENTS as never, selectedModel: { id: "hy4-flash-free", providerID: "opencode" }, selectedAgent: "build" });
+  await host(page, { type: "catalog", models: MODELS as never, agents: AGENTS as never, skills: [], selectedModel: { id: "hy4-flash-free", providerID: "opencode" }, selectedAgent: "build" });
   await host(page, { type: "sessions", items: [{ id: S1, title: "Hello world reply", updated: Date.now() - 120_000, busy: false }] });
   await host(page, { type: "session", session: null });
   await host(page, {
@@ -260,6 +260,29 @@ test("@ mentions search files and attach the selection", async ({ page }) => {
   expect(send && "attachments" in send && send.attachments.map((a) => a.uri)).toEqual(["file:///work/src/apply.ts"]);
 });
 
+test("slash commands select skills and preserve other slash commands", async ({ page }) => {
+  await boot(page);
+  await host(page, {
+    type: "catalog",
+    models: MODELS as never,
+    agents: AGENTS as never,
+    skills: [{ id: "mock-review", name: "Code review", description: "Review code changes." }],
+    selectedModel: { id: "hy4-flash-free", providerID: "opencode" },
+    selectedAgent: "build",
+  });
+  const input = page.getByRole("textbox", { name: STRINGS.inputLabel });
+  await input.fill("/mock");
+  await expect(page.getByRole("option", { name: /Code review/ })).toBeVisible();
+  await page.getByRole("option", { name: /Code review/ }).click();
+  await expect(input).toHaveValue("/mock-review ");
+  await input.press("Enter");
+  expect(await lastPosted(page, "send")).toMatchObject({ type: "send", text: "@mock-review", attachments: [] });
+
+  await input.fill("/unknown command");
+  await input.press("Enter");
+  expect(await lastPosted(page, "send")).toMatchObject({ type: "send", text: "/unknown command" });
+});
+
 test("custom pickers: agent, variant and searchable model (mouse + keyboard)", async ({ page }) => {
   await boot(page);
   expect(await page.locator("select").count()).toBe(0);
@@ -307,7 +330,7 @@ test("model picker search filters when there are many models", async ({ page }) 
   await boot(page);
   const many = Array.from({ length: 12 }, (_, i) => ({ id: `m${i}`, modelID: `m${i}`, providerID: i % 2 ? "alpha" : "beta", name: `Model ${i}`, enabled: true, variants: [] }));
   many.push({ id: "gpt-x", modelID: "gpt-x", providerID: "alpha", name: "GPT X", enabled: true, variants: [] });
-  await host(page, { type: "catalog", models: many as never, agents: AGENTS as never, selectedModel: { id: "m0", providerID: "beta" }, selectedAgent: "build" });
+  await host(page, { type: "catalog", models: many as never, agents: AGENTS as never, skills: [], selectedModel: { id: "m0", providerID: "beta" }, selectedAgent: "build" });
   await page.getByRole("button", { name: `${STRINGS.model}: Model 0` }).click();
   const search = page.getByRole("combobox", { name: STRINGS.searchModels });
   await expect(search).toBeFocused();
@@ -446,7 +469,7 @@ test("model picker shows context windows and the meter shows context usage", asy
   await page.keyboard.press("Escape");
 
   // One step of a real session, then a big one against the 200K model.
-  await host(page, { type: "catalog", models: MODELS as never, agents: AGENTS as never, selectedModel: { id: "claude-sonnet-5.5", providerID: "github-copilot" }, selectedAgent: "build" });
+  await host(page, { type: "catalog", models: MODELS as never, agents: AGENTS as never, skills: [], selectedModel: { id: "claude-sonnet-5.5", providerID: "github-copilot" }, selectedAgent: "build" });
   await openSession(page, "ses_ctx", [
     { type: "session.step.ended", data: { sessionID: "ses_ctx", assistantMessageID: "m1", finish: "stop", tokens: { input: 324, output: 3, reasoning: 17, cache: { read: 8192, write: 0 } } } },
   ]);

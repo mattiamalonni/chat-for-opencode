@@ -1,6 +1,6 @@
 {
   "OpenCode": "OpenCode",
-  "Ask OpenCode… (@ to attach files, Enter to send, Shift+Enter for newline)": "Chiedi a OpenCode… (@ per allegare file, Invio per inviare, Maiusc+Invio per andare a capo)",
+  "Ask OpenCode… (@ for files, / for skills, Enter to send, Shift+Enter for newline)": "Chiedi a OpenCode… (@ per i file, / per le skill, Invio per inviare, Maiusc+Invio per andare a capo)",
   "Message to OpenCode": "Messaggio per OpenCode",
   "Send": "Invia",
   "Stop": "Interrompi",
@@ -37,7 +37,8 @@
   "Current file": "File corrente",
   "Selection": "Selezione",
   "Attach file": "Allega file",
-  "No matching files": "Nessun file corrispondente",
+  "Files and skills": "File e skill",
+  "No matching suggestions": "Nessun suggerimento corrispondente",
   "Permission required": "Autorizzazione richiesta",
   "Allow once": "Consenti una volta",
   "Always allow": "Consenti sempre",

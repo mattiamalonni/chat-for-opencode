@@ -3,7 +3,7 @@
 Prerequisites: OpenCode v2 on `PATH` (`opencode --version`), a provider configured
 (`opencode models` lists models), the `.vsix` built with `npx @vscode/vsce package`.
 
-1. **Install**: `code --install-extension chat-for-opencode-0.1.0.vsix`, reload the window.
+1. **Install**: `code --install-extension chat-for-opencode-0.3.2.vsix`, reload the window.
 2. **Prepare a project**:
    ```sh
    mkdir /tmp/oc-manual && cd /tmp/oc-manual && git init && echo a > a.txt && git add . && git commit -m init
@@ -27,16 +27,19 @@ Prerequisites: OpenCode v2 on `PATH` (`opencode --version`), a provider configur
    remove one with ×; send `What does the selection contain?`. The user bubble lists the attachment.
    Right-click → *Add Selection to Chat* adds a chip.
 9. **@ mention**: type `@a.t`, choose `a.txt` with ↓/Enter.
-10. **Sessions**: click the session title → list; create a new session with `+`; switch back.
-11. **Resume after restart**: quit VS Code completely (`Cmd/Ctrl+Q`), check `ps aux | grep "opencode serve"`
+10. **Skills**: ensure OpenCode has discovered a skill from a supported [skill location](https://opencode.ai/docs/skills/#discovery),
+    type `/` and choose it. Expect `/skill-id` in the composer; send it with a request and confirm
+    OpenCode loads the skill. Other slash commands should remain unchanged.
+11. **Sessions**: click the session title → list; create a new session with `+`; switch back.
+12. **Resume after restart**: quit VS Code completely (`Cmd/Ctrl+Q`), check `ps aux | grep "opencode serve"`
     shows no process started by the extension, reopen the folder and the sidebar. The last session
     and its messages are restored.
-12. **Errors**: set `opencode.executablePath` to `/nope` → banner *OpenCode is not installed…* with
+13. **Errors**: set `opencode.executablePath` to `/nope` → banner *OpenCode is not installed…* with
     *Install OpenCode / Open settings / Show logs*. Reset the setting → reconnects.
     Kill the server process (`kill <pid>` from the logs) → banner "Reconnecting…" then back to normal.
-13. **Keyboard**: in the input press `Ctrl+J` / `Ctrl+R` / `Ctrl+K`: the panel must **not** toggle and the
+14. **Keyboard**: in the input press `Ctrl+J` / `Ctrl+R` / `Ctrl+K`: the panel must **not** toggle and the
     recent-files picker must **not** open. `Cmd/Ctrl+Shift+P` still opens the command palette;
     copy/paste work.
-14. **IME** (if available): type Japanese with the system IME and confirm a candidate with Enter: the
+15. **IME** (if available): type Japanese with the system IME and confirm a candidate with Enter: the
     message must not be sent until a second Enter.
-15. **Language**: *Configure Display Language → it*, restart: the UI is in Italian.
+16. **Language**: *Configure Display Language → it*, restart: the UI is in Italian.

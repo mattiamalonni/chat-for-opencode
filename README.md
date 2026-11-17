@@ -28,6 +28,8 @@ sends **no telemetry**.
 - **Stop** a running response (button or `Esc` in the input).
 - **Editor context**: the active file and selection are attached automatically as chips you can remove before sending.
 - **`@` mentions** with fuzzy workspace file search, **Add Selection to Chat** / **Add File to Chat** in the editor and explorer context menus.
+- **Skills**: type `/` to search skills discovered by OpenCode, including global skills; selecting one
+  inserts a slash command that loads its instructions with the prompt.
 - **Native diffs**: open proposed changes (before you approve) and applied changes in VS Code's diff editor, plus a list of the files changed in the session.
 - **Permissions and questions inline** in the conversation, never auto-approved.
 - **Todo list** when the agent uses OpenCode's (experimental) `todowrite` tool.
@@ -48,7 +50,7 @@ sends **no telemetry**.
 From a release `.vsix`:
 
 ```sh
-code --install-extension chat-for-opencode-0.1.0.vsix
+code --install-extension chat-for-opencode-0.3.2.vsix
 ```
 
 or *Extensions view → … → Install from VSIX…*.
@@ -58,7 +60,7 @@ From source:
 ```sh
 npm install
 npm run compile
-npx @vscode/vsce package     # produces chat-for-opencode-0.1.0.vsix
+npx @vscode/vsce package     # produces chat-for-opencode-0.3.2.vsix
 ```
 
 Press **F5** in this repository to launch an Extension Development Host.
@@ -70,11 +72,27 @@ Press **F5** in this repository to launch an Extension Development Host.
    On VS Code 1.99–1.103, which cannot contribute to the Secondary Side Bar, the chat appears in the Explorer;
    use *OpenCode: Move Chat View…* to move it to the right.
 2. The extension starts `opencode serve` for the folder in the background (status shown at the top).
-3. Type a message. `Enter` sends, `Shift+Enter` adds a new line, `@` attaches files, `Esc` stops a running response.
+3. Type a message. `Enter` sends, `Shift+Enter` adds a new line, `@` suggests files, `/` suggests
+   skills, and `Esc` stops a running response. Selecting a skill adds `/skill-id`; the extension
+   translates it to OpenCode's `@skill-id` syntax when sending so OpenCode loads its instructions
+   with your prompt.
 4. Pick the agent (*Build*, *Plan*, …), model and reasoning effort in the toolbar below the input.
 5. When the agent wants to edit a file or run a command that needs approval, a card appears inside
    the tool call: open the diff, then **Allow once**, **Always allow** or **Reject**.
 6. Use the session button (top left) to switch, resume or delete sessions, `+` for a new one.
+
+### Skills
+
+The `/` suggestions come from OpenCode's `GET /api/skill` catalog. OpenCode discovers project and
+global skills from its [supported skill locations](https://opencode.ai/docs/skills/#discovery),
+including `~/.config/opencode/skills`, `~/.agents/skills` and `~/.claude/skills`. The extension
+queries the server's default location so its global skills are included. A skill directory must
+contain a `SKILL.md` file (or be a root-level `.md` skill) for OpenCode to discover it.
+
+Choose a suggestion to insert `/skill-id`; when sending, the extension converts that command to
+`@skill-id`, which is OpenCode's syntax for loading a skill. Other slash commands are sent
+unchanged. The extension sends only skill IDs, names and descriptions to the webview; OpenCode
+loads the skill content.
 
 ### Commands
 

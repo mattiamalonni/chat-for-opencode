@@ -20,7 +20,7 @@ keys and sends no telemetry.
 │   EventStream    (client/sse.ts)   SSE parser + auto-reconnecting stream      │
 │   ChatController (chat/controller.ts)                                         │
 │     glue between server and webview, session persistence (workspaceState),    │
-│     editor context, @-file search, diff opening                               │
+│     editor context, @-file search, skill catalog, diff opening                │
 │   DiffService (chat/diff.ts)  patch → before/after virtual docs → vscode.diff │
 └───────────────────────────────▲───────────────────────────────────────────────┘
                      postMessage │ (typed protocol, src/shared/protocol.ts)
@@ -28,7 +28,7 @@ keys and sends no telemetry.
 │ Preact UI (src/webview)                                                       │
 │   chat reducer (src/shared/chatReducer.ts) folds history + live events        │
 │   markdown (marked + DOMPurify) + highlight.js                                │
-│   composer: context chips, @-mentions, IME-safe Enter, key isolation          │
+│   composer: context chips, @-file mentions, /-skill suggestions, IME-safe Enter│
 └───────────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -68,7 +68,7 @@ All messages are JSON objects with a `type` discriminator, defined in `src/share
 | --- | --- | --- |
 | `init` | `strings`, `folders`, `activeFolder`, `platform` | after `ready` |
 | `connection` | `status: idle\|starting\|connected\|reconnecting\|error`, `error?: UiError` | any status change |
-| `catalog` | `models`, `agents`, `defaultModel` | after connect / config change |
+| `catalog` | `models`, `agents`, `skills`, selected model and agent | after connect / config change |
 | `sessions` | `items: SessionSummary[]`, `currentId` | list changed |
 | `session` | `info`, `messages` (raw server history), `permissions`, `forms` | session loaded / resync |
 | `event` | `event` (raw server SSE event for the current session) | live |
@@ -99,6 +99,11 @@ All messages are JSON objects with a `type` discriminator, defined in `src/share
 `UiError = { kind, message, detail?, actions: {id,label}[] }`, kinds:
 `notInstalled`, `startFailed`, `unauthorized`, `noProvider`, `connectionLost`, `promptFailed`,
 `interrupted`, `executionFailed`.
+
+The `skills` catalog is fetched from `GET /api/skill` without a workspace-location override so
+OpenCode includes its global skill sources. The webview receives only each skill's ID, name and
+description. Selecting `/skill-id` converts it to `@skill-id` when sending, which is the syntax
+OpenCode uses to load a skill; unrelated slash commands remain unchanged.
 
 ## Security
 

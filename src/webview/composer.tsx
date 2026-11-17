@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "preact/hooks";
-import type { AgentInfo, ModelInfo, ModelRef } from "../shared/api";
+import type { AgentInfo, ModelInfo, ModelRef, SkillSuggestion } from "../shared/api";
 import { composerAction } from "../shared/keys";
 import type { Attachment, ContextItem } from "../shared/protocol";
 import { isolateKeys } from "./env";
@@ -7,7 +7,7 @@ import { formatTokens } from "../shared/format";
 import { ContextMeter } from "./contextMeter";
 import { Picker } from "./picker";
 import { useT } from "./i18n";
-import { IconAt, IconClose, IconFile, IconSelection, IconSend, IconStop } from "./icons";
+import { IconAt, IconClose, IconFile, IconSelection, IconSend, IconStop, IconTool } from "./icons";
 import { getPersisted, post, setPersisted } from "./vscode";
 
 export interface ComposerProps {
@@ -15,6 +15,7 @@ export interface ComposerProps {
   disabled: boolean;
   models: ModelInfo[];
   agents: AgentInfo[];
+  skills: SkillSuggestion[];
   selectedModel?: ModelRef;
   selectedAgent?: string;
   context: ContextItem[];
@@ -30,12 +31,16 @@ export interface ComposerProps {
   contextTokens?: number;
 }
 
-const MENTION_RE = /(^|\s)@([^\s@]*)$/;
+const FILE_MENTION_RE = /(^|\s)@([^\s@]*)$/;
+const SKILL_COMMAND_RE = /(^|\s)\/([^\s/]*)$/;
+
+type MentionItem = { kind: "file"; item: Attachment } | { kind: "skill"; item: SkillSuggestion };
+type Mention = { query: string; start: number; kind: "file" | "skill" };
 
 export function Composer(props: ComposerProps) {
   const t = useT();
   const [text, setText] = useState(() => getPersisted().draft ?? "");
-  const [mention, setMention] = useState<{ query: string; start: number } | undefined>();
+  const [mention, setMention] = useState<Mention | undefined>();
   const [active, setActive] = useState(0);
   const ref = useRef<HTMLTextAreaElement>(null);
   const composing = useRef(false);
@@ -58,27 +63,48 @@ export function Composer(props: ComposerProps) {
 
   useEffect(() => {
     if (!mention) return;
+    if (mention.kind !== "file") return;
     const handle = setTimeout(() => post({ type: "searchFiles", query: mention.query }), 100);
     return () => clearTimeout(handle);
   }, [mention?.query]);
 
-  const results = mention && props.fileResults.query === mention.query ? props.fileResults.items : [];
+  const fileResults = mention?.kind === "file" && props.fileResults.query === mention.query ? props.fileResults.items : [];
+  const skillResults: SkillSuggestion[] = mention?.kind === "skill"
+    ? props.skills
+        .filter((skill) => `${skill.id} ${skill.name} ${skill.description ?? ""}`.toLowerCase().includes(mention.query.toLowerCase()))
+        .slice(0, 30)
+    : [];
+  const results: MentionItem[] = [
+    ...(mention?.kind === "skill" || mention?.kind === "file" ? skillResults : []).map((item): MentionItem => ({ kind: "skill", item })),
+    ...fileResults.map((item): MentionItem => ({ kind: "file", item })),
+  ];
   useEffect(() => setActive(0), [results.length, mention?.query]);
 
   const updateMention = (value: string, caret: number) => {
-    const m = MENTION_RE.exec(value.slice(0, caret));
-    setMention(m ? { query: m[2], start: caret - m[2].length - 1 } : undefined);
+    const beforeCaret = value.slice(0, caret);
+    const skillMatch = SKILL_COMMAND_RE.exec(beforeCaret);
+    const fileMatch = FILE_MENTION_RE.exec(beforeCaret);
+    const match = skillMatch ?? fileMatch;
+    setMention(
+      match
+        ? {
+            query: match[2],
+            start: caret - match[2].length - 1,
+            kind: skillMatch ? "skill" : "file",
+          }
+        : undefined,
+    );
   };
 
-  const pick = (item: Attachment) => {
+  const pick = (item: MentionItem) => {
     if (!mention) return;
     const el = ref.current;
     const caret = el?.selectionStart ?? text.length;
-    const label = `@${item.detail ?? item.name} `;
+    const label = item.kind === "skill" ? `${mention.kind === "skill" ? "/" : "@"}${item.item.id} ` : `@${item.item.detail ?? item.item.name} `;
     const next = text.slice(0, mention.start) + label + text.slice(caret);
     setText(next);
     setMention(undefined);
-    props.onAddAttachment(item);
+    if (item.kind === "file") props.onAddAttachment(item.item);
     requestAnimationFrame(() => {
       const pos = mention.start + label.length;
       el?.focus();
@@ -182,15 +208,15 @@ export function Composer(props: ComposerProps) {
       )}
       <div class="input-wrap">
         {mention && (
-          <ul class="mention-popup" role="listbox" id={listId} aria-label={t("attachFile")}>
+          <ul class="mention-popup" role="listbox" id={listId} aria-label={t("suggestions")}>
             {results.length === 0 ? (
               <li class="mention-empty" role="option" aria-disabled="true" aria-selected="false">
-                {t("noFilesFound")}
+                {t("noFilesOrSkillsFound")}
               </li>
             ) : (
               results.map((r, i) => (
                 <li
-                  key={r.uri}
+                  key={r.kind === "file" ? r.item.uri : `skill:${r.item.id}`}
                   id={`mention-${i}`}
                   role="option"
                   aria-selected={i === active}
@@ -200,9 +226,9 @@ export function Composer(props: ComposerProps) {
                     pick(r);
                   }}
                 >
-                  <IconFile />
-                  <span class="mention-name">{r.name}</span>
-                  <span class="mention-path">{r.detail}</span>
+                  {r.kind === "file" ? <IconFile /> : <IconTool />}
+                  <span class="mention-name">{r.item.name}</span>
+                  <span class="mention-path">{r.kind === "file" ? r.item.detail : `@${r.item.id}${r.item.description ? ` · ${r.item.description}` : ""}`}</span>
                 </li>
               ))
             )}

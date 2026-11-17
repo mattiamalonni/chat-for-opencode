@@ -187,6 +187,17 @@ export interface AgentInfo {
   model?: ModelRef;
 }
 
+export interface SkillInfo {
+  id: string;
+  name: string;
+  description?: string;
+  autoinvoke?: boolean;
+  path: string;
+  content: string;
+}
+
+export type SkillSuggestion = Pick<SkillInfo, "id" | "name" | "description">;
+
 export interface ServerInfo {
   version: string;
   pid: number;
