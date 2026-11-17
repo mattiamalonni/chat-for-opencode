@@ -1113,6 +1113,10 @@ button:disabled {
   flex-shrink: 2;
 }
 
+.picker.variant {
+  flex-shrink: 0;
+}
+
 .picker-trigger {
   display: inline-flex;
   align-items: center;

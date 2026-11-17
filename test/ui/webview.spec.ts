@@ -323,6 +323,11 @@ test("model picker search filters when there are many models", async ({ page }) 
 test("picker popup stays inside a narrow view", async ({ page }) => {
   await page.setViewportSize({ width: 260, height: 600 });
   await boot(page);
+  const variantValue = page.locator(".picker.variant .picker-value");
+  await expect(variantValue).toHaveText(STRINGS.defaultVariant);
+  expect(await variantValue.evaluate((el: HTMLElement) => el.scrollWidth)).toBeLessThanOrEqual(
+    await variantValue.evaluate((el: HTMLElement) => el.clientWidth),
+  );
   await page.getByRole("button", { name: new RegExp(`^${STRINGS.variant}:`) }).click();
   const box = await page.locator(".picker-popup").boundingBox();
   expect(box!.x).toBeGreaterThanOrEqual(0);
