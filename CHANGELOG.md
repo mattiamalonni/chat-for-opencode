@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.3.1 — 2026-11-17
 
 - Question options now show the title above its description in a single column, with a larger
   click target, instead of squeezing them side by side.
