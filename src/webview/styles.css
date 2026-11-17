@@ -765,9 +765,47 @@ button:disabled {
 
 .option {
   display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 4px 6px;
+  margin: 0 -6px;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.option:hover {
+  background: var(--vscode-list-hoverBackground);
+}
+
+.option > input[type="radio"],
+.option > input[type="checkbox"] {
+  flex: none;
+  margin: 2px 0 0;
+}
+
+/* Free-text "Other…" row: keep radio and input vertically centred. */
+.option:has(> .text-input) {
   align-items: center;
-  gap: 6px;
-  padding: 1px 0;
+}
+
+.option:has(> .text-input) > input[type="radio"] {
+  margin-top: 0;
+}
+
+.option-text {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+.option-label {
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.option-text .field-desc {
+  line-height: 1.4;
 }
 
 .text-input {

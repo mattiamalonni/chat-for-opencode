@@ -378,8 +378,10 @@ function FieldInput(props: {
                 onChange((e.target as HTMLInputElement).checked ? [...selected, o.value] : selected.filter((x) => x !== o.value))
               }
             />
-            <span>{o.label}</span>
-            {o.description && <span class="field-desc">{o.description}</span>}
+            <span class="option-text">
+              <span class="option-label">{o.label}</span>
+              {o.description && <span class="field-desc">{o.description}</span>}
+            </span>
           </label>
         ))}
       </fieldset>
@@ -392,8 +394,10 @@ function FieldInput(props: {
         {f.options.map((o) => (
           <label class="option" key={o.value}>
             <input type="radio" name={id} checked={value === o.value} onChange={() => onChange(o.value)} />
-            <span>{o.label}</span>
-            {o.description && <span class="field-desc">{o.description}</span>}
+            <span class="option-text">
+              <span class="option-label">{o.label}</span>
+              {o.description && <span class="field-desc">{o.description}</span>}
+            </span>
           </label>
         ))}
         {f.custom && (

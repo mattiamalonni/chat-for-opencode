@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+- Question options now show the title above its description in a single column, with a larger
+  click target, instead of squeezing them side by side.
+
 ## 0.3.0 — 2026-11-17
 
 - The model picker shows each model's context window (e.g. `200K`, `1M`).

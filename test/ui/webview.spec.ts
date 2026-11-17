@@ -456,3 +456,40 @@ test("model picker shows context windows and the meter shows context usage", asy
   await page.waitForTimeout(400);
   await page.screenshot({ path: join(SHOTS, "12-context-meter-dark.png"), clip: { x: 0, y: 700, width: 380, height: 60 } });
 });
+
+test("question options stack title above description in one column", async ({ page }) => {
+  await boot(page);
+  const form = {
+    id: "frm_long",
+    sessionID: "ses_q",
+    title: "Questions",
+    metadata: { kind: "question" },
+    fields: [
+      {
+        key: "q0",
+        type: "string",
+        title: "Direzione dei nomi",
+        description: "Quale famiglia di nomi vuoi per i cinque mondi?",
+        custom: true,
+        options: [
+          { value: "a", label: "Parole · Numeri · Suoni · Ore · Forme (Recommended)", description: "Cinque sostantivi plurali, italiani, concreti: dicono cosa trovi dentro, restano corti nella nav." },
+          { value: "b", label: "Parla! · Conta! · Scrivi! · Tic Tac! · Pensa!", description: "Nomi-azione, giocosi e da gridare: più personalità, ma meno espliciti sul contenuto." },
+          { value: "c", label: "Solo togliere 'Little'", description: "English · Math · Italiano · Orologio · Logica. Rischio zero, ma nessun nome nuovo." },
+        ],
+      },
+    ],
+  };
+  await host(page, { type: "session", session: { id: "ses_q", busy: true, messages: [], permissions: [], forms: [form as never] } });
+  const options = page.locator("form.card.question .option-text");
+  await expect(options).toHaveCount(3);
+  for (let i = 0; i < 3; i++) {
+    const label = await options.nth(i).locator(".option-label").boundingBox();
+    const desc = await options.nth(i).locator(".field-desc").boundingBox();
+    expect(desc!.y).toBeGreaterThanOrEqual(label!.y + label!.height - 1);
+    expect(Math.abs(desc!.x - label!.x)).toBeLessThan(1);
+  }
+  await page.getByText("Solo togliere 'Little'").click();
+  await page.getByRole("button", { name: STRINGS.submit }).click();
+  expect(await lastPosted(page, "formReply")).toMatchObject({ answer: { q0: "c" } });
+  await page.screenshot({ path: join(SHOTS, "13-question-long-dark.png"), fullPage: true });
+});
