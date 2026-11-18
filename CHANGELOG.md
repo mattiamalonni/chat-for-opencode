@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- The UI is now **English-only**: removed the Italian translation bundles. The VS Code localization layer is kept for future translations.
 - **Sessions** can be renamed from the session menu, and *Load more sessions* reaches older ones
   beyond the first page of 50.
 - The **changed-files panel** now falls back to patches recorded by completed tools, so it also works

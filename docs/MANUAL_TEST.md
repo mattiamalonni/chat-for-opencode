@@ -45,4 +45,4 @@ Prerequisites: OpenCode v2 on `PATH` (`opencode --version`), a provider configur
     copy/paste work.
 15. **IME** (if available): type Japanese with the system IME and confirm a candidate with Enter: the
     message must not be sent until a second Enter.
-16. **Language**: *Configure Display Language → it*, restart: the UI is in Italian.
+16. **Language**: *Configure Display Language → it*, restart: the UI stays in English.

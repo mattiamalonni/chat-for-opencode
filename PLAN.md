@@ -33,7 +33,7 @@ Legend: `[x]` done and verified by an automated test or probe · `[~]` written, 
 - [x] Error handling with actions (UI, unit)
 - [~] a11y, key isolation, IME — automated in Chromium with synthetic events; no real IME / screen reader
 - [x] Settings documented, README, CHANGELOG
-- [x] l10n en/it (unit completeness test, UI)
+- [x] VS Code localization layer kept, English-only strings (no Italian bundle)
 - [x] Integration tests on VS Code stable (1.146) and minimum 1.99.3
 - [x] `vsce package`
 

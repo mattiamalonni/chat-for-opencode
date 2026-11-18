@@ -17,7 +17,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
       cspSource: view.webview.cspSource,
       scriptUri: view.webview.asWebviewUri(vscode.Uri.joinPath(dist, "webview.js")).toString(),
       styleUri: view.webview.asWebviewUri(vscode.Uri.joinPath(dist, "webview.css")).toString(),
-      lang: vscode.env.language,
+      lang: "en",
       title: vscode.l10n.t("OpenCode chat"),
     });
     this.controller.attachView(view);

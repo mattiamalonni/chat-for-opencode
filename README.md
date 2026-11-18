@@ -34,7 +34,7 @@ sends **no telemetry**.
 - **Permissions and questions inline** in the conversation, never auto-approved by default.
 - **Todo list** when the agent uses OpenCode's (experimental) `todowrite` tool.
 - Clear **error states** with action buttons (OpenCode missing, no provider, connection lost, interrupted response…).
-- Keyboard friendly and screen-reader labelled; works with IMEs; English and Italian UI.
+- Keyboard friendly and screen-reader labelled; works with IMEs; English UI.
 
 ## Requirements
 

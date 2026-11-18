@@ -293,7 +293,7 @@ function TruncatedPre({ text }: { text: string }) {
     <div>
       <pre class="tool-pre">{text.slice(0, limit)}…</pre>
       <button type="button" class="link-button" onClick={() => setFull(true)}>
-        {t("output")} ({text.length.toLocaleString()})
+        {t("output")} ({text.length.toLocaleString("en")})
       </button>
     </div>
   );
