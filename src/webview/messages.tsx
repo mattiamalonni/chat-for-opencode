@@ -6,6 +6,7 @@ import {
   permissionsForTool,
   selectToolFiles,
   type ChatState,
+  type TurnStats,
   type ChangedFile,
   type TextPart,
   type ToolPart,
@@ -14,6 +15,7 @@ import {
   type UiNotice,
 } from "../shared/chatReducer";
 import { fileRefToOpenPath, isFileRef } from "../shared/fileRef";
+import { formatTokens } from "../shared/format";
 import { isImeKey } from "../shared/keys";
 import type { ActionId } from "../shared/protocol";
 import { isolateKeys } from "./env";
@@ -146,6 +148,48 @@ export function ActionButton({ id }: { id: ActionId }) {
     <button type="button" class="link-button" onClick={() => post({ type: "action", id })}>
       {t(`action.${id}`)}
     </button>
+  );
+}
+
+/** Wall-clock time and total usage for a whole user turn, from input to the last step. */
+export function TurnStatsRow({ stats }: { stats: TurnStats }) {
+  if (stats.ended === undefined) return null;
+  return <StatsRow stats={stats} />;
+}
+
+/** Has to be a component: `useT` is a hook. The guard above keeps unfinished turns invisible. */
+function StatsRow({ stats }: { stats: TurnStats }) {
+  const t = useT();
+  const total = stats.tokens && stats.tokens.input + stats.tokens.output + stats.tokens.reasoning + stats.tokens.cache.read + stats.tokens.cache.write;
+  const elapsed = Math.max(0, (stats.ended ?? 0) - stats.started);
+
+  let duration: string;
+  const seconds = Math.round(elapsed / 100) / 10;
+  if (seconds < 60) duration = t("turnDuration", seconds.toFixed(1));
+  else {
+    let minutes = Math.floor(seconds / 60);
+    let rest = Math.round(seconds - minutes * 60);
+    if (rest === 60) {
+      minutes += 1;
+      rest = 0;
+    }
+    duration = t("turnDurationMinutes", minutes, rest);
+  }
+  const tokens = total && total > 0 ? t("tokens", formatTokens(total)) : undefined;
+  const cost = stats.cost !== undefined && stats.cost > 0 ? `$${stats.cost.toFixed(stats.cost < 0.01 ? 4 : 2)}` : undefined;
+  const shown = [duration, tokens, cost].filter((x): x is string => x !== undefined);
+  const tooltip = t(
+    "turnStatsTooltip",
+    duration,
+    tokens ?? t("turnStatsUnknown"),
+    cost ?? t("turnStatsUnknown"),
+  );
+  return (
+    <div class="turn-stats tooltip-host tooltip-above" role="img" aria-label={tooltip} data-tooltip={tooltip}>
+      <span class="turn-stats-line" aria-hidden="true" />
+      <span class="turn-stats-text">{shown.join(" · ")}</span>
+      <span class="turn-stats-line" aria-hidden="true" />
+    </div>
   );
 }
 

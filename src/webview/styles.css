@@ -631,6 +631,31 @@ details[open] > summary > .chevron,
   margin-top: -4px;
 }
 
+/* Unobtrusive footer for a finished turn: a long rule with the totals centred in it. */
+.turn-stats {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  margin: 6px 0 2px;
+  color: var(--vscode-descriptionForeground);
+  font-size: 0.8em;
+  font-variant-numeric: tabular-nums;
+}
+
+.turn-stats-line {
+  flex: 1;
+  height: 1px;
+  background: var(--vscode-widget-border, var(--vscode-panel-border, transparent));
+  opacity: 0.6;
+}
+
+.turn-stats-text {
+  flex: none;
+  white-space: nowrap;
+  opacity: 0.7;
+}
+
 .md {
   line-height: 1.5;
   word-wrap: break-word;

@@ -122,6 +122,10 @@ export const STRINGS = {
   assistant: "OpenCode",
   emptyResponse: "(no text)",
   tokens: "{0} tokens",
+  turnDuration: "{0}s",
+  turnDurationMinutes: "{0}m {1}s",
+  turnStatsTooltip: "From input to the last step: {0} · Tokens (all steps): {1} · Cost: {2}",
+  turnStatsUnknown: "n/a",
   dismiss: "Dismiss",
   details: "Details",
   // actions

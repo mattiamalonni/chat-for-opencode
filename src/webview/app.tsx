@@ -10,6 +10,7 @@ import {
   selectTodos,
   type TextPart,
   type ToolPart,
+  type TurnStats,
   type UiAssistantMessage,
   type UiMessage,
   type UiUserMessage,
@@ -28,7 +29,7 @@ import { IconCheck, IconChevron, IconClose, IconDiff, IconEdit, IconError, IconF
 import { setCopyLabel } from "./markdown";
 import { Picker } from "./picker";
 import { clearReplyFailures, markReplyFailed } from "./replyFeedback";
-import { ActionButton, AssistantStatus, FileList, FormCard, MessageView, messageSearchText, PermissionCard, ToolCard, ToolGroup } from "./messages";
+import { ActionButton, AssistantStatus, FileList, FormCard, MessageView, messageSearchText, PermissionCard, ToolCard, ToolGroup, TurnStatsRow } from "./messages";
 import { visibleRange, type VisibleRange } from "./virtual";
 import { hydrateDrafts, onHostMessage, post } from "./vscode";
 
@@ -938,14 +939,26 @@ type ConversationItem =
   | { kind: "assistant"; key: string; message: UiAssistantMessage; parts: TextPart[]; grouped: boolean }
   | { kind: "tool"; key: string; part: ToolPart }
   | { kind: "tools"; key: string; parts: ToolPart[] }
-  | { kind: "status"; key: string; message: UiAssistantMessage; typing: boolean };
+  | { kind: "status"; key: string; message: UiAssistantMessage; typing: boolean }
+  | { kind: "turnStats"; key: string; stats: TurnStats };
+
+/** The summary of a turn is emitted once, after the last assistant message it produced. */
+function statsForTurn(turns: TurnStats[], msgs: UiAssistantMessage[]): TurnStats | undefined {
+  const first = msgs[0]?.created;
+  if (first === undefined) return undefined;
+  for (let i = turns.length - 1; i >= 0; i--) {
+    const t = turns[i];
+    if (t.ended !== undefined && t.started <= first && first <= t.ended) return t;
+  }
+  return undefined;
+}
 
 /**
  * Renders a turn in the order the model produced it: narration and thoughts stay where they
  * happened, and only adjacent tool calls collapse into one accordion. OpenCode emits one
  * assistant message per step, so the flattening has to span messages to keep that order.
  */
-function conversationItems(messages: UiMessage[]): ConversationItem[] {
+function conversationItems(messages: UiMessage[], turns: TurnStats[]): ConversationItem[] {
   const items: ConversationItem[] = [];
   let turn: UiAssistantMessage[] = [];
 
@@ -991,6 +1004,8 @@ function conversationItems(messages: UiMessage[]): ConversationItem[] {
     if (last && !last.done && last.parts.length === 0) {
       items.push({ kind: "status", key: `typing:${last.id}`, message: last, typing: true });
     }
+    const stats = statsForTurn(turns, turn);
+    if (stats) items.push({ kind: "turnStats", key: `stats:${stats.id}`, stats });
     turn = [];
   };
 
@@ -1019,6 +1034,8 @@ function itemSearchText(item: ConversationItem): string {
       return item.parts.map((p) => [p.name, p.inputText].join(" ")).join(" ");
     case "status":
       return [item.message.error?.message ?? "", item.message.retry?.message ?? ""].join(" ");
+    case "turnStats":
+      return "";
   }
 }
 
@@ -1033,7 +1050,7 @@ function Conversation({ chat, scrollToken, searchQuery }: { chat: ReturnType<typ
   const lastId = useRef<string | undefined>(undefined);
   const scrollFrame = useRef<number | undefined>(undefined);
   const [atBottom, setAtBottom] = useState(true);
-  const items = useMemo(() => conversationItems(chat.messages), [chat.messages]);
+  const items = useMemo(() => conversationItems(chat.messages, chat.turns), [chat.messages, chat.turns]);
   const query = searchQuery.trim().toLowerCase();
   // Only long, unfiltered sessions are windowed. Short chats keep the exact same DOM as before.
   const virtual = chat.messages.length > 40 && !query;
@@ -1173,6 +1190,8 @@ function Conversation({ chat, scrollToken, searchQuery }: { chat: ReturnType<typ
             );
           case "status":
             return <AssistantStatus key={item.key} message={item.message} typing={item.typing} filteredOut={filteredOut} />;
+          case "turnStats":
+            return <TurnStatsRow key={item.key} stats={item.stats} />;
           case "message":
             return (
               <MessageView

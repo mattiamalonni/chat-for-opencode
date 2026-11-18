@@ -144,6 +144,98 @@ describe("chatReducer with recorded opencode 2.2.7 streams", () => {
   });
 });
 
+describe("turn metrics", () => {
+  const first = { input: 100, output: 20, reasoning: 5, cache: { read: 200, write: 0 } };
+  const second = { input: 50, output: 10, reasoning: 0, cache: { read: 100, write: 20 } };
+  const total = { input: 150, output: 30, reasoning: 5, cache: { read: 300, write: 20 } };
+
+  it("sums every step from the user input to the end of the execution", () => {
+    let state = chatReducer(open(S1), {
+      type: "events",
+      events: [
+        { type: "session.inbox.enqueued", created: 1000, data: { sessionID: S1, inboxID: "msg_u1", item: { type: "user", payload: { text: "hi" } } } },
+        { type: "session.execution.started", created: 1010, data: { sessionID: S1 } },
+        { type: "session.step.started", created: 1100, data: { sessionID: S1, assistantMessageID: "m1", agent: "build" } },
+        { type: "session.step.ended", created: 3000, data: { sessionID: S1, assistantMessageID: "m1", finish: "tool-use", cost: 0.001, tokens: first } },
+        { type: "session.step.started", created: 3100, data: { sessionID: S1, assistantMessageID: "m2", agent: "build" } },
+        { type: "session.step.ended", created: 6000, data: { sessionID: S1, assistantMessageID: "m2", finish: "stop", cost: 0.002, tokens: second } },
+      ],
+    });
+    expect(state.turns).toHaveLength(1);
+    expect(state.turns[0].ended).toBeUndefined();
+
+    state = chatReducer(state, {
+      type: "event",
+      event: { type: "session.execution.succeeded", created: 6500, data: { sessionID: S1 } },
+    });
+    const [turn] = state.turns;
+    expect(turn).toMatchObject({ id: "msg_u1", started: 1000, ended: 6500 });
+    expect(turn.tokens).toEqual(total);
+    expect(turn.cost).toBeCloseTo(0.003);
+  });
+
+  it("rebuilds one total per turn from history", () => {
+    const assistant = (id: string, created: number, tokens: typeof first, cost: number): SessionMessage => ({
+      id,
+      type: "assistant",
+      agent: "build",
+      model: { id: "m", providerID: "p" },
+      time: { created, completed: created + 200 },
+      tokens,
+      cost,
+      content: [{ type: "text", text: "ok" }],
+    });
+    const state = open("s", [
+      { id: "u1", type: "user", text: "hi", time: { created: 1000 } },
+      assistant("m1", 1100, first, 0.001),
+      assistant("m2", 1400, second, 0.002),
+      { id: "i1", type: "idle", outcome: "succeeded", time: { created: 2000 } },
+      { id: "u2", type: "user", text: "again", time: { created: 3000 } },
+      assistant("m3", 3100, first, 0.003),
+      { id: "i2", type: "idle", outcome: "succeeded", time: { created: 4000 } },
+      // The last turn has no idle entry yet; use the assistant completion time as its end.
+      { id: "u3", type: "user", text: "third", time: { created: 5000 } },
+      assistant("m4", 5100, first, 0.004),
+    ]);
+    expect(state.turns).toHaveLength(3);
+    expect(state.turns[0]).toMatchObject({ id: "u1", started: 1000, ended: 2000 });
+    expect(state.turns[0].tokens).toEqual(total);
+    expect(state.turns[0].cost).toBeCloseTo(0.003);
+    expect(state.turns[1]).toMatchObject({ id: "u2", started: 3000, ended: 4000, cost: 0.003 });
+    expect(state.turns[2]).toMatchObject({ id: "u3", started: 5000, ended: 5300 });
+  });
+
+  it("emits exactly one summary per execution in a real recorded stream", () => {
+    const events = fixture("real-sse1.jsonl");
+    const state = chatReducer(open(S1), { type: "events", events });
+    // The fixture interleaves two sessions; only S1 belongs to the open chat.
+    const executions = events.filter(
+      (e) => /^session\.execution\.(succeeded|failed|interrupted)$/.test(e.type) && (e.data as { sessionID?: string }).sessionID === S1,
+    );
+    const firstInput = events.find(
+      (e) => e.type === "session.inbox.enqueued" && (e.data as { sessionID?: string }).sessionID === S1,
+    );
+    expect(state.turns).toHaveLength(executions.length);
+    expect(state.turns[0].started).toBe(firstInput?.created);
+    expect(state.turns[0].ended).toBe(executions[0].created);
+    // The multi-step turn must add up all its steps, not only the last one.
+    let best = { count: 0, turn: state.turns[0], sum: 0 };
+    for (const t of state.turns) {
+      const steps = events.filter(
+        (e) => e.type === "session.step.ended" && (e.created ?? 0) > t.started && (e.created ?? 0) <= (t.ended ?? 0),
+      );
+      const sum = steps.reduce((acc, e) => {
+        const tk = (e.data as { tokens?: { input: number; output: number; reasoning: number; cache: { read: number; write: number } } }).tokens;
+        return acc + (tk ? tk.input + tk.output + tk.reasoning + tk.cache.read + tk.cache.write : 0);
+      }, 0);
+      if (steps.length > best.count) best = { count: steps.length, turn: t, sum };
+    }
+    expect(best.count).toBeGreaterThan(1);
+    const tk = best.turn.tokens!;
+    expect(tk.input + tk.output + tk.reasoning + tk.cache.read + tk.cache.write).toBe(best.sum);
+  });
+});
+
 describe("chatReducer history loading", () => {
   const history: SessionMessage[] = [
     { id: "msg_3", type: "idle", outcome: "succeeded", time: { created: 3 } },

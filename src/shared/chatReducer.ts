@@ -74,10 +74,22 @@ export interface Todo {
   status: string;
 }
 
+/** Wall-clock time and summed usage for one user turn: input → end of every step. */
+export interface TurnStats {
+  /** User message that opened the turn (its inbox id in the live stream). */
+  id: string;
+  started: number;
+  ended?: number;
+  /** Sum of the per-step token counts, so tool-using turns include every LLM call. */
+  tokens?: TokenUsage;
+  cost?: number;
+}
+
 export interface ChatState {
   sessionId: string | null;
   title?: string;
   messages: UiMessage[];
+  turns: TurnStats[];
   permissions: PermissionRequest[];
   forms: FormRequest[];
   busy: boolean;
@@ -113,6 +125,7 @@ export type ChatAction =
 export const initialChatState: ChatState = {
   sessionId: null,
   messages: [],
+  turns: [],
   permissions: [],
   forms: [],
   busy: false,
@@ -165,6 +178,7 @@ function loadHistory(action: Extract<ChatAction, { type: "load" }>): ChatState {
     agent: action.agent,
     model: action.model,
     messages,
+    turns: turnsFromHistory(sorted),
     permissions: action.permissions,
     forms: action.forms,
     busy,
@@ -197,6 +211,7 @@ function appendDelta(state: ChatState, delta: SessionDelta): ChatState {
   return {
     ...state,
     messages,
+    turns: mergeTurns(state.turns, turnsFromHistory(sorted)),
     permissions: delta.permissions ?? state.permissions,
     forms: delta.forms ?? state.forms,
     usage: delta.usage ?? state.usage,
@@ -253,6 +268,83 @@ export function toSessionSummary(info: SessionInfo, messages?: SessionMessage[],
 
 function cmp(a: string, b: string): number {
   return a < b ? -1 : a > b ? 1 : 0;
+}
+
+function addTokens(base: TokenUsage | undefined, extra: TokenUsage | undefined): TokenUsage | undefined {
+  if (!extra) return base;
+  const b = base ?? { input: 0, output: 0, reasoning: 0, cache: { read: 0, write: 0 } };
+  return {
+    input: b.input + (extra.input || 0),
+    output: b.output + (extra.output || 0),
+    reasoning: b.reasoning + (extra.reasoning || 0),
+    cache: { read: b.cache.read + (extra.cache?.read || 0), write: b.cache.write + (extra.cache?.write || 0) },
+  };
+}
+
+/**
+ * Rebuilds one summary per turn from history. A user message opens a turn, the assistant
+ * messages that follow are its steps, and an idle (or the next user message) closes it.
+ */
+function turnsFromHistory(messages: SessionMessage[]): TurnStats[] {
+  const sorted = [...messages].sort((a, b) => a.time.created - b.time.created || cmp(a.id, b.id));
+  const turns: TurnStats[] = [];
+  let current: TurnStats | undefined;
+  let lastCompleted: number | undefined;
+  for (const m of sorted) {
+    if (m.type === "user") {
+      if (current && current.ended === undefined) current.ended = m.time.created;
+      current = { id: m.id, started: m.time.created };
+      lastCompleted = undefined;
+      turns.push(current);
+    } else if (m.type === "assistant" && current) {
+      current.tokens = addTokens(current.tokens, m.tokens);
+      if (typeof m.cost === "number") current.cost = (current.cost ?? 0) + m.cost;
+      if (m.time.completed !== undefined) lastCompleted = Math.max(lastCompleted ?? 0, m.time.completed);
+    } else if (m.type === "idle" && current) {
+      current.ended = m.time.created;
+      current = undefined;
+    }
+  }
+  // The last turn may have no idle entry yet; the assistant's completion time is the next best end.
+  if (current && current.ended === undefined && lastCompleted !== undefined) current.ended = lastCompleted;
+  return turns.filter((t) => t.ended !== undefined && t.tokens !== undefined);
+}
+
+function openTurn(state: ChatState, id: string, started: number): TurnStats[] {
+  const turns = state.turns.slice();
+  // A queued message can arrive before the previous execution's terminal event.
+  for (let i = turns.length - 1; i >= 0; i--) {
+    if (turns[i].ended === undefined) turns[i] = { ...turns[i], ended: started };
+  }
+  turns.push({ id, started });
+  return turns;
+}
+
+function withOpenTurn(state: ChatState, update: (t: TurnStats) => TurnStats): TurnStats[] {
+  for (let i = state.turns.length - 1; i >= 0; i--) {
+    if (state.turns[i].ended === undefined) {
+      const turns = state.turns.slice();
+      turns[i] = update(turns[i]);
+      return turns;
+    }
+  }
+  return state.turns;
+}
+
+function endTurn(state: ChatState, ended: number): TurnStats[] {
+  return withOpenTurn(state, (t) => ({ ...t, ended }));
+}
+
+/** A resync tail is authoritative for the turns it contains; live-only turns stay untouched. */
+function mergeTurns(current: TurnStats[], incoming: TurnStats[]): TurnStats[] {
+  if (incoming.length === 0) return current;
+  const merged = current.slice();
+  for (const t of incoming) {
+    const idx = merged.findIndex((x) => x.id === t.id);
+    if (idx === -1) merged.push(t);
+    else merged[idx] = t;
+  }
+  return merged;
 }
 
 function fromHistory(m: SessionMessage): UiMessage | undefined {
@@ -420,14 +512,19 @@ export function applyEvent(state: ChatState, event: ServerEvent): ChatState {
           .map((f) => ({ uri: f.uri ?? f.source?.uri ?? "", name: f.name }))
           .filter((f) => f.uri || f.name),
       };
-      return { ...state, messages: insertSorted(state.messages, msg) };
+      return { ...state, messages: insertSorted(state.messages, msg), turns: openTurn(state, id, created) };
     }
     case "session.inbox.cancelled": {
       const id = str(d, "inboxID");
-      return { ...state, messages: state.messages.filter((m) => m.id !== id) };
+      return { ...state, messages: state.messages.filter((m) => m.id !== id), turns: state.turns.filter((t) => t.id !== id) };
     }
-    case "session.execution.started":
-      return { ...state, busy: true, lastError: undefined, retry: undefined };
+    case "session.execution.started": {
+      // Events can be missed when connecting mid-turn, so always have a turn to attach usage to.
+      const turns = state.turns.some((t) => t.ended === undefined)
+        ? state.turns
+        : [...state.turns, { id: `turn-${created}`, started: created }];
+      return { ...state, busy: true, lastError: undefined, retry: undefined, turns };
+    }
     case "session.status": {
       const status = d.status as { type?: string; attempt?: number; message?: string; next?: number } | undefined;
       if (status?.type === "retry") {
@@ -534,12 +631,18 @@ export function applyEvent(state: ChatState, event: ServerEvent): ChatState {
       );
     }
     case "session.step.ended": {
-      const next = updateAssistant({ ...state, contextTokens: contextTokensOf(d.tokens as TokenUsage | undefined) ?? state.contextTokens }, msgId, (m) => ({
+      const tokens = d.tokens as TokenUsage | undefined;
+      const next = updateAssistant({ ...state, contextTokens: contextTokensOf(tokens) ?? state.contextTokens }, msgId, (m) => ({
         ...m,
         done: true,
         finish: str(d, "finish") || m.finish,
         retry: undefined,
         parts: m.parts.map((p) => (p.kind === "tool" || p.done ? p : { ...p, done: true })),
+      }));
+      next.turns = withOpenTurn(state, (t) => ({
+        ...t,
+        tokens: addTokens(t.tokens, tokens),
+        cost: typeof d.cost === "number" ? (t.cost ?? 0) + d.cost : t.cost,
       }));
       return withTouchedFiles(next, d.files);
     }
@@ -567,7 +670,7 @@ export function applyEvent(state: ChatState, event: ServerEvent): ChatState {
       }));
     }
     case "session.execution.succeeded":
-      return { ...finishAll(state), busy: false, retry: undefined };
+      return { ...finishAll(state), busy: false, retry: undefined, turns: endTurn(state, created) };
     case "session.execution.failed": {
       const error = (d.error as StructuredError) ?? { type: "unknown", message: "" };
       const s = finishAll(state);
@@ -576,6 +679,7 @@ export function applyEvent(state: ChatState, event: ServerEvent): ChatState {
         busy: false,
         retry: undefined,
         lastError: error,
+        turns: endTurn(state, created),
         messages: [...s.messages, notice(event.id ?? `err-${created}`, created, "error", "failed", error.message)],
       };
     }
@@ -585,6 +689,7 @@ export function applyEvent(state: ChatState, event: ServerEvent): ChatState {
         ...s,
         busy: false,
         retry: undefined,
+        turns: endTurn(state, created),
         messages: [...s.messages, notice(event.id ?? `int-${created}`, created, "warning", "interrupted", str(d, "reason"))],
       };
     }

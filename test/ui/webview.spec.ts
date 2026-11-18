@@ -1316,6 +1316,38 @@ test("model picker shows context windows and the meter shows context usage", asy
   await page.screenshot({ path: join(SHOTS, "12-context-meter-dark.png"), clip: { x: 0, y: 700, width: 380, height: 60 } });
 });
 
+test("a finished turn shows one total for all its steps", async ({ page }) => {
+  await boot(page);
+  await host(page, { type: "session", session: { id: "ses_turn", busy: false, messages: [], permissions: [], forms: [] } });
+  const events: ServerEvent[] = [
+    { type: "session.inbox.enqueued", created: 1000, data: { sessionID: "ses_turn", inboxID: "u1", item: { type: "user", payload: { text: "hi" } } } },
+    { type: "session.execution.started", created: 1010, data: { sessionID: "ses_turn" } },
+    { type: "session.step.started", created: 1100, data: { sessionID: "ses_turn", assistantMessageID: "m1", agent: "build" } },
+    { type: "session.text.delta", created: 1200, data: { sessionID: "ses_turn", assistantMessageID: "m1", ordinal: 0, delta: "one" } },
+    { type: "session.step.ended", created: 3000, data: { sessionID: "ses_turn", assistantMessageID: "m1", finish: "tool-use", cost: 0.001, tokens: { input: 100, output: 20, reasoning: 5, cache: { read: 200, write: 0 } } } },
+    { type: "session.step.started", created: 3100, data: { sessionID: "ses_turn", assistantMessageID: "m2", agent: "build" } },
+    { type: "session.text.delta", created: 3200, data: { sessionID: "ses_turn", assistantMessageID: "m2", ordinal: 0, delta: "two" } },
+    { type: "session.step.ended", created: 6000, data: { sessionID: "ses_turn", assistantMessageID: "m2", finish: "stop", cost: 0.002, tokens: { input: 50, output: 10, reasoning: 0, cache: { read: 100, write: 20 } } } },
+  ];
+  for (const event of events) await host(page, { type: "event", event });
+  const stats = page.locator(".turn-stats");
+  await expect(stats).toHaveCount(0); // still running: no summary yet
+
+  await host(page, {
+    type: "event",
+    event: { type: "session.execution.succeeded", created: 6500, data: { sessionID: "ses_turn" } },
+  });
+  await expect(stats).toHaveCount(1);
+  await expect(stats).toContainText("5.5s");
+  await expect(stats).toContainText("505 tokens");
+  await expect(stats).toContainText("$0.0030");
+  await expect(stats).toHaveAttribute(
+    "data-tooltip",
+    "From input to the last step: 5.5s · Tokens (all steps): 505 tokens · Cost: $0.0030",
+  );
+  await page.screenshot({ path: join(SHOTS, "13-turn-stats-dark.png") });
+});
+
 test("question options stack title above description in one column", async ({ page }) => {
   await boot(page);
   const form = {
