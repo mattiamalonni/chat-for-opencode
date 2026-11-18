@@ -5,6 +5,7 @@ import type { Attachment, ContextItem } from "../shared/protocol";
 import { isolateKeys } from "./env";
 import { formatTokens } from "../shared/format";
 import { ContextMeter } from "./contextMeter";
+import { collectPastedFiles, hasFiles, readFileAsBase64, type DragData } from "./dropFiles";
 import { FileTypeIcon } from "./fileIcons";
 import { Picker } from "./picker";
 import { useT } from "./i18n";
@@ -370,6 +371,14 @@ export function Composer(props: ComposerProps) {
             if ((e.key === "ArrowLeft" || e.key === "ArrowRight" || e.key === "Home" || e.key === "End") && !composing.current) {
               updateMention(el.value, el.selectionStart);
             }
+          }}
+          onPaste={(e) => {
+            const clipboard = e.clipboardData as DragData | null;
+            if (!clipboard || !hasFiles(clipboard)) return; // Plain text keeps the browser's default paste.
+            e.preventDefault();
+            void collectPastedFiles(clipboard, readFileAsBase64).then((files) => {
+              if (files.length > 0) post({ type: "dropFiles", files });
+            });
           }}
           onCompositionStart={() => (composing.current = true)}
           onCompositionEnd={(e) => {

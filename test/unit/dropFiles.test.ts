@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { DragData, DropFileLike } from "../../src/webview/dropFiles";
-import { collectDroppedFiles, hasFiles, parseUriList } from "../../src/webview/dropFiles";
+import { collectDroppedFiles, collectPastedFiles, hasFiles, parseUriList } from "../../src/webview/dropFiles";
 
 function drag(types: string[], data: Record<string, string> = {}, files: DropFileLike[] = []): DragData {
   return { types, getData: (type) => data[type] ?? "", files };
@@ -72,5 +72,54 @@ describe("dropFiles", () => {
       return Buffer.from(await f.arrayBuffer()).toString("base64");
     };
     expect(await collectDroppedFiles(drag(["Files"], {}, [bad, good]), reader)).toEqual([{ name: "good.txt", base64: "b2s=" }]);
+  });
+});
+
+describe("collectPastedFiles", () => {
+  const reader = async (f: DropFileLike) => Buffer.from(await f.arrayBuffer!()).toString("base64");
+
+  it("reads clipboard files as inline content and keeps their MIME type", async () => {
+    const png: DropFileLike = {
+      name: "shot.png",
+      type: "image/png",
+      arrayBuffer: async () => new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10]).buffer,
+    };
+    const clipboard = drag(["Files"], {}, [png]);
+    expect(await collectPastedFiles(clipboard, reader)).toEqual([
+      { name: "shot.png", base64: "iVBORw0KGgo=", mime: "image/png" },
+    ]);
+  });
+
+  it("falls back to items[].getAsFile() when files is empty", async () => {
+    const png: DropFileLike = {
+      name: "clip.png",
+      type: "image/png",
+      arrayBuffer: async () => new TextEncoder().encode("bytes").buffer,
+    };
+    const clipboard: DragData = {
+      types: ["Files"],
+      getData: () => "",
+      files: [],
+      items: [{ kind: "file", type: "image/png", getAsFile: () => png }],
+    };
+    expect(await collectPastedFiles(clipboard, reader)).toEqual([
+      { name: "clip.png", base64: "Ynl0ZXM=", mime: "image/png" },
+    ]);
+  });
+
+  it("ignores non-file items and skips unreadable files", async () => {
+    const bad: DropFileLike = { name: "bad.png", type: "image/png" };
+    const good: DropFileLike = {
+      name: "ok.png",
+      type: "image/png",
+      arrayBuffer: async () => new TextEncoder().encode("ok").buffer,
+    };
+    const clipboard: DragData = {
+      types: ["Files"],
+      getData: () => "",
+      files: [bad, good],
+      items: [{ kind: "string", type: "text/plain" }],
+    };
+    expect(await collectPastedFiles(clipboard, reader)).toEqual([{ name: "ok.png", base64: "b2s=", mime: "image/png" }]);
   });
 });

@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Images and other files **pasted into the prompt** (for example a screenshot from the clipboard)
+  are now attached as chips and sent with the message, just like dropped or picked files. Plain-text
+  pastes are unaffected.
 - Added a compact **Build / Plan** dropdown in the composer toolbar to switch between OpenCode's two
   built-in agents. It starts in **Build** mode by default and stays available even when the server
   does not expose the agent list; the full agent picker remains next to it for custom agents.

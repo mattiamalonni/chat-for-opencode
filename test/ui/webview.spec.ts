@@ -156,6 +156,45 @@ test("a dropped file without a path is sent to the host as content", async ({ pa
   await expect(page.locator(".chip").filter({ hasText: "clip.txt" })).toHaveCount(1);
 });
 
+test("pasting an image into the prompt attaches it", async ({ page }) => {
+  await boot(page);
+  await page.evaluate(() => {
+    const dt = new DataTransfer();
+    dt.items.add(new File([new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10])], "shot.png", { type: "image/png" }));
+    document.querySelector("textarea.input")!.dispatchEvent(
+      new ClipboardEvent("paste", { bubbles: true, cancelable: true, clipboardData: dt }),
+    );
+  });
+  // Reading the File's bytes is async, so the dropFiles post can land after this evaluate.
+  await expect.poll(async () => (await lastPosted(page, "dropFiles")) as unknown).toMatchObject({
+    files: [{ name: "shot.png", base64: "iVBORw0KGgo=", mime: "image/png" }],
+  });
+  await expect(page.locator(".chip").filter({ hasText: "shot.png" })).toHaveCount(1);
+
+  const input = page.getByRole("textbox", { name: STRINGS.inputLabel });
+  await input.fill("Describe this screenshot");
+  await input.press("Enter");
+  const send = await lastPosted(page, "send");
+  expect(send && "attachments" in send && send.attachments.map((a) => a.name)).toContain("shot.png");
+});
+
+test("pasting plain text is not treated as a file", async ({ page }) => {
+  await boot(page);
+  const input = page.getByRole("textbox", { name: STRINGS.inputLabel });
+  await input.click();
+  // A synthetic paste cannot insert text, but dispatchEvent reports whether we cancelled it:
+  // plain text must keep the browser's default paste (only file pastes are intercepted).
+  const notCancelled = await page.evaluate(() => {
+    const dt = new DataTransfer();
+    dt.setData("text/plain", "hello world");
+    return document.querySelector("textarea.input")!.dispatchEvent(
+      new ClipboardEvent("paste", { bubbles: true, cancelable: true, clipboardData: dt }),
+    );
+  });
+  expect(notCancelled).toBe(true);
+  expect(await lastPosted(page, "dropFiles")).toBeUndefined();
+});
+
 test("the folder button asks the host to open the native file picker", async ({ page }) => {
   await boot(page);
   await page.getByRole("button", { name: STRINGS.pickFiles }).click();

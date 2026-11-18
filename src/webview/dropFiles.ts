@@ -24,7 +24,7 @@ export interface DragData {
   types: readonly string[];
   getData(type: string): string;
   files: ArrayLike<DropFileLike>;
-  items?: ArrayLike<{ kind: string; type: string }>;
+  items?: ArrayLike<{ kind: string; type: string; getAsFile?(): DropFileLike | null }>;
 }
 
 /** Reads a dropped File's content as base64 (no data-URL prefix). */
@@ -131,6 +131,33 @@ export async function collectDroppedFiles(drag: DragData, readFile: FileReader):
       } catch {
         // An unreadable file must not prevent the other files from being attached.
       }
+    }
+  }
+  return entries;
+}
+
+/**
+ * Reads files pasted into the composer (typically an image from the clipboard). Clipboard files
+ * carry no path, so their bytes are always sent inline. `DataTransfer.files` covers most hosts;
+ * some only expose the file through `items[].getAsFile()`, so fall back to that.
+ */
+export async function collectPastedFiles(drag: DragData, readFile: FileReader): Promise<DroppedFile[]> {
+  const files: DropFileLike[] = Array.from(drag.files ?? []);
+  if (files.length === 0) {
+    for (const item of Array.from(drag.items ?? [])) {
+      if (item.kind !== "file") continue;
+      const file = item.getAsFile?.();
+      if (file) files.push(file);
+    }
+  }
+  const entries: DroppedFile[] = [];
+  for (const file of files) {
+    try {
+      const entry: DroppedFile = { name: file.name, base64: await readFile(file) };
+      if (file.type) entry.mime = file.type;
+      entries.push(entry);
+    } catch {
+      // An unreadable file must not prevent the other files from being attached.
     }
   }
   return entries;
