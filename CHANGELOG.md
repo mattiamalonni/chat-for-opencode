@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.3.6 — 2026-11-18
 
 - The **Changed files** panel now has a check button next to Refresh to mark the current changes as
   reviewed and hide the section. It reappears automatically when the changed files change or a
@@ -14,7 +14,10 @@
   directly instead of a path it has to look for on disk.
 - **Clickable file references**: paths in the conversation (`src/app.ts:42`, `foo.ts#L7`), tool
   inputs, permission resources and changed-file rows now open the file in the editor at the exact
-  line, instead of being copied by hand.
+  line, instead of being copied by hand. Numbers, version strings and IP addresses are no longer
+  mistaken for paths.
+- Tooltips on icon buttons now appear instantly instead of after the native delay, and the
+  changed-files **Refresh** control is clearer (renamed *Refresh changed files*, new icon).
 - Added a runtime **contract smoke test**: on connect the extension checks the shape of the data it
   actually receives (server version, models, agents, skills, history, context window, diff) and a
   dismissible banner names the features that will not work with the connected server.
