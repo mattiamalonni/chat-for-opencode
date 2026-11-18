@@ -131,7 +131,8 @@ test("dropping a file from outside shows an overlay and attaches it", async ({ p
     window.dispatchEvent(new DragEvent("drop", { bubbles: true, cancelable: true, dataTransfer: dt }));
   });
   await expect(page.locator(".drop-overlay")).toHaveCount(0);
-  expect(await lastPosted(page, "dropFiles")).toMatchObject({
+  // The drop handler is async (it reads file content), so wait for the post instead of reading once.
+  await expect.poll(async () => (await lastPosted(page, "dropFiles")) as unknown).toMatchObject({
     files: [{ name: "notes.txt", uri: "file:///Users/me/notes.txt" }],
   });
   await expect(page.locator(".chip").filter({ hasText: "notes.txt" })).toHaveCount(1);
@@ -150,7 +151,8 @@ test("a dropped file without a path is sent to the host as content", async ({ pa
     dt.items.add(new File(["hello"], "clip.txt", { type: "text/plain" }));
     window.dispatchEvent(new DragEvent("drop", { bubbles: true, cancelable: true, dataTransfer: dt }));
   });
-  expect(await lastPosted(page, "dropFiles")).toMatchObject({ files: [{ name: "clip.txt", base64: "aGVsbG8=" }] });
+  // Reading a File's bytes is async, so the dropFiles post can land after this evaluate.
+  await expect.poll(async () => (await lastPosted(page, "dropFiles")) as unknown).toMatchObject({ files: [{ name: "clip.txt", base64: "aGVsbG8=" }] });
   await expect(page.locator(".chip").filter({ hasText: "clip.txt" })).toHaveCount(1);
 });
 
