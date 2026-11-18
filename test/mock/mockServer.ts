@@ -106,8 +106,10 @@ const PATCH = "Index: src/a.txt\n===============================================
 export function startMockServer(opts: MockOptions = {}): Promise<MockServer> {
   const password = opts.password ?? randomBytes(12).toString("hex");
   const directory = opts.directory ?? process.cwd();
-  // Mirrors real OpenCode: plugin skills/commands are only registered once a session exists.
+  // Mirrors real OpenCode: plugin skills/commands are registered on first session creation and
+  // stay registered after that session is deleted.
   const lateCatalog = process.env.MOCK_LATE_CATALOG === "1";
+  let catalogEverReady = false;
   const stepMs = opts.stepMs ?? 10;
   let noModels = opts.noModels ?? false;
   const sessions = new Map<string, MockSession>();
@@ -408,7 +410,8 @@ export function startMockServer(opts: MockOptions = {}): Promise<MockServer> {
     if (path === "/api/model") return send(res, 200, { location: { directory }, data: noModels ? [] : MODELS });
     if (path === "/api/model/default") return send(res, 200, { location: { directory }, data: noModels ? null : MODELS[0] });
     if (path === "/api/agent") return send(res, 200, { location: { directory }, data: AGENTS });
-    const catalogReady = !lateCatalog || sessions.size > 0;
+    if (sessions.size > 0) catalogEverReady = true;
+    const catalogReady = !lateCatalog || catalogEverReady;
     if (path === "/api/skill") return send(res, 200, { location: { directory }, data: catalogReady ? SKILLS : [] });
     if (path === "/api/command") return send(res, 200, { location: { directory }, data: catalogReady ? COMMANDS : [] });
     if (path === "/api/event") {

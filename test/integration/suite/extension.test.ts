@@ -67,10 +67,13 @@ describe("chat-for-opencode extension", () => {
     const catalog = await waitFor(() => lastPosted("catalog"), "catalog");
     assert.deepEqual(catalog.models.map((m) => m.id), ["mock-fast", "mock-smart"]);
     assert.deepEqual(catalog.agents.map((a) => a.id), ["build", "plan"]);
-    // Like real OpenCode, the mock registers plugin skills/commands only after a session exists.
-    assert.deepEqual(catalog.skills.map((s) => s.id), []);
-    assert.deepEqual(catalog.commands?.map((c) => c.name), []);
+    // The extension warms up the catalog with a throwaway session so `/` works before the first
+    // prompt; that session must be deleted again, leaving no stray session in the list.
+    assert.deepEqual(catalog.skills.map((s) => s.id), ["mock-review"]);
+    assert.deepEqual(catalog.commands?.map((c) => c.name), ["mock-init"]);
     assert.deepEqual(catalog.selectedModel, { id: "mock-fast", providerID: "mock" });
+    const sessions = await waitFor(() => lastPosted("sessions"), "sessions");
+    assert.deepEqual(sessions.items, []);
   });
 
   it("lives in the secondary side bar (right) on VS Code >= 1.104", async function () {

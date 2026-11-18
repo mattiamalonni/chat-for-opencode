@@ -160,6 +160,8 @@ export class ChatController implements vscode.Disposable {
   private agents: AgentInfo[] = [];
   private skills: SkillInfo[] = [];
   private commands: CommandInfo[] = [];
+  /** Whether the throwaway session needed to register plugin catalog items was already created. */
+  private catalogWarmedUp = false;
   private selectedModel: ModelRef | undefined;
   private selectedAgent: string | undefined;
   private fileIndex: FileIndex | undefined;
@@ -354,6 +356,7 @@ export class ChatController implements vscode.Disposable {
     this.stream?.close();
     this.client = new OpenCodeClient(conn);
     this.version = version;
+    this.catalogWarmedUp = false;
     this.fileIndex?.dispose();
     this.fileIndex = this.folder ? new FileIndex(this.folder) : undefined;
     this.stream = new EventStream({
@@ -394,15 +397,29 @@ export class ChatController implements vscode.Disposable {
       : this.agents.some((a) => a.id === savedAgent)
         ? savedAgent
         : fallbackAgent;
-    // Now that model/agent state is complete, a refreshed catalog (if any) can be posted safely.
-    await this.refreshSlashItems();
-    this.observeContract({ version: this.version, models, agents, skills: this.skills });
-
     const sessionId = this.sessionId ?? this.ctx.workspaceState.get<string>(SESSION_KEY(this.folder.uri.toString()));
     let session: SessionInfo | undefined;
     if (sessionId) {
       session = await client.getSession(sessionId).catch(() => undefined);
     }
+    // Plugin skills/commands are registered only once a session exists. With no session yet
+    // (fresh window, or right after "New session") create a throwaway one so the `/` picker is
+    // populated before the first prompt; the registrations survive deleting that session.
+    if (!session && !this.catalogWarmedUp) {
+      const tmp = await client.createSession({ directory: this.folder.uri.fsPath }).catch(() => undefined);
+      if (tmp) {
+        try {
+          this.catalogWarmedUp = true;
+          await this.refreshSlashItems();
+        } finally {
+          await client.deleteSession(tmp.id).catch(() => {});
+        }
+      }
+    }
+    // Now that model/agent state is complete, a refreshed catalog (if any) can be posted safely.
+    await this.refreshSlashItems();
+    this.observeContract({ version: this.version, models, agents, skills: this.skills });
+
     await this.refreshSessions();
     if (session) {
       await this.loadSession(session, () => generation !== this.sessionLoadGeneration);
