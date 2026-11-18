@@ -41,7 +41,14 @@ describe.skipIf(!available)("real opencode serve", () => {
     writeFileSync(join(dir, "lines.txt"), "alpha\nbravo\ncharlie\n");
     execFileSync("git", ["add", "."], { cwd: dir });
     execFileSync("git", ["-c", "user.email=e2e@test", "-c", "user.name=e2e", "commit", "-qm", "init"], { cwd: dir });
-    server = new ManagedServer({ folder: dir, executable: "opencode", startupTimeoutMs: 30_000, autoRestart: false, log: () => {} });
+    server = new ManagedServer({
+      folder: dir,
+      executable: "opencode",
+      startupTimeoutMs: 30_000,
+      autoRestart: false,
+      log: () => {},
+      recordsDir: mkdtempSync(join(tmpdir(), "oc-e2e-records-")),
+    });
     const conn = await server.ensure();
     client = new OpenCodeClient(conn);
     stream = new EventStream({ url: client.eventUrl(), headers: client.headers(), onEvent: (e) => events.push(e) });

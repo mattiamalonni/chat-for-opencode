@@ -33,8 +33,11 @@ test or a manual probe actually ran.
   there (move it with *OpenCode: Move Chat View…*). VS Code remembers a view moved by the user, so
   users upgrading from such a setup keep their custom location.
 
-- **Orphaned servers if VS Code crashes.** Managed servers are stopped on `deactivate`; if the
-  extension host is killed, `opencode serve` may survive (it has no parent-watch flag).
+- **Orphaned servers if VS Code crashes.** Managed servers are stopped on `deactivate` and a PID
+  record (no password) is written on start. On the next activation, records whose owning extension
+  host is gone are verified against the local server port and reaped. A server that dies before the
+  record is written, a reused host PID pointing at another running OpenCode server on the same
+  port, or two windows sharing the same folder overwriting each other's record, is still not covered.
 - **OpenCode's base policy** allows every action without asking (observed with 2.2.7). Sessions
   created by the extension start with `edit`, `shell` and `external_directory` set to `ask` (the
   `opencode.sessionPermissions` default). Sessions created elsewhere, or after setting that option
@@ -50,8 +53,9 @@ test or a manual probe actually ran.
   option to `[]`.
 - **Other OpenCode versions** are not supported: only 2.2.7's contract (types and SSE fixtures) was
   verified. Other 2.2.x patch releases are assumed compatible without a warning; the chat warns for
-  another minor (untested) or major (unsupported) version, but does not adapt to changed event
-  shapes or endpoints.
+  another minor (untested) or major (unsupported) version. A runtime smoke test checks the response
+  shape of the catalog and history endpoints and names the affected features in a banner, but it
+  cannot adapt to changed event shapes or endpoints.
 - **Context meter is an estimate** from the last step's token usage (see API_NOTES). It is unknown
   until the first reply and after a compaction, it is computed against the *selected* model (the
   one the next message will use), and whether reasoning tokens stay in context depends on the

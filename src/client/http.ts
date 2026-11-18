@@ -174,6 +174,11 @@ export class OpenCodeClient {
     return res.data;
   }
 
+  /** Durably admit a compaction request; the server runs it at the next step boundary. */
+  async compact(id: string): Promise<void> {
+    await this.request("POST", `api/session/${encodeURIComponent(id)}/compact`, { body: {} });
+  }
+
   async interrupt(id: string): Promise<boolean> {
     const res = await this.request<{ interrupted: boolean }>(
       "POST",

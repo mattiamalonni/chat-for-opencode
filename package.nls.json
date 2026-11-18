@@ -5,6 +5,7 @@
   "view.chat": "Chat",
   "command.newSession": "New Session",
   "command.reconnect": "Reconnect / Restart Server",
+  "command.compact": "Compact Conversation",
   "command.addSelectionToChat": "Add Selection to Chat",
   "command.addFileToChat": "Add File to Chat",
   "command.focus": "Focus Chat",

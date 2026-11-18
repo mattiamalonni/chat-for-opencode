@@ -5,6 +5,7 @@ import * as vscode from "vscode";
 import { ChatController, ServerRegistry } from "./chat/controller";
 import { DIFF_SCHEME, DiffService } from "./chat/diff";
 import { ChatViewProvider } from "./chat/viewProvider";
+import { cleanupOrphanServers } from "./server/orphans";
 
 const execFileAsync = promisify(execFile);
 
@@ -49,7 +50,11 @@ export interface ExtensionApi {
 export function activate(context: vscode.ExtensionContext): ExtensionApi {
   const output = vscode.window.createOutputChannel("OpenCode", { log: true });
   const log = (line: string) => output.info(line);
-  registry = new ServerRegistry(context.secrets, log);
+  const recordsDir = path.join(context.globalStorageUri.fsPath, "servers");
+  // A server whose extension host died (VS Code crash) cannot clean up after itself. Reap it
+  // before starting any new one, but leave servers owned by other live VS Code windows alone.
+  void cleanupOrphanServers(recordsDir, log);
+  registry = new ServerRegistry(context.secrets, log, recordsDir);
   const diffs = new DiffService();
   controller = new ChatController(context, registry, diffs, output);
   const chat = controller;
@@ -70,6 +75,7 @@ export function activate(context: vscode.ExtensionContext): ExtensionApi {
       await chat.newSession();
     }),
     vscode.commands.registerCommand("opencode.reconnect", () => chat.reconnect()),
+    vscode.commands.registerCommand("opencode.compact", () => chat.compact()),
     vscode.commands.registerCommand("opencode.focus", async () => {
       await focusView();
       chat.post({ type: "focusInput" });

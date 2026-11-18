@@ -86,6 +86,8 @@ export interface ChatState {
   usage?: { cost: number; tokens: TokenUsage };
   /** Estimated tokens in the model context after the last step (undefined until known / after compaction). */
   contextTokens?: number;
+  /** Paths reported by completed/failed steps, used to list changes without `/diff` patches. */
+  touchedFiles?: string[];
   agent?: string;
   model?: ModelRef;
 }
@@ -493,17 +495,19 @@ export function applyEvent(state: ChatState, event: ServerEvent): ChatState {
         }),
       );
     }
-    case "session.step.ended":
-      return updateAssistant({ ...state, contextTokens: contextTokensOf(d.tokens as TokenUsage | undefined) ?? state.contextTokens }, msgId, (m) => ({
+    case "session.step.ended": {
+      const next = updateAssistant({ ...state, contextTokens: contextTokensOf(d.tokens as TokenUsage | undefined) ?? state.contextTokens }, msgId, (m) => ({
         ...m,
         done: true,
         finish: str(d, "finish") || m.finish,
         retry: undefined,
         parts: m.parts.map((p) => (p.kind === "tool" || p.done ? p : { ...p, done: true })),
       }));
+      return withTouchedFiles(next, d.files);
+    }
     case "session.step.failed": {
       const error = d.error as StructuredError | undefined;
-      return updateAssistant(state, msgId, (m) => ({
+      return withTouchedFiles(updateAssistant(state, msgId, (m) => ({
         ...m,
         done: true,
         retry: undefined,
@@ -515,7 +519,7 @@ export function applyEvent(state: ChatState, event: ServerEvent): ChatState {
               : p
             : { ...p, done: true },
         ),
-      }));
+      })), d.files);
     }
     case "session.retry.scheduled": {
       const error = d.error as StructuredError | undefined;
@@ -651,9 +655,27 @@ export function selectToolChangedFiles(state: ChatState): FileDiff[] {
   return [...byFile.values()].sort((a, b) => a.file.localeCompare(b.file));
 }
 
-/** `/diff` data (when available) is authoritative; tool metadata fills the gaps. */
+function withTouchedFiles(state: ChatState, files: unknown): ChatState {
+  const paths = Array.isArray(files) ? files.filter((f): f is string => typeof f === "string") : [];
+  if (paths.length === 0) return state;
+  const known = new Set(state.touchedFiles ?? []);
+  let added = false;
+  for (const p of paths) {
+    if (!known.has(p)) {
+      known.add(p);
+      added = true;
+    }
+  }
+  return added ? { ...state, touchedFiles: [...known] } : state;
+}
+
+/** `/diff` data (when available) is authoritative; tool metadata and step paths fill the gaps. */
 export function mergeChangedFiles(fromDiff: FileDiff[], state: ChatState): FileDiff[] {
   const merged = new Map<string, FileDiff>();
+  // Lowest priority: a step tells us a file was touched, but not how (no patch, no counts).
+  for (const file of state.touchedFiles ?? []) {
+    merged.set(file, { file, patch: "", additions: 0, deletions: 0, status: "modified" });
+  }
   for (const f of selectToolChangedFiles(state)) merged.set(f.file, f);
   for (const f of fromDiff) merged.set(f.file, f);
   return [...merged.values()].sort((a, b) => a.file.localeCompare(b.file));

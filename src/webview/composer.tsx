@@ -8,7 +8,7 @@ import { ContextMeter } from "./contextMeter";
 import { FileTypeIcon } from "./fileIcons";
 import { Picker } from "./picker";
 import { useT } from "./i18n";
-import { IconAt, IconClose, IconPlus, IconSelection, IconSend, IconShield, IconStop, IconTool } from "./icons";
+import { IconAt, IconClose, IconCompact, IconPlus, IconSelection, IconSend, IconShield, IconStop, IconTool } from "./icons";
 import { getPersisted, post, setPersisted } from "./vscode";
 
 export interface ComposerProps {
@@ -37,6 +37,8 @@ export interface ComposerProps {
   contextTokens?: number;
   /** Accumulated cost of the current session, when reported by the server. */
   cost?: number;
+  /** A session is loaded and idle, so compaction can be requested. */
+  canCompact: boolean;
 }
 
 const FILE_MENTION_RE = /(^|\s)@([^\s@]*)$/;
@@ -426,6 +428,16 @@ export function Composer(props: ComposerProps) {
         >
           <IconShield />
           <span>{t("autoApprove")}</span>
+        </button>
+        <button
+          type="button"
+          class="icon-button compact"
+          title={t("compactConversation")}
+          aria-label={t("compactConversation")}
+          disabled={props.disabled || props.busy || !props.canCompact}
+          onClick={() => post({ type: "compact" })}
+        >
+          <IconCompact />
         </button>
         {currentModel?.limit?.context ? (
           <ContextMeter used={props.contextTokens} limit={currentModel.limit.context} cost={props.cost} />

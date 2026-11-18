@@ -25,7 +25,8 @@ sends **no telemetry**.
 - **Context window at a glance**: each model in the picker shows its context size, and a meter
   next to the send button shows how much of it the conversation already uses.
 - **Model, reasoning-effort and agent pickers** (custom, searchable, grouped by provider) filled with what your server actually returns (e.g. *Build* / *Plan*).
-- **Stop** a running response (button or `Esc` in the input).
+- **Stop** a running response (button or `Esc` in the input), and **compact** a long session from the composer toolbar or the command palette.
+- A **contract smoke test** on connect names the features that a non-2.2.7 server cannot support, instead of only warning about the version number.
 - **Editor context**: the active file and selection are attached automatically as chips you can remove before sending.
 - **`@` mentions** with fuzzy workspace file search, **Add Selection to Chat** / **Add File to Chat** in the editor and explorer context menus.
 - **Skills**: type `/` to search skills discovered by OpenCode, including global skills; selecting one
@@ -50,7 +51,7 @@ sends **no telemetry**.
 From a release `.vsix`:
 
 ```sh
-code --install-extension chat-for-opencode-0.3.2.vsix
+code --install-extension chat-for-opencode-<version>.vsix
 ```
 
 or *Extensions view → … → Install from VSIX…*.
@@ -60,7 +61,7 @@ From source:
 ```sh
 npm install
 npm run compile
-npx @vscode/vsce package     # produces chat-for-opencode-0.3.2.vsix
+npx @vscode/vsce package     # produces chat-for-opencode-<version>.vsix
 ```
 
 Press **F5** in this repository to launch an Extension Development Host.
@@ -103,6 +104,7 @@ loads the skill content.
 | OpenCode: Add Selection to Chat | `Cmd/Ctrl+Alt+L` (editor with selection) |
 | OpenCode: Add File to Chat | – (editor / explorer context menu) |
 | OpenCode: New Session | – |
+| OpenCode: Compact Conversation | – |
 | OpenCode: Reconnect / Restart Server | – |
 | OpenCode: Show Changed Files | – |
 | OpenCode: Move Chat View… | – (left/right side bar or panel) |
@@ -149,6 +151,9 @@ Auto-approval is off by default; only enable it when you trust unattended edits 
   VS Code `SecretStorage` (OS keychain).
 - Live updates come from the SSE stream `GET /api/event`; after a disconnect the extension
   reconnects and re-fetches the session, because the stream has no replay.
+- Each managed server writes a PID record (no password) in global storage. On the next start,
+  servers whose owning VS Code window is gone are reaped; servers owned by another live window
+  are left alone.
 - Details: [SPEC.md](SPEC.md), [docs/API_NOTES.md](docs/API_NOTES.md), [docs/DECISIONS.md](docs/DECISIONS.md),
   [docs/KNOWN_LIMITS.md](docs/KNOWN_LIMITS.md).
 

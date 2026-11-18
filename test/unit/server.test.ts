@@ -34,6 +34,7 @@ describe.skipIf(isWindows)("ManagedServer", () => {
       startupTimeoutMs: 10_000,
       autoRestart: true,
       log: (l) => logs.push(l),
+      recordsDir: mkdtempSync(join(tmpdir(), "oc-records-")),
       ...extra,
     });
     servers.push(server);

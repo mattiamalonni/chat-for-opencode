@@ -5,6 +5,7 @@ import { ExternalServer, ManagedServer, ServerError, type ServerHandle, type Ser
 import type {
   AgentInfo,
   FileAttachment,
+  FileDiff,
   ModelInfo,
   ModelRef,
   PermissionRequest,
@@ -14,6 +15,7 @@ import type {
 } from "../shared/api";
 import { eventSessionId, sessionIsBusy, sessionLooksBusy, toSessionSummary } from "../shared/chatReducer";
 import { checkCompatibility } from "../shared/compatibility";
+import { checkContract, contractSignature, emptyContract, type ContractObservations } from "../shared/contract";
 import type {
   ActionId,
   Attachment,
@@ -35,6 +37,7 @@ const SESSION_KEY = (folder: string) => `opencode.session:${folder}`;
 const MODEL_KEY = "opencode.lastModel";
 const AGENT_KEY = "opencode.lastAgent";
 const COMPAT_DISMISSED_KEY = "opencode.compatibilityDismissedFor";
+const CONTRACT_DISMISSED_KEY = "opencode.contractDismissedFor";
 const AUTO_APPROVE_KEY = (folder: string) => `opencode.autoApprove:${folder}`;
 
 export function translatedStrings(): Strings {
@@ -50,6 +53,7 @@ export class ServerRegistry implements vscode.Disposable {
   constructor(
     private readonly secrets: vscode.SecretStorage,
     private readonly log: (line: string) => void,
+    private readonly recordsDir: string,
   ) {}
 
   get(folder: vscode.WorkspaceFolder): ServerHandle {
@@ -71,6 +75,7 @@ export class ServerRegistry implements vscode.Disposable {
             startupTimeoutMs: cfg.get<number>("startupTimeout", 30_000),
             autoRestart: cfg.get<boolean>("autoRestart", true),
             log: this.log,
+            recordsDir: this.recordsDir,
           });
       this.servers.set(key, server);
     }
@@ -120,6 +125,8 @@ export class ChatController implements vscode.Disposable {
   private status: ConnectionStatus = "idle";
   private lastError: UiError | undefined;
   private version: string | undefined;
+  private contractObservations: ContractObservations = {};
+  private contract = emptyContract;
   private models: ModelInfo[] = [];
   private agents: AgentInfo[] = [];
   private skills: SkillInfo[] = [];
@@ -260,7 +267,15 @@ export class ChatController implements vscode.Disposable {
       version: this.version,
       compatibility: checkCompatibility(this.version),
       compatibilityDismissed: !!this.version && this.ctx.globalState.get<string>(COMPAT_DISMISSED_KEY) === this.version,
+      contract: this.contract,
+      contractDismissed: this.ctx.globalState.get<string>(CONTRACT_DISMISSED_KEY) === contractSignature(this.contract),
     });
+  }
+
+  /** Recompute the contract report from all observations collected so far. */
+  private observeContract(observations: Partial<ContractObservations>): void {
+    this.contractObservations = { ...this.contractObservations, ...observations };
+    this.contract = checkContract(this.contractObservations);
   }
 
   private setStatus(status: ConnectionStatus, error?: UiError): void {
@@ -325,6 +340,8 @@ export class ChatController implements vscode.Disposable {
     const client = this.client;
     if (!client || !this.folder) return;
     const generation = ++this.sessionLoadGeneration;
+    this.contractObservations = {};
+    this.contract = emptyContract;
     const [models, defaultModel, agents, skills] = await Promise.all([
       client.models().catch(() => [] as ModelInfo[]),
       client.defaultModel().catch(() => null),
@@ -334,6 +351,7 @@ export class ChatController implements vscode.Disposable {
         return [] as SkillInfo[];
       }),
     ]);
+    this.observeContract({ version: this.version, models, agents, skills });
     this.models = models.filter((m) => m.enabled !== false);
     this.agents = agents.filter((a) => a.mode !== "subagent" && !a.hidden);
     this.skills = skills;
@@ -691,13 +709,32 @@ export class ChatController implements vscode.Disposable {
     }
   }
 
-  async refreshChanges(): Promise<void> {
-    if (!this.client || !this.sessionId) {
-      this.post({ type: "changedFiles", files: [] });
-      return;
-    }
-    const files = await this.client.diff(this.sessionId).catch(() => []);
+  async refreshChanges(): Promise<FileDiff[]> {
+    let files: FileDiff[] = [];
+    if (this.client && this.sessionId) files = await this.client.diff(this.sessionId).catch(() => [] as FileDiff[]);
     this.post({ type: "changedFiles", files });
+    return files;
+  }
+
+  /** Ask the server to compact the current session (runs at the next step boundary). */
+  async compact(): Promise<void> {
+    const sid = this.sessionId;
+    if (!sid || !this.client) return;
+    try {
+      await this.client.compact(sid);
+      this.output.info("[chat] compaction requested");
+    } catch (err) {
+      const s = translatedStrings();
+      this.post({
+        type: "notice",
+        error: {
+          kind: "requestFailed",
+          message: s["error.compactFailed"],
+          detail: err instanceof Error ? err.message : String(err),
+          actions: ["showLogs"],
+        },
+      });
+    }
   }
 
   private async loadSession(info: SessionInfo, stale?: () => boolean, busyOverride?: boolean): Promise<void> {
@@ -709,6 +746,7 @@ export class ChatController implements vscode.Disposable {
     ]);
     // A newer prompt may have started while history was loading; its events are fresher.
     if (stale?.()) return;
+    this.observeContract({ messages });
     this.sessionId = info.id;
     // Requests granted automatically must not linger as cards when the chat's toggle is on.
     let pending = permissions;
@@ -742,7 +780,8 @@ export class ChatController implements vscode.Disposable {
     });
     this.postAutoApprove();
     await this.refreshSessions();
-    await this.refreshChanges();
+    const diff = await this.refreshChanges();
+    this.observeContract({ diff });
   }
 
   // ---- commands ---------------------------------------------------------------------------
@@ -992,9 +1031,15 @@ export class ChatController implements vscode.Disposable {
       case "selectFolder":
         return this.switchFolder(vscode.workspace.workspaceFolders?.find((f) => f.uri.toString() === msg.uri));
       case "refreshChanges":
-        return this.refreshChanges();
+        return void (await this.refreshChanges());
+      case "compact":
+        return this.compact();
       case "dismissCompatibility":
         await this.ctx.globalState.update(COMPAT_DISMISSED_KEY, msg.version);
+        return;
+      case "dismissContract":
+        await this.ctx.globalState.update(CONTRACT_DISMISSED_KEY, msg.signature);
+        this.postConnection();
         return;
     }
   }

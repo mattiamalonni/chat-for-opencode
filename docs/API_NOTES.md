@@ -51,6 +51,7 @@ Omitted → the server's cwd. Sessions carry their own `location` (set at creati
 | Messages | `GET /api/session/{id}/message?order=asc&limit=N&cursor=` | `{data: Message[], cursor:{previous,next}}` — default order is **desc** |
 | Prompt | `POST /api/session/{id}/prompt` `{text, files?: [{uri,name?,description?}], delivery?: "steer"\|"queue"}` | `{data: {id: msg_…, type:"user", payload, delivery}}` — returns immediately, output arrives via SSE |
 | Interrupt | `POST /api/session/{id}/interrupt` | `{interrupted: true}` |
+| Compact | `POST /api/session/{id}/compact` `{id?, delivery?}` | `{data: Session.Inbox.Compaction}` — steered at the next step boundary (schema only, 2.2.7) |
 | Switch agent | `POST /api/session/{id}/agent` `{agent}` | |
 | Switch model | `POST /api/session/{id}/model` `{model:{id,providerID,variant?}}` | |
 | Pending permissions | `GET /api/session/{id}/permission` | `{data: PermissionRequest[]}` |

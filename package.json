@@ -75,6 +75,11 @@
         "icon": "$(debug-restart)"
       },
       {
+        "command": "opencode.compact",
+        "title": "%command.compact%",
+        "category": "OpenCode"
+      },
+      {
         "command": "opencode.addSelectionToChat",
         "title": "%command.addSelectionToChat%",
         "category": "OpenCode"
@@ -139,6 +144,11 @@
           "command": "opencode.reconnect",
           "when": "view == opencode.chatView",
           "group": "navigation@3"
+        },
+        {
+          "command": "opencode.compact",
+          "when": "view == opencode.chatView",
+          "group": "overflow"
         },
         {
           "command": "opencode.showLogs",

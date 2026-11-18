@@ -1,5 +1,20 @@
 # Changelog
 
+## Unreleased
+
+- Added a runtime **contract smoke test**: on connect the extension checks the shape of the data it
+  actually receives (server version, models, agents, skills, history, context window, diff) and a
+  dismissible banner names the features that will not work with the connected server.
+- New **OpenCode: Compact Conversation** command and composer button, backed by the server's
+  `POST /api/session/{id}/compact` endpoint.
+- Orphaned `opencode serve` processes left behind by a VS Code crash are now reaped on the next
+  start. PID records are kept in global storage and contain no password; servers owned by another
+  live VS Code window are left alone.
+- The changed-files panel now also lists paths reported by a step when neither the diff endpoint
+  nor tool metadata carries a patch (no diff can be opened for those rows).
+- CI now runs the VS Code integration suite on Windows and macOS in addition to Linux.
+- Fixed stale version numbers in the install instructions.
+
 ## 0.3.5 — 2026-11-18
 
 - The UI is now **English-only**: removed the Italian translation bundles. The VS Code localization layer is kept for future translations.

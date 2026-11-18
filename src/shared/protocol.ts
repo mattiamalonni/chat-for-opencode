@@ -13,6 +13,7 @@ import type {
   TokenUsage,
 } from "./api";
 import type { Compatibility } from "./compatibility";
+import type { ContractReport } from "./contract";
 import type { Strings } from "./strings";
 
 export type ConnectionStatus = "idle" | "starting" | "connected" | "reconnecting" | "error";
@@ -110,6 +111,9 @@ export type HostMessage =
       compatibility?: Compatibility;
       /** The user already dismissed the compatibility warning for this server version. */
       compatibilityDismissed?: boolean;
+      /** Result of the runtime contract smoke test (which features the server really supports). */
+      contract?: ContractReport;
+      contractDismissed?: boolean;
     }
   | {
       type: "catalog";
@@ -134,6 +138,7 @@ export type WebviewMessage =
   | { type: "ready" }
   | { type: "send"; text: string; attachments: Attachment[]; context: ContextItem[] }
   | { type: "abort" }
+  | { type: "compact" }
   | { type: "newSession" }
   | { type: "selectSession"; id: string }
   | { type: "deleteSession"; id: string }
@@ -154,4 +159,5 @@ export type WebviewMessage =
   | { type: "action"; id: ActionId }
   | { type: "selectFolder"; uri: string }
   | { type: "refreshChanges" }
-  | { type: "dismissCompatibility"; version: string };
+  | { type: "dismissCompatibility"; version: string }
+  | { type: "dismissContract"; signature: string };

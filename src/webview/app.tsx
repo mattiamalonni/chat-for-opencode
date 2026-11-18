@@ -15,6 +15,7 @@ import {
   type UiUserMessage,
 } from "../shared/chatReducer";
 import { SUPPORTED_SERVER_VERSION, type Compatibility } from "../shared/compatibility";
+import { contractSignature, emptyContract, type ContractReport } from "../shared/contract";
 import type { Attachment, ConnectionStatus, ContextItem, FolderInfo, HostMessage, SessionSummary, UiError } from "../shared/protocol";
 import { STRINGS, type Strings } from "../shared/strings";
 import { Composer } from "./composer";
@@ -43,6 +44,7 @@ export function App() {
     status: "unknown",
     dismissed: false,
   });
+  const [contract, setContract] = useState<{ report: ContractReport; dismissed: boolean }>({ report: emptyContract, dismissed: false });
   const [issuesUrl, setIssuesUrl] = useState<string | undefined>();
   const [catalog, setCatalog] = useState<Catalog>({ models: [], agents: [], skills: [] });
   const [sessions, setSessions] = useState<SessionSummary[]>([]);
@@ -85,6 +87,7 @@ export function App() {
         case "connection":
           setStatus({ status: msg.status, error: msg.error });
           setCompatibility({ status: msg.compatibility ?? "unknown", version: msg.version, dismissed: !!msg.compatibilityDismissed });
+          setContract({ report: msg.contract ?? emptyContract, dismissed: !!msg.contractDismissed });
           break;
         case "catalog":
           setCatalog({ models: msg.models, agents: msg.agents, skills: msg.skills, selectedModel: msg.selectedModel, selectedAgent: msg.selectedAgent });
@@ -177,7 +180,7 @@ export function App() {
 
   const todos = useMemo(() => selectTodos(chat), [chat.messages]);
   // GET /session/{id}/diff is empty outside git repos, so fall back to patches in tool metadata.
-  const changedFiles = useMemo(() => mergeChangedFiles(changes, chat), [changes, chat.messages]);
+  const changedFiles = useMemo(() => mergeChangedFiles(changes, chat), [changes, chat.messages, chat.touchedFiles]);
   // Prompts already sent in this session, oldest first, for the composer's Up/Down history.
   const promptHistory = useMemo(
     () => chat.messages.filter((m): m is UiUserMessage => m.kind === "user").map((m) => m.text),
@@ -236,6 +239,9 @@ export function App() {
             issuesUrl={issuesUrl}
           />
         )}
+        {contract.report.failures.length > 0 && !contract.dismissed && (
+          <ContractBanner failures={contract.report.failures} issuesUrl={issuesUrl} />
+        )}
         {notice && <NoticeBanner error={notice} onDismiss={() => setNotice(undefined)} />}
         <Conversation chat={chat} scrollToken={scrollToken} />
         <div class="sr-only" role="status" aria-live="polite">
@@ -272,6 +278,7 @@ export function App() {
           onSend={send}
           promptHistory={promptHistory}
           focusToken={focusToken}
+          canCompact={!!chat.sessionId && !chat.busy && connected}
         />
         </div>
       </WebviewErrorBoundary>
@@ -574,6 +581,47 @@ function CompatibilityBanner(props: { status: "untested" | "unsupported"; versio
           <IconClose />
         </button>
       </div>
+      {issuesUrl && (
+        <div class="banner-actions">
+          <button type="button" class="link-button" onClick={() => post({ type: "openLink", href: issuesUrl })}>
+            {t("reportIssue")}
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** Names the capabilities whose response shape does not match the verified 2.2.7 contract. */
+function ContractBanner({ failures, issuesUrl }: { failures: ContractReport["failures"]; issuesUrl?: string }) {
+  const t = useT();
+  const [dismissed, setDismissed] = useState(false);
+  if (dismissed) return null;
+  return (
+    <div class="banner warning" role="status">
+      <div class="banner-main">
+        <IconWarning />
+        <strong>{t("contractTitle")}</strong>
+        <button
+          type="button"
+          class="icon-button dismiss"
+          aria-label={t("dismiss")}
+          onClick={() => {
+            setDismissed(true);
+            post({ type: "dismissContract", signature: contractSignature({ checked: failures.length, failures }) });
+          }}
+        >
+          <IconClose />
+        </button>
+      </div>
+      <ul class="contract-failures">
+        {failures.map((f) => (
+          <li key={f.id}>
+            <span>{t(`contract.${f.id}` as Parameters<typeof t>[0])}</span>
+            <small>{f.detail}</small>
+          </li>
+        ))}
+      </ul>
       {issuesUrl && (
         <div class="banner-actions">
           <button type="button" class="link-button" onClick={() => post({ type: "openLink", href: issuesUrl })}>

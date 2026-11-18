@@ -27,6 +27,8 @@ export const STRINGS = {
   contextUsage: "Context: {0} of {1} tokens used ({2}%)",
   contextUsageUnknown: "Context: {0} tokens window, usage available after the first reply",
   sessionCost: "Session cost: {0}",
+  compactConversation: "Compact conversation",
+  noDiffAvailable: "No diff available for this file",
   agent: "Agent",
   autoApprove: "Auto-approve",
   autoApproveOn: "Auto-approve permissions in this chat: on. Requests are granted without asking; click to ask again.",
@@ -82,6 +84,14 @@ export const STRINGS = {
   untestedVersion: "OpenCode {0} has not been tested with this extension (verified with {1}). Some features may not work.",
   unsupportedVersion: "OpenCode {0} is not supported by this extension (verified with {1}).",
   reportIssue: "Report an issue",
+  contractTitle: "Some OpenCode features do not match this extension's contract:",
+  "contract.serverInfo": "Server information / version warning",
+  "contract.models": "Model picker",
+  "contract.agents": "Agent picker",
+  "contract.skills": "Skill suggestions",
+  "contract.history": "Conversation history",
+  "contract.contextMeter": "Context window meter",
+  "contract.changedFiles": "Changed-files panel",
   welcomeTitle: "Chat with OpenCode",
   welcomeBody: "Ask a question, request a change or @-mention files. OpenCode runs locally with the providers you configured in OpenCode.",
   responseComplete: "Response complete",
@@ -113,6 +123,7 @@ export const STRINGS = {
   "error.promptFailed": "Could not send the message.",
   "error.noWorkspace": "Open a folder to chat with OpenCode.",
   "error.requestFailed": "Request to OpenCode failed.",
+  "error.compactFailed": "Could not compact the conversation.",
 } as const;
 
 export type StringKey = keyof typeof STRINGS;

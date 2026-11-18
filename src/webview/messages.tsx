@@ -306,17 +306,24 @@ export function FileList({ files, applied }: { files: ChangedFile[]; applied: bo
     <ul class="file-list">
       {files.map((f) => (
         <li key={f.file}>
-          <button
-            type="button"
-            class="file-row"
-            title={`${t("openDiff")}: ${f.file}`}
-            onClick={() => post({ type: "openDiff", file: f.file, patch: f.patch, applied })}
-          >
-            <IconDiff />
-            <span class="file-name">{f.file}</span>
-            <span class="adds">+{f.additions}</span>
-            <span class="dels">-{f.deletions}</span>
-          </button>
+          {f.patch ? (
+            <button
+              type="button"
+              class="file-row"
+              title={`${t("openDiff")}: ${f.file}`}
+              onClick={() => post({ type: "openDiff", file: f.file, patch: f.patch, applied })}
+            >
+              <IconDiff />
+              <span class="file-name">{f.file}</span>
+              <span class="adds">+{f.additions}</span>
+              <span class="dels">-{f.deletions}</span>
+            </button>
+          ) : (
+            <span class="file-row" title={t("noDiffAvailable")}>
+              <IconDiff />
+              <span class="file-name">{f.file}</span>
+            </span>
+          )}
         </li>
       ))}
     </ul>

@@ -281,6 +281,22 @@ details[open] > summary > .chevron,
   flex: 1;
 }
 
+.contract-failures {
+  margin: 2px 0 0;
+  padding-left: 22px;
+  width: 100%;
+}
+
+.contract-failures li {
+  margin: 2px 0;
+}
+
+.contract-failures small {
+  display: block;
+  color: var(--vscode-descriptionForeground);
+  word-break: break-word;
+}
+
 .banner-detail pre {
   white-space: pre-wrap;
   word-break: break-word;
@@ -1236,6 +1252,20 @@ button:disabled {
 
 .spacer {
   flex: 1;
+}
+
+.toolbar .icon-button.compact {
+  flex: none;
+  height: 24px;
+}
+
+.toolbar .icon-button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.toolbar .icon-button:disabled:hover {
+  background: none;
 }
 
 .auto-approve {

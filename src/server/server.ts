@@ -2,6 +2,7 @@ import { spawn, type ChildProcess } from "node:child_process";
 import { EventEmitter } from "node:events";
 import { randomBytes } from "node:crypto";
 import { ApiError, OpenCodeClient, type Connection } from "../client/http";
+import { clearServerRecord, writeServerRecord } from "./orphans";
 
 export type ServerErrorKind = "notInstalled" | "startFailed" | "unauthorized" | "unreachable";
 
@@ -121,6 +122,8 @@ export interface ManagedServerOptions {
   maxRestarts?: number;
   restartWindowMs?: number;
   extraEnv?: Record<string, string>;
+  /** Directory for PID records used to reap orphaned servers (see orphans.ts). */
+  recordsDir: string;
 }
 
 const LISTEN_RE = /listening on (https?:\/\/[^\s]+)/i;
@@ -221,6 +224,15 @@ export class ManagedServer extends BaseServer {
                 ready = true;
                 clearTimeout(timer);
                 log(`[server] ready at ${conn.baseUrl} (opencode ${version})`);
+                if (child.pid) {
+                  void writeServerRecord(this.opts.recordsDir, {
+                    pid: child.pid,
+                    port: Number(new URL(conn.baseUrl).port),
+                    folder,
+                    ownerPid: process.pid,
+                    startedAt: Date.now(),
+                  });
+                }
                 this.setState({ status: "running", conn, version });
                 resolve(conn);
               },
@@ -232,6 +244,7 @@ export class ManagedServer extends BaseServer {
 
       child.on("exit", (code, signal) => {
         log(`[server] exited (code ${code}, signal ${signal})`);
+        void clearServerRecord(this.opts.recordsDir, folder);
         if (this.child === child) this.child = undefined;
         if (!ready) {
           fail(
@@ -279,6 +292,7 @@ export class ManagedServer extends BaseServer {
     const child = this.child;
     this.child = undefined;
     if (child) await this.kill(child);
+    void clearServerRecord(this.opts.recordsDir, this.folder);
     if (this.pending) await this.pending.catch(() => {});
     this.setState({ status: "stopped" });
   }

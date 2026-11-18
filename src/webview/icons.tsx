@@ -65,4 +65,5 @@ export const IconEdit = svg("M11.9 1.6a1.5 1.5 0 0 1 2.1 0l.4.4a1.5 1.5 0 0 1 0 
 export const IconDiff = svg("M4 1h1v3h3v1H5v3H4V5H1V4h3zm-3 10h7v1H1zm9-10 5 5-5 5V1z");
 export const IconRefresh = svg("M13.5 8A5.5 5.5 0 1 1 11.8 4H9.5V3h4v4h-1V4.9A6.5 6.5 0 1 0 14.5 8z");
 export const IconAt = svg("M8 1a7 7 0 0 0 0 14h3v-1.4H8A5.6 5.6 0 1 1 13.6 8v.8c0 .7-.5 1.2-1.1 1.2s-1.1-.5-1.1-1.2V5h-1.3v.5A3.2 3.2 0 1 0 10.7 10a2.4 2.4 0 0 0 4.3-1.2V8a7 7 0 0 0-7-7zm0 9a2 2 0 1 1 0-4 2 2 0 0 1 0 4z");
+export const IconCompact = svg("M2 3h4v1H3v3H2zm12 0v4h-1V4h-3V3zm0 10h-4v-1h3V9h1zm-12 0h4v-1H3V9H2zM6 7.5h4v1H6z");
 export const IconHistory = svg("M8 1a7 7 0 1 1-6.6 9.3l1.3-.4A5.6 5.6 0 1 0 3 5H5v1.3H1V2.3h1.3v1.5A7 7 0 0 1 8 1zm-.7 3h1.4v3.7l2.8 1.7-.7 1.2-3.5-2.1z");
