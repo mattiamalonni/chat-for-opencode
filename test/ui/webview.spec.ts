@@ -53,7 +53,7 @@ async function boot(page: Page, theme: "dark" | "light" = "dark"): Promise<strin
   await host(page, { type: "init", strings: { ...STRINGS }, platform: "windows", folders: [{ uri: "file:///work", name: "work" }], activeFolder: "file:///work", issuesUrl: ISSUES_URL });
   await host(page, { type: "connection", status: "connected" });
   await host(page, { type: "catalog", models: MODELS as never, agents: AGENTS as never, skills: [], selectedModel: { id: "hy4-flash-free", providerID: "opencode" }, selectedAgent: "build" });
-  await host(page, { type: "sessions", items: [{ id: S1, title: "Hello world reply", updated: Date.now() - 120_000, busy: false }] });
+  await host(page, { type: "sessions", items: [{ id: S1, title: "Hello world reply", updated: Date.now() - 120_000, busy: false, needsInput: false }] });
   await host(page, { type: "session", session: null });
   await host(page, {
     type: "context",
@@ -548,6 +548,38 @@ test("session list: switch and delete with confirmation", async ({ page }) => {
   await expect(dialog).toHaveCount(0);
 });
 
+test("session list: busy and waiting-for-input sessions show distinct indicators", async ({ page }) => {
+  await boot(page);
+  await host(page, {
+    type: "sessions",
+    items: [
+      { id: S1, title: "Hello world reply", updated: Date.now() - 120_000, busy: true, needsInput: false },
+      { id: S2, title: "Idle chat", updated: Date.now() - 120_000, busy: false, needsInput: false },
+    ],
+  });
+  await page.getByRole("button", { name: new RegExp(`^${STRINGS.sessions}:`) }).click();
+  const dialog = page.getByRole("dialog", { name: STRINGS.sessions });
+  const busyItem = dialog.locator("li").filter({ hasText: "Hello world reply" });
+  const idleItem = dialog.locator("li").filter({ hasText: "Idle chat" });
+  await expect(busyItem.locator(".status-dot.session-busy.running")).toHaveCount(1);
+  await expect(busyItem).toContainText(STRINGS.running);
+  await expect(idleItem.locator(".status-dot.session-busy")).toHaveCount(0);
+
+  await host(page, {
+    type: "sessions",
+    items: [
+      { id: S1, title: "Hello world reply", updated: Date.now(), busy: true, needsInput: true },
+      { id: S2, title: "Idle chat", updated: Date.now(), busy: false, needsInput: false },
+    ],
+  });
+  await expect(busyItem.locator(".status-dot.session-busy.waiting")).toHaveCount(1);
+  await expect(busyItem).toContainText(STRINGS.needsInput);
+  await expect(idleItem.locator(".status-dot.session-busy")).toHaveCount(0);
+
+  await host(page, { type: "sessions", items: [{ id: S1, title: "Hello world reply", updated: Date.now(), busy: false, needsInput: false }] });
+  await expect(dialog.locator(".status-dot.session-busy")).toHaveCount(0);
+});
+
 test("session list: rename posts the new title", async ({ page }) => {
   await boot(page);
   await page.getByRole("button", { name: new RegExp(`^${STRINGS.sessions}:`) }).click();
@@ -565,7 +597,7 @@ test("session list: load-more button follows the host's hasMore flag", async ({ 
   await boot(page);
   await host(page, {
     type: "sessions",
-    items: [{ id: S1, title: "Hello world reply", updated: Date.now(), busy: false }],
+    items: [{ id: S1, title: "Hello world reply", updated: Date.now(), busy: false, needsInput: false }],
     hasMore: true,
   });
   await page.getByRole("button", { name: new RegExp(`^${STRINGS.sessions}:`) }).click();

@@ -40,6 +40,7 @@ export const STRINGS = {
   output: "Output",
   error: "Error",
   running: "Running…",
+  needsInput: "Needs your input",
   completed: "Completed",
   failed: "Failed",
   pending: "Pending",

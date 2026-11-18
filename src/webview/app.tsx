@@ -453,8 +453,11 @@ function SessionList(props: {
             ) : (
               <>
                 <button type="button" class="session-item" aria-current={s.id === props.currentId} onClick={() => post({ type: "selectSession", id: s.id })}>
+                  {(s.busy || s.needsInput) && (
+                    <span class={`status-dot session-busy ${s.needsInput ? "waiting" : "running"}`} aria-hidden="true" />
+                  )}
                   <span class="session-name">{s.title || t("untitled")}</span>
-                  <span class="session-time">{s.busy ? t("running") : relativeTime(s.updated)}</span>
+                  <span class="session-time">{s.needsInput ? t("needsInput") : s.busy ? t("running") : relativeTime(s.updated)}</span>
                 </button>
                 <button
                   type="button"

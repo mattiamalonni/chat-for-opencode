@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import type { AssistantMessage, ServerEvent, SessionMessage } from "../../src/shared/api";
+import type { AssistantMessage, ServerEvent, SessionInfo, SessionMessage } from "../../src/shared/api";
 import {
   chatReducer,
   initialChatState,
@@ -11,6 +11,7 @@ import {
   selectToolChangedFiles,
   selectTodos,
   sessionIsBusy,
+  toSessionSummary,
   type ChatState,
   type UiAssistantMessage,
 } from "../../src/shared/chatReducer";
@@ -241,6 +242,23 @@ describe("busy state after an interrupt", () => {
       { id: "msg_4", type: "compaction", time: { created: now - 100 } },
     ];
     expect(sessionIsBusy(time, withCompaction)).toBe(false);
+  });
+
+  it("gives the session list the same answer as the open chat", () => {
+    const info: SessionInfo = {
+      id: "s",
+      projectID: "p",
+      cost: 0,
+      tokens: { input: 0, output: 0, reasoning: 0, cache: { read: 0, write: 0 } },
+      time,
+      title: "Chat",
+      location: { directory: "/work" },
+    };
+    expect(toSessionSummary(info, interruptedHistory)).toMatchObject({ id: "s", title: "Chat", updated: now, busy: false, needsInput: false });
+    expect(toSessionSummary(info, interruptedHistory.slice(0, 2)).busy).toBe(true);
+    // Without a history the list can only use the timestamps, as before.
+    expect(toSessionSummary(info).busy).toBe(true);
+    expect(toSessionSummary(info, undefined, true).needsInput).toBe(true);
   });
 
   it("does not let a stale host busy flag re-lock the composer on load", () => {

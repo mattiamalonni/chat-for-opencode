@@ -12,7 +12,7 @@ import type {
   SessionInfo,
   SkillInfo,
 } from "../shared/api";
-import { eventSessionId, sessionIsBusy } from "../shared/chatReducer";
+import { eventSessionId, sessionIsBusy, sessionLooksBusy, toSessionSummary } from "../shared/chatReducer";
 import { checkCompatibility } from "../shared/compatibility";
 import type {
   ActionId,
@@ -133,6 +133,8 @@ export class ChatController implements vscode.Disposable {
   /** Per-chat choice for a chat that has no session yet; `undefined` follows the setting. */
   private pendingAutoApprove: boolean | undefined;
   private sessionsTimer: NodeJS.Timeout | undefined;
+  /** Invalidates in-flight session refreshes when a newer one starts or the folder changes. */
+  private sessionsGeneration = 0;
   private sessionsCursor: string | undefined;
   private sessionsHasMore = false;
   private sessionsLoadingMore = false;
@@ -431,6 +433,13 @@ export class ChatController implements vscode.Disposable {
       case "session.execution.succeeded":
       case "session.execution.failed":
       case "session.execution.interrupted":
+      case "session.status":
+      case "permission.asked":
+      case "permission.replied":
+      case "form.created":
+      case "form.replied":
+      case "form.cancelled":
+        // Busy/idle and pending-input transitions both change the session list indicator.
         this.scheduleSessions();
         break;
       default:
@@ -575,25 +584,40 @@ export class ChatController implements vscode.Disposable {
     }
   }
 
-  private static toSummary(s: SessionInfo): SessionSummary {
-    return {
-      id: s.id,
-      title: s.title ?? "",
-      updated: s.time.updated,
-      busy: (s.time.busy ?? 0) > (s.time.idle ?? 0),
-    };
-  }
-
   private postSessions(): void {
     this.post({ type: "sessions", items: this.sessionItems, currentId: this.sessionId, hasMore: this.sessionsHasMore });
   }
 
+  /**
+   * The cheap session list only carries timestamps. Only entries that look busy need their history
+   * and pending requests fetched: a terminal `idle` message can prove the busy flag stale after an
+   * interrupt, and the list should agree with the chat that already uses `sessionIsBusy`.
+   */
+  private async toSummaries(sessions: SessionInfo[]): Promise<SessionSummary[]> {
+    const client = this.client;
+    return Promise.all(
+      sessions.map(async (info) => {
+        if (!client || !sessionLooksBusy(info.time)) return toSessionSummary(info);
+        // Only a session whose turn is still running can be paused on a question or a permission
+        // request, so fetch the pending-input state together with the history we already need.
+        const [messages, permissions, forms] = await Promise.all([
+          client.messages(info.id).catch(() => undefined),
+          client.permissions(info.id).catch(() => []),
+          client.forms(info.id).catch(() => []),
+        ]);
+        return toSessionSummary(info, messages, permissions.length > 0 || forms.length > 0);
+      }),
+    );
+  }
+
   async refreshSessions(): Promise<void> {
     if (!this.client || !this.folder) return;
+    const generation = ++this.sessionsGeneration;
     const { items, next } = await this.client.listSessionsPage(this.folder.uri.fsPath);
-    this.sessionItems = items
-      .filter((s) => !s.parentID && !s.time.archived)
-      .map((s) => ChatController.toSummary(s));
+    const sessions = items.filter((s) => !s.parentID && !s.time.archived);
+    const summaries = await this.toSummaries(sessions);
+    if (generation !== this.sessionsGeneration) return;
+    this.sessionItems = summaries;
     this.sessionsCursor = next;
     this.sessionsHasMore = !!next;
     this.postSessions();
@@ -603,14 +627,19 @@ export class ChatController implements vscode.Disposable {
   async loadMoreSessions(): Promise<void> {
     if (!this.client || !this.folder || !this.sessionsCursor || this.sessionsLoadingMore) return;
     this.sessionsLoadingMore = true;
+    const generation = this.sessionsGeneration;
     try {
       const { items, next } = await this.client.listSessionsPage(this.folder.uri.fsPath, 50, this.sessionsCursor);
       const known = new Set(this.sessionItems.map((s) => s.id));
+      const fresh: SessionInfo[] = [];
       for (const s of items) {
         if (s.parentID || s.time.archived || known.has(s.id)) continue;
         known.add(s.id);
-        this.sessionItems.push(ChatController.toSummary(s));
+        fresh.push(s);
       }
+      const summaries = await this.toSummaries(fresh);
+      if (generation !== this.sessionsGeneration) return;
+      this.sessionItems.push(...summaries);
       this.sessionsCursor = next;
       this.sessionsHasMore = !!next;
       this.postSessions();
@@ -727,6 +756,7 @@ export class ChatController implements vscode.Disposable {
     this.client = undefined;
     this.sessionId = undefined;
     this.pendingAutoApprove = undefined;
+    this.sessionsGeneration++;
     this.sessionItems = [];
     this.sessionsCursor = undefined;
     this.sessionsHasMore = false;

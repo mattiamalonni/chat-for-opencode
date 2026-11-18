@@ -49,6 +49,8 @@ export interface SessionSummary {
   title: string;
   updated: number;
   busy: boolean;
+  /** A permission request or a question is waiting for the user to answer. */
+  needsInput: boolean;
 }
 
 export interface ContextItem {

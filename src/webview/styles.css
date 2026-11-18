@@ -186,6 +186,20 @@ details[open] > summary > .chevron,
   white-space: nowrap;
 }
 
+/* Live indicator for sessions with an execution in progress. */
+.session-list .status-dot.session-busy {
+  flex: 0 0 auto;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--vscode-charts-green, var(--vscode-testing-iconPassed, #4ec9b0));
+}
+
+/* Amber means the turn is paused waiting for an answer to a question or permission request. */
+.session-list .status-dot.session-busy.waiting {
+  background: var(--vscode-charts-yellow, #cca700);
+}
+
 .empty {
   padding: 8px;
 }
@@ -672,7 +686,8 @@ details[open] > summary > .chevron,
 }
 
 .status-dot.running,
-.status-dot.streaming {
+.status-dot.streaming,
+.status-dot.waiting {
   animation: pulse 1.2s ease-in-out infinite;
 }
 
