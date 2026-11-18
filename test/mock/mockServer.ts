@@ -364,6 +364,13 @@ export function startMockServer(opts: MockOptions = {}): Promise<MockServer> {
     s.messages.push({ id: id("msg"), type: "idle", outcome: "interrupted", time: { created: Date.now() } });
     emit({ type: "session.execution.interrupted", data: { sessionID: s.info.id, reason: "user" } });
     finish(s);
+    // Reproduce a real 2.2.7 quirk: after an interrupt, `time.busy` can end up newer than
+    // `time.idle`, which used to make the extension re-mark the session as busy on reconcile.
+    const lastUser = [...s.messages].reverse().find((x) => x.type === "user") as Json | undefined;
+    if (typeof lastUser?.text === "string" && lastUser.text.includes("[stale-busy]")) {
+      s.info.time = { ...(s.info.time as Json), busy: Number((s.info.time as Json).idle) + 105, updated: Date.now() };
+      persist();
+    }
   }
 
   const server = http.createServer(async (req, res) => {

@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+- Fixed the composer getting stuck on **Stop** after interrupting a session. OpenCode can leave a
+  session's `busy` timestamp newer than `idle` after an interrupt; the post-turn refresh now trusts
+  the terminal message in the history, so the send button becomes available again and further
+  messages can be sent. Clicking **Stop** on an already-idle session also resets the button locally.
+
 ## 0.3.3 — 2026-11-18
 
 **Behaviour change**

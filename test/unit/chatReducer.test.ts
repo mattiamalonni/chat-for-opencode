@@ -8,6 +8,7 @@ import {
   orphanPermissions,
   permissionsForTool,
   selectTodos,
+  sessionIsBusy,
   type ChatState,
   type UiAssistantMessage,
 } from "../../src/shared/chatReducer";
@@ -208,5 +209,47 @@ describe("chatReducer history loading", () => {
     expect(state.messages).toHaveLength(1);
     const user = state.messages[0];
     expect(user.kind === "user" && user.files).toEqual([{ uri: "file:///work/a.txt", name: "a.txt" }]);
+  });
+});
+
+describe("busy state after an interrupt", () => {
+  const now = 1_795_004_012_704;
+  const time = { created: now - 500, updated: now, busy: now, idle: now - 105 };
+
+  // An interrupted session observed on a real 2.2.7 server: `busy` ended up newer than
+  // `idle`, so a plain timestamp comparison leaves the composer stuck on "stop".
+  const interruptedHistory: SessionMessage[] = [
+    { id: "msg_1", type: "user", text: "Tell me a story", time: { created: now - 400 } },
+    { id: "msg_2", type: "assistant", agent: "build", model: { id: "m", providerID: "p" }, time: { created: now - 390, completed: now - 105 }, content: [] },
+    { id: "msg_3", type: "idle", outcome: "interrupted", time: { created: now - 105 } },
+  ];
+
+  it("a terminal idle message wins over stale busy/idle timestamps", () => {
+    expect(sessionIsBusy(time, interruptedHistory)).toBe(false);
+  });
+
+  it("trusts the timestamps when no terminal message is present", () => {
+    expect(sessionIsBusy(time, interruptedHistory.slice(0, 2))).toBe(true);
+    expect(sessionIsBusy({ ...time, idle: now + 1 }, interruptedHistory.slice(0, 2))).toBe(false);
+  });
+
+  it("ignores trailing bookkeeping messages after the terminal idle", () => {
+    const withCompaction: SessionMessage[] = [
+      ...interruptedHistory,
+      { id: "msg_4", type: "compaction", time: { created: now - 100 } },
+    ];
+    expect(sessionIsBusy(time, withCompaction)).toBe(false);
+  });
+
+  it("does not let a stale host busy flag re-lock the composer on load", () => {
+    const state = chatReducer(initialChatState, {
+      type: "load",
+      sessionId: "s",
+      busy: true, // from the server's (stale) time.busy > time.idle comparison
+      messages: interruptedHistory,
+      permissions: [],
+      forms: [],
+    });
+    expect(state.busy).toBe(false);
   });
 });

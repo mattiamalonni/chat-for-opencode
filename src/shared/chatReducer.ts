@@ -4,6 +4,7 @@ import type {
   ModelRef,
   PermissionRequest,
   ServerEvent,
+  SessionInfo,
   SessionMessage,
   StructuredError,
   TokenUsage,
@@ -148,7 +149,8 @@ function loadHistory(action: Extract<ChatAction, { type: "load" }>): ChatState {
     else if (m.type === "compaction" && (m as { status?: string }).status === "completed") contextTokens = undefined;
   }
   const last = sorted[sorted.length - 1];
-  const busy = action.busy ?? (last !== undefined && last.type !== "idle" && isIncomplete(last));
+  // A terminal idle message wins over a stale `busy` flag from the host (see sessionIsBusy).
+  const busy = last?.type === "idle" ? false : (action.busy ?? (last !== undefined && isIncomplete(last)));
   return {
     sessionId: action.sessionId,
     title: action.title,
@@ -164,6 +166,25 @@ function loadHistory(action: Extract<ChatAction, { type: "load" }>): ChatState {
 
 function isIncomplete(m: SessionMessage): boolean {
   return m.type === "assistant" && m.time.completed === undefined;
+}
+
+/**
+ * Whether a session still has an execution running.
+ *
+ * `time.busy` / `time.idle` are the timestamps of the last transitions to busy and idle. The
+ * real server can leave them inconsistent right after an interrupt (an interrupted session has
+ * been observed with `busy` newer than `idle`), which makes a naive comparison report the
+ * session as busy forever. A terminal `idle` message in the history is authoritative: once it
+ * is present, the turn is over, regardless of what the timestamps say.
+ */
+export function sessionIsBusy(time: SessionInfo["time"], messages: SessionMessage[]): boolean {
+  // Ignore trailing bookkeeping messages (e.g. compaction) and look at the last turn event.
+  let last: SessionMessage | undefined;
+  for (const m of messages) {
+    if (m.type === "user" || m.type === "assistant" || m.type === "idle") last = m;
+  }
+  if (last?.type === "idle") return false;
+  return (time.busy ?? 0) > (time.idle ?? 0);
 }
 
 function cmp(a: string, b: string): number {

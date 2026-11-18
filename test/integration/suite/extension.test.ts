@@ -230,4 +230,34 @@ describe("chat-for-opencode extension", () => {
     await controller.receive({ type: "abort" });
     await waitFor(() => eventPosted("session.execution.interrupted", mark), "interrupted");
   });
+
+  it("keeps the composer usable after an interrupt (reconcile must not re-lock busy)", async () => {
+    const mark = posted.length;
+    // `[stale-busy]` makes the mock leave time.busy newer than time.idle after the interrupt,
+    // matching the observed real-server behaviour that used to lock the stop button.
+    await controller.receive({ type: "send", text: "[slow][stale-busy] another long answer", attachments: [], context: [] });
+    await waitFor(() => eventPosted("session.text.delta", mark), "streaming started");
+    await controller.receive({ type: "abort" });
+    await waitFor(() => eventPosted("session.execution.interrupted", mark), "interrupted");
+
+    // The post-turn reconcile re-fetches the session; its busy flag must stay false so the
+    // send button doesn't get stuck on "stop". Only look at messages posted after the
+    // terminal event, so this checks the reconcile and not the initial session load.
+    const interruptIndex = posted.findIndex((m, i) => i >= mark && m.type === "event" && m.event.type === "session.execution.interrupted");
+    const reconciled = await waitFor(
+      () => posted.slice(interruptIndex + 1).filter((m): m is Extract<HostMessage, { type: "session" }> => m.type === "session").at(-1),
+      "reconciled session",
+    );
+    assert.equal(reconciled.session?.busy, false);
+
+    // Interrupting an already-idle session emits no server event; the controller still posts
+    // an idle status locally so the webview can never remain stuck on the stop button.
+    const afterAbort = posted.length;
+    await controller.receive({ type: "abort" });
+    const idle = await waitFor(
+      () => posted.slice(afterAbort).find((m) => m.type === "event" && m.event.type === "session.status"),
+      "local idle status",
+    );
+    assert.equal(idle.type === "event" && (idle.event.data as { status: { type: string } }).status.type, "idle");
+  });
 });

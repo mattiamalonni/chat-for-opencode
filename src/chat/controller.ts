@@ -12,7 +12,7 @@ import type {
   SessionInfo,
   SkillInfo,
 } from "../shared/api";
-import { eventSessionId } from "../shared/chatReducer";
+import { eventSessionId, sessionIsBusy } from "../shared/chatReducer";
 import { checkCompatibility } from "../shared/compatibility";
 import type {
   ActionId,
@@ -626,7 +626,7 @@ export class ChatController implements vscode.Disposable {
         title: info.title,
         agent: info.agent,
         model: info.model,
-        busy: (info.time.busy ?? 0) > (info.time.idle ?? 0),
+        busy: sessionIsBusy(info.time, messages),
         messages,
         permissions: pending,
         forms,
@@ -772,9 +772,16 @@ export class ChatController implements vscode.Disposable {
         return;
       case "send":
         return this.send(msg.text, msg.attachments, msg.context);
-      case "abort":
-        if (this.client && this.sessionId) await this.client.interrupt(this.sessionId);
+      case "abort": {
+        const sid = this.sessionId;
+        if (this.client && sid) {
+          await this.client.interrupt(sid);
+          // A server that receives a second interrupt on an already-idle session emits no
+          // terminal event. Clear busy locally so the composer can never stay stuck on "stop".
+          this.post({ type: "event", event: { type: "session.status", data: { sessionID: sid, status: { type: "idle" } } } as ServerEvent });
+        }
         return;
+      }
       case "newSession":
         return this.newSession();
       case "selectSession": {
