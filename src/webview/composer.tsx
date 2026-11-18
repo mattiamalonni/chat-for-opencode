@@ -259,7 +259,8 @@ export function Composer(props: ComposerProps) {
                 {selected ? (
                   <button
                     type="button"
-                    class="chip-remove"
+                    class="chip-remove tooltip-host tooltip-left"
+                    data-tooltip={`${t("removeContext")}: ${c.label}`}
                     aria-label={`${t("removeContext")}: ${c.label}`}
                     onClick={() => props.onToggleContext(c.id)}
                   >
@@ -268,9 +269,9 @@ export function Composer(props: ComposerProps) {
                 ) : (
                   <button
                     type="button"
-                    class="chip-add"
+                    class="chip-add tooltip-host tooltip-left"
                     aria-label={`${t("addContext")}: ${c.label}`}
-                    title={t("addContext")}
+                    data-tooltip={`${t("addContext")}: ${c.label}`}
                     onClick={() => props.onToggleContext(c.id)}
                   >
                     <IconPlus />
@@ -283,7 +284,7 @@ export function Composer(props: ComposerProps) {
             <li class="chip" key={a.uri} title={a.detail ?? a.uri}>
               {a.kind === "selection" ? <IconSelection /> : <FileTypeIcon path={a.name} />}
               <span>{a.kind === "selection" ? (a.detail ?? a.name) : a.name}</span>
-              <button type="button" class="chip-remove" aria-label={`${t("removeContext")}: ${a.name}`} onClick={() => props.onRemoveAttachment(a.uri)}>
+              <button type="button" class="chip-remove tooltip-host tooltip-left" data-tooltip={`${t("removeContext")}: ${a.name}`} aria-label={`${t("removeContext")}: ${a.name}`} onClick={() => props.onRemoveAttachment(a.uri)}>
                 <IconClose />
               </button>
             </li>
@@ -358,8 +359,8 @@ export function Composer(props: ComposerProps) {
       <div class="toolbar">
         <button
           type="button"
-          class="icon-button"
-          title={t("attachFile")}
+          class="icon-button tooltip-host tooltip-above tooltip-left"
+          data-tooltip={t("attachFile")}
           aria-label={t("attachFile")}
           onClick={() => {
             const el = ref.current;
@@ -420,8 +421,8 @@ export function Composer(props: ComposerProps) {
         <span class="spacer" />
         <button
           type="button"
-          class={`auto-approve ${props.autoApprove ? "on" : ""}`}
-          title={props.autoApprove ? t("autoApproveOn") : t("autoApproveOff")}
+          class={`auto-approve tooltip-host tooltip-above ${props.autoApprove ? "on" : ""}`}
+          data-tooltip={props.autoApprove ? t("autoApproveOn") : t("autoApproveOff")}
           aria-label={t("autoApprove")}
           aria-pressed={props.autoApprove}
           onClick={() => props.onToggleAutoApprove(!props.autoApprove)}
@@ -431,8 +432,8 @@ export function Composer(props: ComposerProps) {
         </button>
         <button
           type="button"
-          class="icon-button compact"
-          title={t("compactConversation")}
+          class="icon-button compact tooltip-host tooltip-above"
+          data-tooltip={t("compactConversation")}
           aria-label={t("compactConversation")}
           disabled={props.disabled || props.busy || !props.canCompact}
           onClick={() => post({ type: "compact" })}
@@ -443,20 +444,20 @@ export function Composer(props: ComposerProps) {
           <ContextMeter used={props.contextTokens} limit={currentModel.limit.context} cost={props.cost} />
         ) : props.cost !== undefined ? (
           <span
-            class="context-meter cost-only"
+            class="context-meter cost-only tooltip-host tooltip-above"
             role="img"
             aria-label={t("sessionCost", `$${props.cost.toFixed(2)}`)}
-            title={t("sessionCost", `$${props.cost.toFixed(2)}`)}
+            data-tooltip={t("sessionCost", `$${props.cost.toFixed(2)}`)}
           >
             ${props.cost.toFixed(2)}
           </span>
         ) : null}
         {props.busy ? (
-          <button type="button" class="send stop" title={`${t("stop")} (Esc)`} aria-label={t("stop")} onClick={() => post({ type: "abort" })}>
+          <button type="button" class="send stop tooltip-host tooltip-above" data-tooltip={`${t("stop")} (Esc)`} aria-label={t("stop")} onClick={() => post({ type: "abort" })}>
             <IconStop />
           </button>
         ) : (
-          <button type="button" class="send" title={`${t("send")} (Enter)`} aria-label={t("send")} disabled={props.disabled || !text.trim()} onClick={send}>
+          <button type="button" class="send tooltip-host tooltip-above" data-tooltip={`${t("send")} (Enter)`} aria-label={t("send")} disabled={props.disabled || !text.trim()} onClick={send}>
             <IconSend />
           </button>
         )}

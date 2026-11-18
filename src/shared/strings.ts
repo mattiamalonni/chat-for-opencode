@@ -52,7 +52,7 @@ export const STRINGS = {
   openFile: "Open file",
   changedFiles: "Changed files",
   noChanges: "No file changes in this session",
-  refresh: "Refresh",
+  refresh: "Refresh changed files",
   todos: "Todos",
   context: "Context",
   removeContext: "Remove from message",

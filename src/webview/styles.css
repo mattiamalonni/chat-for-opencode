@@ -113,6 +113,49 @@ details[open] > summary > .chevron,
   background: var(--vscode-toolbar-hoverBackground);
 }
 
+/* Instant tooltips across the webview: the native `title` is delayed and easy to miss. */
+.tooltip-host {
+  position: relative;
+}
+
+.tooltip-host::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 20;
+  padding: 3px 6px;
+  border: 1px solid var(--vscode-widget-border, var(--vscode-panel-border, transparent));
+  border-radius: 3px;
+  background: var(--vscode-editorWidget-background, var(--vscode-notifications-background, var(--vscode-panel-background)));
+  color: var(--vscode-editorWidget-foreground, var(--vscode-foreground));
+  box-shadow: 0 2px 6px var(--vscode-widget-shadow, rgba(0, 0, 0, 0.35));
+  font-size: 0.95em;
+  line-height: 1.25;
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  visibility: hidden;
+}
+
+.tooltip-host:hover::after,
+.tooltip-host:focus-visible::after {
+  opacity: 1;
+  visibility: visible;
+}
+
+/* Toolbar and session-list buttons sit near the bottom edge: open upwards. */
+.tooltip-above::after {
+  top: auto;
+  bottom: calc(100% + 6px);
+}
+
+/* Buttons on the left edge: grow to the right instead of under the button. */
+.tooltip-left::after {
+  left: 0;
+  right: auto;
+}
+
 /* ---- session list ---------------------------------------------------------------------- */
 
 .session-list {
@@ -1621,7 +1664,8 @@ button:disabled {
 body.vscode-high-contrast .tool,
 body.vscode-high-contrast .tool-group,
 body.vscode-high-contrast .chip,
-body.vscode-high-contrast .msg.user .bubble {
+body.vscode-high-contrast .msg.user .bubble,
+body.vscode-high-contrast .tooltip-host::after {
   border-color: var(--vscode-contrastBorder);
 }
 

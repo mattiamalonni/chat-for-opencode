@@ -16,7 +16,7 @@ export function ContextMeter({ used, limit, cost }: { used?: number; limit: numb
     : t("contextUsageUnknown", formatTokens(limit));
   const label = cost === undefined ? usage : `${usage} · ${t("sessionCost", `$${cost.toFixed(2)}`)}`;
   return (
-    <span class={`context-meter ${level}`} role="img" aria-label={label} title={label}>
+    <span class={`context-meter ${level} tooltip-host tooltip-above`} role="img" aria-label={label} data-tooltip={label}>
       <svg width="16" height="16" viewBox="0 0 18 18" aria-hidden="true">
         <circle class="track" cx="9" cy="9" r={R} />
         <circle

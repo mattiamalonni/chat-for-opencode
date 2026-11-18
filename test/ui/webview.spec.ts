@@ -474,7 +474,7 @@ test("the composer toggles auto-approval for the current chat", async ({ page })
   expect(await lastPosted(page, "setAutoApprove")).toEqual({ type: "setAutoApprove", enabled: true });
   await host(page, { type: "autoApprove", enabled: true });
   await expect(toggle).toHaveAttribute("aria-pressed", "true");
-  await expect(toggle).toHaveAttribute("title", STRINGS.autoApproveOn);
+  await expect(toggle).toHaveAttribute("data-tooltip", STRINGS.autoApproveOn);
 });
 
 test("question forms render options and submit the answer", async ({ page }) => {
@@ -818,12 +818,32 @@ test("the changed-files panel falls back to patches from tool metadata", async (
   await expect(panel.locator(".file-name")).toHaveText("src/tool.txt");
 });
 
+test("the changed-files refresh button has an instant tooltip and still refreshes", async ({ page }) => {
+  await boot(page);
+  await host(page, { type: "changedFiles", files: [{ file: "src/a.txt", patch: "@@", additions: 1, deletions: 1, status: "modified" }] });
+  const button = page.locator(".panel.changes > summary .tooltip-host");
+  await expect(button).toBeVisible();
+  await expect(button).toHaveAttribute("aria-label", STRINGS.refresh);
+
+  const tip = () =>
+    button.evaluate((el) => {
+      const s = getComputedStyle(el, "::after");
+      return { content: s.content, visibility: s.visibility };
+    });
+  expect(await tip()).toMatchObject({ visibility: "hidden", content: `"${STRINGS.refresh}"` });
+  await button.hover();
+  expect(await tip()).toMatchObject({ visibility: "visible", content: `"${STRINGS.refresh}"` });
+
+  await button.click();
+  expect(await lastPosted(page, "refreshChanges")).toEqual({ type: "refreshChanges" });
+});
+
 test("session cost from usage updates appears in the context meter tooltip", async ({ page }) => {
   await boot(page);
   await host(page, { type: "session", session: { id: S1, busy: false, messages: [], permissions: [], forms: [] } });
   const meter = page.locator(".context-meter");
   await expect(meter).toBeVisible();
-  await expect.poll(async () => meter.getAttribute("title")).not.toContain("$");
+  await expect.poll(async () => meter.getAttribute("data-tooltip")).not.toContain("$");
   await host(page, {
     type: "event",
     event: {
@@ -831,7 +851,7 @@ test("session cost from usage updates appears in the context meter tooltip", asy
       data: { sessionID: S1, cost: 0.1234, tokens: { input: 10, output: 5, reasoning: 0, cache: { read: 0, write: 0 } } },
     },
   });
-  await expect.poll(async () => meter.getAttribute("title")).toContain("$0.12");
+  await expect.poll(async () => meter.getAttribute("data-tooltip")).toContain("$0.12");
 
   // A same-session reload (e.g. the post-turn resync) must not erase it.
   await host(page, {
@@ -845,7 +865,7 @@ test("session cost from usage updates appears in the context meter tooltip", asy
       usage: { cost: 0.4321, tokens: { input: 10, output: 5, reasoning: 0, cache: { read: 0, write: 0 } } },
     },
   });
-  await expect.poll(async () => meter.getAttribute("title")).toContain("$0.43");
+  await expect.poll(async () => meter.getAttribute("data-tooltip")).toContain("$0.43");
 });
 
 test("errors show actionable banners (server missing, provider, interrupted stream)", async ({ page }) => {

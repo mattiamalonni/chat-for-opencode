@@ -352,7 +352,7 @@ function Header(props: { title: string; folders: { list: FolderInfo[]; active?: 
           onChange={(uri) => post({ type: "selectFolder", uri })}
         />
       )}
-      <button type="button" class="icon-button" title={t("newSession")} aria-label={t("newSession")} onClick={() => post({ type: "newSession" })}>
+      <button type="button" class="icon-button tooltip-host tooltip-above" data-tooltip={t("newSession")} aria-label={t("newSession")} onClick={() => post({ type: "newSession" })}>
         <IconPlus />
       </button>
     </header>
@@ -472,8 +472,8 @@ function SessionList(props: {
                 </button>
                 <button
                   type="button"
-                  class="icon-button"
-                  title={t("renameSession")}
+                  class="icon-button tooltip-host tooltip-above"
+                  data-tooltip={t("renameSession")}
                   aria-label={`${t("renameSession")}: ${s.title || t("untitled")}`}
                   onClick={() => {
                     setConfirm(undefined);
@@ -485,8 +485,8 @@ function SessionList(props: {
                 </button>
                 <button
                   type="button"
-                  class="icon-button"
-                  title={t("deleteSession")}
+                  class="icon-button tooltip-host tooltip-above"
+                  data-tooltip={t("deleteSession")}
                   aria-label={`${t("deleteSession")}: ${s.title || t("untitled")}`}
                   onClick={() => setConfirm(s.id)}
                 >
@@ -537,7 +537,7 @@ function ErrorBlock({ error, onDismiss }: { error: UiError; onDismiss?: () => vo
         <IconError />
         <strong>{error.message}</strong>
         {onDismiss && (
-          <button type="button" class="icon-button dismiss" aria-label={t("dismiss")} onClick={onDismiss}>
+          <button type="button" class="icon-button dismiss tooltip-host" data-tooltip={t("dismiss")} aria-label={t("dismiss")} onClick={onDismiss}>
             <IconClose />
           </button>
         )}
@@ -573,7 +573,7 @@ function CompatibilityBanner(props: { status: "untested" | "unsupported"; versio
             ? t("unsupportedVersion", version ?? "?", SUPPORTED_SERVER_VERSION)
             : t("untestedVersion", version ?? "?", SUPPORTED_SERVER_VERSION)}
         </strong>
-        <button type="button" class="icon-button dismiss" aria-label={t("dismiss")} onClick={() => {
+        <button type="button" class="icon-button dismiss tooltip-host" data-tooltip={t("dismiss")} aria-label={t("dismiss")} onClick={() => {
             setDismissed(true);
             // Remembered by the host so the banner stays hidden for this version across reloads.
             if (version) post({ type: "dismissCompatibility", version });
@@ -604,7 +604,8 @@ function ContractBanner({ failures, issuesUrl }: { failures: ContractReport["fai
         <strong>{t("contractTitle")}</strong>
         <button
           type="button"
-          class="icon-button dismiss"
+          class="icon-button dismiss tooltip-host"
+          data-tooltip={t("dismiss")}
           aria-label={t("dismiss")}
           onClick={() => {
             setDismissed(true);
@@ -877,8 +878,8 @@ function ChangesPanel({ files }: { files: FileDiff[] }) {
         <IconDiff /> {t("changedFiles")} ({files.length})
         <button
           type="button"
-          class="icon-button"
-          title={t("refresh")}
+          class="icon-button tooltip-host"
+          data-tooltip={t("refresh")}
           aria-label={t("refresh")}
           onClick={(e) => {
             e.preventDefault();

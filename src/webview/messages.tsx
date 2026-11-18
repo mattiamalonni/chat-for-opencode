@@ -223,7 +223,7 @@ export function ToolGroup({ parts, state }: { parts: ToolPart[]; state: ChatStat
     <section class={`tool-group${needsUser ? " attention" : ""}`}>
       <button type="button" class="tool-header tool-group-header" aria-expanded={expanded} aria-controls={id} onClick={() => setOpen(!open)}>
         <IconChevron class="chevron" />
-        <span class={`status-dot ${status}`} role="img" aria-label={statusLabel} title={statusLabel}>
+        <span class={`status-dot ${status} tooltip-host tooltip-left`} role="img" aria-label={statusLabel} data-tooltip={statusLabel}>
           {status === "completed" ? <IconCheck /> : status === "error" ? <IconError /> : <IconTool />}
         </span>
         <span class="tool-name">{t("toolCalls", parts.length)}</span>
@@ -263,7 +263,7 @@ export function ToolCard({ part, state }: { part: ToolPart; state: ChatState }) 
     <section class={`tool ${part.status}${needsUser ? " attention" : ""}`} aria-label={`${t("tool")}: ${part.name}`}>
       <button type="button" class="tool-header" aria-expanded={expanded} aria-controls={id} onClick={() => setOpen(!open)}>
         <IconChevron class="chevron" />
-        <span class={`status-dot ${part.status}`} role="img" aria-label={statusLabel} title={statusLabel}>
+        <span class={`status-dot ${part.status} tooltip-host tooltip-left`} role="img" aria-label={statusLabel} data-tooltip={statusLabel}>
           {part.status === "completed" ? <IconCheck /> : part.status === "error" ? <IconError /> : <IconTool />}
         </span>
         <span class="tool-name">{part.name}</span>
@@ -349,9 +349,9 @@ export function FileList({ files, applied }: { files: ChangedFile[]; applied: bo
           )}
           <button
             type="button"
-            class="file-open"
+            class="file-open tooltip-host tooltip-left"
             aria-label={t("openFile")}
-            title={`${t("openFile")}: ${f.file}`}
+            data-tooltip={`${t("openFile")}: ${f.file}`}
             onClick={() => post({ type: "openFile", path: f.file })}
           >
             <IconFile />
