@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.3.9 — 2026-11-18
+
+- Fixed a horizontal scrollbar with empty space on the right of the chat: tooltips on context chips
+  near the right edge could extend past the view even while hidden. Tooltips now wrap and grow
+  towards whichever side has room.
+
 ## 0.3.8 — 2026-11-18
 
 - The `/` picker now includes OpenCode **commands** alongside skills and runs them through the

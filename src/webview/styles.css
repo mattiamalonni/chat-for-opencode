@@ -155,7 +155,9 @@ details[open] > summary > .chevron,
   box-shadow: 0 2px 6px var(--vscode-widget-shadow, rgba(0, 0, 0, 0.35));
   font-size: 0.95em;
   line-height: 1.25;
-  white-space: nowrap;
+  /* Wrap long labels instead of growing past the view (see data-tip-dir below). */
+  max-width: min(260px, calc(100vw - 16px));
+  white-space: normal;
   pointer-events: none;
   opacity: 0;
   visibility: hidden;
@@ -173,8 +175,9 @@ details[open] > summary > .chevron,
   bottom: calc(100% + 6px);
 }
 
-/* Buttons on the left edge: grow to the right instead of under the button. */
-.tooltip-left::after {
+/* Grow towards the side with room; set by the webview so hidden tooltips cannot
+   extend past the viewport and create a horizontal scrollbar. */
+.tooltip-host[data-tip-dir="right"]::after {
   left: 0;
   right: auto;
 }

@@ -172,6 +172,25 @@ export function App() {
     };
   }, []);
 
+  // Tooltips are absolutely positioned pseudo-elements: even hidden, a long one anchored on the
+  // wrong side extends past the viewport and creates a horizontal scrollbar with empty space on
+  // the right. Grow each one towards whichever side has room for its (wrapped) width.
+  useEffect(() => {
+    const id = requestAnimationFrame(() => {
+      const vw = window.innerWidth;
+      const updates: { el: HTMLElement; dir: "left" | "right" }[] = [];
+      for (const el of document.querySelectorAll<HTMLElement>(".tooltip-host")) {
+        const tip = getComputedStyle(el, "::after");
+        if (tip.content === "none" || tip.display === "none") continue;
+        const width = parseFloat(tip.width) || 0;
+        const rect = el.getBoundingClientRect();
+        updates.push({ el, dir: vw - rect.right >= width + 8 ? "right" : "left" });
+      }
+      for (const { el, dir } of updates) el.dataset.tipDir = dir;
+    });
+    return () => cancelAnimationFrame(id);
+  });
+
   // Cmd/Ctrl+N creates a new session while the chat has focus. The VS Code webview preload
   // forwards every keydown that reaches `window` to the workbench (see D7), where this chord
   // means "new file". Capture it before that bubble-phase listener so the workbench never sees it.

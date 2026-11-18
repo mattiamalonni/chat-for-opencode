@@ -311,7 +311,7 @@ export function Composer(props: ComposerProps) {
                 {selected ? (
                   <button
                     type="button"
-                    class="chip-remove tooltip-host tooltip-left"
+                    class="chip-remove tooltip-host"
                     data-tooltip={`${t("removeContext")}: ${c.label}`}
                     aria-label={`${t("removeContext")}: ${c.label}`}
                     onClick={() => props.onToggleContext(c.id)}
@@ -321,7 +321,7 @@ export function Composer(props: ComposerProps) {
                 ) : (
                   <button
                     type="button"
-                    class="chip-add tooltip-host tooltip-left"
+                    class="chip-add tooltip-host"
                     aria-label={`${t("addContext")}: ${c.label}`}
                     data-tooltip={`${t("addContext")}: ${c.label}`}
                     onClick={() => props.onToggleContext(c.id)}
@@ -336,7 +336,7 @@ export function Composer(props: ComposerProps) {
             <li class="chip" key={a.uri} title={a.detail ?? a.uri}>
               {a.kind === "selection" ? <IconSelection /> : <FileTypeIcon path={a.name} />}
               <span>{a.kind === "selection" ? (a.detail ?? a.name) : a.name}</span>
-              <button type="button" class="chip-remove tooltip-host tooltip-left" data-tooltip={`${t("removeContext")}: ${a.name}`} aria-label={`${t("removeContext")}: ${a.name}`} onClick={() => props.onRemoveAttachment(a.uri)}>
+              <button type="button" class="chip-remove tooltip-host" data-tooltip={`${t("removeContext")}: ${a.name}`} aria-label={`${t("removeContext")}: ${a.name}`} onClick={() => props.onRemoveAttachment(a.uri)}>
                 <IconClose />
               </button>
             </li>
@@ -513,7 +513,7 @@ export function Composer(props: ComposerProps) {
       <div class="drop-hint">
         <button
           type="button"
-          class="icon-button tooltip-host tooltip-above tooltip-left"
+          class="icon-button tooltip-host tooltip-above"
           data-tooltip={t("pickFiles")}
           aria-label={t("pickFiles")}
           disabled={props.disabled}

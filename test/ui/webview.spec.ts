@@ -1248,3 +1248,24 @@ test("question options stack title above description in one column", async ({ pa
   expect(await lastPosted(page, "formReply")).toMatchObject({ answer: { q0: "c" } });
   await page.screenshot({ path: join(SHOTS, "13-question-long-dark.png"), fullPage: true });
 });
+
+test("long chip tooltips do not create horizontal scroll", async ({ page }) => {
+  await boot(page);
+  // Long labels make chips wrap all the way to the right edge. Their hidden tooltips used to grow
+  // rightwards past the viewport, leaving an empty horizontal scrollbar (issue reported on 0.3.8).
+  const items = Array.from({ length: 6 }, (_, i) => ({
+    id: `file:///work/src/a/very/long/path/to/component-${i}.tsx`,
+    kind: "file",
+    uri: `file:///work/src/a/very/long/path/to/component-${i}.tsx`,
+    label: `component-with-a-very-long-name-${i}.tsx`,
+    detail: "src/a/very/long/path",
+  }));
+  await host(page, { type: "context", items });
+  await expect(page.locator(".chip")).toHaveCount(6);
+  await expect.poll(async () => page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(
+    page.viewportSize()!.width,
+  );
+  // The rightmost chip's tooltip must be anchored to the left, where there is room.
+  const dirs = await page.locator(".chip .tooltip-host").evaluateAll((els) => els.map((el) => (el as HTMLElement).dataset.tipDir));
+  expect(dirs).toContain("left");
+});
