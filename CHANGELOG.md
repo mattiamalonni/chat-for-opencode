@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.3.10 — 2026-11-18
+
+- The composer's **Auto-approve** toggle, **Compact** button and context meter now share the
+  file-picker row at the bottom, leaving the toolbar free for the model and agent pickers. On a
+  narrow side bar the toggle and the drop hint collapse to icons.
+- Tooltips use the VS Code UI font and a stable natural width, so they render consistently across
+  controls.
+
 ## 0.3.9 — 2026-11-18
 
 - Fixed a horizontal scrollbar with empty space on the right of the chat: tooltips on context chips

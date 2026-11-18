@@ -2,7 +2,7 @@
   "name": "chat-for-opencode",
   "displayName": "%displayName%",
   "description": "%description%",
-  "version": "0.3.9",
+  "version": "0.3.10",
   "publisher": "mattiamalonni",
   "license": "MIT",
   "author": "Mattia Malonni",
