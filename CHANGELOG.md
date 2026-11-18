@@ -5,6 +5,8 @@
 - The **Changed files** panel now has a check button next to Refresh to mark the current changes as
   reviewed and hide the section. It reappears automatically when the changed files change or a
   different session is loaded.
+- `Cmd/Ctrl+N` now starts a **new session** while the chat view has focus, instead of VS Code's
+  "New Untitled File". Outside the chat the shortcut keeps its normal VS Code behaviour.
 - Files can now be **dragged into the chat from outside** (desktop, file manager or another VS Code
   view) and are attached as chips. VS Code only delivers these drops while **Shift** is held, so the
   composer shows a hint; the new folder button opens a **native file picker** as an alternative.

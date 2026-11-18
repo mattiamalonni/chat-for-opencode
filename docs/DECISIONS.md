@@ -54,6 +54,12 @@ Ctrl+J, Ctrl+R, Ctrl+K, AltGr chars), and lets a small allowlist through (clipbo
 Cmd/Ctrl+Shift+P, Cmd/Ctrl+P, F-keys, …) so the preload's Electron clipboard handling keeps
 working. IME: `isComposing`/`keyCode 229`/`key === "Process"` never trigger send.
 
+Cmd/Ctrl+N is the one chord the webview claims from VS Code: a `window` **capture-phase** listener
+stops it before the preload's bubble listener can forward `did-keydown` to the workbench (where it
+would be "New Untitled File") and posts `newSession`. Because key events only reach the webview
+while it is focused, this applies only when the chat has focus. Shift/Alt/Ctrl-on-mac variants are
+left alone.
+
 ## D8 — Todo list from `todowrite`
 
 No todo endpoint/event exists; with `experimental.todo` the agent uses a `todowrite` tool whose

@@ -45,6 +45,16 @@ export function shouldIsolateKey(e: KeyLike, platform: Platform): boolean {
   return !isPassthrough(e, platform);
 }
 
+/**
+ * Cmd+N (mac) / Ctrl+N (Windows/Linux), plain and outside an IME composition: starts a new chat
+ * session while the webview has focus. VS Code's workbench would otherwise turn it into a new file.
+ */
+export function isNewSessionKey(e: KeyLike, platform: Platform): boolean {
+  if (isImeKey(e) || e.altKey || e.shiftKey) return false;
+  const mod = platform === "mac" ? e.metaKey && !e.ctrlKey : e.ctrlKey && !e.metaKey;
+  return mod && e.key.toLowerCase() === "n";
+}
+
 export type ComposerAction = "send" | "newline" | "none";
 
 /** Enter sends, Shift+Enter inserts a newline; never send while composing with an IME. */

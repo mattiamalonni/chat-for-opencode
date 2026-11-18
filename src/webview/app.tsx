@@ -15,6 +15,7 @@ import {
   type UiUserMessage,
 } from "../shared/chatReducer";
 import { SUPPORTED_SERVER_VERSION, type Compatibility } from "../shared/compatibility";
+import { isNewSessionKey } from "../shared/keys";
 import { contractSignature, emptyContract, type ContractReport } from "../shared/contract";
 import type { Attachment, ConnectionStatus, ContextItem, FolderInfo, HostMessage, SessionSummary, UiError } from "../shared/protocol";
 import { STRINGS, type Strings } from "../shared/strings";
@@ -168,6 +169,20 @@ export function App() {
       off();
       if (frame.current !== undefined) cancelAnimationFrame(frame.current);
     };
+  }, []);
+
+  // Cmd/Ctrl+N creates a new session while the chat has focus. The VS Code webview preload
+  // forwards every keydown that reaches `window` to the workbench (see D7), where this chord
+  // means "new file". Capture it before that bubble-phase listener so the workbench never sees it.
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (!isNewSessionKey(e, env.platform) || e.repeat) return;
+      e.preventDefault();
+      e.stopPropagation();
+      post({ type: "newSession" });
+    };
+    window.addEventListener("keydown", onKeyDown, true);
+    return () => window.removeEventListener("keydown", onKeyDown, true);
   }, []);
 
   // Announce completion / attention for screen readers.

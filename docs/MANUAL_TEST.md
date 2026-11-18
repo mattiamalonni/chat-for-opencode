@@ -42,7 +42,8 @@ Prerequisites: OpenCode v2 on `PATH` (`opencode --version`), a provider configur
     Kill the server process (`kill <pid>` from the logs) → banner "Reconnecting…" then back to normal.
 14. **Keyboard**: in the input press `Ctrl+J` / `Ctrl+R` / `Ctrl+K`: the panel must **not** toggle and the
     recent-files picker must **not** open. `Cmd/Ctrl+Shift+P` still opens the command palette;
-    copy/paste work.
+    copy/paste work. With the chat focused, `Cmd/Ctrl+N` must start a new session (no untitled file);
+    the same chord in the editor must still create a new file.
 15. **IME** (if available): type Japanese with the system IME and confirm a candidate with Enter: the
     message must not be sent until a second Enter.
 16. **Language**: *Configure Display Language → it*, restart: the UI stays in English.

@@ -583,6 +583,31 @@ test("keyboard isolation: VS Code chords stay in the composer, clipboard passes 
   expect(keys.some((k) => k.toLowerCase() === "ctrl+p")).toBe(true);
 });
 
+test("Cmd/Ctrl+N starts a new session only while the chat has focus", async ({ page }) => {
+  await boot(page); // init platform: windows
+  const input = page.getByRole("textbox", { name: STRINGS.inputLabel });
+  await input.click();
+  await page.evaluate(() => ((window as unknown as { __windowKeys: string[] }).__windowKeys.length = 0));
+  await page.keyboard.press("Control+n");
+  expect(await lastPosted(page, "newSession")).toEqual({ type: "newSession" });
+  // The VS Code preload listens in the bubble phase: the chord must not reach the workbench,
+  // otherwise it would run "File: New Untitled File" as well.
+  expect(await page.evaluate(() => (window as unknown as { __windowKeys: string[] }).__windowKeys)).not.toContain("Ctrl+n");
+
+  // Modified variants are left alone (the composer's key isolation keeps them in the webview).
+  await page.keyboard.press("Control+Shift+n");
+  await page.keyboard.press("Alt+n");
+  expect((await posted(page)).filter((m) => m.type === "newSession")).toHaveLength(1);
+
+  // Same behaviour with Cmd on macOS.
+  await host(page, { type: "init", strings: { ...STRINGS }, platform: "mac", folders: [{ uri: "file:///work", name: "work" }], activeFolder: "file:///work", issuesUrl: ISSUES_URL });
+  await input.click();
+  await page.evaluate(() => ((window as unknown as { __windowKeys: string[] }).__windowKeys.length = 0));
+  await page.keyboard.press("Meta+n");
+  expect((await posted(page)).filter((m) => m.type === "newSession")).toHaveLength(2);
+  expect(await page.evaluate(() => (window as unknown as { __windowKeys: string[] }).__windowKeys)).not.toContain("Meta+n");
+});
+
 test("IME composition: Enter confirming a candidate does not send", async ({ page }) => {
   await boot(page);
   const input = page.getByRole("textbox", { name: STRINGS.inputLabel });

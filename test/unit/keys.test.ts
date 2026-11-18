@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { composerAction, shouldIsolateKey, type KeyLike } from "../../src/shared/keys";
+import { composerAction, isNewSessionKey, shouldIsolateKey, type KeyLike } from "../../src/shared/keys";
 
 function k(key: string, mods: Partial<KeyLike> = {}): KeyLike {
   return {
@@ -50,6 +50,26 @@ describe("shouldIsolateKey", () => {
   it("lets Escape and Tab bubble for focus navigation", () => {
     expect(shouldIsolateKey(k("Escape"), "mac")).toBe(false);
     expect(shouldIsolateKey(k("Tab"), "mac")).toBe(false);
+  });
+});
+
+describe("isNewSessionKey", () => {
+  it("matches plain Cmd+N on mac and Ctrl+N elsewhere", () => {
+    expect(isNewSessionKey(k("n", { metaKey: true }), "mac")).toBe(true);
+    expect(isNewSessionKey(k("N", { metaKey: true }), "mac")).toBe(true);
+    expect(isNewSessionKey(k("n", { ctrlKey: true }), "windows")).toBe(true);
+    expect(isNewSessionKey(k("n", { ctrlKey: true }), "linux")).toBe(true);
+  });
+
+  it("ignores the wrong modifier, extra modifiers and IME compositions", () => {
+    expect(isNewSessionKey(k("n", { ctrlKey: true }), "mac")).toBe(false);
+    expect(isNewSessionKey(k("n", { metaKey: true }), "windows")).toBe(false);
+    expect(isNewSessionKey(k("n", { metaKey: true, shiftKey: true }), "mac")).toBe(false);
+    expect(isNewSessionKey(k("n", { metaKey: true, altKey: true }), "mac")).toBe(false);
+    expect(isNewSessionKey(k("n", { metaKey: true, ctrlKey: true }), "mac")).toBe(false);
+    expect(isNewSessionKey(k("m", { metaKey: true }), "mac")).toBe(false);
+    expect(isNewSessionKey(k("Process", { metaKey: true, keyCode: 229 }), "mac")).toBe(false);
+    expect(isNewSessionKey(k("n", { isComposing: true, metaKey: true }), "mac")).toBe(false);
   });
 });
 
