@@ -204,6 +204,22 @@ describe("chat-for-opencode extension", () => {
     assert.ok((s.session?.messages.length ?? 0) >= 4);
   });
 
+  it("renames a session from the webview and updates the list and chat title", async () => {
+    const id = controller.debugState.sessionId!;
+    const mark = posted.length;
+    await controller.receive({ type: "renameSession", id, title: "Integration renamed" });
+    const sessions = await waitFor(() => {
+      const s = lastPosted("sessions", mark);
+      return s && s.items.some((i) => i.id === id && i.title === "Integration renamed") && s;
+    }, "renamed session in the list");
+    assert.equal(sessions.currentId, id);
+    const renamed = await waitFor(
+      () => posted.slice(mark).find((m) => m.type === "event" && m.event.type === "session.renamed"),
+      "local session.renamed event",
+    );
+    assert.equal(renamed.type === "event" && (renamed.event.data as { title: string }).title, "Integration renamed");
+  });
+
   it("resumes the stored session after the server restarts", async () => {
     const id = controller.debugState.sessionId!;
     const oldUrl = controller.debugState.baseUrl;

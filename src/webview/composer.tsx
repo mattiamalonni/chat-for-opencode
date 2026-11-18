@@ -35,6 +35,8 @@ export interface ComposerProps {
   focusToken: number;
   /** Estimated tokens currently in the session context. */
   contextTokens?: number;
+  /** Accumulated cost of the current session, when reported by the server. */
+  cost?: number;
 }
 
 const FILE_MENTION_RE = /(^|\s)@([^\s@]*)$/;
@@ -53,15 +55,32 @@ export function Composer(props: ComposerProps) {
   const historyDraft = useRef("");
   const ref = useRef<HTMLTextAreaElement>(null);
   const composing = useRef(false);
+  const draftRef = useRef(text);
 
   useEffect(() => {
     ref.current?.focus();
   }, [props.focusToken]);
 
   useEffect(() => {
+    draftRef.current = text;
     const handle = setTimeout(() => setPersisted({ ...getPersisted(), draft: text }), 300);
     return () => clearTimeout(handle);
   }, [text]);
+
+  // The debounce alone can lose the last keystrokes when the webview is hidden or replaced.
+  useEffect(() => {
+    const flush = () => setPersisted({ ...getPersisted(), draft: draftRef.current });
+    const onVisibility = () => {
+      if (document.visibilityState === "hidden") flush();
+    };
+    window.addEventListener("pagehide", flush);
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => {
+      window.removeEventListener("pagehide", flush);
+      document.removeEventListener("visibilitychange", onVisibility);
+      flush();
+    };
+  }, []);
 
   useEffect(() => {
     const el = ref.current;
@@ -407,7 +426,18 @@ export function Composer(props: ComposerProps) {
           <IconShield />
           <span>{t("autoApprove")}</span>
         </button>
-        {currentModel?.limit?.context ? <ContextMeter used={props.contextTokens} limit={currentModel.limit.context} /> : null}
+        {currentModel?.limit?.context ? (
+          <ContextMeter used={props.contextTokens} limit={currentModel.limit.context} cost={props.cost} />
+        ) : props.cost !== undefined ? (
+          <span
+            class="context-meter cost-only"
+            role="img"
+            aria-label={t("sessionCost", `$${props.cost.toFixed(2)}`)}
+            title={t("sessionCost", `$${props.cost.toFixed(2)}`)}
+          >
+            ${props.cost.toFixed(2)}
+          </span>
+        ) : null}
         {props.busy ? (
           <button type="button" class="send stop" title={`${t("stop")} (Esc)`} aria-label={t("stop")} onClick={() => post({ type: "abort" })}>
             <IconStop />

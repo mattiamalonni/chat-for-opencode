@@ -344,11 +344,6 @@ export class ExternalServer extends BaseServer {
     }
   }
 
-  /** Called when the event stream / a request fails, to surface connection loss. */
-  markUnreachable(detail: string): void {
-    this.setState({ status: "failed", error: new ServerError("unreachable", `Cannot reach ${this.opts.endpoint}.`, detail) });
-  }
-
   async stop(): Promise<void> {
     if (this.pending) await this.pending.catch(() => {});
     this.setState({ status: "stopped" });

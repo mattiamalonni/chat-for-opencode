@@ -107,7 +107,7 @@ export type HostMessage =
       selectedModel?: ModelRef;
       selectedAgent?: string;
     }
-  | { type: "sessions"; items: SessionSummary[]; currentId?: string }
+  | { type: "sessions"; items: SessionSummary[]; currentId?: string; hasMore?: boolean }
   | { type: "session"; session: SessionPayload | null }
   | { type: "event"; event: ServerEvent }
   | { type: "context"; items: ContextItem[] }
@@ -125,7 +125,9 @@ export type WebviewMessage =
   | { type: "newSession" }
   | { type: "selectSession"; id: string }
   | { type: "deleteSession"; id: string }
+  | { type: "renameSession"; id: string; title: string }
   | { type: "refreshSessions" }
+  | { type: "loadMoreSessions" }
   | { type: "setModel"; model: ModelRef }
   | { type: "setAgent"; agent: string }
   | { type: "setAutoApprove"; enabled: boolean }

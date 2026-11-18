@@ -20,7 +20,7 @@ sends **no telemetry**.
 
 - **Streaming chat** with Markdown, syntax highlighting and copy buttons on code blocks.
 - **Collapsible reasoning** ("Thoughts") and **tool cards** that work with any tool name (input, output, errors).
-- **Sessions**: list, create, switch, resume and delete. The last session of each folder is restored when VS Code restarts.
+- **Sessions**: list, create, switch, resume, rename and delete, with *Load more sessions* for older ones. The last session of each folder is restored when VS Code restarts.
 - **Opens on the right** in the Secondary Side Bar, like Copilot Chat (VS Code 1.104+); movable anywhere with *OpenCode: Move Chat View…* or drag and drop.
 - **Context window at a glance**: each model in the picker shows its context size, and a meter
   next to the send button shows how much of it the conversation already uses.
@@ -80,7 +80,7 @@ Press **F5** in this repository to launch an Extension Development Host.
 4. Pick the agent (*Build*, *Plan*, …), model and reasoning effort in the toolbar below the input.
 5. When the agent wants to edit a file or run a command that needs approval, a card appears inside
    the tool call: open the diff, then **Allow once**, **Always allow** or **Reject**.
-6. Use the session button (top left) to switch, resume or delete sessions, `+` for a new one.
+6. Use the session button (top left) to switch, resume, rename or delete sessions; `+` starts a new one and *Load more sessions* reaches older ones.
 
 ### Skills
 

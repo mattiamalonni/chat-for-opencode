@@ -1,12 +1,14 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import type { ServerEvent, SessionMessage } from "../../src/shared/api";
+import type { AssistantMessage, ServerEvent, SessionMessage } from "../../src/shared/api";
 import {
   chatReducer,
   initialChatState,
+  mergeChangedFiles,
   orphanPermissions,
   permissionsForTool,
+  selectToolChangedFiles,
   selectTodos,
   sessionIsBusy,
   type ChatState,
@@ -251,5 +253,54 @@ describe("busy state after an interrupt", () => {
       forms: [],
     });
     expect(state.busy).toBe(false);
+  });
+});
+
+describe("changed-file selectors", () => {
+  const patch = "@@ -1 +1 @@\n-a\n+b\n";
+  const file = (f: string, status: string, additions = 1, deletions = 1) => ({ file: f, patch, status, additions, deletions });
+
+  function withToolFiles(...files: unknown[][]): ChatState {
+    const content = files.map((batch, i) => ({
+      type: "tool" as const,
+      id: `t${i}`,
+      name: "edit",
+      state: { status: "completed" as const, input: {}, content: [], metadata: { files: batch } },
+    }));
+    const assistant: AssistantMessage = {
+      id: "msg_1",
+      type: "assistant",
+      agent: "build",
+      model: { id: "m", providerID: "p" },
+      time: { created: 1, completed: 2 },
+      content,
+    };
+    return open("s", [assistant]);
+  }
+
+  it("reconstructs changed files from completed tool metadata and dedupes by path", () => {
+    const state = withToolFiles([file("b.ts", "added", 2, 0)], [file("a.ts", "unknown"), file("b.ts", "added", 5, 0)]);
+    expect(selectToolChangedFiles(state)).toEqual([
+      { file: "a.ts", patch, status: "modified", additions: 1, deletions: 1 },
+      { file: "b.ts", patch, status: "added", additions: 5, deletions: 0 },
+    ]);
+  });
+
+  it("ignores files from tools that are still running or asking permission", () => {
+    const assistant: AssistantMessage = {
+      id: "msg_1",
+      type: "assistant",
+      agent: "build",
+      model: { id: "m", providerID: "p" },
+      time: { created: 1 },
+      content: [{ type: "tool", id: "t", name: "edit", state: { status: "running", input: {}, metadata: { files: [file("pending.ts", "modified")] } } }],
+    };
+    expect(selectToolChangedFiles(open("s", [assistant]))).toEqual([]);
+  });
+
+  it("lets the server diff win over tool metadata for the same file", () => {
+    const state = withToolFiles([file("a.ts", "modified", 1, 1)]);
+    const authoritative = { ...file("a.ts", "added", 9, 0), status: "added" as const };
+    expect(mergeChangedFiles([authoritative], state)).toEqual([authoritative]);
   });
 });

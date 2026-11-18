@@ -1,5 +1,6 @@
 import type {
   AssistantMessage,
+  FileDiff,
   FormRequest,
   ModelRef,
   PermissionRequest,
@@ -593,6 +594,39 @@ export interface ChangedFile {
   status: string;
   additions: number;
   deletions: number;
+}
+
+/**
+ * Files changed by completed tools in this conversation, reconstructed from `metadata.files`.
+ * This is the fallback for `GET /session/{id}/diff`, which is empty outside git repositories.
+ */
+export function selectToolChangedFiles(state: ChatState): FileDiff[] {
+  const byFile = new Map<string, FileDiff>();
+  for (const m of state.messages) {
+    if (m.kind !== "assistant") continue;
+    for (const p of m.parts) {
+      if (p.kind !== "tool" || p.status !== "completed") continue;
+      for (const f of selectToolFiles(p)) {
+        const status: FileDiff["status"] = f.status === "added" || f.status === "deleted" ? f.status : "modified";
+        byFile.set(f.file, {
+          file: f.file,
+          patch: f.patch,
+          status,
+          additions: Number(f.additions) || 0,
+          deletions: Number(f.deletions) || 0,
+        });
+      }
+    }
+  }
+  return [...byFile.values()].sort((a, b) => a.file.localeCompare(b.file));
+}
+
+/** `/diff` data (when available) is authoritative; tool metadata fills the gaps. */
+export function mergeChangedFiles(fromDiff: FileDiff[], state: ChatState): FileDiff[] {
+  const merged = new Map<string, FileDiff>();
+  for (const f of selectToolChangedFiles(state)) merged.set(f.file, f);
+  for (const f of fromDiff) merged.set(f.file, f);
+  return [...merged.values()].sort((a, b) => a.file.localeCompare(b.file));
 }
 
 /** Files touched by tools in this conversation (from `metadata.files`), latest patch per file. */

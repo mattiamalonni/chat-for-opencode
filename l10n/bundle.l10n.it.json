@@ -8,6 +8,10 @@
   "Sessions": "Sessioni",
   "No sessions yet": "Ancora nessuna sessione",
   "Delete session": "Elimina sessione",
+  "Rename session": "Rinomina sessione",
+  "Session title": "Titolo della sessione",
+  "Save": "Salva",
+  "Load more sessions": "Carica altre sessioni",
   "Delete this session?": "Eliminare questa sessione?",
   "Model": "Modello",
   "Reasoning effort": "Livello di ragionamento",
@@ -120,5 +124,6 @@
   "No saved OpenCode login found": "Nessun accesso OpenCode salvato",
   "{0} context window": "Contesto di {0}",
   "Context: {0} of {1} tokens used ({2}%)": "Contesto: {0} token usati su {1} ({2}%)",
-  "Context: {0} tokens window, usage available after the first reply": "Contesto: finestra di {0} token, utilizzo disponibile dopo la prima risposta"
+  "Context: {0} tokens window, usage available after the first reply": "Contesto: finestra di {0} token, utilizzo disponibile dopo la prima risposta",
+  "Session cost: {0}": "Costo della sessione: {0}"
 }

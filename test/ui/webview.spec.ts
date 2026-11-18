@@ -548,6 +548,108 @@ test("session list: switch and delete with confirmation", async ({ page }) => {
   await expect(dialog).toHaveCount(0);
 });
 
+test("session list: rename posts the new title", async ({ page }) => {
+  await boot(page);
+  await page.getByRole("button", { name: new RegExp(`^${STRINGS.sessions}:`) }).click();
+  const dialog = page.getByRole("dialog", { name: STRINGS.sessions });
+  await dialog.getByRole("button", { name: `${STRINGS.renameSession}: Hello world reply` }).click();
+  const input = dialog.getByRole("textbox", { name: STRINGS.sessionTitle });
+  await expect(input).toHaveValue("Hello world reply");
+  await input.fill("Renamed chat");
+  await input.press("Enter");
+  expect(await lastPosted(page, "renameSession")).toEqual({ type: "renameSession", id: S1, title: "Renamed chat" });
+  await expect(dialog.getByRole("textbox", { name: STRINGS.sessionTitle })).toHaveCount(0);
+});
+
+test("session list: load-more button follows the host's hasMore flag", async ({ page }) => {
+  await boot(page);
+  await host(page, {
+    type: "sessions",
+    items: [{ id: S1, title: "Hello world reply", updated: Date.now(), busy: false }],
+    hasMore: true,
+  });
+  await page.getByRole("button", { name: new RegExp(`^${STRINGS.sessions}:`) }).click();
+  const dialog = page.getByRole("dialog", { name: STRINGS.sessions });
+  const more = dialog.getByRole("button", { name: STRINGS.loadMoreSessions });
+  await expect(more).toBeVisible();
+  await more.click();
+  expect(await lastPosted(page, "loadMoreSessions")).toEqual({ type: "loadMoreSessions" });
+  await host(page, { type: "sessions", items: [], hasMore: false });
+  await expect(dialog.getByRole("button", { name: STRINGS.loadMoreSessions })).toHaveCount(0);
+});
+
+test("loading another session clears staged attachments and changes, a resync does not", async ({ page }) => {
+  await boot(page);
+  const attachment = { uri: "file:///work/a.ts", name: "a.ts", kind: "file" as const };
+  const session = (id: string) => ({ type: "session" as const, session: { id, busy: false, messages: [], permissions: [], forms: [] } });
+  await host(page, { type: "addAttachment", item: attachment });
+  await host(page, { type: "changedFiles", files: [{ file: "src/a.txt", patch: "@@", additions: 1, deletions: 1, status: "modified" }] });
+  await expect(page.locator(".chips li")).toHaveCount(3);
+  await expect(page.locator(".panel.changes")).toBeVisible();
+
+  await host(page, session(S2));
+  await expect(page.locator(".chips li")).toHaveCount(2);
+  await expect(page.locator(".panel.changes")).toHaveCount(0);
+
+  await host(page, { type: "addAttachment", item: attachment });
+  await host(page, session(S2)); // same-session resync
+  await expect(page.locator(".chips li")).toHaveCount(3);
+});
+
+test("the changed-files panel falls back to patches from tool metadata", async ({ page }) => {
+  await boot(page);
+  await host(page, {
+    type: "session",
+    session: {
+      id: S1,
+      busy: false,
+      permissions: [],
+      forms: [],
+      messages: [
+        {
+          id: "msg_1",
+          type: "assistant",
+          agent: "build",
+          model: { id: "hy4-flash-free", providerID: "opencode" },
+          time: { created: 1, completed: 2 },
+          content: [
+            {
+              type: "tool",
+              id: "t1",
+              name: "edit",
+              state: {
+                status: "completed",
+                input: {},
+                content: [],
+                metadata: { files: [{ file: "src/tool.txt", patch: "@@ -1 +1 @@", additions: 2, deletions: 0, status: "modified" }] },
+              },
+            },
+          ],
+        },
+      ],
+    },
+  });
+  const panel = page.locator(".panel.changes");
+  await expect(panel).toBeVisible();
+  await expect(panel.locator(".file-name")).toHaveText("src/tool.txt");
+});
+
+test("session cost from usage updates appears in the context meter tooltip", async ({ page }) => {
+  await boot(page);
+  await host(page, { type: "session", session: { id: S1, busy: false, messages: [], permissions: [], forms: [] } });
+  const meter = page.locator(".context-meter");
+  await expect(meter).toBeVisible();
+  await expect.poll(async () => meter.getAttribute("title")).not.toContain("$");
+  await host(page, {
+    type: "event",
+    event: {
+      type: "session.usage.updated",
+      data: { sessionID: S1, cost: 0.1234, tokens: { input: 10, output: 5, reasoning: 0, cache: { read: 0, write: 0 } } },
+    },
+  });
+  await expect.poll(async () => meter.getAttribute("title")).toContain("$0.12");
+});
+
 test("errors show actionable banners (server missing, provider, interrupted stream)", async ({ page }) => {
   await boot(page);
   await host(page, {

@@ -33,6 +33,25 @@ describe("OpenCodeClient against the mock server", () => {
     await expect(client.getSession(s.id)).rejects.toBeInstanceOf(ApiError);
   });
 
+  it("paginates sessions with an opaque cursor and sends order only on the first page", async () => {
+    const paged = await startMockServer({ password: "secret", directory: "/work", sessionPageSize: 2 });
+    try {
+      const c = new OpenCodeClient({ baseUrl: paged.url, password: "secret" });
+      for (let i = 0; i < 3; i++) await c.createSession({ directory: "/work" });
+      const first = await c.listSessionsPage("/work", 2);
+      expect(first.items).toHaveLength(2);
+      expect(first.next).toBeDefined();
+      expect(paged.requests.at(-1)?.path).toContain("order=desc");
+      const second = await c.listSessionsPage("/work", 2, first.next);
+      expect(second.items).toHaveLength(1);
+      expect(second.next).toBeUndefined();
+      expect(paged.requests.at(-1)?.path).toContain("cursor=");
+      expect(paged.requests.at(-1)?.path).not.toContain("order=");
+    } finally {
+      await paged.close();
+    }
+  });
+
   it("only sends permissions when configured", async () => {
     await client.createSession({ permissions: [] });
     expect(mock.requests.at(-1)?.body).toEqual({});

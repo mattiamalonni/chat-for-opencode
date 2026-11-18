@@ -190,12 +190,41 @@ details[open] > summary > .chevron,
   padding: 8px;
 }
 
-.confirm {
+.confirm,
+.rename {
   display: flex;
   align-items: center;
   gap: 6px;
   padding: 4px 8px;
   flex-wrap: wrap;
+}
+
+.rename-input {
+  flex: 1;
+  min-width: 0;
+  background: var(--vscode-input-background);
+  color: var(--vscode-input-foreground);
+  border: 1px solid var(--vscode-input-border, transparent);
+  border-radius: 3px;
+  padding: 3px 5px;
+  font: inherit;
+}
+
+.session-more {
+  display: block;
+  width: 100%;
+  margin-top: 4px;
+  padding: 6px 8px;
+  background: none;
+  border: none;
+  border-top: 1px solid var(--vscode-widget-border, transparent);
+  color: var(--vscode-textLink-foreground, var(--vscode-foreground));
+  cursor: pointer;
+  text-align: center;
+}
+
+.session-more:hover {
+  background: var(--vscode-list-hoverBackground);
 }
 
 /* ---- banners --------------------------------------------------------------------------- */
@@ -1466,6 +1495,10 @@ button:disabled {
 
 .context-meter.critical .fill {
   stroke: var(--vscode-errorForeground, #f85149);
+}
+
+.context-meter.cost-only {
+  font-variant-numeric: tabular-nums;
 }
 
 .context-meter.high .context-percent {

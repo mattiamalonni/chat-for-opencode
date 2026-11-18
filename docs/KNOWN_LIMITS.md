@@ -58,8 +58,9 @@ test or a manual probe actually ran.
   provider.
 - **Todo list** requires OpenCode's experimental flag `experimental.todo` (tool `todowrite`);
   without it there is no todo data to show.
-- **Session diff** (`GET /session/{id}/diff`) is empty outside git repositories; per-tool diffs from
-  tool metadata still work.
+- **Session diff** (`GET /session/{id}/diff`) is empty outside git repositories. The webview now
+  fills the changed-files panel from completed tools' patch metadata as a fallback, but the panel
+  can miss a change whose tool did not record `metadata.files`.
 - **Diff reconstruction** applies the server's patch to the current file. If the file changed again
   afterwards, the patch may not apply; the extension then shows the hunk-only before/after.
 - **Auto context** shows the whole active file as a chip, but the file is attached only when you add

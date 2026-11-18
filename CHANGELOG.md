@@ -1,5 +1,18 @@
 # Changelog
 
+## Unreleased
+
+- **Sessions** can be renamed from the session menu, and *Load more sessions* reaches older ones
+  beyond the first page of 50.
+- The **changed-files panel** now falls back to patches recorded by completed tools, so it also works
+  outside git repositories (where `GET /session/{id}/diff` is empty).
+- The session **cost** reported by OpenCode is shown in the composer's context meter tooltip.
+- Fixed stale attachments/chips and changed-files panel when switching workspace folder or session;
+  loading the same session again (a resync) no longer discards them.
+- The composer draft is flushed when the chat view is hidden or reloaded, so the last keystrokes are
+  not lost to the save debounce.
+- Removed an unused external-server failure path.
+
 ## 0.3.4 — 2026-11-18
 
 - Press **↑** / **↓** in the composer to recall prompts already sent in the current session

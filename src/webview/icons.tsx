@@ -61,6 +61,7 @@ export const IconError = svg("M8 1a7 7 0 1 1 0 14A7 7 0 0 1 8 1zm-.7 3v5h1.4V4zm
 export const IconWarning = svg("M8 1 15 14H1zm-.7 4v4.5h1.4V5zm0 5.8v1.4h1.4v-1.4z");
 export const IconInfo = svg("M8 1a7 7 0 1 1 0 14A7 7 0 0 1 8 1zm-.7 6v5h1.4V7zm0-2.7v1.4h1.4V4.3z");
 export const IconTrash = svg("M6 1h4v1h4v1H2V2h4zM3 4h10l-1 11H4zm2 1 .6 9h1L6 5zm4.4 0L9 14h1l.6-9z");
+export const IconEdit = svg("M11.9 1.6a1.5 1.5 0 0 1 2.1 0l.4.4a1.5 1.5 0 0 1 0 2.1L5.7 12.8 2 14l1.2-3.7z");
 export const IconDiff = svg("M4 1h1v3h3v1H5v3H4V5H1V4h3zm-3 10h7v1H1zm9-10 5 5-5 5V1z");
 export const IconRefresh = svg("M13.5 8A5.5 5.5 0 1 1 11.8 4H9.5V3h4v4h-1V4.9A6.5 6.5 0 1 0 14.5 8z");
 export const IconAt = svg("M8 1a7 7 0 0 0 0 14h3v-1.4H8A5.6 5.6 0 1 1 13.6 8v.8c0 .7-.5 1.2-1.1 1.2s-1.1-.5-1.1-1.2V5h-1.3v.5A3.2 3.2 0 1 0 10.7 10a2.4 2.4 0 0 0 4.3-1.2V8a7 7 0 0 0-7-7zm0 9a2 2 0 1 1 0-4 2 2 0 0 1 0 4z");

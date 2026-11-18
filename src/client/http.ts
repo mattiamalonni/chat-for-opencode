@@ -106,11 +106,23 @@ export class OpenCodeClient {
     return this.request("GET", "api/info", { signal, timeoutMs: 5_000 });
   }
 
-  async listSessions(directory?: string, limit = 50): Promise<SessionInfo[]> {
-    const res = await this.request<{ data: SessionInfo[] }>("GET", "api/session", {
-      query: { directory, limit, order: "desc", parentID: "null" },
+  /** One page of sessions plus the opaque cursor for the next page (if any). */
+  async listSessionsPage(
+    directory?: string,
+    limit = 50,
+    cursor?: string,
+  ): Promise<{ items: SessionInfo[]; next?: string }> {
+    const res = await this.request<{ data: SessionInfo[]; cursor?: { next?: string | null } }>("GET", "api/session", {
+      // `order` only applies to the first page; the cursor continues that ordering.
+      query: cursor
+        ? { directory, limit, parentID: "null", cursor }
+        : { directory, limit, order: "desc", parentID: "null" },
     });
-    return res.data;
+    return { items: res.data, next: res.cursor?.next ?? undefined };
+  }
+
+  async listSessions(directory?: string, limit = 50): Promise<SessionInfo[]> {
+    return (await this.listSessionsPage(directory, limit)).items;
   }
 
   async createSession(input: CreateSessionInput): Promise<SessionInfo> {

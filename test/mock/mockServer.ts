@@ -24,6 +24,8 @@ export interface MockOptions {
   noModels?: boolean;
   /** Persist sessions to this JSON file so a restarted mock keeps its history. */
   stateFile?: string;
+  /** When set, `GET /api/session` paginates with opaque offset cursors. */
+  sessionPageSize?: number;
 }
 
 interface MockSession {
@@ -408,7 +410,11 @@ export function startMockServer(opts: MockOptions = {}): Promise<MockServer> {
         .map((s) => s.info)
         .filter((i) => !dir || (i.location as Json).directory === dir)
         .sort((a, b) => ((b.time as Json).updated as number) - ((a.time as Json).updated as number));
-      return send(res, 200, { data: list, cursor: {} });
+      const pageSize = (opts.sessionPageSize ?? Number(url.searchParams.get("limit") ?? 50)) || 50;
+      const start = Number(url.searchParams.get("cursor") ?? 0) || 0;
+      const page = list.slice(start, start + pageSize);
+      const next = start + pageSize < list.length ? String(start + pageSize) : null;
+      return send(res, 200, { data: page, cursor: { next } });
     }
     if (path === "/api/session" && req.method === "POST") {
       return send(res, 200, { data: newSession(body as Json | undefined).info });

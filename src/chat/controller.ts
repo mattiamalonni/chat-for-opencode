@@ -133,6 +133,10 @@ export class ChatController implements vscode.Disposable {
   /** Per-chat choice for a chat that has no session yet; `undefined` follows the setting. */
   private pendingAutoApprove: boolean | undefined;
   private sessionsTimer: NodeJS.Timeout | undefined;
+  private sessionsCursor: string | undefined;
+  private sessionsHasMore = false;
+  private sessionsLoadingMore = false;
+  private sessionItems: SessionSummary[] = [];
   private changesTimer: NodeJS.Timeout | undefined;
   private reconcileTimer: NodeJS.Timeout | undefined;
   private executionGeneration = 0;
@@ -571,18 +575,50 @@ export class ChatController implements vscode.Disposable {
     }
   }
 
+  private static toSummary(s: SessionInfo): SessionSummary {
+    return {
+      id: s.id,
+      title: s.title ?? "",
+      updated: s.time.updated,
+      busy: (s.time.busy ?? 0) > (s.time.idle ?? 0),
+    };
+  }
+
+  private postSessions(): void {
+    this.post({ type: "sessions", items: this.sessionItems, currentId: this.sessionId, hasMore: this.sessionsHasMore });
+  }
+
   async refreshSessions(): Promise<void> {
     if (!this.client || !this.folder) return;
-    const list = await this.client.listSessions(this.folder.uri.fsPath);
-    const items: SessionSummary[] = list
+    const { items, next } = await this.client.listSessionsPage(this.folder.uri.fsPath);
+    this.sessionItems = items
       .filter((s) => !s.parentID && !s.time.archived)
-      .map((s) => ({
-        id: s.id,
-        title: s.title ?? "",
-        updated: s.time.updated,
-        busy: (s.time.busy ?? 0) > (s.time.idle ?? 0),
-      }));
-    this.post({ type: "sessions", items, currentId: this.sessionId });
+      .map((s) => ChatController.toSummary(s));
+    this.sessionsCursor = next;
+    this.sessionsHasMore = !!next;
+    this.postSessions();
+  }
+
+  /** Appends the next page of sessions without discarding the ones already loaded. */
+  async loadMoreSessions(): Promise<void> {
+    if (!this.client || !this.folder || !this.sessionsCursor || this.sessionsLoadingMore) return;
+    this.sessionsLoadingMore = true;
+    try {
+      const { items, next } = await this.client.listSessionsPage(this.folder.uri.fsPath, 50, this.sessionsCursor);
+      const known = new Set(this.sessionItems.map((s) => s.id));
+      for (const s of items) {
+        if (s.parentID || s.time.archived || known.has(s.id)) continue;
+        known.add(s.id);
+        this.sessionItems.push(ChatController.toSummary(s));
+      }
+      this.sessionsCursor = next;
+      this.sessionsHasMore = !!next;
+      this.postSessions();
+    } catch (err) {
+      this.output.warn(`[chat] failed to load more sessions: ${String(err)}`);
+    } finally {
+      this.sessionsLoadingMore = false;
+    }
   }
 
   async refreshChanges(): Promise<void> {
@@ -689,9 +725,14 @@ export class ChatController implements vscode.Disposable {
     this.client = undefined;
     this.sessionId = undefined;
     this.pendingAutoApprove = undefined;
+    this.sessionItems = [];
+    this.sessionsCursor = undefined;
+    this.sessionsHasMore = false;
     this.folder = folder;
     this.postInit();
     this.post({ type: "session", session: null });
+    this.post({ type: "changedFiles", files: [] });
+    this.postSessions();
     this.postAutoApprove();
     await this.connect();
   }
@@ -796,8 +837,26 @@ export class ChatController implements vscode.Disposable {
         if (msg.id === this.sessionId) await this.newSession();
         else await this.refreshSessions();
         return;
+      case "renameSession": {
+        if (!this.client) return;
+        const title = msg.title.trim();
+        if (!title) return;
+        await this.client.renameSession(msg.id, title);
+        // Update optimistically so the header/list react even if the live event is missed.
+        const item = this.sessionItems.find((s) => s.id === msg.id);
+        if (item) {
+          item.title = title;
+          this.postSessions();
+        }
+        if (msg.id === this.sessionId) {
+          this.post({ type: "event", event: { type: "session.renamed", data: { sessionID: msg.id, title } } });
+        }
+        return;
+      }
       case "refreshSessions":
         return this.refreshSessions();
+      case "loadMoreSessions":
+        return this.loadMoreSessions();
       case "setModel":
         this.selectedModel = msg.model;
         await this.ctx.globalState.update(MODEL_KEY, msg.model);

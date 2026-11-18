@@ -4,6 +4,7 @@ import type { AgentInfo, FileDiff, ModelInfo, ModelRef, ServerEvent, SkillSugges
 import {
   chatReducer,
   initialChatState,
+  mergeChangedFiles,
   orphanForms,
   orphanPermissions,
   selectTodos,
@@ -17,9 +18,9 @@ import { SUPPORTED_SERVER_VERSION, type Compatibility } from "../shared/compatib
 import type { Attachment, ConnectionStatus, ContextItem, FolderInfo, HostMessage, SessionSummary, UiError } from "../shared/protocol";
 import { STRINGS, type Strings } from "../shared/strings";
 import { Composer } from "./composer";
-import { env } from "./env";
+import { env, isolateKeys } from "./env";
 import { StringsContext, useT } from "./i18n";
-import { IconCheck, IconChevron, IconClose, IconDiff, IconError, IconHistory, IconPlus, IconRefresh, IconTrash, IconWarning } from "./icons";
+import { IconCheck, IconChevron, IconClose, IconDiff, IconEdit, IconError, IconHistory, IconPlus, IconRefresh, IconTrash, IconWarning } from "./icons";
 import { setCopyLabel } from "./markdown";
 import { Picker } from "./picker";
 import { ActionButton, AssistantStatus, FileList, FormCard, MessageView, PermissionCard, ToolCard, ToolGroup } from "./messages";
@@ -44,6 +45,7 @@ export function App() {
   const [issuesUrl, setIssuesUrl] = useState<string | undefined>();
   const [catalog, setCatalog] = useState<Catalog>({ models: [], agents: [], skills: [] });
   const [sessions, setSessions] = useState<SessionSummary[]>([]);
+  const [sessionsHasMore, setSessionsHasMore] = useState(false);
   const [folders, setFolders] = useState<{ list: FolderInfo[]; active?: string }>({ list: [] });
   const [context, setContext] = useState<ContextItem[]>([]);
   // Explicit user choices per context chip: the active file is opt-in, selections are opt-out.
@@ -59,6 +61,9 @@ export function App() {
   const [announcement, setAnnouncement] = useState("");
   const queue = useRef<ServerEvent[]>([]);
   const frame = useRef<number | undefined>(undefined);
+  // Conversation-scoped state must be dropped when the loaded session changes (new session,
+  // folder switch, switching/deleting a session) but not on a same-session resync.
+  const lastSessionId = useRef<string | null | undefined>(undefined);
 
   useEffect(() => {
     const flush = () => {
@@ -85,9 +90,18 @@ export function App() {
           break;
         case "sessions":
           setSessions(msg.items);
+          setSessionsHasMore(!!msg.hasMore);
           break;
-        case "session":
+        case "session": {
           queue.current = [];
+          const id = msg.session?.id ?? null;
+          if (lastSessionId.current !== id) {
+            lastSessionId.current = id;
+            setAttachments([]);
+            setContextChoice(new Map());
+            setChanges([]);
+            setNotice(undefined);
+          }
           dispatch({
             type: "load",
             sessionId: msg.session?.id ?? null,
@@ -101,6 +115,7 @@ export function App() {
           });
           setShowSessions(false);
           break;
+        }
         case "event":
           queue.current.push(msg.event);
           frame.current ??= requestAnimationFrame(flush);
@@ -156,6 +171,8 @@ export function App() {
   }, [chat.forms.length]);
 
   const todos = useMemo(() => selectTodos(chat), [chat.messages]);
+  // GET /session/{id}/diff is empty outside git repos, so fall back to patches in tool metadata.
+  const changedFiles = useMemo(() => mergeChangedFiles(changes, chat), [changes, chat.messages]);
   // Prompts already sent in this session, oldest first, for the composer's Up/Down history.
   const promptHistory = useMemo(
     () => chat.messages.filter((m): m is UiUserMessage => m.kind === "user").map((m) => m.text),
@@ -196,7 +213,15 @@ export function App() {
             setShowSessions(!showSessions);
           }}
         />
-        {showSessions && <SessionList sessions={sessions} currentId={chat.sessionId} onClose={() => setShowSessions(false)} />}
+        {showSessions && (
+          <SessionList
+            sessions={sessions}
+            currentId={chat.sessionId}
+            hasMore={sessionsHasMore}
+            onLoadMore={() => post({ type: "loadMoreSessions" })}
+            onClose={() => setShowSessions(false)}
+          />
+        )}
         <StatusBanner status={status.status} error={status.error} />
         {(compatibility.status === "untested" || compatibility.status === "unsupported") && !compatibility.dismissed && (
           <CompatibilityBanner
@@ -212,7 +237,7 @@ export function App() {
           {announcement}
         </div>
         {todos && todos.length > 0 && <TodoPanel todos={todos} />}
-        {changes.length > 0 && <ChangesPanel files={changes} />}
+        {changedFiles.length > 0 && <ChangesPanel files={changedFiles} />}
         <Composer
           busy={chat.busy}
           contextTokens={chat.contextTokens}
@@ -223,6 +248,7 @@ export function App() {
           selectedModel={catalog.selectedModel}
           selectedAgent={catalog.selectedAgent}
           autoApprove={autoApprove}
+          cost={chat.usage?.cost}
           onToggleAutoApprove={(enabled) => post({ type: "setAutoApprove", enabled })}
           context={context}
           selectedContext={selectedContext}
@@ -331,24 +357,45 @@ function relativeTime(ts: number): string {
   return rtf.format(-Math.round(hours / 24), "day");
 }
 
-function SessionList(props: { sessions: SessionSummary[]; currentId: string | null; onClose: () => void }) {
+function SessionList(props: {
+  sessions: SessionSummary[];
+  currentId: string | null;
+  hasMore: boolean;
+  onLoadMore: () => void;
+  onClose: () => void;
+}) {
   const t = useT();
   const [confirm, setConfirm] = useState<string | undefined>();
+  const [renaming, setRenaming] = useState<string | undefined>();
+  const [draft, setDraft] = useState("");
   const ref = useRef<HTMLDivElement>(null);
   useEffect(() => {
     (ref.current?.querySelector("button.session-item") as HTMLButtonElement | null)?.focus();
   }, []);
+  // Inline forms replace their focused button; return focus to the dialog so Escape keeps working.
+  const closeInline = () => {
+    setRenaming(undefined);
+    setConfirm(undefined);
+    ref.current?.focus();
+  };
+  const saveRename = () => {
+    if (!renaming) return;
+    const title = draft.trim();
+    if (title) post({ type: "renameSession", id: renaming, title });
+    closeInline();
+  };
   return (
     <div
       class="session-list"
       ref={ref}
       role="dialog"
+      tabIndex={-1}
       aria-label={t("sessions")}
       onKeyDown={(e) => {
-        if (e.key === "Escape") {
-          e.stopPropagation();
-          props.onClose();
-        }
+        if (e.key !== "Escape") return;
+        e.stopPropagation();
+        if (renaming || confirm) closeInline();
+        else props.onClose();
       }}
     >
       <button type="button" class="session-new" onClick={() => post({ type: "newSession" })}>
@@ -358,13 +405,47 @@ function SessionList(props: { sessions: SessionSummary[]; currentId: string | nu
       <ul>
         {props.sessions.map((s) => (
           <li key={s.id} class={s.id === props.currentId ? "current" : ""}>
-            {confirm === s.id ? (
+            {renaming === s.id ? (
+              <div class="rename" role="group" aria-label={t("renameSession")}>
+                <input
+                  type="text"
+                  class="rename-input"
+                  aria-label={t("sessionTitle")}
+                  value={draft}
+                  autoFocus
+                  onInput={(e) => setDraft((e.currentTarget as HTMLInputElement).value)}
+                  onKeyDown={(e) => {
+                    isolateKeys(e);
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      saveRename();
+                    } else if (e.key === "Escape") {
+                      e.preventDefault();
+                      closeInline();
+                    }
+                  }}
+                />
+                <button type="button" class="primary" onClick={saveRename}>
+                  {t("save")}
+                </button>
+                <button type="button" class="secondary" onClick={closeInline}>
+                  {t("cancel")}
+                </button>
+              </div>
+            ) : confirm === s.id ? (
               <div class="confirm" role="group" aria-label={t("confirmDelete")}>
                 <span>{t("confirmDelete")}</span>
-                <button type="button" class="primary danger" onClick={() => post({ type: "deleteSession", id: s.id })}>
+                <button
+                  type="button"
+                  class="primary danger"
+                  onClick={() => {
+                    post({ type: "deleteSession", id: s.id });
+                    closeInline();
+                  }}
+                >
                   {t("deleteSession")}
                 </button>
-                <button type="button" class="secondary" onClick={() => setConfirm(undefined)}>
+                <button type="button" class="secondary" onClick={closeInline}>
                   {t("cancel")}
                 </button>
               </div>
@@ -374,7 +455,26 @@ function SessionList(props: { sessions: SessionSummary[]; currentId: string | nu
                   <span class="session-name">{s.title || t("untitled")}</span>
                   <span class="session-time">{s.busy ? t("running") : relativeTime(s.updated)}</span>
                 </button>
-                <button type="button" class="icon-button" title={t("deleteSession")} aria-label={`${t("deleteSession")}: ${s.title || t("untitled")}`} onClick={() => setConfirm(s.id)}>
+                <button
+                  type="button"
+                  class="icon-button"
+                  title={t("renameSession")}
+                  aria-label={`${t("renameSession")}: ${s.title || t("untitled")}`}
+                  onClick={() => {
+                    setConfirm(undefined);
+                    setDraft(s.title);
+                    setRenaming(s.id);
+                  }}
+                >
+                  <IconEdit />
+                </button>
+                <button
+                  type="button"
+                  class="icon-button"
+                  title={t("deleteSession")}
+                  aria-label={`${t("deleteSession")}: ${s.title || t("untitled")}`}
+                  onClick={() => setConfirm(s.id)}
+                >
                   <IconTrash />
                 </button>
               </>
@@ -382,6 +482,11 @@ function SessionList(props: { sessions: SessionSummary[]; currentId: string | nu
           </li>
         ))}
       </ul>
+      {props.hasMore && (
+        <button type="button" class="session-more" onClick={props.onLoadMore}>
+          {t("loadMoreSessions")}
+        </button>
+      )}
     </div>
   );
 }

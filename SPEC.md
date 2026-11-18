@@ -69,7 +69,7 @@ All messages are JSON objects with a `type` discriminator, defined in `src/share
 | `init` | `strings`, `folders`, `activeFolder`, `platform` | after `ready` |
 | `connection` | `status: idle\|starting\|connected\|reconnecting\|error`, `error?: UiError` | any status change |
 | `catalog` | `models`, `agents`, `skills`, selected model and agent | after connect / config change |
-| `sessions` | `items: SessionSummary[]`, `currentId` | list changed |
+| `sessions` | `items: SessionSummary[]`, `currentId`, `hasMore` | list changed / more pages loaded |
 | `session` | `info`, `messages` (raw server history), `permissions`, `forms` | session loaded / resync |
 | `event` | `event` (raw server SSE event for the current session) | live |
 | `context` | `items: ContextItem[]` | active editor / selection changed |
@@ -87,7 +87,7 @@ All messages are JSON objects with a `type` discriminator, defined in `src/share
 | `ready` | – |
 | `send` | `text`, `attachments: Attachment[]`, `excludedContext: string[]` |
 | `abort` | – |
-| `newSession`, `selectSession {id}`, `deleteSession {id}`, `refreshSessions` | |
+| `newSession`, `selectSession {id}`, `deleteSession {id}`, `renameSession {id, title}`, `refreshSessions`, `loadMoreSessions` | |
 | `setModel {providerID, id, variant?}`, `setAgent {id}` | |
 | `setAutoApprove {enabled}` | per-chat auto-approval toggle |
 | `permissionReply {requestId, sessionId, decision: once\|always\|reject}` | |
@@ -106,6 +106,15 @@ The `skills` catalog is fetched from `GET /api/skill` without a workspace-locati
 OpenCode includes its global skill sources. The webview receives only each skill's ID, name and
 description. Selecting `/skill-id` converts it to `@skill-id` when sending, which is the syntax
 OpenCode uses to load a skill; unrelated slash commands remain unchanged.
+
+### Changed files and cost
+
+`changedFiles` normally comes from `GET /session/{id}/diff`, but that endpoint is empty outside git
+repositories. The webview therefore merges it with patches from completed tool calls
+(`metadata.files`, via `selectToolChangedFiles`); the server diff wins for the same path. The
+`session.usage.updated` event's cost is kept in `ChatState.usage` and shown in the composer's
+context meter. Changing session (new/folder switch/select/delete) clears conversation-scoped webview
+state — drafts, staged attachments and the changed-files panel — while a same-session resync keeps it.
 
 ## Security
 
