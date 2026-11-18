@@ -2,6 +2,18 @@
 
 ## Unreleased
 
+- Messages can be **queued** while the agent works (plain Enter) or sent as a **steer** that
+  interrupts the current answer (Ctrl/Cmd+Enter), using OpenCode's `delivery` field.
+- Composer drafts now survive a window reload (per session, in `workspaceState`).
+- Permission cards respond to `1`/`2`/`3`; the header can export the conversation as Markdown and
+  search messages in the current session; long conversations are windowed for rendering.
+- The context meter includes a `~`-marked estimate for inline attachments.
+- ChatController extracted `CatalogService`, `PermissionService` and a `Generation` token; file
+  mentions cache their index in `workspaceState`.
+- CI runs VS Code integration on Linux, macOS and Windows for every PR. New
+  `test:integration:real:e2e` combines real webview clicks with a real server; accessibility-tree
+  checks were added to the UI suite.
+
 - Reconnects and post-turn reconciles now fetch only the new tail of the conversation and merge it
   by message id, instead of rebuilding the whole chat. Scroll position, staged attachments and
   drafts survive a resync.

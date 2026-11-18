@@ -77,6 +77,8 @@ describe("composerAction", () => {
   it("sends on Enter and inserts newline on Shift+Enter", () => {
     expect(composerAction(k("Enter"), false)).toBe("send");
     expect(composerAction(k("Enter", { shiftKey: true }), false)).toBe("newline");
+    expect(composerAction(k("Enter", { ctrlKey: true }), false)).toBe("steer");
+    expect(composerAction(k("Enter", { metaKey: true }), false)).toBe("steer");
     expect(composerAction(k("a"), false)).toBe("none");
   });
 

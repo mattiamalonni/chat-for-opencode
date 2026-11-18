@@ -182,9 +182,10 @@ export class OpenCodeClient {
     return index < 0 ? undefined : res.data.slice(0, index).reverse();
   }
 
-  async prompt(id: string, text: string, files: FileAttachment[] = []): Promise<{ id: string }> {
+  async prompt(id: string, text: string, files: FileAttachment[] = [], delivery?: "steer" | "queue"): Promise<{ id: string }> {
     const body: Record<string, unknown> = { text };
     if (files.length > 0) body.files = files;
+    if (delivery) body.delivery = delivery;
     const res = await this.request<{ data: { id: string } }>("POST", `api/session/${encodeURIComponent(id)}/prompt`, {
       body,
     });

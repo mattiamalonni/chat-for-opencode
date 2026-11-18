@@ -5,13 +5,12 @@ test or a manual probe actually ran.
 
 ## Not verified by me
 
-- **Clicking the real sidebar with a real server.** `npm run test:integration:e2e` now attaches to
-  the real VS Code webview over CDP and drives it (typing a prompt, approving an inline permission)
-  against the **mock** server. `npm run test:integration:real` runs the extension inside real VS Code
-  against a real `opencode serve` (prompt streaming, permission approval, applied diff in the native
-  diff editor, session resume after a server restart) but still drives the controller through its
-  message API instead of clicking the webview. Combining the two (real clicks + real server) and a
-  full VS Code quit/relaunch is not automated; manual steps remain in [MANUAL_TEST.md](MANUAL_TEST.md).
+- **Clicking the real sidebar with a real server.** `npm run test:integration:e2e` attaches to the
+  real VS Code webview over CDP against the **mock** server (typing, streaming, inline permission).
+  `npm run test:integration:real` runs the extension inside real VS Code against a real
+  `opencode serve` but drives the controller through its message API. `npm run test:integration:real:e2e`
+  combines the two: real webview clicks plus a real server, waiting for the real streamed reply.
+  A full VS Code quit/relaunch is still manual; see [MANUAL_TEST.md](MANUAL_TEST.md).
 - **Windows and Linux.** Everything ran on macOS (arm64). Windows-specific code paths
   (`shell: true` spawn for `.cmd` shims, `taskkill /T` for shutdown, AltGr handling) are written
   but untested on Windows. The `ManagedServer` unit tests are skipped on Windows.
@@ -21,11 +20,12 @@ test or a manual probe actually ran.
 - **Key isolation inside real VS Code.** Based on reading the VS Code webview preload source
   (`window` bubble-phase `keydown` forwarding) and tested in Playwright with an equivalent listener;
   not tested by pressing Ctrl+J in a real VS Code webview.
-- **Screen readers.** ARIA roles/labels and live regions are present; no test with NVDA/VoiceOver.
+- **Screen readers.** ARIA roles/labels and live regions are present, and the UI suite now checks
+  the accessibility tree of the composer and permission cards; no test with NVDA/VoiceOver.
 - **Long sessions / performance.** History pagination is capped at 2000 messages; markdown is
-  re-rendered per streaming frame (cached, batched with `requestAnimationFrame`). Reconnects now
-  fetch only the tail and merge it via `sessionDelta` (falling back to a full load when the overlap
-  is unknown), so they no longer rebuild the conversation. Not profiled with very large sessions.
+  re-rendered per streaming frame (cached, batched with `requestAnimationFrame`). Reconnects fetch
+  only the tail and merge it via `sessionDelta`, and conversations over 40 messages are windowed
+  when rendering. Not profiled with very large sessions.
 - **External server mode with a real remote server** — tested only against the mock server (unit).
 
 ## Behaviour limits

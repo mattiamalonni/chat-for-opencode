@@ -165,12 +165,14 @@ export type HostMessage =
   | { type: "addAttachment"; item: Attachment }
   | { type: "changedFiles"; files: FileDiff[] }
   | { type: "autoApprove"; enabled: boolean }
+  /** Drafts restored from workspaceState on webview startup (vscode.setState alone dies on reload). */
+  | { type: "drafts"; drafts: Record<string, string>; globalDraft?: string }
   | { type: "focusInput" }
   | { type: "notice"; error: UiError };
 
 export type WebviewMessage =
   | { type: "ready" }
-  | { type: "send"; text: string; attachments: Attachment[]; context: ContextItem[] }
+  | { type: "send"; text: string; attachments: Attachment[]; context: ContextItem[]; delivery?: "steer" | "queue" }
   | { type: "abort" }
   | { type: "compact" }
   | { type: "newSession" }
@@ -182,6 +184,7 @@ export type WebviewMessage =
   | { type: "setModel"; model: ModelRef }
   | { type: "setAgent"; agent: string }
   | { type: "setAutoApprove"; enabled: boolean }
+  | { type: "saveDraft"; sessionId?: string; text: string }
   | { type: "permissionReply"; sessionId: string; requestId: string; decision: PermissionDecision }
   | { type: "formReply"; sessionId: string; formId: string; answer: Record<string, FormValue> }
   | { type: "formCancel"; sessionId: string; formId: string }

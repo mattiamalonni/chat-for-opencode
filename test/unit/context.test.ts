@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { excludeGlobs } from "../../src/chat/context";
+import { deserializeFileCache, excludeGlobs, serializeFileCache } from "../../src/chat/context";
 import type { SessionMessage } from "../../src/shared/api";
 import { chatReducer, contextTokensOf, initialChatState } from "../../src/shared/chatReducer";
 import { formatTokens } from "../../src/shared/format";
@@ -24,6 +24,50 @@ describe("excludeGlobs", () => {
   it("returns nothing when there are no excludes", () => {
     expect(excludeGlobs()).toEqual([]);
     expect(excludeGlobs({}, undefined)).toEqual([]);
+  });
+});
+
+describe("file index cache serialization", () => {
+  const uri = (value: string) => ({ toString: () => value });
+
+  it("round-trips a snapshot", () => {
+    const cache = serializeFileCache([uri("file:///a.ts"), uri("file:///b.ts")], ["**/node_modules"]);
+    expect(deserializeFileCache(cache, ["**/node_modules"])).toEqual(["file:///a.ts", "file:///b.ts"]);
+  });
+
+  it("NFC-normalizes and deduplicates file strings", () => {
+    const composed = "file:///caff\u00e9.ts";
+    const decomposed = "file:///caffe\u0301.ts";
+    const cache = serializeFileCache([uri(composed), uri(decomposed), uri(composed)], []);
+    expect(cache).toEqual({ version: 1, exclude: [], files: [composed] });
+    expect(deserializeFileCache(cache, [])).toEqual([composed]);
+  });
+
+  it("treats the cache as stale when the exclude set changes", () => {
+    const cache = serializeFileCache([uri("file:///a.ts")], ["**/node_modules"]);
+    expect(deserializeFileCache(cache, ["**/node_modules", "**/dist"])).toBeUndefined();
+    expect(deserializeFileCache(cache, ["**/dist"])).toBeUndefined();
+  });
+
+  it("accepts the same excludes in a different order", () => {
+    const cache = serializeFileCache([uri("file:///a.ts")], ["**/dist", "**/node_modules"]);
+    expect(deserializeFileCache(cache, ["**/node_modules", "**/dist"])).toEqual(["file:///a.ts"]);
+  });
+
+  it("treats an unknown version as stale", () => {
+    const cache = serializeFileCache([uri("file:///a.ts")], []);
+    expect(deserializeFileCache({ ...(cache as Record<string, unknown>), version: 2 }, [])).toBeUndefined();
+  });
+
+  it("ignores malformed values", () => {
+    expect(deserializeFileCache(undefined, [])).toBeUndefined();
+    expect(deserializeFileCache(null, [])).toBeUndefined();
+    expect(deserializeFileCache("oops", [])).toBeUndefined();
+    expect(deserializeFileCache([], [])).toBeUndefined();
+    expect(deserializeFileCache({ version: 1, exclude: [], files: "nope" }, [])).toBeUndefined();
+    expect(deserializeFileCache({ version: 1, exclude: "nope", files: [] }, [])).toBeUndefined();
+    expect(deserializeFileCache({ version: 1, exclude: [42], files: [] }, [])).toBeUndefined();
+    expect(deserializeFileCache({ version: 1, exclude: [], files: ["file:///a.ts", 42, null] }, [])).toEqual(["file:///a.ts"]);
   });
 });
 

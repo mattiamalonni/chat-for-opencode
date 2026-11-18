@@ -1032,6 +1032,33 @@ test("loading another session clears staged attachments and changes, a resync do
   await expect(page.locator(".chips li")).toHaveCount(3);
 });
 
+test("while busy, Enter queues and Ctrl+Enter steers", async ({ page }) => {
+  await boot(page);
+  const events = fixture("real-sse1.jsonl");
+  const firstDelta = events.findIndex((e) => e.type === "session.text.delta") + 1;
+  await openSession(page, S1, events.slice(0, firstDelta));
+  await expect(page.getByRole("button", { name: STRINGS.stop })).toBeVisible();
+
+  const input = page.getByRole("textbox", { name: STRINGS.inputLabel });
+  await input.fill("queued while busy");
+  await expect(page.locator(".drop-hint")).toContainText(STRINGS.queueHint);
+  await input.press("Enter");
+  expect(await lastPosted(page, "send")).toMatchObject({ text: "queued while busy", delivery: "queue" });
+
+  await input.fill("send now");
+  await input.press("Control+Enter");
+  expect(await lastPosted(page, "send")).toMatchObject({ text: "send now", delivery: "steer" });
+});
+
+test("drafts restored by the host hydrate the composer", async ({ page }) => {
+  await boot(page);
+  await host(page, { type: "session", session: { id: S1, busy: false, messages: [], permissions: [], forms: [] } });
+  await expect(page.locator(".session-title")).toHaveText("Hello world reply");
+
+  await host(page, { type: "drafts", drafts: { [S1]: "restored after reload" } });
+  await expect(page.getByRole("textbox", { name: STRINGS.inputLabel })).toHaveValue("restored after reload");
+});
+
 test("a sessionDelta appends the tail without clearing the conversation's UI state", async ({ page }) => {
   await boot(page);
   await host(page, { type: "session", session: { id: S1, busy: false, messages: [], permissions: [], forms: [] } });

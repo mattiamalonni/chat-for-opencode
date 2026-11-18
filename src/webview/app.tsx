@@ -15,20 +15,22 @@ import {
   type UiUserMessage,
 } from "../shared/chatReducer";
 import { SUPPORTED_SERVER_VERSION, type Compatibility } from "../shared/compatibility";
+import { estimateDataUrlTokens } from "../shared/format";
 import { isNewSessionKey } from "../shared/keys";
 import { contractSignature, emptyContract, type ContractReport } from "../shared/contract";
 import type { Attachment, ConnectionStatus, ContextItem, FolderInfo, HostMessage, SessionSummary, UiError } from "../shared/protocol";
-import { STRINGS, type Strings } from "../shared/strings";
+import { format, STRINGS, type Strings } from "../shared/strings";
 import { Composer } from "./composer";
 import { collectDroppedFiles, hasFiles, readFileAsBase64, type DragData } from "./dropFiles";
 import { env, isolateKeys } from "./env";
 import { StringsContext, useT } from "./i18n";
-import { IconCheck, IconChevron, IconClose, IconDiff, IconEdit, IconError, IconHistory, IconPlus, IconRefresh, IconTrash, IconWarning } from "./icons";
+import { IconCheck, IconChevron, IconClose, IconDiff, IconEdit, IconError, IconFileMarkdown, IconHistory, IconPlus, IconRefresh, IconTrash, IconWarning } from "./icons";
 import { setCopyLabel } from "./markdown";
 import { Picker } from "./picker";
 import { clearReplyFailures, markReplyFailed } from "./replyFeedback";
-import { ActionButton, AssistantStatus, FileList, FormCard, MessageView, PermissionCard, ToolCard, ToolGroup } from "./messages";
-import { onHostMessage, post } from "./vscode";
+import { ActionButton, AssistantStatus, FileList, FormCard, MessageView, messageSearchText, PermissionCard, ToolCard, ToolGroup } from "./messages";
+import { visibleRange, type VisibleRange } from "./virtual";
+import { hydrateDrafts, onHostMessage, post } from "./vscode";
 
 interface Catalog {
   models: ModelInfo[];
@@ -63,8 +65,11 @@ export function App() {
   const [autoApprove, setAutoApprove] = useState(false);
   const [notice, setNotice] = useState<UiError | undefined>();
   const [focusToken, setFocusToken] = useState(0);
+  const [draftToken, setDraftToken] = useState(0);
   const [scrollToken, setScrollToken] = useState(0);
   const [showSessions, setShowSessions] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
   const [announcement, setAnnouncement] = useState("");
   const [dropping, setDropping] = useState(false);
   const dragDepth = useRef(0);
@@ -111,6 +116,7 @@ export function App() {
             setChanges([]);
             setDismissedChanges(null);
             setNotice(undefined);
+            setSearchQuery("");
             clearReplyFailures();
             // Context chips belong to the editor, not the chat: keep the user's explicit
             // opt-in/opt-out across session switches (stale ids are pruned on the next `context`).
@@ -166,6 +172,10 @@ export function App() {
           break;
         case "autoApprove":
           setAutoApprove(msg.enabled);
+          break;
+        case "drafts":
+          hydrateDrafts(msg.drafts, msg.globalDraft);
+          setDraftToken((n) => n + 1);
           break;
         case "focusInput":
           setFocusToken((n) => n + 1);
@@ -261,7 +271,7 @@ export function App() {
     () => new Set(context.filter((c) => contextChoice.get(c.id) ?? c.kind === "selection").map((c) => c.id)),
     [context, contextChoice],
   );
-  const send = (text: string) => {
+  const send = (text: string, delivery?: "steer" | "queue") => {
     const ctx = context.filter((c) => selectedContext.has(c.id));
     const skillCommand = /(^|\s)\/(\S+)(?=\s|$)/.exec(text);
     const isCommand = skillCommand && catalog.commands.some((item) => item.name === skillCommand[2]);
@@ -269,7 +279,7 @@ export function App() {
     const prompt = skillCommand && skill
       ? `${text.slice(0, skillCommand.index)}${skillCommand[1]}@${skill.id}${text.slice(skillCommand.index + skillCommand[0].length)}`
       : text;
-    post({ type: "send", text: prompt, attachments, context: ctx });
+    post({ type: "send", text: prompt, attachments, context: ctx, delivery });
     setAttachments([]);
     setNotice(undefined);
     // Follow the new prompt even if the user had scrolled up to read older messages.
@@ -325,6 +335,23 @@ export function App() {
 
   const connected = status.status === "connected" || status.status === "reconnecting";
   const title = chat.title || sessions.find((s) => s.id === chat.sessionId)?.title || strings.untitled;
+  // Inline attachments are sent as data URLs; their decoded content costs tokens too.
+  const attachmentTokens = attachments.reduce((n, a) => n + estimateDataUrlTokens(a.uri), 0);
+
+  const normalizedQuery = searchQuery.trim().toLowerCase();
+  const searchCount = useMemo(
+    () =>
+      normalizedQuery
+        ? chat.messages.filter((m) => messageSearchText(m).toLowerCase().includes(normalizedQuery)).length
+        : chat.messages.length,
+    [chat.messages, normalizedQuery],
+  );
+  // Everything stays in the webview: no host message, no network request.
+  const exportConversation = () => {
+    const markdown = conversationMarkdown(chat.messages, title, strings);
+    const date = new Date().toISOString().slice(0, 10);
+    downloadFile(markdown, `opencode-${chat.sessionId ?? "session"}-${date}.md`);
+  };
 
   return (
     <StringsContext.Provider value={strings}>
@@ -338,6 +365,12 @@ export function App() {
             if (!showSessions) post({ type: "refreshSessions" });
             setShowSessions(!showSessions);
           }}
+          onExport={exportConversation}
+          searchOpen={searchOpen}
+          onToggleSearch={() => setSearchOpen((open) => !open)}
+          searchQuery={searchQuery}
+          onSearchChange={setSearchQuery}
+          searchCount={searchCount}
         />
         {showSessions && (
           <SessionList
@@ -361,7 +394,7 @@ export function App() {
           <ContractBanner failures={contract.report.failures} issuesUrl={issuesUrl} />
         )}
         {notice && <NoticeBanner error={notice} onDismiss={() => setNotice(undefined)} />}
-        <Conversation chat={chat} scrollToken={scrollToken} />
+        <Conversation chat={chat} scrollToken={scrollToken} searchQuery={searchQuery} />
         <div class="sr-only" role="status" aria-live="polite">
           {announcement}
         </div>
@@ -371,8 +404,10 @@ export function App() {
         )}
         <Composer
           sessionId={chat.sessionId ?? undefined}
+          draftToken={draftToken}
           busy={chat.busy}
-          contextTokens={chat.contextTokens}
+          contextTokens={chat.contextTokens === undefined ? undefined : chat.contextTokens + attachmentTokens}
+          contextEstimated={attachmentTokens > 0}
           disabled={!connected}
           models={catalog.models}
           agents={catalog.agents}
@@ -453,8 +488,80 @@ function CrashFallback() {
   );
 }
 
-function Header(props: { title: string; folders: { list: FolderInfo[]; active?: string }; showSessions: boolean; onToggleSessions: () => void }) {
+/** Magnifier drawn locally so no new icon file/dependency is needed. */
+function IconSearch() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true" focusable="false">
+      <circle cx="6.8" cy="6.8" r="4.6" />
+      <path d="m10.2 10.2 3.5 3.5" stroke-linecap="round" />
+    </svg>
+  );
+}
+
+/** Turns the in-memory chat into a portable, readable Markdown transcript. */
+function conversationMarkdown(messages: ReturnType<typeof chatReducer>["messages"], title: string, strings: Strings): string {
+  const text = (key: keyof Strings, ...args: (string | number)[]) => format(strings[key] ?? STRINGS[key], ...args);
+  const lines: string[] = [`# ${title || STRINGS.appName}`, ""];
+  for (const m of messages) {
+    if (m.kind === "user") {
+      lines.push(`## ${text("you")}`, "", m.text, "");
+      for (const f of m.files) lines.push(`- \`${f.name ?? f.uri}\``);
+      if (m.files.length > 0) lines.push("");
+      continue;
+    }
+    if (m.kind === "notice") {
+      lines.push(`> **${m.level}:** ${m.text.replace(/\s*\n\s*/g, " ")}`, "");
+      continue;
+    }
+    for (const p of m.parts) {
+      if (p.kind === "tool") {
+        lines.push(`> **${text("tool")}:** \`${p.name}\`${p.status === "error" ? ` (${text("failed")})` : ""}`);
+        for (const l of p.inputText.split("\n")) lines.push(`> ${l}`);
+        const output = p.output
+          .map((c) => (c.type === "text" ? c.text : `[${c.mime}] ${c.name ?? c.uri}`))
+          .join("\n");
+        for (const l of output.split("\n")) if (l) lines.push(`> ${l}`);
+        lines.push("");
+      } else if (p.kind === "text") {
+        lines.push(p.text, "");
+      } else if (p.text.trim()) {
+        lines.push("<details><summary>Thoughts</summary>", "", p.text, "", "</details>", "");
+      }
+    }
+    if (m.error?.message) lines.push(`> **${text("error")}:** ${m.error.message}`, "");
+  }
+  return `${lines.join("\n").trimEnd()}\n`;
+}
+
+/** Blob + anchor download: works under the webview CSP (no `connect-src` needed) and sends nothing to the host. */
+function downloadFile(text: string, filename: string): void {
+  const url = URL.createObjectURL(new Blob([text], { type: "text/markdown;charset=utf-8" }));
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 0);
+}
+
+function Header(props: {
+  title: string;
+  folders: { list: FolderInfo[]; active?: string };
+  showSessions: boolean;
+  onToggleSessions: () => void;
+  onExport: () => void;
+  searchOpen: boolean;
+  onToggleSearch: () => void;
+  searchQuery: string;
+  onSearchChange: (value: string) => void;
+  searchCount: number;
+}) {
   const t = useT();
+  const searchRef = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    if (props.searchOpen) searchRef.current?.focus();
+  }, [props.searchOpen]);
   return (
     <header class="header">
       <button
@@ -483,9 +590,52 @@ function Header(props: { title: string; folders: { list: FolderInfo[]; active?: 
           onChange={(uri) => post({ type: "selectFolder", uri })}
         />
       )}
-      <button type="button" class="icon-button tooltip-host tooltip-above" data-tooltip={t("newSession")} aria-label={t("newSession")} onClick={() => post({ type: "newSession" })}>
-        <IconPlus />
+      <button
+        type="button"
+        class="icon-button tooltip-host"
+        data-tooltip={t("exportConversation")}
+        aria-label={t("exportConversation")}
+        onClick={props.onExport}
+      >
+        <IconFileMarkdown />
       </button>
+      <button
+        type="button"
+        class={`icon-button tooltip-host${props.searchOpen ? " active" : ""}`}
+        data-tooltip={t("searchMessages")}
+        aria-label={t("searchMessages")}
+        aria-expanded={props.searchOpen}
+        onClick={props.onToggleSearch}
+      >
+        <IconSearch />
+      </button>
+      {props.searchOpen && (
+        <div class="header-search">
+          <IconSearch />
+          <input
+            ref={searchRef}
+            type="search"
+            class="search-input"
+            aria-label={t("searchMessages")}
+            placeholder={t("searchMessagesPlaceholder")}
+            value={props.searchQuery}
+            onInput={(e) => props.onSearchChange((e.target as HTMLInputElement).value)}
+            onKeyDown={(e) => {
+              if (e.key === "Escape") {
+                e.preventDefault();
+                e.stopPropagation();
+                props.onToggleSearch();
+                return;
+              }
+              isolateKeys(e);
+            }}
+          />
+          <span class="search-count">{t("searchResults", props.searchCount)}</span>
+          <button type="button" class="icon-button" aria-label={t("dismiss")} onClick={props.onToggleSearch}>
+            <IconClose />
+          </button>
+        </div>
+      )}
     </header>
   );
 }
@@ -856,12 +1006,38 @@ function conversationItems(messages: UiMessage[]): ConversationItem[] {
   return items;
 }
 
-function Conversation({ chat, scrollToken }: { chat: ReturnType<typeof chatReducer>; scrollToken: number }) {
+/** Text of a rendered conversation item, for the header's filter. */
+function itemSearchText(item: ConversationItem): string {
+  switch (item.kind) {
+    case "message":
+      return messageSearchText(item.message);
+    case "assistant":
+      return item.parts.map((p) => p.text).join(" ");
+    case "tool":
+      return [item.part.name, item.part.inputText, ...item.part.output.map((c) => (c.type === "text" ? c.text : `[${c.mime}] ${c.name ?? c.uri}`))].join(" ");
+    case "tools":
+      return item.parts.map((p) => [p.name, p.inputText].join(" ")).join(" ");
+    case "status":
+      return [item.message.error?.message ?? "", item.message.retry?.message ?? ""].join(" ");
+  }
+}
+
+// Messages are only measured after layout; a conservative estimate keeps the reserved space stable.
+const ESTIMATED_ROW_HEIGHT = 140;
+const OVERSCAN = 10;
+
+function Conversation({ chat, scrollToken, searchQuery }: { chat: ReturnType<typeof chatReducer>; scrollToken: number; searchQuery: string }) {
   const t = useT();
   const ref = useRef<HTMLDivElement>(null);
   const stick = useRef(true);
   const lastId = useRef<string | undefined>(undefined);
+  const scrollFrame = useRef<number | undefined>(undefined);
   const [atBottom, setAtBottom] = useState(true);
+  const items = useMemo(() => conversationItems(chat.messages), [chat.messages]);
+  const query = searchQuery.trim().toLowerCase();
+  // Only long, unfiltered sessions are windowed. Short chats keep the exact same DOM as before.
+  const virtual = chat.messages.length > 40 && !query;
+  const [range, setRange] = useState<VisibleRange>({ start: 0, end: 0 });
 
   const scrollToEnd = () => {
     const el = ref.current;
@@ -893,6 +1069,23 @@ function Conversation({ chat, scrollToken }: { chat: ReturnType<typeof chatReduc
     if (el && stick.current) el.scrollTop = el.scrollHeight;
   });
 
+  useEffect(
+    () => () => {
+      if (scrollFrame.current !== undefined) cancelAnimationFrame(scrollFrame.current);
+    },
+    [],
+  );
+
+  // Recompute the window when the conversation grows (or virtualization turns on). Scrolling is
+  // handled separately so a streaming message does not force a layout read on every token.
+  useEffect(() => {
+    if (!virtual) return;
+    const el = ref.current;
+    if (!el) return;
+    const next = visibleRange(items.length, el.scrollTop, el.clientHeight, ESTIMATED_ROW_HEIGHT, OVERSCAN);
+    setRange((prev) => (prev.start === next.start && prev.end === next.end ? prev : next));
+  }, [virtual, items.length]);
+
   const orphanP = orphanPermissions(chat);
   const orphanF = orphanForms(chat);
   const onClick = (e: MouseEvent) => {
@@ -919,6 +1112,8 @@ function Conversation({ chat, scrollToken }: { chat: ReturnType<typeof chatReduc
       post({ type: "openLink", href: link.getAttribute("href") ?? "" });
     }
   };
+  const active = virtual && range.end > 0;
+  const visible = active ? items.slice(range.start, range.end) : items;
   return (
     <div class="conversation-wrap">
       <div
@@ -928,11 +1123,27 @@ function Conversation({ chat, scrollToken }: { chat: ReturnType<typeof chatReduc
         aria-label={t("appName")}
         aria-busy={chat.busy}
         tabIndex={0}
+        style={
+          active
+            ? {
+                paddingTop: 8 + range.start * ESTIMATED_ROW_HEIGHT,
+                paddingBottom: 12 + (items.length - range.end) * ESTIMATED_ROW_HEIGHT,
+              }
+            : undefined
+        }
         onScroll={(e) => {
           const el = e.currentTarget as HTMLDivElement;
           const bottom = el.scrollHeight - el.scrollTop - el.clientHeight < 40;
           stick.current = bottom;
           setAtBottom((prev) => (prev === bottom ? prev : bottom));
+          if (!virtual || scrollFrame.current !== undefined) return;
+          scrollFrame.current = requestAnimationFrame(() => {
+            scrollFrame.current = undefined;
+            const node = ref.current;
+            if (!node) return;
+            const next = visibleRange(items.length, node.scrollTop, node.clientHeight, ESTIMATED_ROW_HEIGHT, OVERSCAN);
+            setRange((prev) => (prev.start === next.start && prev.end === next.end ? prev : next));
+          });
         }}
         onClick={onClick}
       >
@@ -942,12 +1153,13 @@ function Conversation({ chat, scrollToken }: { chat: ReturnType<typeof chatReduc
           <p>{t("welcomeBody")}</p>
         </div>
       )}
-      {conversationItems(chat.messages).map((item) => {
+      {visible.map((item) => {
+        const filteredOut = !!query && !itemSearchText(item).toLowerCase().includes(query);
         switch (item.kind) {
           case "tools":
-            return <ToolGroup key={item.key} parts={item.parts} state={chat} />;
+            return <ToolGroup key={item.key} parts={item.parts} state={chat} filteredOut={filteredOut} />;
           case "tool":
-            return <ToolCard key={item.key} part={item.part} state={chat} />;
+            return <ToolCard key={item.key} part={item.part} state={chat} filteredOut={filteredOut} />;
           case "assistant":
             return (
               <MessageView
@@ -956,12 +1168,22 @@ function Conversation({ chat, scrollToken }: { chat: ReturnType<typeof chatReduc
                 state={chat}
                 grouped={item.grouped}
                 showStatus={false}
+                filteredOut={filteredOut}
               />
             );
           case "status":
-            return <AssistantStatus key={item.key} message={item.message} typing={item.typing} />;
+            return <AssistantStatus key={item.key} message={item.message} typing={item.typing} filteredOut={filteredOut} />;
           case "message":
-            return <MessageView key={item.message.id} message={item.message} state={chat} grouped={false} />;
+            return (
+              <MessageView
+                key={item.message.id}
+                message={item.message}
+                state={chat}
+                grouped={false}
+                filteredOut={filteredOut}
+                searchQuery={searchQuery}
+              />
+            );
         }
       })}
       {orphanP.map((p) => <PermissionCard key={p.id} request={p} />)}

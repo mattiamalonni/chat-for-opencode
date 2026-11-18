@@ -55,7 +55,9 @@ async function main(): Promise<void> {
     ],
     extensionTestsEnv: {
       OC_IT_WORKSPACE: workspace,
-      OC_IT_SUITE: e2e ? "webview.e2e.test.js" : real ? "real.test.js" : "extension.test.js",
+      OC_IT_SUITE: e2e && real
+        ? "webview.real.e2e.test.js"
+        : e2e ? "webview.e2e.test.js" : real ? "real.test.js" : "extension.test.js",
       OC_IT_E2E: e2e ? "1" : "0",
       OC_IT_CDP_PORT: cdpPort,
     },

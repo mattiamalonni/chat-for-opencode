@@ -123,20 +123,86 @@ function isExcluded(rel: string, exclude: readonly string[]): boolean {
   return exclude.some((glob) => excludeToRegExp(glob).test(path));
 }
 
+/** Bump when the on-disk cache shape changes; entries written with an older version are stale. */
+const FILE_INDEX_CACHE_VERSION = 1;
+
+/** NFC-normalizes, deduplicates and sorts globs so equivalent exclude sets compare equal. */
+function normalizedExclude(exclude: readonly string[]): string[] {
+  return [...new Set(exclude.map((glob) => glob.normalize("NFC")))].sort();
+}
+
+/**
+ * Builds the persistable file-index snapshot. Kept pure (no `vscode` usage) so it can be unit
+ * tested in a plain Node host. URIs are stored as NFC-normalized strings and deduplicated.
+ */
+export function serializeFileCache(uris: { toString(): string }[], exclude: string[]): unknown {
+  const files: string[] = [];
+  const seen = new Set<string>();
+  for (const uri of uris) {
+    const value = uri.toString().normalize("NFC");
+    if (!seen.has(value)) {
+      seen.add(value);
+      files.push(value);
+    }
+  }
+  return { version: FILE_INDEX_CACHE_VERSION, exclude: [...exclude], files };
+}
+
+/**
+ * Reads a snapshot produced by {@link serializeFileCache}. Returns `undefined` for a missing,
+ * malformed, outdated or exclude-mismatched entry so the caller rescans. Malformed file entries
+ * are skipped. Kept pure so it can be unit tested in a plain Node host.
+ */
+export function deserializeFileCache(raw: unknown, expectedExclude: string[]): string[] | undefined {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return undefined;
+  const record = raw as Record<string, unknown>;
+  if (record.version !== FILE_INDEX_CACHE_VERSION) return undefined;
+  if (!Array.isArray(record.exclude) || !Array.isArray(record.files)) return undefined;
+  const storedExclude = record.exclude.filter((glob): glob is string => typeof glob === "string");
+  if (storedExclude.length !== record.exclude.length) return undefined;
+  const cachedExclude = normalizedExclude(storedExclude);
+  const wantedExclude = normalizedExclude(expectedExclude);
+  if (cachedExclude.length !== wantedExclude.length || cachedExclude.some((glob, i) => glob !== wantedExclude[i])) {
+    return undefined;
+  }
+  const files: string[] = [];
+  const seen = new Set<string>();
+  for (const entry of record.files) {
+    if (typeof entry !== "string") continue;
+    const value = entry.normalize("NFC");
+    if (!seen.has(value)) {
+      seen.add(value);
+      files.push(value);
+    }
+  }
+  return files;
+}
+
 /** Cached workspace file list with fuzzy search for `@` mentions. */
 export class FileIndex implements vscode.Disposable {
   private files: vscode.Uri[] | undefined;
   private loading: Promise<vscode.Uri[]> | undefined;
   private readonly watcher: vscode.FileSystemWatcher;
   private readonly exclude: string[];
+  private readonly storage: vscode.Memento | undefined;
+  private readonly cacheKey: string | undefined;
 
-  constructor(private readonly folder: vscode.WorkspaceFolder) {
+  constructor(private readonly folder: vscode.WorkspaceFolder, storage?: vscode.Memento) {
     const config = vscode.workspace.getConfiguration(undefined, folder.uri);
     this.exclude = excludeGlobs(config.get("search.exclude"), config.get("files.exclude"));
+    this.storage = storage;
+    // One snapshot per folder: a different workspace must not reuse another folder's file list.
+    this.cacheKey = storage ? `opencode.fileIndex:${folder.uri.toString()}` : undefined;
     this.watcher = vscode.workspace.createFileSystemWatcher(new vscode.RelativePattern(folder, "**/*"), false, true, false);
     // `createFileSystemWatcher` has no `exclude` argument, so skip events for excluded paths here.
     const invalidate = (uri: vscode.Uri): void => {
-      if (!isExcluded(path.relative(this.folder.uri.fsPath, uri.fsPath), this.exclude)) this.files = undefined;
+      if (isExcluded(path.relative(this.folder.uri.fsPath, uri.fsPath), this.exclude)) return;
+      this.files = undefined;
+      // Drop the persisted snapshot too so a fresh window cannot restore a stale list. Best-effort:
+      // a failed write is ignored, and an in-flight scan may briefly re-add an outdated snapshot.
+      if (this.storage && this.cacheKey) {
+        void Promise.resolve(this.storage.update(this.cacheKey, undefined)).catch(() => {});
+      }
     };
     this.watcher.onDidCreate(invalidate);
     this.watcher.onDidDelete(invalidate);
@@ -145,9 +211,18 @@ export class FileIndex implements vscode.Disposable {
   private async list(): Promise<vscode.Uri[]> {
     if (this.files) return this.files;
     if (!this.loading) {
-      this.loading = Promise.resolve(
-        vscode.workspace.findFiles(new vscode.RelativePattern(this.folder, "**/*"), asGlobPattern(this.exclude), 20_000),
-      ).then((files) => {
+      this.loading = (async (): Promise<vscode.Uri[]> => {
+        if (this.storage && this.cacheKey) {
+          const cached = deserializeFileCache(this.storage.get(this.cacheKey), this.exclude);
+          if (cached) return cached.map((value) => vscode.Uri.parse(value));
+        }
+        const files = await vscode.workspace.findFiles(new vscode.RelativePattern(this.folder, "**/*"), asGlobPattern(this.exclude), 20_000);
+        if (this.storage && this.cacheKey) {
+          // Best-effort persistence: a storage failure must never break file search.
+          void Promise.resolve(this.storage.update(this.cacheKey, serializeFileCache(files, this.exclude))).catch(() => {});
+        }
+        return files;
+      })().then((files) => {
         this.files = files;
         this.loading = undefined;
         return files;

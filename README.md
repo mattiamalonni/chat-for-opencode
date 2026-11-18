@@ -26,6 +26,9 @@ sends **no telemetry**.
   next to the send button shows how much of it the conversation already uses.
 - **Model, reasoning-effort and agent pickers** (custom, searchable, grouped by provider) filled with what your server actually returns (e.g. *Build* / *Plan*).
 - **Stop** a running response (button or `Esc` in the input), and **compact** a long session from the composer toolbar or the command palette.
+- **Keep working while the agent runs**: plain `Enter` queues the next message (`delivery: queue`),
+  `Ctrl/Cmd+Enter` interrupts and sends it immediately (`delivery: steer`). Composer drafts are
+  stored per session **and survive a window reload**.
 - A **contract smoke test** on connect names the features that a non-2.2.7 server cannot support, instead of only warning about the version number.
 - **Editor context**: the active file and selection are attached automatically as chips you can remove before sending.
 - **`@` mentions** with fuzzy workspace file search, **Add Selection to Chat** / **Add File to Chat** in the editor and explorer context menus.
@@ -34,8 +37,10 @@ sends **no telemetry**.
 - **Skills**: type `/` to search skills discovered by OpenCode, including global skills; selecting one
   inserts a slash command that loads its instructions with the prompt.
 - **Native diffs**: open proposed changes (before you approve) and applied changes in VS Code's diff editor, plus a list of the files changed in the session.
-- **Permissions and questions inline** in the conversation, never auto-approved by default.
+- **Permissions and questions inline** in the conversation, never auto-approved by default. Focus a
+  permission card and press `1`/`2`/`3` for Allow once / Always allow / Reject.
 - **Todo list** when the agent uses OpenCode's (experimental) `todowrite` tool.
+- **Export the conversation as Markdown** and **search messages** in the current session from the header.
 - Clear **error states** with action buttons (OpenCode missing, no provider, connection lost, interrupted response…).
 - Keyboard friendly and screen-reader labelled; works with IMEs; English UI.
 
@@ -175,6 +180,7 @@ npm test                 # unit (vitest) + UI (Playwright) + integration (@vscod
 npm run test:e2e         # client/reducer against a real `opencode serve` (skips when unavailable)
 npm run test:integration:real  # extension in VS Code + real `opencode serve` (uses your configured default model)
 npm run test:integration:e2e   # clicks the real webview inside VS Code via CDP (mock server)
+npm run test:integration:real:e2e  # real clicks AND real `opencode serve` (uses your configured model)
 ```
 
 The Playwright browser is installed with `npx playwright install chromium`.

@@ -84,6 +84,16 @@ describe("OpenCodeClient against the mock server", () => {
     expect(mock.requests.at(-1)?.path).toContain("order=desc");
   });
 
+  it("sends steer and queue delivery modes on the prompt", async () => {
+    const s = await client.createSession({});
+    await client.prompt(s.id, "queued", [], "queue");
+    expect(mock.requests.at(-1)?.body).toEqual({ text: "queued", delivery: "queue" });
+    await client.prompt(s.id, "now", [], "steer");
+    expect(mock.requests.at(-1)?.body).toEqual({ text: "now", delivery: "steer" });
+    await client.prompt(s.id, "plain");
+    expect(mock.requests.at(-1)?.body).toEqual({ text: "plain" });
+  });
+
   it("lists catalog data", async () => {
     expect((await client.models()).map((m) => m.id)).toEqual(["mock-fast", "mock-smart"]);
     expect(mock.requests.at(-1)?.path).toBe("/api/model?types=chat");

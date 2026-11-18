@@ -58,3 +58,13 @@ export function setDraft(text: string, sessionId?: string): void {
   if (sessionId === undefined) setPersisted({ ...state, draft: text });
   else setPersisted({ ...state, drafts: { ...state.drafts, [sessionId]: text } });
 }
+
+/** Merge drafts restored by the host into the fast local state (kept across view rebuilds). */
+export function hydrateDrafts(drafts: Record<string, string>, globalDraft?: string): void {
+  const state = getPersisted();
+  setPersisted({
+    ...state,
+    drafts: { ...drafts, ...state.drafts },
+    draft: state.draft ?? globalDraft,
+  });
+}

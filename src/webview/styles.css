@@ -77,9 +77,37 @@ button {
 .header {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 4px;
   padding: 4px 8px;
   border-bottom: 1px solid var(--vscode-sideBarSectionHeader-border, var(--vscode-widget-border, transparent));
+}
+
+/* Search is toggled from an icon in the header and gets its own full-width row. */
+.header-search {
+  flex: 1 0 100%;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 0 2px;
+  color: var(--vscode-descriptionForeground);
+}
+
+.search-input {
+  flex: 1;
+  min-width: 0;
+  padding: 3px 6px;
+  border: 1px solid var(--vscode-input-border, transparent);
+  border-radius: 3px;
+  background: var(--vscode-input-background);
+  color: var(--vscode-input-foreground);
+}
+
+.search-count {
+  flex: none;
+  font-size: 0.85em;
+  white-space: nowrap;
+  color: var(--vscode-descriptionForeground);
 }
 
 .session-button {
@@ -159,7 +187,8 @@ details[open] > summary > .chevron,
   color: var(--vscode-icon-foreground, var(--vscode-foreground));
 }
 
-.icon-button:hover {
+.icon-button:hover,
+.icon-button.active {
   background: var(--vscode-toolbar-hoverBackground);
 }
 
@@ -512,6 +541,17 @@ details[open] > summary > .chevron,
 
 .conversation:focus-visible {
   outline-offset: -2px;
+}
+
+/* Header search keeps every message in the DOM and simply hides the non-matches. */
+.filtered-out {
+  display: none !important;
+}
+
+.conversation mark {
+  background: var(--vscode-editor-findMatchHighlightBackground, #ea5e00);
+  color: inherit;
+  border-radius: 2px;
 }
 
 .conversation-wrap {
@@ -1010,6 +1050,15 @@ details[open] > summary > .chevron,
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
+}
+
+/* Focus the card (Tab) and 1/2/3 act on its buttons; the hint mirrors the available shortcuts. */
+.shortcut-hint {
+  margin-left: auto;
+  align-self: center;
+  white-space: nowrap;
+  font-size: 0.8em;
+  color: var(--vscode-descriptionForeground);
 }
 
 /* Separate the buttons from the last option. */
@@ -1565,6 +1614,12 @@ button:disabled {
 .send.stop {
   background: var(--vscode-button-secondaryBackground);
   color: var(--vscode-button-secondaryForeground);
+  margin-left: auto;
+}
+
+/* The steer button sits next to Stop while the agent is working. */
+.send.steer {
+  margin-left: 4px;
 }
 
 /* ---- picker (custom dropdown) ----------------------------------------------------------- */

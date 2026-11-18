@@ -8,8 +8,15 @@ export const STRINGS = {
   inputLabel: "Message to OpenCode",
   send: "Send",
   stop: "Stop",
+  queueHint: "Enter queues the message while the agent works · Ctrl/Cmd+Enter sends now",
+  steerTooltip: "Interrupt the current answer and send this message now (Ctrl/Cmd+Enter)",
   newSession: "New session",
   sessions: "Sessions",
+  // Header actions: export the current session to a local Markdown file, and filter its messages.
+  exportConversation: "Export conversation as Markdown",
+  searchMessages: "Search messages in this session",
+  searchMessagesPlaceholder: "Search messages…",
+  searchResults: "{0} results",
   noSessions: "No sessions yet",
   deleteSession: "Delete session",
   renameSession: "Rename session",
@@ -76,6 +83,10 @@ export const STRINGS = {
   permissionReject: "Reject",
   permissionAction: "Action",
   permissionResources: "Resources",
+  // Compact keyboard hints shown on a focused permission card; the "2" shortcut only appears
+  // when the request actually offers an "Always allow" button.
+  permissionShortcutHint: "1 / 2 / 3",
+  permissionShortcutHintNoAlways: "1 / 3",
   questionTitle: "Question from OpenCode",
   submit: "Submit",
   cancel: "Cancel",

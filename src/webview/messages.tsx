@@ -1,3 +1,4 @@
+import type { ComponentChildren } from "preact";
 import { useEffect, useMemo, useState } from "preact/hooks";
 import type { FormField, FormRequest, FormValue, PermissionRequest } from "../shared/api";
 import {
@@ -13,6 +14,7 @@ import {
   type UiNotice,
 } from "../shared/chatReducer";
 import { fileRefToOpenPath, isFileRef } from "../shared/fileRef";
+import { isImeKey } from "../shared/keys";
 import type { ActionId } from "../shared/protocol";
 import { isolateKeys } from "./env";
 import { FileTypeIcon } from "./fileIcons";
@@ -37,23 +39,60 @@ export function Markdown({ text }: { text: string }) {
   return <div class="md" dangerouslySetInnerHTML={{ __html: html }} />;
 }
 
+/** Plain-text representation used for header search and Markdown export. */
+export function messageSearchText(message: UiMessage): string {
+  if (message.kind === "assistant") {
+    const parts = message.parts.map((p) =>
+      p.kind === "tool"
+        ? [p.name, p.inputText, ...p.output.map((c) => (c.type === "text" ? c.text : `[${c.mime}] ${c.name ?? c.uri}`))].join(" ")
+        : p.text,
+    );
+    return [...parts, message.error?.message ?? "", message.retry?.message ?? ""].join(" ");
+  }
+  return message.text;
+}
+
+/** Highlights a query in plain text. Markdown bodies keep their rendered HTML and are not rewritten. */
+function Highlight({ text, query }: { text: string; query: string }) {
+  const needle = query.toLowerCase();
+  if (!needle) return <>{text}</>;
+  const lower = text.toLowerCase();
+  const children: (string | ComponentChildren)[] = [];
+  let from = 0;
+  let at = lower.indexOf(needle);
+  let i = 0;
+  while (at !== -1) {
+    if (at > from) children.push(text.slice(from, at));
+    children.push(<mark key={`m${i++}`}>{text.slice(at, at + needle.length)}</mark>);
+    from = at + needle.length;
+    at = lower.indexOf(needle, from);
+  }
+  if (from < text.length) children.push(text.slice(from));
+  return <>{children}</>;
+}
+
 export function MessageView({
   message,
   state,
   grouped,
   showStatus = true,
+  searchQuery = "",
+  filteredOut = false,
 }: {
   message: UiMessage;
   state: ChatState;
   grouped: boolean;
   showStatus?: boolean;
+  searchQuery?: string;
+  filteredOut?: boolean;
 }) {
   const t = useT();
+  const hidden = filteredOut ? " filtered-out" : "";
   if (message.kind === "user") {
     return (
-      <article class="msg user" aria-label={t("you")}>
+      <article class={`msg user${hidden}`} aria-label={t("you")}>
         <div class="bubble">
-          <div class="user-text">{message.text}</div>
+          <div class="user-text"><Highlight text={message.text} query={searchQuery} /></div>
           {message.files.length > 0 && (
             <ul class="chips" aria-label={t("context")}>
               {message.files.map((f) => {
@@ -73,11 +112,11 @@ export function MessageView({
       </article>
     );
   }
-  if (message.kind === "notice") return <NoticeView notice={message} />;
-  return <AssistantView message={message} state={state} grouped={grouped} showStatus={showStatus} />;
+  if (message.kind === "notice") return <NoticeView notice={message} filteredOut={filteredOut} />;
+  return <AssistantView message={message} state={state} grouped={grouped} showStatus={showStatus} filteredOut={filteredOut} />;
 }
 
-function NoticeView({ notice }: { notice: UiNotice }) {
+function NoticeView({ notice, filteredOut = false }: { notice: UiNotice; filteredOut?: boolean }) {
   const t = useT();
   let text = notice.text;
   if (notice.code === "interrupted") text = t("interrupted");
@@ -88,7 +127,7 @@ function NoticeView({ notice }: { notice: UiNotice }) {
   const Icon = notice.level === "error" ? IconError : notice.level === "warning" ? IconWarning : IconInfo;
   const providerHint = notice.code === "failed" && /api key|auth|credential|provider|unauthori|401/i.test(notice.text);
   return (
-    <div class={`notice ${notice.level}`} role={notice.level === "error" ? "alert" : "status"}>
+    <div class={`notice ${notice.level}${filteredOut ? " filtered-out" : ""}`} role={notice.level === "error" ? "alert" : "status"}>
       <Icon />
       <span>{text}</span>
       {notice.code === "failed" && (
@@ -115,15 +154,17 @@ function AssistantView({
   state,
   grouped,
   showStatus = true,
+  filteredOut = false,
 }: {
   message: UiAssistantMessage;
   state: ChatState;
   grouped: boolean;
   showStatus?: boolean;
+  filteredOut?: boolean;
 }) {
   const t = useT();
   return (
-    <article class={`msg assistant${grouped ? " grouped" : ""}`} aria-label={t("assistant")} aria-busy={!message.done}>
+    <article class={`msg assistant${grouped ? " grouped" : ""}${filteredOut ? " filtered-out" : ""}`} aria-label={t("assistant")} aria-busy={!message.done}>
       {message.parts.map((p) =>
         p.kind === "tool" ? (
           <ToolCard key={p.key} part={p} state={state} />
@@ -139,25 +180,26 @@ function AssistantView({
 }
 
 /** Retry/error feedback and the waiting indicator, shared by whole and split assistant messages. */
-export function AssistantStatus({ message, typing }: { message: UiAssistantMessage; typing?: boolean }) {
+export function AssistantStatus({ message, typing, filteredOut = false }: { message: UiAssistantMessage; typing?: boolean; filteredOut?: boolean }) {
   const t = useT();
+  const hidden = filteredOut ? " filtered-out" : "";
   return (
     <>
       {typing && !message.done && (
-        <div class="typing" aria-label={t("thinking")}>
+        <div class={`typing${hidden}`} aria-label={t("thinking")}>
           <span />
           <span />
           <span />
         </div>
       )}
       {message.retry && (
-        <div class="notice warning" role="status">
+        <div class={`notice warning${hidden}`} role="status">
           <IconWarning />
           {t("retrying", message.retry.attempt, message.retry.message)}
         </div>
       )}
       {message.error && (
-        <div class="notice error" role="alert">
+        <div class={`notice error${hidden}`} role="alert">
           <IconError />
           <span>{message.error.message}</span>
         </div>
@@ -205,7 +247,7 @@ function toolFilePath(part: ToolPart): string | undefined {
   return undefined;
 }
 
-export function ToolGroup({ parts, state }: { parts: ToolPart[]; state: ChatState }) {
+export function ToolGroup({ parts, state, filteredOut = false }: { parts: ToolPart[]; state: ChatState; filteredOut?: boolean }) {
   const t = useT();
   const needsUser = parts.some((p) => permissionsForTool(state, p.id).length > 0 || formsForTool(state, p.id).length > 0);
   const [open, setOpen] = useState(false);
@@ -220,7 +262,7 @@ export function ToolGroup({ parts, state }: { parts: ToolPart[]; state: ChatStat
   const names = [...new Set(parts.map((p) => p.name))].join(", ");
   const id = `tool-group-${parts[0].id}`;
   return (
-    <section class={`tool-group${needsUser ? " attention" : ""}`}>
+    <section class={`tool-group${needsUser ? " attention" : ""}${filteredOut ? " filtered-out" : ""}`}>
       <button type="button" class="tool-header tool-group-header" aria-expanded={expanded} aria-controls={id} onClick={() => setOpen(!open)}>
         <IconChevron class="chevron" />
         <span class={`status-dot ${status} tooltip-host`} role="img" aria-label={statusLabel} data-tooltip={statusLabel}>
@@ -240,7 +282,7 @@ export function ToolGroup({ parts, state }: { parts: ToolPart[]; state: ChatStat
   );
 }
 
-export function ToolCard({ part, state }: { part: ToolPart; state: ChatState }) {
+export function ToolCard({ part, state, filteredOut = false }: { part: ToolPart; state: ChatState; filteredOut?: boolean }) {
   const t = useT();
   const permissions = permissionsForTool(state, part.id);
   const forms = formsForTool(state, part.id);
@@ -260,7 +302,7 @@ export function ToolCard({ part, state }: { part: ToolPart; state: ChatState }) 
     .join("\n");
   const id = `tool-${part.id}`;
   return (
-    <section class={`tool ${part.status}${needsUser ? " attention" : ""}`} aria-label={`${t("tool")}: ${part.name}`}>
+    <section class={`tool ${part.status}${needsUser ? " attention" : ""}${filteredOut ? " filtered-out" : ""}`} aria-label={`${t("tool")}: ${part.name}`}>
       <button type="button" class="tool-header" aria-expanded={expanded} aria-controls={id} onClick={() => setOpen(!open)}>
         <IconChevron class="chevron" />
         <span class={`status-dot ${part.status} tooltip-host`} role="img" aria-label={statusLabel} data-tooltip={statusLabel}>
@@ -376,8 +418,22 @@ export function PermissionCard({ request }: { request: PermissionRequest }) {
   };
   const disabled = busy && !failed;
   const labelId = `perm-${request.id}`;
+  const hasAlways = (request.save?.length ?? 0) > 0;
+  // Focusing the card (Tab) turns 1/2/3 into Allow once / Always / Reject. Ignore IME and chords so
+  // typing in the workbench or composing text never triggers a permission decision by accident.
+  const onKeyDown = (e: KeyboardEvent) => {
+    if (e.isComposing || isImeKey(e) || e.ctrlKey || e.metaKey || e.altKey || e.shiftKey || disabled) return;
+    let decision: "once" | "always" | "reject" | undefined;
+    if (e.key === "1") decision = "once";
+    else if (e.key === "2" && hasAlways) decision = "always";
+    else if (e.key === "3") decision = "reject";
+    if (!decision) return;
+    e.preventDefault();
+    e.stopPropagation();
+    reply(decision);
+  };
   return (
-    <div class="card permission" role="group" aria-labelledby={labelId}>
+    <div class="card permission" role="group" aria-labelledby={labelId} tabIndex={0} onKeyDown={onKeyDown}>
       <div class="card-title" id={labelId}>
         <IconWarning /> {t("permissionTitle")}: <code>{request.action}</code>
       </div>
@@ -408,7 +464,7 @@ export function PermissionCard({ request }: { request: PermissionRequest }) {
         <button type="button" class="primary" disabled={disabled} onClick={() => reply("once")}>
           {t("permissionAllowOnce")}
         </button>
-        {(request.save?.length ?? 0) > 0 && (
+        {hasAlways && (
           <button type="button" class="secondary" disabled={disabled} onClick={() => reply("always")}>
             {t("permissionAllowAlways")}
           </button>
@@ -416,6 +472,7 @@ export function PermissionCard({ request }: { request: PermissionRequest }) {
         <button type="button" class="secondary danger" disabled={disabled} onClick={() => reply("reject")}>
           {t("permissionReject")}
         </button>
+        <span class="shortcut-hint" aria-hidden="true">{hasAlways ? t("permissionShortcutHint") : t("permissionShortcutHintNoAlways")}</span>
       </div>
     </div>
   );

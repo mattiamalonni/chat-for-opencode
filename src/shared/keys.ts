@@ -55,12 +55,16 @@ export function isNewSessionKey(e: KeyLike, platform: Platform): boolean {
   return mod && e.key.toLowerCase() === "n";
 }
 
-export type ComposerAction = "send" | "newline" | "none";
+export type ComposerAction = "send" | "steer" | "newline" | "none";
 
-/** Enter sends, Shift+Enter inserts a newline; never send while composing with an IME. */
+/**
+ * Enter sends (or queues while the agent is busy), Shift/Alt+Enter inserts a newline,
+ * Ctrl/Cmd+Enter steers: interrupt the current answer and send this one. Never send during IME.
+ */
 export function composerAction(e: KeyLike, composing: boolean): ComposerAction {
   if (e.key !== "Enter") return "none";
   if (composing || isImeKey(e)) return "none";
   if (e.shiftKey || e.altKey) return "newline";
+  if (e.ctrlKey || e.metaKey) return "steer";
   return "send";
 }

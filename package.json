@@ -306,7 +306,8 @@
     "test:e2e": "vitest run --config vitest.e2e.config.mts",
     "package": "vsce package",
     "test:integration:real": "node esbuild.mjs && tsc -p test/integration && OC_IT_REAL=1 node out/test/integration/runTest.js",
-    "test:integration:e2e": "node esbuild.mjs && tsc -p test/integration && OC_IT_E2E=1 node out/test/integration/runTest.js"
+    "test:integration:e2e": "node esbuild.mjs && tsc -p test/integration && OC_IT_E2E=1 node out/test/integration/runTest.js",
+    "test:integration:real:e2e": "node esbuild.mjs && tsc -p test/integration && OC_IT_REAL=1 OC_IT_E2E=1 node out/test/integration/runTest.js"
   },
   "dependencies": {
     "dompurify": "^3.4.18",

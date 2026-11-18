@@ -15,6 +15,8 @@ import { getDraft, post, setDraft } from "./vscode";
 export interface ComposerProps {
   /** Id of the session the composer belongs to; drafts are stored per session. */
   sessionId?: string;
+  /** Bumped when the host restores drafts from workspaceState, so the input reloads them. */
+  draftToken?: number;
   busy: boolean;
   disabled: boolean;
   models: ModelInfo[];
@@ -33,12 +35,14 @@ export interface ComposerProps {
   onRemoveAttachment: (uri: string) => void;
   onAddAttachment: (a: Attachment) => void;
   fileResults: { query: string; items: Attachment[] };
-  onSend: (text: string) => void;
+  onSend: (text: string, delivery?: "steer" | "queue") => void;
   /** Previously sent prompts, oldest first, recalled with Up/Down. */
   promptHistory: string[];
   focusToken: number;
   /** Estimated tokens currently in the session context. */
   contextTokens?: number;
+  /** True when the estimate includes locally-added inline attachments. */
+  contextEstimated?: boolean;
   /** Accumulated cost of the current session, when reported by the server. */
   cost?: number;
   /** A session is loaded and idle, so compaction can be requested. */
@@ -90,6 +94,11 @@ export function Composer(props: ComposerProps) {
   const draftRef = useRef(text);
   // The session whose draft `draftRef.current` belongs to; kept in sync in the switch effect.
   const sessionIdRef = useRef(props.sessionId);
+  // Mirror the fast local state to the host's durable workspaceState.
+  const persistDraft = (value: string, sessionId?: string) => {
+    setDraft(value, sessionId);
+    post({ type: "saveDraft", sessionId, text: value });
+  };
 
   useEffect(() => {
     ref.current?.focus();
@@ -99,13 +108,13 @@ export function Composer(props: ComposerProps) {
     draftRef.current = text;
     // Capture the session here so a late debounce never writes into a newly selected session.
     const sessionId = sessionIdRef.current;
-    const handle = setTimeout(() => setDraft(text, sessionId), 300);
+    const handle = setTimeout(() => persistDraft(text, sessionId), 300);
     return () => clearTimeout(handle);
   }, [text]);
 
   // The debounce alone can lose the last keystrokes when the webview is hidden or replaced.
   useEffect(() => {
-    const flush = () => setDraft(draftRef.current, sessionIdRef.current);
+    const flush = () => persistDraft(draftRef.current, sessionIdRef.current);
     const onVisibility = () => {
       if (document.visibilityState === "hidden") flush();
     };
@@ -123,7 +132,7 @@ export function Composer(props: ComposerProps) {
   useEffect(() => {
     const previous = sessionIdRef.current;
     if (previous === props.sessionId) return;
-    setDraft(draftRef.current, previous);
+    persistDraft(draftRef.current, previous);
     const next = getDraft(props.sessionId);
     sessionIdRef.current = props.sessionId;
     draftRef.current = next;
@@ -131,6 +140,17 @@ export function Composer(props: ComposerProps) {
     setMention(undefined);
     setHistoryIndex(null);
   }, [props.sessionId]);
+
+  // The host restored drafts from workspaceState. Never overwrite text the user already typed.
+  const hydratedToken = useRef(props.draftToken);
+  useEffect(() => {
+    if (hydratedToken.current === props.draftToken) return;
+    hydratedToken.current = props.draftToken;
+    if (draftRef.current) return;
+    const next = getDraft(props.sessionId);
+    draftRef.current = next;
+    setText(next);
+  }, [props.draftToken]);
 
   useEffect(() => {
     const el = ref.current;
@@ -222,14 +242,15 @@ export function Composer(props: ComposerProps) {
     });
   };
 
-  const send = () => {
+  const send = (explicit?: "steer") => {
     const value = text.trim();
     if (!value || props.disabled) return;
-    if (props.busy) return;
-    props.onSend(value);
+    // While the agent is working, plain Enter queues the message; Ctrl/Cmd+Enter steers it.
+    const delivery = explicit ?? (props.busy ? "queue" : undefined);
+    props.onSend(value, delivery);
     setText("");
     // Clear immediately so a pending pagehide cannot restore the just-sent draft.
-    setDraft("", sessionIdRef.current);
+    persistDraft("", sessionIdRef.current);
     draftRef.current = "";
     setMention(undefined);
     setHistoryIndex(null);
@@ -292,9 +313,9 @@ export function Composer(props: ComposerProps) {
       }
     }
     const action = composerAction(e, composing.current);
-    if (action === "send") {
+    if (action === "send" || action === "steer") {
       e.preventDefault();
-      send();
+      send(action === "steer" ? "steer" : undefined);
     }
   };
 
@@ -489,15 +510,21 @@ export function Composer(props: ComposerProps) {
             }
           />
         )}
-        {props.busy ? (
+        {props.busy && (
           <button type="button" class="send stop tooltip-host tooltip-above" data-tooltip={`${t("stop")} (Esc)`} aria-label={t("stop")} onClick={() => post({ type: "abort" })}>
             <IconStop />
           </button>
-        ) : (
-          <button type="button" class="send tooltip-host tooltip-above" data-tooltip={`${t("send")} (Enter)`} aria-label={t("send")} disabled={props.disabled || !text.trim()} onClick={send}>
-            <IconSend />
-          </button>
         )}
+        <button
+          type="button"
+          class={`send ${props.busy ? "steer" : ""} tooltip-host tooltip-above`}
+          data-tooltip={props.busy ? t("steerTooltip") : `${t("send")} (Enter)`}
+          aria-label={props.busy ? t("steerTooltip") : t("send")}
+          disabled={props.disabled || !text.trim()}
+          onClick={() => (props.busy ? send("steer") : send())}
+        >
+          <IconSend />
+        </button>
       </div>
       </div>
       <div class="drop-hint">
@@ -511,7 +538,7 @@ export function Composer(props: ComposerProps) {
         >
           <IconFolder />
         </button>
-        <span>{t("dropFilesHint")}</span>
+        <span>{props.busy && text.trim() ? t("queueHint") : t("dropFilesHint")}</span>
         <div class="drop-hint-tools">
           <button
             type="button"
@@ -535,7 +562,7 @@ export function Composer(props: ComposerProps) {
             <IconCompact />
           </button>
           {currentModel?.limit?.context ? (
-            <ContextMeter used={props.contextTokens} limit={currentModel.limit.context} cost={props.cost} />
+            <ContextMeter used={props.contextTokens} estimated={props.contextEstimated} limit={currentModel.limit.context} cost={props.cost} />
           ) : props.cost !== undefined ? (
             <span
               class="context-meter cost-only tooltip-host tooltip-above"

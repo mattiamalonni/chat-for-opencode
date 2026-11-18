@@ -14,9 +14,13 @@ Run these first; they cover most of the contract with the **mock** server:
 - `npm run test:integration:real` — the extension inside VS Code against a **real** server
   (streaming, permission approval, applied diff, resume after a server restart), but it drives the
   controller through its message API rather than clicking the webview.
+- `npm run test:integration:real:e2e` — **real clicks plus a real server**: types a prompt in the
+  actual webview and waits for the real streamed reply.
+- UI tests also assert the accessibility tree of the composer and permission cards; this is not a
+  substitute for a real screen reader.
 
-This checklist covers the remaining gap: **real clicks plus a real server**, a full VS Code
-quit/relaunch, IME, screen readers and multi-window process management.
+This checklist covers what automation still cannot: a full VS Code quit/relaunch, real IME,
+screen readers and multi-window process management.
 
 ## Checklist
 
@@ -55,6 +59,16 @@ quit/relaunch, IME, screen readers and multi-window process management.
 12. **Sessions and drafts**: click the session title → list; create a new session with `+`; switch
     back. Before switching, type a half-finished message; come back and confirm the **draft for that
     session is still there**, while the other session kept its own (empty) draft. Sending clears it.
+    Quit and reopen VS Code: the draft must still be there (it is now in `workspaceState`).
+12b. **Queue and steer**: start a long answer, then type another message. The hint should say that
+    `Enter` queues it and `Ctrl/Cmd+Enter` sends now; press `Enter` and confirm the message is
+    delivered after the current answer finishes. Repeat with `Ctrl/Cmd+Enter`: the current answer
+    must be interrupted and the new one answered.
+12c. **Permission shortcuts**: when a permission card appears, Tab to it and press `1` (Allow once)
+    or `3` (Reject); `2` (Always allow) should only exist when the request offers saved rules.
+12d. **Export and search**: use the header buttons to export the conversation as a `.md` file and to
+    search for a word you used earlier; non-matching messages must be hidden and the result count
+    shown. Add a large inline attachment and check the context meter shows a `~`-prefixed estimate.
 13. **Resume after restart**: quit VS Code completely (`Cmd/Ctrl+Q`), check `ps aux | grep "opencode serve"`
     shows no process started by the extension, reopen the folder and the sidebar. The last session
     and its messages are restored.

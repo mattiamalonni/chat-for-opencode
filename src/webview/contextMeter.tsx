@@ -5,14 +5,14 @@ const R = 7;
 const C = 2 * Math.PI * R;
 
 /** Ring showing how much of the selected model's context window the conversation uses. */
-export function ContextMeter({ used, limit, cost }: { used?: number; limit: number; cost?: number }) {
+export function ContextMeter({ used, limit, cost, estimated }: { used?: number; limit: number; cost?: number; estimated?: boolean }) {
   const t = useT();
   const known = used !== undefined;
   const ratio = known ? Math.min(1, used / limit) : 0;
   const percent = known ? Math.round((used / limit) * 100) : 0;
   const level = !known ? "unknown" : ratio >= 0.9 ? "critical" : ratio >= 0.75 ? "high" : "normal";
   const usage = known
-    ? t("contextUsage", formatTokens(used), formatTokens(limit), percent)
+    ? t("contextUsage", `${estimated ? "~" : ""}${formatTokens(used)}`, formatTokens(limit), percent)
     : t("contextUsageUnknown", formatTokens(limit));
   const label = cost === undefined ? usage : `${usage} · ${t("sessionCost", `$${cost.toFixed(2)}`)}`;
   return (
