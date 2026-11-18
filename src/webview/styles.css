@@ -465,6 +465,11 @@ details[open] > summary > .chevron,
   color: var(--vscode-textLink-foreground);
 }
 
+.md a.file-ref {
+  text-decoration: underline dotted;
+  text-underline-offset: 2px;
+}
+
 .md code {
   font-family: var(--vscode-editor-font-family);
   font-size: 0.92em;
@@ -765,6 +770,34 @@ details[open] > summary > .chevron,
   white-space: nowrap;
   font-family: var(--vscode-editor-font-family);
   font-size: 0.92em;
+}
+
+.file-list .file-item {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.file-list .file-item .file-row {
+  flex: 1;
+  width: auto;
+  min-width: 0;
+}
+
+.file-open {
+  display: inline-flex;
+  align-items: center;
+  background: none;
+  border: none;
+  border-radius: 3px;
+  padding: 2px 4px;
+  cursor: pointer;
+  color: var(--vscode-textLink-foreground);
+}
+
+.file-open:hover {
+  background: var(--vscode-list-hoverBackground);
+  color: var(--vscode-textLink-activeForeground);
 }
 
 .adds {

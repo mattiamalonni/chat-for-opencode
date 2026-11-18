@@ -759,6 +759,14 @@ function Conversation({ chat, scrollToken }: { chat: ReturnType<typeof chatReduc
       setTimeout(() => (copy.textContent = t("copy")), 1200);
       return;
     }
+    // File references linkified in prose carry a data-file attribute; host `openFile`
+    // resolves the path against the folder and places the cursor at the right line.
+    const fileLink = target.closest<HTMLElement>("[data-file]");
+    if (fileLink) {
+      e.preventDefault();
+      post({ type: "openFile", path: fileLink.dataset.file ?? "" });
+      return;
+    }
     const link = target.closest("a[href]");
     if (link) {
       e.preventDefault();

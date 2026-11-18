@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- **Clickable file references**: paths in the conversation (`src/app.ts:42`, `foo.ts#L7`), tool
+  inputs, permission resources and changed-file rows now open the file in the editor at the exact
+  line, instead of being copied by hand.
 - Added a runtime **contract smoke test**: on connect the extension checks the shape of the data it
   actually receives (server version, models, agents, skills, history, context window, diff) and a
   dismissible banner names the features that will not work with the connected server.

@@ -329,6 +329,57 @@ test("renders markdown with highlighted code and copies code via the host", asyn
   expect(await lastPosted(page, "openLink")).toEqual({ type: "openLink", href: "https://opencode.ai" });
 });
 
+test("plain-text file references open at the exact line", async ({ page }) => {
+  await boot(page);
+  const sid = "ses_refs";
+  await openSession(page, sid, [
+    { type: "session.step.started", data: { sessionID: sid, assistantMessageID: "m1", agent: "build" } },
+    { type: "session.text.started", data: { sessionID: sid, assistantMessageID: "m1", ordinal: 0 } },
+    {
+      type: "session.text.delta",
+      data: {
+        sessionID: sid,
+        assistantMessageID: "m1",
+        ordinal: 0,
+        delta: "Fix in src/app.ts:42, then see foo.ts#L7. Inline code `bar.ts:3` stays text.",
+      },
+    },
+    { type: "session.step.ended", data: { sessionID: sid, assistantMessageID: "m1", finish: "stop" } },
+  ]);
+  const md = page.locator(".msg.assistant .md").first();
+  const refs = md.locator("a.file-ref");
+  // Inline code is skipped; the two prose references are clickable.
+  await expect(refs).toHaveCount(2);
+  await expect(refs.nth(0)).toHaveText("src/app.ts:42");
+  await expect(md.locator("code")).toHaveText("bar.ts:3");
+
+  await refs.nth(0).click();
+  expect(await lastPosted(page, "openFile")).toEqual({ type: "openFile", path: "src/app.ts:42" });
+  await refs.nth(1).click();
+  expect(await lastPosted(page, "openFile")).toEqual({ type: "openFile", path: "foo.ts:7" });
+});
+
+test("tool, permission and changed-file paths open the file with one click", async ({ page }) => {
+  await boot(page);
+  const events = fixture("real-sse3.jsonl");
+  const asked = events.findIndex((e) => e.type === "permission.asked");
+  await openSession(page, S2, events.slice(0, asked + 1));
+  const card = page.getByRole("group", { name: new RegExp(STRINGS.permissionTitle) });
+
+  await card.locator(".resources .resource-link").first().click();
+  expect(await lastPosted(page, "openFile")).toEqual({ type: "openFile", path: "a.txt" });
+
+  await page.locator(".tool.attention .tool-body .tool-open-file").first().click();
+  expect(await lastPosted(page, "openFile")).toEqual({ type: "openFile", path: "a.txt" });
+
+  await card.locator(".file-list .file-open").first().click();
+  expect(await lastPosted(page, "openFile")).toEqual({ type: "openFile", path: "a.txt" });
+
+  // The original diff action still works next to the new button.
+  await card.locator(".file-row").click();
+  expect(await lastPosted(page, "openDiff")).toMatchObject({ type: "openDiff", file: "a.txt" });
+});
+
 test("permission requests appear inside the tool card and are never auto-approved", async ({ page }) => {
   await boot(page);
   const events = fixture("real-sse3.jsonl");
@@ -340,7 +391,7 @@ test("permission requests appear inside the tool card and are never auto-approve
   expect(await lastPosted(page, "permissionReply")).toBeUndefined();
   await page.screenshot({ path: join(SHOTS, "03-permission-dark.png"), fullPage: true });
 
-  await card.getByRole("button", { name: /a\.txt/ }).click();
+  await card.locator(".file-row").click();
   expect(await lastPosted(page, "openDiff")).toMatchObject({ type: "openDiff", file: "a.txt", applied: false });
 
   await card.getByRole("button", { name: STRINGS.permissionAllowOnce }).click();

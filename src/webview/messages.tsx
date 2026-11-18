@@ -12,11 +12,12 @@ import {
   type UiMessage,
   type UiNotice,
 } from "../shared/chatReducer";
+import { fileRefToOpenPath, isFileRef } from "../shared/fileRef";
 import type { ActionId } from "../shared/protocol";
 import { isolateKeys } from "./env";
 import { FileTypeIcon } from "./fileIcons";
 import { useT } from "./i18n";
-import { IconCheck, IconChevron, IconDiff, IconError, IconInfo, IconSelection, IconTool, IconWarning } from "./icons";
+import { IconCheck, IconChevron, IconDiff, IconError, IconFile, IconInfo, IconSelection, IconTool, IconWarning } from "./icons";
 import { renderMarkdown } from "./markdown";
 import { clearReplyFailure, useReplyFailed } from "./replyFeedback";
 import { post } from "./vscode";
@@ -193,6 +194,17 @@ export function toolSummary(part: ToolPart): string {
   return "";
 }
 
+/** The file a tool was called on, when the input carries one. */
+function toolFilePath(part: ToolPart): string | undefined {
+  const input = part.input;
+  if (!input) return undefined;
+  for (const key of ["filePath", "path", "file"]) {
+    const value = input[key];
+    if (typeof value === "string" && isFileRef(value)) return fileRefToOpenPath(value);
+  }
+  return undefined;
+}
+
 export function ToolGroup({ parts, state }: { parts: ToolPart[]; state: ChatState }) {
   const t = useT();
   const needsUser = parts.some((p) => permissionsForTool(state, p.id).length > 0 || formsForTool(state, p.id).length > 0);
@@ -240,6 +252,7 @@ export function ToolCard({ part, state }: { part: ToolPart; state: ChatState }) 
   // information in a friendly way — showing the raw JSON input too is noise.
   const showInput = part.inputText && forms.length === 0;
   const summary = toolSummary(part);
+  const inputFile = toolFilePath(part);
   const statusLabel =
     part.status === "completed" ? t("completed") : part.status === "error" ? t("failed") : needsUser ? t("pending") : t("running");
   const output = part.output
@@ -276,6 +289,16 @@ export function ToolCard({ part, state }: { part: ToolPart; state: ChatState }) 
               <pre class="tool-pre error-text">{part.error.message}</pre>
             </div>
           )}
+          {inputFile && (
+            <button
+              type="button"
+              class="link-button tool-open-file"
+              title={`${t("openFile")}: ${inputFile}`}
+              onClick={() => post({ type: "openFile", path: inputFile })}
+            >
+              {t("openFile")}: {inputFile}
+            </button>
+          )}
         </div>
       )}
       {files.length > 0 && <FileList files={files} applied={part.status === "completed"} />}
@@ -305,7 +328,7 @@ export function FileList({ files, applied }: { files: ChangedFile[]; applied: bo
   return (
     <ul class="file-list">
       {files.map((f) => (
-        <li key={f.file}>
+        <li key={f.file} class="file-item">
           {f.patch ? (
             <button
               type="button"
@@ -324,6 +347,15 @@ export function FileList({ files, applied }: { files: ChangedFile[]; applied: bo
               <span class="file-name">{f.file}</span>
             </span>
           )}
+          <button
+            type="button"
+            class="file-open"
+            aria-label={t("openFile")}
+            title={`${t("openFile")}: ${f.file}`}
+            onClick={() => post({ type: "openFile", path: f.file })}
+          >
+            <IconFile />
+          </button>
         </li>
       ))}
     </ul>
@@ -354,7 +386,19 @@ export function PermissionCard({ request }: { request: PermissionRequest }) {
         <ul class="resources" aria-label={t("permissionResources")}>
           {request.resources.map((r) => (
             <li key={r}>
-              <code>{r}</code>
+              {isFileRef(r) ? (
+                <button
+                  type="button"
+                  class="link-button resource-link"
+                  title={`${t("openFile")}: ${r}`}
+                  aria-label={`${t("openFile")}: ${r}`}
+                  onClick={() => post({ type: "openFile", path: fileRefToOpenPath(r) })}
+                >
+                  {r}
+                </button>
+              ) : (
+                <code>{r}</code>
+              )}
             </li>
           ))}
         </ul>
