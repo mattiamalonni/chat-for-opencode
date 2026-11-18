@@ -23,12 +23,12 @@ when a tag `vX.Y.Z` matching `package.json` `version` is pushed.
 
 ```sh
 # 1. bump version in package.json and add a "## X.Y.Z — date" section to CHANGELOG.md
-npm version 0.3.4 --no-git-tag-version
-git commit -am "Release 0.3.4"
+npm version 0.3.5 --no-git-tag-version
+git commit -am "Release 0.3.5"
 git push
 # 2. tag → CI runs, then the .vsix is published and a GitHub release is created
-git tag v0.3.4
-git push origin v0.3.4
+git tag v0.3.5
+git push origin v0.3.5
 ```
 
 `Actions → Release → Run workflow` with *dry-run* checked builds and uploads the `.vsix` artifact

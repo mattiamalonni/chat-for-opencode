@@ -1,10 +1,13 @@
 # Changelog
 
-## Unreleased
+## 0.3.5 — 2026-11-18
 
 - The UI is now **English-only**: removed the Italian translation bundles. The VS Code localization layer is kept for future translations.
 - **Sessions** can be renamed from the session menu, and *Load more sessions* reaches older ones
   beyond the first page of 50.
+- The session list shows live status: a pulsing green dot for a running session and an amber
+  **Needs your input** dot when it is paused on a question or permission request.
+- Question forms have a cleaner layout, with more spacing around the title, fields and buttons.
 - The **changed-files panel** now falls back to patches recorded by completed tools, so it also works
   outside git repositories (where `GET /session/{id}/diff` is empty).
 - The session **cost** reported by OpenCode is shown in the composer's context meter tooltip.
@@ -20,6 +23,10 @@
 - Fixed the composer staying on **Stop** after cancelling a question: dismissing a form now clears
   the session's busy state locally, so a new prompt can be sent even when OpenCode emits no terminal
   execution event.
+- If sending a permission or question reply fails, the card's buttons are re-enabled so you can
+  retry instead of being left with a disabled card.
+- Modified **↑/↓** keys (Cmd/Ctrl/Alt) no longer trigger prompt-history recall, preserving the
+  standard caret shortcuts.
 
 ## 0.3.4 — 2026-11-18
 
