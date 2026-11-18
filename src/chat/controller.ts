@@ -228,10 +228,16 @@ export class ChatController implements vscode.Disposable {
     });
   }
 
+  /** Serializes webview messages: a late `ready`/loadAll must not race a prompt and drop its events. */
+  private messageQueue: Promise<unknown> = Promise.resolve();
+
   /** Entry point for webview messages (also used by integration tests). */
   async receive(msg: WebviewMessage): Promise<void> {
+    const run = this.messageQueue.then(() => this.handle(msg));
+    // Keep the chain alive after a failed message so later ones are still processed.
+    this.messageQueue = run.catch(() => undefined);
     try {
-      await this.handle(msg);
+      await run;
     } catch (err) {
       this.output.error(`[chat] ${msg.type} failed: ${String(err)}`);
       const error = toUiError(err);

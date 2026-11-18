@@ -1,7 +1,12 @@
 # Changelog
 
-## Unreleased
+## 0.3.11 — 2026-11-19
 
+- Finished turns show a compact footer with the wall-clock duration, total tokens and cost for the
+  whole turn (details in the tooltip).
+- The session picker pages at 10 entries by default (`opencode.sessionPageSize`): it closes on an
+  outside click, the header trigger distinguishes the session list from the current chat, and the
+  rename and delete confirmations share the same aligned card layout.
 - A finished turn now folds its intermediate steps (thinking, tool calls and narration), including
   the reasoning attached to the final answer, into a single expandable "Show N steps" row — leaving
   only the final answer visible. During streaming nothing is hidden, and searching a session expands
@@ -17,7 +22,6 @@
 - CI runs VS Code integration on Linux, macOS and Windows for every PR. New
   `test:integration:real:e2e` combines real webview clicks with a real server; accessibility-tree
   checks were added to the UI suite.
-
 - Reconnects and post-turn reconciles now fetch only the new tail of the conversation and merge it
   by message id, instead of rebuilding the whole chat. Scroll position, staged attachments and
   drafts survive a resync.
