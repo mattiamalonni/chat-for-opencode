@@ -67,7 +67,7 @@ export const STRINGS = {
   selection: "Selection",
   pickFiles: "Attach files from disk",
   dropFilesOverlay: "Drop files to attach them to the message",
-  dropFilesHint: "Hold Shift while dragging files into the chat, paste an image, or click the folder to pick them from disk.",
+  dropFilesHint: "Shift+drag or paste files here, or click the folder to browse.",
   suggestions: "Files and skills",
   noFilesOrSkillsFound: "No matching suggestions",
   permissionTitle: "Permission required",
