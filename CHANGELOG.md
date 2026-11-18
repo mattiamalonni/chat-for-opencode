@@ -1,5 +1,19 @@
 # Changelog
 
+## Unreleased
+
+- Reconnects and post-turn reconciles now fetch only the new tail of the conversation and merge it
+  by message id, instead of rebuilding the whole chat. Scroll position, staged attachments and
+  drafts survive a resync.
+- Each session keeps its own composer draft.
+- Raw server payloads pass through a normalising adapter; the raw types it consumes are generated
+  from the OpenAPI snapshot and checked in CI.
+- Slash suggestions and file mentions now respect VS Code's `search.exclude` / `files.exclude`.
+- Webview language follows `vscode.env.language`; server PID records are keyed by folder and owning
+  window so two VS Code windows on the same folder no longer overwrite each other.
+- CI runs lint, build and unit tests on Linux, macOS and Windows; a new
+  `test:integration:e2e` suite clicks the real webview inside VS Code over CDP.
+
 ## 0.3.10 — 2026-11-18
 
 - The composer's **Auto-approve** toggle, **Compact** button and context meter now share the

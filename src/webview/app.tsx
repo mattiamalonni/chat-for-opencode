@@ -130,6 +130,17 @@ export function App() {
           setShowSessions(false);
           break;
         }
+        case "sessionDelta":
+          // A delta is a snapshot taken after the queued events: apply the live events first so the
+          // history entries in the tail can replace their streaming cards rather than duplicate them.
+          if (frame.current !== undefined) {
+            cancelAnimationFrame(frame.current);
+            frame.current = undefined;
+          }
+          if (queue.current.length > 0) dispatch({ type: "events", events: queue.current });
+          queue.current = [];
+          dispatch({ type: "append", delta: msg.delta });
+          break;
         case "event":
           queue.current.push(msg.event);
           frame.current ??= requestAnimationFrame(flush);
@@ -359,6 +370,7 @@ export function App() {
           <ChangesPanel files={changedFiles} onDismiss={() => setDismissedChanges(changesSignature)} />
         )}
         <Composer
+          sessionId={chat.sessionId ?? undefined}
           busy={chat.busy}
           contextTokens={chat.contextTokens}
           disabled={!connected}

@@ -17,6 +17,8 @@ keys and sends no telemetry.
 │                     health check, auto-restart w/ backoff, clean shutdown     │
 │     ExternalServer  `opencode.endpoint` + password from SecretStorage         │
 │   OpenCodeClient (client/http.ts)  typed fetch wrapper (Basic auth)           │
+│     adapter      (shared/adapter)  raw wire shapes -> canonical UI types      │
+│                                    (generated from docs/openapi-2.2.7.json)   │
 │   EventStream    (client/sse.ts)   SSE parser + auto-reconnecting stream      │
 │   ChatController (chat/controller.ts)                                         │
 │     glue between server and webview, session persistence (workspaceState),    │
@@ -33,9 +35,19 @@ keys and sends no telemetry.
 ```
 
 The **server is the source of truth**. The webview reducer is rebuilt from
-`GET /api/session/{id}/message` whenever the view is (re)created or the event stream reconnects,
-then kept live by forwarding the session's SSE events. The webview therefore doesn't need
-`retainContextWhenHidden`; only the composer draft is kept in `vscode.setState`.
+`GET /api/session/{id}/message` when the view is (re)created, then kept live by forwarding the
+session's SSE events. After a stream reconnect or a completed turn the controller looks for the last
+known message id in a descending history page (`messagesNewerThan`): if the overlap is known it
+posts a `sessionDelta` with only the new messages, preserving scroll position, staged attachments and
+drafts; if history was trimmed/compacted it falls back to a full `session` load. The webview
+therefore doesn't need `retainContextWhenHidden`; the composer keeps a draft per session in
+`vscode.setState`.
+
+Raw server payloads are normalised by `src/shared/adapter.ts` before reaching the reducer. The raw
+wire shapes for the 2.2.7 snapshot are generated from `docs/openapi-2.2.7.json` by
+`npm run gen:types` (CI checks that the generated file is current) and serve as the reference for
+those normalisers. The contract smoke test still observes the **raw** values, so an adapter that
+drops malformed entries cannot hide an unsupported server.
 
 ## Folder layout
 
@@ -70,7 +82,8 @@ All messages are JSON objects with a `type` discriminator, defined in `src/share
 | `connection` | `status: idle\|starting\|connected\|reconnecting\|error`, `error?`, `version?`, `compatibility?`, `compatibilityDismissed?` | any status change |
 | `catalog` | `models`, `agents`, `skills`, `selectedModel?`, `selectedAgent?` | after connect / config change |
 | `sessions` | `items: SessionSummary[]`, `currentId?`, `hasMore?` | list changed / more pages loaded |
-| `session` | `session: SessionPayload \| null` (`id`, `title?`, `agent?`, `model?`, `busy`, raw `messages`, `permissions`, `forms`, `usage?`) | session loaded / resync |
+| `session` | `session: SessionPayload \| null` (`id`, `title?`, `agent?`, `model?`, `busy`, normalised `messages`, `permissions`, `forms`, `usage?`) | session loaded / full resync |
+| `sessionDelta` | `delta: SessionDelta` (tail `messages` + updated pending items/usage) | reconnect/reconcile found no or few new messages; merged by id, does not reset conversation state |
 | `event` | `event` (raw server SSE event for the current session) | live |
 | `context` | `items: ContextItem[]` | active editor / selection changed |
 | `fileResults` | `query`, `items` | answer to `searchFiles` |

@@ -991,6 +991,29 @@ test("session list: load-more button follows the host's hasMore flag", async ({ 
   await expect(dialog.getByRole("button", { name: STRINGS.loadMoreSessions })).toHaveCount(0);
 });
 
+test("the composer keeps a separate draft for each session", async ({ page }) => {
+  await boot(page);
+  await openSession(page, S1, []);
+  // `host()` only posts the message; wait until the app has actually applied the session before typing.
+  await expect(page.locator(".session-title")).toHaveText("Hello world reply");
+  await page.waitForTimeout(100); // let the session-switch effect run before typing
+  const input = page.getByRole("textbox", { name: STRINGS.inputLabel });
+  await input.fill("draft for the first session");
+  await expect(input).toHaveValue("draft for the first session");
+  // Let the effect that feeds the debounce (and the 300ms debounce itself) settle before switching.
+  await page.waitForTimeout(350);
+
+  // Switching sessions stashes the first draft and shows the new session's empty draft.
+  await openSession(page, S2, []);
+  await expect(page.locator(".session-title")).toHaveText(STRINGS.untitled);
+  await expect(input).toHaveValue("");
+
+  // Coming back restores the first session's draft.
+  await openSession(page, S1, []);
+  await expect(page.locator(".session-title")).toHaveText("Hello world reply");
+  await expect(input).toHaveValue("draft for the first session");
+});
+
 test("loading another session clears staged attachments and changes, a resync does not", async ({ page }) => {
   await boot(page);
   const attachment = { uri: "file:///work/a.ts", name: "a.ts", kind: "file" as const };
@@ -1007,6 +1030,24 @@ test("loading another session clears staged attachments and changes, a resync do
   await host(page, { type: "addAttachment", item: attachment });
   await host(page, session(S2)); // same-session resync
   await expect(page.locator(".chips li")).toHaveCount(3);
+});
+
+test("a sessionDelta appends the tail without clearing the conversation's UI state", async ({ page }) => {
+  await boot(page);
+  await host(page, { type: "session", session: { id: S1, busy: false, messages: [], permissions: [], forms: [] } });
+  await expect(page.locator(".conversation")).toBeVisible();
+  await host(page, { type: "addAttachment", item: { uri: "file:///work/a.ts", name: "a.ts", kind: "file" } });
+  const chips = await page.locator(".chips li").count();
+
+  await host(page, {
+    type: "sessionDelta",
+    delta: {
+      sessionId: S1,
+      messages: [{ id: "msg_tail", type: "user", text: "message from the resync tail", time: { created: 100 } }],
+    },
+  });
+  await expect(page.locator(".conversation .msg.user .user-text")).toHaveText("message from the resync tail");
+  await expect(page.locator(".chips li")).toHaveCount(chips);
 });
 
 test("the changed-files panel falls back to patches from tool metadata", async ({ page }) => {

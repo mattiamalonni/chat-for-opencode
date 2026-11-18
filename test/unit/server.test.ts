@@ -1,8 +1,9 @@
-import { chmodSync, mkdtempSync, writeFileSync } from "node:fs";
+import { chmodSync, mkdtempSync, readdirSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { OpenCodeClient } from "../../src/client/http";
+import { clearServerRecord, writeServerRecord } from "../../src/server/orphans";
 import { ExternalServer, ManagedServer, type ServerState } from "../../src/server/server";
 import { startMockServer, type MockServer } from "../mock/mockServer";
 
@@ -109,6 +110,25 @@ describe("ExternalServer", () => {
   it("reports unreachable endpoints", async () => {
     const s = new ExternalServer({ folder: "/", endpoint: "http://127.0.0.1:9", getPassword: async () => "x", log: () => {} });
     await expect(s.ensure()).rejects.toMatchObject({ kind: "unreachable" });
+  });
+});
+
+describe("server records", () => {
+  const folder = "/work/project";
+
+  it("keys records by owner so two windows on the same folder get separate files", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "oc-records-"));
+    await writeServerRecord(dir, { pid: 100, port: 4000, folder, ownerPid: 111, startedAt: 1 });
+    await writeServerRecord(dir, { pid: 200, port: 5000, folder, ownerPid: 222, startedAt: 2 });
+
+    const names = readdirSync(dir).sort();
+    expect(names).toHaveLength(2);
+    for (const name of names) expect(name).toMatch(/^[0-9a-f]{16}-\d+\.json$/);
+
+    await clearServerRecord(dir, folder, 111);
+    const remaining = readdirSync(dir);
+    expect(remaining).toHaveLength(1);
+    expect(remaining[0]).toContain("-222.json");
   });
 });
 

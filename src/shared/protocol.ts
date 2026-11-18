@@ -108,6 +108,23 @@ export interface SessionPayload {
   usage?: { cost: number; tokens: TokenUsage };
 }
 
+/**
+ * Tail of a session after an SSE reconnect. Unlike `session`, it is merged into the existing
+ * conversation instead of rebuilding it, so scroll position, staged attachments and the draft
+ * survive a resync that found no changes (or only new messages).
+ */
+export interface SessionDelta {
+  sessionId: string;
+  messages: SessionMessage[];
+  permissions?: PermissionRequest[];
+  forms?: FormRequest[];
+  usage?: SessionPayload["usage"];
+  busy?: boolean;
+  title?: string;
+  agent?: string;
+  model?: ModelRef;
+}
+
 export type HostMessage =
   | {
       type: "init";
@@ -141,6 +158,7 @@ export type HostMessage =
     }
   | { type: "sessions"; items: SessionSummary[]; currentId?: string; hasMore?: boolean }
   | { type: "session"; session: SessionPayload | null }
+  | { type: "sessionDelta"; delta: SessionDelta }
   | { type: "event"; event: ServerEvent }
   | { type: "context"; items: ContextItem[] }
   | { type: "fileResults"; query: string; items: Attachment[] }

@@ -68,6 +68,22 @@ describe("OpenCodeClient against the mock server", () => {
     expect(msgs.map((m) => m.type)).toEqual(["user", "assistant", "idle"]);
   });
 
+  it("reads only messages newer than a known id, and reports an unknown overlap", async () => {
+    const s = await client.createSession({});
+    await client.prompt(s.id, "first");
+    await waitForIdle(client, s.id);
+    const first = await client.messages(s.id);
+    await client.prompt(s.id, "second");
+    for (let i = 0; i < 300; i++) {
+      if ((await client.messages(s.id)).filter((m) => m.type === "idle").length >= 2) break;
+      await new Promise((r) => setTimeout(r, 10));
+    }
+    const all = await client.messages(s.id);
+    expect((await client.messagesNewerThan(s.id, first[1].id))?.map((m) => m.id)).toEqual(all.slice(2).map((m) => m.id));
+    expect(await client.messagesNewerThan(s.id, "msg_missing")).toBeUndefined();
+    expect(mock.requests.at(-1)?.path).toContain("order=desc");
+  });
+
   it("lists catalog data", async () => {
     expect((await client.models()).map((m) => m.id)).toEqual(["mock-fast", "mock-smart"]);
     expect(mock.requests.at(-1)?.path).toBe("/api/model?types=chat");

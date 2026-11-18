@@ -62,23 +62,91 @@ export class ContextTracker implements vscode.Disposable {
   }
 }
 
+/**
+ * Collects the glob patterns from VS Code's `search.exclude` / `files.exclude` settings. Each setting is
+ * a map of glob -> enabled flag. Only enabled, non-empty string globs are kept, duplicates are removed,
+ * and malformed values are ignored. Kept pure so it can be tested without a real VS Code host.
+ */
+export function excludeGlobs(...sources: unknown[]): string[] {
+  const globs = new Set<string>();
+  const add = (value: unknown): void => {
+    if (typeof value === "string" && value.length > 0) globs.add(value);
+  };
+  for (const source of sources) {
+    if (Array.isArray(source)) {
+      for (const value of source) add(value);
+    } else if (source && typeof source === "object") {
+      for (const [glob, enabled] of Object.entries(source)) {
+        if (enabled === true) add(glob);
+      }
+    }
+  }
+  return [...globs];
+}
+
+/** Converts a VS Code glob into a regex; a match on a directory also matches its descendants. */
+function excludeToRegExp(glob: string): RegExp {
+  let re = "^";
+  for (let i = 0; i < glob.length; i++) {
+    const c = glob[i];
+    if (c === "*") {
+      if (glob[i + 1] === "*") {
+        i++;
+        // `**/` matches zero or more path segments.
+        if (glob[i + 1] === "/") {
+          i++;
+          re += "(?:.*/)?";
+        } else {
+          re += ".*";
+        }
+      } else {
+        re += "[^/]*";
+      }
+    } else if (c === "?") {
+      re += "[^/]";
+    } else {
+      re += c.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    }
+  }
+  return new RegExp(`${re}(?:/.*)?$`);
+}
+
+/** `findFiles` takes a single glob, so combine several excludes with brace expansion. */
+function asGlobPattern(exclude: readonly string[]): string | undefined {
+  if (exclude.length === 0) return undefined;
+  return exclude.length === 1 ? exclude[0] : `{${exclude.join(",")}}`;
+}
+
+/** True when a folder-relative POSIX path is covered by one of the exclude globs. */
+function isExcluded(rel: string, exclude: readonly string[]): boolean {
+  const path = rel.replace(/\\/g, "/").replace(/^\.\//, "");
+  return exclude.some((glob) => excludeToRegExp(glob).test(path));
+}
+
 /** Cached workspace file list with fuzzy search for `@` mentions. */
 export class FileIndex implements vscode.Disposable {
   private files: vscode.Uri[] | undefined;
   private loading: Promise<vscode.Uri[]> | undefined;
   private readonly watcher: vscode.FileSystemWatcher;
+  private readonly exclude: string[];
 
   constructor(private readonly folder: vscode.WorkspaceFolder) {
+    const config = vscode.workspace.getConfiguration(undefined, folder.uri);
+    this.exclude = excludeGlobs(config.get("search.exclude"), config.get("files.exclude"));
     this.watcher = vscode.workspace.createFileSystemWatcher(new vscode.RelativePattern(folder, "**/*"), false, true, false);
-    this.watcher.onDidCreate(() => (this.files = undefined));
-    this.watcher.onDidDelete(() => (this.files = undefined));
+    // `createFileSystemWatcher` has no `exclude` argument, so skip events for excluded paths here.
+    const invalidate = (uri: vscode.Uri): void => {
+      if (!isExcluded(path.relative(this.folder.uri.fsPath, uri.fsPath), this.exclude)) this.files = undefined;
+    };
+    this.watcher.onDidCreate(invalidate);
+    this.watcher.onDidDelete(invalidate);
   }
 
   private async list(): Promise<vscode.Uri[]> {
     if (this.files) return this.files;
     if (!this.loading) {
       this.loading = Promise.resolve(
-        vscode.workspace.findFiles(new vscode.RelativePattern(this.folder, "**/*"), undefined, 20_000),
+        vscode.workspace.findFiles(new vscode.RelativePattern(this.folder, "**/*"), asGlobPattern(this.exclude), 20_000),
       ).then((files) => {
         this.files = files;
         this.loading = undefined;

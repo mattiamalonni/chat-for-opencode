@@ -1,7 +1,31 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+import { excludeGlobs } from "../../src/chat/context";
 import type { SessionMessage } from "../../src/shared/api";
 import { chatReducer, contextTokensOf, initialChatState } from "../../src/shared/chatReducer";
 import { formatTokens } from "../../src/shared/format";
+
+// `context.ts` imports `vscode` at load time; the exclude helper itself is pure.
+vi.mock("vscode", () => ({ workspace: {} }));
+
+describe("excludeGlobs", () => {
+  it("includes configured excludes and keeps their glob form", () => {
+    expect(excludeGlobs({ "**/node_modules": true, "**/.git": true, "**/dist": false })).toEqual(["**/node_modules", "**/.git"]);
+  });
+
+  it("removes duplicates across settings", () => {
+    expect(excludeGlobs({ "**/node_modules": true }, ["**/node_modules", "**/build"])).toEqual(["**/node_modules", "**/build"]);
+  });
+
+  it("ignores non-string values and malformed settings", () => {
+    expect(excludeGlobs(["**/node_modules", 42, null, undefined, true, {}])).toEqual(["**/node_modules"]);
+    expect(excludeGlobs(undefined, 7, "**/node_modules")).toEqual([]);
+  });
+
+  it("returns nothing when there are no excludes", () => {
+    expect(excludeGlobs()).toEqual([]);
+    expect(excludeGlobs({}, undefined)).toEqual([]);
+  });
+});
 
 const tokens = (input: number, read: number, output: number, reasoning = 0, write = 0) => ({
   input,

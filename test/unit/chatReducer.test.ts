@@ -356,3 +356,47 @@ describe("changed-file selectors", () => {
     expect(mergeChangedFiles([authoritative], state)).toEqual([authoritative]);
   });
 });
+
+describe("incremental resync", () => {
+  const user = (id: string, created: number, text: string): SessionMessage => ({ id, type: "user", text, time: { created } });
+  const assistant = (id: string, created: number, text: string): AssistantMessage => ({
+    id,
+    type: "assistant",
+    agent: "build",
+    model: { id: "m", providerID: "p" },
+    time: { created, completed: created + 1 },
+    content: [{ type: "text", text }],
+  });
+
+  it("appends a tail by id and keeps the existing messages in order", () => {
+    const state = open("s", [user("u1", 1, "first"), assistant("a1", 2, "one")]);
+    const next = chatReducer(state, {
+      type: "append",
+      delta: { sessionId: "s", messages: [user("u2", 3, "second"), assistant("a2", 4, "two")], permissions: [], forms: [] },
+    });
+    expect(next.messages.map((m) => m.id)).toEqual(["u1", "a1", "u2", "a2"]);
+    expect(next).not.toBe(state);
+  });
+
+  it("replaces a streaming card with the completed history entry", () => {
+    const streaming = chatReducer(open("s"), {
+      type: "event",
+      event: { type: "session.step.started", data: { sessionID: "s", assistantMessageID: "a1", agent: "build" } },
+    });
+    expect(assistants(streaming)[0].done).toBe(false);
+    const next = chatReducer(streaming, {
+      type: "append",
+      delta: { sessionId: "s", messages: [assistant("a1", 2, "done")], permissions: [], forms: [] },
+    });
+    expect(next.messages.map((m) => m.id)).toEqual(["a1"]);
+    const [a] = assistants(next);
+    expect(a.done).toBe(true);
+    expect(a.parts.map((p) => (p.kind === "text" ? p.text : ""))).toEqual(["done"]);
+  });
+
+  it("ignores an empty delta and a delta for another session", () => {
+    const state = open("s", [user("u1", 1, "first")]);
+    expect(chatReducer(state, { type: "append", delta: { sessionId: "s", messages: [] } })).toBe(state);
+    expect(chatReducer(state, { type: "append", delta: { sessionId: "other", messages: [user("u2", 2, "x")] } })).toBe(state);
+  });
+});

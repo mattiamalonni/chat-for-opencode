@@ -5,13 +5,13 @@ test or a manual probe actually ran.
 
 ## Not verified by me
 
-- **Clicking the real sidebar with a real server.** Covered in pieces: `npm run test:integration:real`
-  runs the extension inside real VS Code against a real `opencode serve` (prompt streaming, permission
-  approval, applied diff in the native diff editor, session resume after a server restart) but drives
-  the controller through its message API instead of clicking the webview; the webview itself is
-  tested in Playwright with recorded real events. A full VS Code quit/relaunch was simulated by a
-  server restart + persisted `workspaceState`, not by actually relaunching VS Code. Manual steps in
-  [MANUAL_TEST.md](MANUAL_TEST.md).
+- **Clicking the real sidebar with a real server.** `npm run test:integration:e2e` now attaches to
+  the real VS Code webview over CDP and drives it (typing a prompt, approving an inline permission)
+  against the **mock** server. `npm run test:integration:real` runs the extension inside real VS Code
+  against a real `opencode serve` (prompt streaming, permission approval, applied diff in the native
+  diff editor, session resume after a server restart) but still drives the controller through its
+  message API instead of clicking the webview. Combining the two (real clicks + real server) and a
+  full VS Code quit/relaunch is not automated; manual steps remain in [MANUAL_TEST.md](MANUAL_TEST.md).
 - **Windows and Linux.** Everything ran on macOS (arm64). Windows-specific code paths
   (`shell: true` spawn for `.cmd` shims, `taskkill /T` for shutdown, AltGr handling) are written
   but untested on Windows. The `ManagedServer` unit tests are skipped on Windows.
@@ -23,8 +23,9 @@ test or a manual probe actually ran.
   not tested by pressing Ctrl+J in a real VS Code webview.
 - **Screen readers.** ARIA roles/labels and live regions are present; no test with NVDA/VoiceOver.
 - **Long sessions / performance.** History pagination is capped at 2000 messages; markdown is
-  re-rendered per streaming frame (cached, batched with `requestAnimationFrame`). Not profiled with
-  very large sessions.
+  re-rendered per streaming frame (cached, batched with `requestAnimationFrame`). Reconnects now
+  fetch only the tail and merge it via `sessionDelta` (falling back to a full load when the overlap
+  is unknown), so they no longer rebuild the conversation. Not profiled with very large sessions.
 - **External server mode with a real remote server** — tested only against the mock server (unit).
 
 ## Behaviour limits
@@ -34,10 +35,11 @@ test or a manual probe actually ran.
   users upgrading from such a setup keep their custom location.
 
 - **Orphaned servers if VS Code crashes.** Managed servers are stopped on `deactivate` and a PID
-  record (no password) is written on start. On the next activation, records whose owning extension
-  host is gone are verified against the local server port and reaped. A server that dies before the
-  record is written, a reused host PID pointing at another running OpenCode server on the same
-  port, or two windows sharing the same folder overwriting each other's record, is still not covered.
+  record (no password) is written on start, keyed by folder **and** owning extension-host PID, so
+  two windows on the same folder keep separate records. On the next activation, records whose owner
+  is gone are verified against the local server port and reaped. A server that dies before the
+  record is written or a reused host PID pointing at another running OpenCode server on the same
+  port is still not covered.
 - **OpenCode's base policy** allows every action without asking (observed with 2.2.7). Sessions
   created by the extension start with `edit`, `shell` and `external_directory` set to `ask` (the
   `opencode.sessionPermissions` default). Sessions created elsewhere, or after setting that option
@@ -53,9 +55,11 @@ test or a manual probe actually ran.
   option to `[]`.
 - **Other OpenCode versions** are not supported: only 2.2.7's contract (types and SSE fixtures) was
   verified. Other 2.2.x patch releases are assumed compatible without a warning; the chat warns for
-  another minor (untested) or major (unsupported) version. A runtime smoke test checks the response
-  shape of the catalog and history endpoints and names the affected features in a banner, but it
-  cannot adapt to changed event shapes or endpoints.
+  another minor (untested) or major (unsupported) version. A runtime smoke test checks the raw
+  response shape of the catalog and history endpoints and names the affected features in a banner.
+  `src/shared/adapter.ts` normalises missing/renamed fields so the UI degrades gracefully, and the
+  raw wire types are generated from the snapshot with `npm run gen:types`, but neither can adapt to
+  changed endpoints or event semantics. Supporting a new version means extending the adapter.
 - **Context meter is an estimate** from the last step's token usage (see API_NOTES). It is unknown
   until the first reply and after a compaction, it is computed against the *selected* model (the
   one the next message will use), and whether reasoning tokens stay in context depends on the

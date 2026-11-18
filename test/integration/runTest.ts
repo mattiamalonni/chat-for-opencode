@@ -5,6 +5,9 @@ import { join, resolve } from "node:path";
 import { runTests } from "@vscode/test-electron";
 
 async function main(): Promise<void> {
+  // Some agent/terminal harnesses export this; it makes the VS Code binary launch as plain Node
+  // instead of Electron, so every CLI flag is rejected as a bad option.
+  delete process.env.ELECTRON_RUN_AS_NODE;
   const root = resolve(__dirname, "../../..");
   const workspace = mkdtempSync(join(tmpdir(), "oc-it-ws-"));
   mkdirSync(join(workspace, "src"));
@@ -36,12 +39,26 @@ async function main(): Promise<void> {
   }
 
   const version = process.env.VSCODE_TEST_VERSION ?? "stable";
+  const e2e = process.env.OC_IT_E2E === "1";
+  const cdpPort = process.env.OC_IT_CDP_PORT ?? "9222";
   await runTests({
     version,
     extensionDevelopmentPath: root,
     extensionTestsPath: join(__dirname, "suite", "index.js"),
-    launchArgs: [workspace, "--disable-extensions", "--disable-workspace-trust", "--skip-welcome", "--skip-release-notes"],
-    extensionTestsEnv: { OC_IT_WORKSPACE: workspace, OC_IT_SUITE: real ? "real.test.js" : "extension.test.js" },
+    launchArgs: [
+      workspace,
+      "--disable-extensions",
+      "--disable-workspace-trust",
+      "--skip-welcome",
+      "--skip-release-notes",
+      ...(e2e ? [`--remote-debugging-port=${cdpPort}`] : []),
+    ],
+    extensionTestsEnv: {
+      OC_IT_WORKSPACE: workspace,
+      OC_IT_SUITE: e2e ? "webview.e2e.test.js" : real ? "real.test.js" : "extension.test.js",
+      OC_IT_E2E: e2e ? "1" : "0",
+      OC_IT_CDP_PORT: cdpPort,
+    },
   });
 }
 

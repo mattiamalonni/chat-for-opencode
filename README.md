@@ -174,6 +174,7 @@ npm run lint             # eslint
 npm test                 # unit (vitest) + UI (Playwright) + integration (@vscode/test-electron)
 npm run test:e2e         # client/reducer against a real `opencode serve` (skips when unavailable)
 npm run test:integration:real  # extension in VS Code + real `opencode serve` (uses your configured default model)
+npm run test:integration:e2e   # clicks the real webview inside VS Code via CDP (mock server)
 ```
 
 The Playwright browser is installed with `npx playwright install chromium`.

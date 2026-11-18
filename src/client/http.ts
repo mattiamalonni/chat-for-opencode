@@ -166,6 +166,22 @@ export class OpenCodeClient {
     return out;
   }
 
+  /**
+   * Messages added after `lastId`, using only `order=desc` (the cursor is opaque and may be
+   * invalidated by compaction). Finds the last id we already had in the newest page and returns
+   * the newer messages in chronological order. `undefined` means the overlap is unknown — history
+   * was trimmed or compacted — so callers must fall back to a full `messages()` fetch.
+   */
+  async messagesNewerThan(id: string, lastId: string, limit = 200): Promise<SessionMessage[] | undefined> {
+    const res = await this.request<{ data: SessionMessage[] }>(
+      "GET",
+      `api/session/${encodeURIComponent(id)}/message`,
+      { query: { order: "desc", limit } },
+    );
+    const index = res.data.findIndex((m) => m.id === lastId);
+    return index < 0 ? undefined : res.data.slice(0, index).reverse();
+  }
+
   async prompt(id: string, text: string, files: FileAttachment[] = []): Promise<{ id: string }> {
     const body: Record<string, unknown> = { text };
     if (files.length > 0) body.files = files;

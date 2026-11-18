@@ -11,7 +11,7 @@ import type {
   TokenUsage,
   ToolContent,
 } from "./api";
-import type { SessionSummary } from "./protocol";
+import type { SessionDelta, SessionSummary } from "./protocol";
 
 export type ToolStatus = "streaming" | "running" | "completed" | "error";
 
@@ -105,6 +105,7 @@ export type ChatAction =
       forms: FormRequest[];
       usage?: ChatState["usage"];
     }
+  | { type: "append"; delta: SessionDelta }
   | { type: "event"; event: ServerEvent }
   | { type: "events"; events: ServerEvent[] }
   | { type: "clearError" };
@@ -121,6 +122,8 @@ export function chatReducer(state: ChatState, action: ChatAction): ChatState {
   switch (action.type) {
     case "load":
       return loadHistory(action);
+    case "append":
+      return state.sessionId === action.delta.sessionId ? appendDelta(state, action.delta) : state;
     case "event":
       return applyEvent(state, action.event);
     case "events":
@@ -167,6 +170,41 @@ function loadHistory(action: Extract<ChatAction, { type: "load" }>): ChatState {
     busy,
     contextTokens,
     usage: action.usage,
+  };
+}
+
+/**
+ * Merges a resync tail into the live conversation. Messages are keyed by id so a completed
+ * history entry replaces the streaming card the events built, without rebuilding the whole state:
+ * scroll position, dismissed-change state and staged attachments stay untouched.
+ */
+function appendDelta(state: ChatState, delta: SessionDelta): ChatState {
+  const sorted = [...delta.messages].sort((a, b) => a.time.created - b.time.created || cmp(a.id, b.id));
+  if (sorted.length === 0 && delta.permissions === undefined && delta.forms === undefined && delta.usage === undefined && delta.busy === undefined) {
+    return state;
+  }
+  const byId = new Map(state.messages.map((m) => [m.id, m]));
+  for (const m of sorted) {
+    const ui = fromHistory(m);
+    if (ui) byId.set(ui.id, ui);
+  }
+  const messages = [...byId.values()].sort((a, b) => a.created - b.created || cmp(a.id, b.id));
+  let contextTokens = state.contextTokens;
+  for (const m of sorted) {
+    if (m.type === "assistant") contextTokens = contextTokensOf(m.tokens) ?? contextTokens;
+    else if (m.type === "compaction" && (m as { status?: string }).status === "completed") contextTokens = undefined;
+  }
+  return {
+    ...state,
+    messages,
+    permissions: delta.permissions ?? state.permissions,
+    forms: delta.forms ?? state.forms,
+    usage: delta.usage ?? state.usage,
+    busy: delta.busy ?? state.busy,
+    title: delta.title ?? state.title,
+    agent: delta.agent ?? state.agent,
+    model: delta.model ?? state.model,
+    contextTokens,
   };
 }
 

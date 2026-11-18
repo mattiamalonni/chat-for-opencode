@@ -10,6 +10,12 @@ const workspace = process.env.OC_IT_WORKSPACE!;
 let controller: ChatController;
 const posted: HostMessage[] = [];
 
+type ReconcileMessage = Extract<HostMessage, { type: "session" }> | Extract<HostMessage, { type: "sessionDelta" }>;
+
+function busyOf(message: ReconcileMessage): boolean | undefined {
+  return message.type === "session" ? message.session?.busy : message.delta.busy;
+}
+
 async function waitFor<T>(fn: () => T | undefined | false, what: string, timeoutMs = 20_000): Promise<T> {
   const start = Date.now();
   for (;;) {
@@ -296,10 +302,10 @@ describe("chat-for-opencode extension", () => {
     // terminal event, so this checks the reconcile and not the initial session load.
     const interruptIndex = posted.findIndex((m, i) => i >= mark && m.type === "event" && m.event.type === "session.execution.interrupted");
     const reconciled = await waitFor(
-      () => posted.slice(interruptIndex + 1).filter((m): m is Extract<HostMessage, { type: "session" }> => m.type === "session").at(-1),
+      () => posted.slice(interruptIndex + 1).find((m): m is ReconcileMessage => m.type === "session" || m.type === "sessionDelta"),
       "reconciled session",
     );
-    assert.equal(reconciled.session?.busy, false);
+    assert.equal(busyOf(reconciled), false);
 
     // Interrupting an already-idle session emits no server event; the controller still posts
     // an idle status locally so the webview can never remain stuck on the stop button.
@@ -346,9 +352,9 @@ describe("chat-for-opencode extension", () => {
 
     const terminalIndex = posted.findIndex((m, i) => i >= mark && m.type === "event" && m.event.type === "session.execution.succeeded");
     const reconciled = await waitFor(
-      () => posted.slice(terminalIndex + 1).filter((m): m is Extract<HostMessage, { type: "session" }> => m.type === "session").at(-1),
+      () => posted.slice(terminalIndex + 1).find((m): m is ReconcileMessage => m.type === "session" || m.type === "sessionDelta"),
       "reconciled session after cancel",
     );
-    assert.equal(reconciled.session?.busy, false);
+    assert.equal(busyOf(reconciled), false);
   });
 });

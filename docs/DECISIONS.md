@@ -81,6 +81,21 @@ search box. `Picker` (button + `listbox` popup) follows the ARIA listbox pattern
 Home/End, Enter, Escape, type-to-search for the model list) and is styled with `--vscode-quickInput*`
 variables so it looks like VS Code's own quick picks.
 
+## D12 — Incremental resync via a descending history page
+The event stream is live-only (no `Last-Event-ID` replay), and the history cursor is opaque and can be
+invalidated by compaction. We therefore store the newest history message id and, on reconnect,
+request `order=desc` once: finding the known id gives an exact tail with **one** small request.
+Anything else (id missing, request failed) falls back to the full load, so correctness never depends
+on the optimisation. The webview merges the tail by message id (`sessionDelta`) instead of rebuilding
+the state, keeping conversation-scoped UI state intact.
+
+## D13 — Adapter + generated raw types instead of trusting the snapshot
+`checkContract` reports raw shape drift; `src/shared/adapter.ts` converts raw payloads to the
+canonical types used by the reducer, filling optional fields and dropping malformed entries. Raw
+wire types are generated from the checked-in OpenAPI snapshot (`npm run gen:types`, verified in CI).
+The two are deliberately separate: the adapter keeps the UI usable, the contract report keeps the
+version warning honest. Supporting a new server version should extend the adapter, not the reducer.
+
 ## D9 — Permission requests are rendered inside the tool card that triggered them
 
 `permission.asked.source.id` equals the tool call id, so the request is attached to that tool card;

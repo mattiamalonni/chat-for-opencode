@@ -9,6 +9,7 @@ import type {
   CommandInfo,
   FileAttachment,
   FileDiff,
+  FormRequest,
   ModelInfo,
   ModelRef,
   PermissionRequest,
@@ -16,6 +17,19 @@ import type {
   SessionInfo,
   SkillInfo,
 } from "../shared/api";
+import {
+  normalizeAgent,
+  normalizeCommand,
+  normalizeFileDiff,
+  normalizeForm,
+  normalizeList,
+  normalizeModel,
+  normalizePermission,
+  normalizeServerEvent,
+  normalizeSessionInfo,
+  normalizeSessionMessage,
+  normalizeSkill,
+} from "../shared/adapter";
 import { eventSessionId, sessionIsBusy, sessionLooksBusy, toSessionSummary } from "../shared/chatReducer";
 import { checkCompatibility } from "../shared/compatibility";
 import { checkContract, contractSignature, emptyContract, type ContractObservations } from "../shared/contract";
@@ -188,6 +202,8 @@ export class ChatController implements vscode.Disposable {
   private localIdle: { sid: string; generation: number } | undefined;
   /** Invalidates an in-flight session load when a newer session/folder wins the race. */
   private sessionLoadGeneration = 0;
+  /** High-water mark for incremental resync: the newest history message id of the loaded session. */
+  private lastKnownMessage: { sessionId: string; id: string } | undefined;
   private connecting: Promise<void> | undefined;
   private wasDisconnected = false;
 
@@ -383,8 +399,10 @@ export class ChatController implements vscode.Disposable {
         return [] as AgentInfo[];
       }),
     ]);
-    this.models = models.filter((m) => m.enabled !== false);
-    this.agents = agents.filter((a) => a.mode !== "subagent" && !a.hidden);
+    // Keep the raw values for the contract report: an adapter that silently drops malformed
+    // entries must not hide a server version we cannot really support.
+    this.models = normalizeList(models, normalizeModel).filter((m) => m.enabled !== false);
+    this.agents = normalizeList(agents, normalizeAgent).filter((a) => a.mode !== "subagent" && !a.hidden);
     const saved = this.ctx.globalState.get<ModelRef>(MODEL_KEY);
     const exists = (ref?: ModelRef) => !!ref && this.models.some((m) => m.id === ref.id && m.providerID === ref.providerID);
     const fallback = defaultModel ?? this.models[0];
@@ -456,19 +474,21 @@ export class ChatController implements vscode.Disposable {
         return undefined;
       }),
     ]);
+    const safeSkills = skills ? normalizeList(skills, normalizeSkill) : undefined;
+    const safeCommands = commands ? normalizeList(commands, normalizeCommand) : undefined;
     let changed = false;
-    if (skills && !sameList(
-      skills.map((s) => `${s.id}\u0000${s.name}\u0000${s.description ?? ""}`),
+    if (safeSkills && !sameList(
+      safeSkills.map((s) => `${s.id}\u0000${s.name}\u0000${s.description ?? ""}`),
       this.skills.map((s) => `${s.id}\u0000${s.name}\u0000${s.description ?? ""}`),
     )) {
-      this.skills = skills;
+      this.skills = safeSkills;
       changed = true;
     }
-    if (commands && !sameList(
-      commands.map((c) => `${c.name}\u0000${c.description ?? ""}`),
+    if (safeCommands && !sameList(
+      safeCommands.map((c) => `${c.name}\u0000${c.description ?? ""}`),
       this.commands.map((c) => `${c.name}\u0000${c.description ?? ""}`),
     )) {
-      this.commands = commands;
+      this.commands = safeCommands;
       changed = true;
     }
     if (changed && this.view) this.postCatalog();
@@ -532,6 +552,60 @@ export class ChatController implements vscode.Disposable {
     }
   }
 
+  /**
+   * Applies only the messages added since the last load. The SSE stream is live-only and has no
+   * replay, but the history endpoint can find the overlap by id (`order=desc`). When nothing (or
+   * only a few messages) changed, the webview keeps its scroll position, attachments and draft
+   * instead of being rebuilt from a full `session` payload.
+   *
+   * Returns `false` when the overlap is unknown (history trimmed/compacted) so the caller falls
+   * back to a full load. This is best-effort: a failed tail fetch must never lose a conversation.
+   */
+  private async resyncTail(sid: string, rawInfo: SessionInfo, stale: () => boolean, busyOverride?: boolean): Promise<boolean> {
+    const client = this.client;
+    if (!client || this.lastKnownMessage?.sessionId !== sid) return false;
+    const rawNewer = await client.messagesNewerThan(sid, this.lastKnownMessage.id).catch(() => undefined);
+    if (rawNewer === undefined || stale()) return false;
+    const [rawPermissions, rawForms] = await Promise.all([
+      client.permissions(sid).catch(() => [] as PermissionRequest[]),
+      client.forms(sid).catch(() => [] as FormRequest[]),
+    ]);
+    if (stale()) return true;
+    const info = normalizeSessionInfo(rawInfo) ?? rawInfo;
+    const newer = normalizeList(rawNewer, normalizeSessionMessage);
+    const pending = await this.filterPending(sid, normalizeList(rawPermissions, normalizePermission));
+    if (stale()) return true;
+    const last = newer.at(-1);
+    if (last) this.lastKnownMessage = { sessionId: sid, id: last.id };
+    this.postAutoApprove();
+    this.post({
+      type: "sessionDelta",
+      delta: {
+        sessionId: sid,
+        messages: newer,
+        permissions: pending,
+        forms: normalizeList(rawForms, normalizeForm),
+        usage: info.tokens ? { cost: info.cost ?? 0, tokens: info.tokens } : undefined,
+        busy: busyOverride ?? sessionIsBusy(info.time, newer),
+        title: info.title,
+        agent: info.agent,
+        model: info.model,
+      },
+    });
+    void this.refreshChanges().catch(() => {});
+    return true;
+  }
+
+  /** Drops requests granted by auto-approval so stale cards do not reappear after a resync. */
+  private async filterPending(sid: string, permissions: PermissionRequest[]): Promise<PermissionRequest[]> {
+    if (permissions.length === 0 || !this.autoApproveEnabled(sid) || !this.client) return permissions;
+    const unresolved: PermissionRequest[] = [];
+    for (const request of permissions) {
+      if (!(await this.approveOnce(this.client, sid, request.id))) unresolved.push(request);
+    }
+    return unresolved;
+  }
+
   /** Live stream has no replay: re-fetch the current session after a reconnect. */
   private async resync(): Promise<void> {
     try {
@@ -540,7 +614,12 @@ export class ChatController implements vscode.Disposable {
       await this.refreshSessions();
       if (sid && sid === this.sessionId && this.client) {
         const info = await this.client.getSession(sid);
-        await this.loadSession(info, () => generation !== this.sessionLoadGeneration || sid !== this.sessionId);
+        if (generation !== this.sessionLoadGeneration || sid !== this.sessionId) return;
+        const busyOverride = this.localIdle?.sid === sid && this.localIdle.generation === generation ? false : undefined;
+        const stale = () => generation !== this.sessionLoadGeneration || sid !== this.sessionId;
+        if (!(await this.resyncTail(sid, info, stale, busyOverride))) {
+          await this.loadSession(info, stale, busyOverride);
+        }
       }
       if (this.status !== "error" || this.lastError?.kind === "connectionLost") this.setStatus("connected");
     } catch (err) {
@@ -551,6 +630,9 @@ export class ChatController implements vscode.Disposable {
   // ---- events -----------------------------------------------------------------------------
 
   private onEvent(event: ServerEvent): void {
+    const normalized = normalizeServerEvent(event);
+    if (!normalized) return;
+    event = normalized;
     const sid = eventSessionId(event);
     if (event.type === "permission.replied") {
       const requestId = (event.data as { requestID?: string }).requestID;
@@ -726,7 +808,10 @@ export class ChatController implements vscode.Disposable {
       // are stale (a dismissed question can leave `busy` newer than `idle` with no idle message).
       // Keep it unlocked instead of re-syncing back to "stop".
       const busyOverride = this.localIdle?.sid === sid && this.localIdle.generation === generation ? false : undefined;
-      await this.loadSession(info, () => sid !== this.sessionId || generation !== this.executionGeneration, busyOverride);
+      const stale = () => sid !== this.sessionId || generation !== this.executionGeneration;
+      if (!(await this.resyncTail(sid, info, stale, busyOverride))) {
+        await this.loadSession(info, stale, busyOverride);
+      }
     } catch (err) {
       // A failed reconcile is not worth surfacing: the live stream may still have delivered everything.
       this.output.warn(`[chat] session reconcile failed: ${String(err)}`);
@@ -746,7 +831,8 @@ export class ChatController implements vscode.Disposable {
     const client = this.client;
     return Promise.all(
       sessions.map(async (info) => {
-        if (!client || !sessionLooksBusy(info.time)) return toSessionSummary(info);
+        const safe = normalizeSessionInfo(info) ?? info;
+        if (!client || !sessionLooksBusy(safe.time)) return toSessionSummary(safe);
         // Only a session whose turn is still running can be paused on a question or a permission
         // request, so fetch the pending-input state together with the history we already need.
         const [messages, permissions, forms] = await Promise.all([
@@ -754,7 +840,7 @@ export class ChatController implements vscode.Disposable {
           client.permissions(info.id).catch(() => []),
           client.forms(info.id).catch(() => []),
         ]);
-        return toSessionSummary(info, messages, permissions.length > 0 || forms.length > 0);
+        return toSessionSummary(safe, messages && normalizeList(messages, normalizeSessionMessage), permissions.length > 0 || forms.length > 0);
       }),
     );
   }
@@ -807,7 +893,9 @@ export class ChatController implements vscode.Disposable {
 
   async refreshChanges(): Promise<FileDiff[]> {
     let files: FileDiff[] = [];
-    if (this.client && this.sessionId) files = await this.client.diff(this.sessionId).catch(() => [] as FileDiff[]);
+    if (this.client && this.sessionId) {
+      files = normalizeList(await this.client.diff(this.sessionId).catch(() => [] as FileDiff[]), normalizeFileDiff);
+    }
     this.post({ type: "changedFiles", files });
     return files;
   }
@@ -833,26 +921,24 @@ export class ChatController implements vscode.Disposable {
     }
   }
 
-  private async loadSession(info: SessionInfo, stale?: () => boolean, busyOverride?: boolean): Promise<void> {
+  private async loadSession(rawInfo: SessionInfo, stale?: () => boolean, busyOverride?: boolean): Promise<void> {
     if (!this.client || !this.folder) return;
-    const [messages, permissions, forms] = await Promise.all([
-      this.client.messages(info.id),
-      this.client.permissions(info.id).catch(() => []),
-      this.client.forms(info.id).catch(() => []),
+    const [rawMessages, rawPermissions, rawForms] = await Promise.all([
+      this.client.messages(rawInfo.id),
+      this.client.permissions(rawInfo.id).catch(() => []),
+      this.client.forms(rawInfo.id).catch(() => []),
     ]);
     // A newer prompt may have started while history was loading; its events are fresher.
     if (stale?.()) return;
-    this.observeContract({ messages });
+    this.observeContract({ messages: rawMessages });
+    const info = normalizeSessionInfo(rawInfo) ?? rawInfo;
+    const messages = normalizeList(rawMessages, normalizeSessionMessage);
+    const forms = normalizeList(rawForms, normalizeForm);
     this.sessionId = info.id;
+    const newest = messages.at(-1);
+    this.lastKnownMessage = newest ? { sessionId: info.id, id: newest.id } : undefined;
     // Requests granted automatically must not linger as cards when the chat's toggle is on.
-    let pending = permissions;
-    if (pending.length > 0 && this.autoApproveEnabled(info.id) && this.client) {
-      const unresolved: PermissionRequest[] = [];
-      for (const request of pending) {
-        if (!(await this.approveOnce(this.client, info.id, request.id))) unresolved.push(request);
-      }
-      pending = unresolved;
-    }
+    const pending = await this.filterPending(info.id, normalizeList(rawPermissions, normalizePermission));
     await this.ctx.workspaceState.update(SESSION_KEY(this.folder.uri.toString()), info.id);
     if (info.model && this.models.some((m) => m.id === info.model?.id && m.providerID === info.model?.providerID)) {
       this.selectedModel = info.model;
@@ -889,6 +975,7 @@ export class ChatController implements vscode.Disposable {
     if (this.reconcileTimer) clearTimeout(this.reconcileTimer);
     this.reconcileTimer = undefined;
     this.sessionId = undefined;
+    this.lastKnownMessage = undefined;
     this.pendingAutoApprove = undefined;
     if (this.folder) await this.ctx.workspaceState.update(SESSION_KEY(this.folder.uri.toString()), undefined);
     this.post({ type: "session", session: null });
@@ -908,6 +995,7 @@ export class ChatController implements vscode.Disposable {
     this.stream?.close();
     this.stream = undefined;
     this.client = undefined;
+    this.lastKnownMessage = undefined;
     try {
       const conn = await this.server.restart();
       await this.useConnection(conn, this.server.state.status === "running" ? this.server.state.version : undefined);
@@ -921,6 +1009,7 @@ export class ChatController implements vscode.Disposable {
     this.stream?.close();
     this.stream = undefined;
     this.client = undefined;
+    this.lastKnownMessage = undefined;
     this.serverSub?.();
     this.serverSub = undefined;
     this.server = undefined;
@@ -937,6 +1026,7 @@ export class ChatController implements vscode.Disposable {
     this.stream = undefined;
     this.client = undefined;
     this.sessionId = undefined;
+    this.lastKnownMessage = undefined;
     this.pendingAutoApprove = undefined;
     this.sessionsGeneration++;
     this.sessionItems = [];

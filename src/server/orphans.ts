@@ -18,8 +18,11 @@ export interface ServerRecord {
   startedAt: number;
 }
 
-function recordPath(dir: string, folder: string): string {
-  return join(dir, `${createHash("sha256").update(folder).digest("hex").slice(0, 16)}.json`);
+function recordPath(dir: string, folder: string, ownerPid?: number): string {
+  const hash = createHash("sha256").update(folder).digest("hex").slice(0, 16);
+  // Key by owner as well so two VS Code windows on the same folder don't overwrite each other.
+  // Omitting `ownerPid` keeps the legacy (hash-only) name for cleanup of older records.
+  return join(dir, ownerPid === undefined ? `${hash}.json` : `${hash}-${ownerPid}.json`);
 }
 
 function isAlive(pid: number): boolean {
@@ -35,15 +38,15 @@ function isAlive(pid: number): boolean {
 export async function writeServerRecord(dir: string, record: ServerRecord): Promise<void> {
   try {
     await fs.mkdir(dir, { recursive: true });
-    await fs.writeFile(recordPath(dir, record.folder), `${JSON.stringify(record)}\n`, { mode: 0o600 });
+    await fs.writeFile(recordPath(dir, record.folder, record.ownerPid), `${JSON.stringify(record)}\n`, { mode: 0o600 });
   } catch {
     // A PID file is best-effort: never fail a working server because bookkeeping failed.
   }
 }
 
-export async function clearServerRecord(dir: string, folder: string): Promise<void> {
+export async function clearServerRecord(dir: string, folder: string, ownerPid?: number): Promise<void> {
   try {
-    await fs.unlink(recordPath(dir, folder));
+    await fs.unlink(recordPath(dir, folder, ownerPid));
   } catch {
     // already gone
   }

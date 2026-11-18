@@ -296,6 +296,7 @@
     "compile": "npm run typecheck && node esbuild.mjs",
     "compile:prod": "npm run typecheck && node esbuild.mjs --production",
     "typecheck": "tsc -p . --noEmit && tsc -p src/webview --noEmit",
+    "gen:types": "node scripts/gen-openapi-types.mjs",
     "watch": "node esbuild.mjs --watch",
     "lint": "eslint .",
     "test": "npm run test:unit && npm run test:ui && npm run test:integration",
@@ -304,7 +305,8 @@
     "test:integration": "node esbuild.mjs && tsc -p test/integration && node out/test/integration/runTest.js",
     "test:e2e": "vitest run --config vitest.e2e.config.mts",
     "package": "vsce package",
-    "test:integration:real": "node esbuild.mjs && tsc -p test/integration && OC_IT_REAL=1 node out/test/integration/runTest.js"
+    "test:integration:real": "node esbuild.mjs && tsc -p test/integration && OC_IT_REAL=1 node out/test/integration/runTest.js",
+    "test:integration:e2e": "node esbuild.mjs && tsc -p test/integration && OC_IT_E2E=1 node out/test/integration/runTest.js"
   },
   "dependencies": {
     "dompurify": "^3.4.18",

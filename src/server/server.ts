@@ -244,7 +244,7 @@ export class ManagedServer extends BaseServer {
 
       child.on("exit", (code, signal) => {
         log(`[server] exited (code ${code}, signal ${signal})`);
-        void clearServerRecord(this.opts.recordsDir, folder);
+        void clearServerRecord(this.opts.recordsDir, folder, process.pid);
         if (this.child === child) this.child = undefined;
         if (!ready) {
           fail(
@@ -292,7 +292,7 @@ export class ManagedServer extends BaseServer {
     const child = this.child;
     this.child = undefined;
     if (child) await this.kill(child);
-    void clearServerRecord(this.opts.recordsDir, this.folder);
+    void clearServerRecord(this.opts.recordsDir, this.folder, process.pid);
     if (this.pending) await this.pending.catch(() => {});
     this.setState({ status: "stopped" });
   }

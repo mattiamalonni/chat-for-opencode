@@ -10,9 +10,11 @@ import { FileTypeIcon } from "./fileIcons";
 import { Picker } from "./picker";
 import { useT } from "./i18n";
 import { IconClose, IconCompact, IconFolder, IconPlus, IconSelection, IconSend, IconShield, IconStop, IconTool } from "./icons";
-import { getPersisted, post, setPersisted } from "./vscode";
+import { getDraft, post, setDraft } from "./vscode";
 
 export interface ComposerProps {
+  /** Id of the session the composer belongs to; drafts are stored per session. */
+  sessionId?: string;
   busy: boolean;
   disabled: boolean;
   models: ModelInfo[];
@@ -77,7 +79,7 @@ function ModePicker(props: {
 
 export function Composer(props: ComposerProps) {
   const t = useT();
-  const [text, setText] = useState(() => getPersisted().draft ?? "");
+  const [text, setText] = useState(() => getDraft(props.sessionId));
   const [mention, setMention] = useState<Mention | undefined>();
   const [active, setActive] = useState(0);
   // null = not browsing history; otherwise index into `props.promptHistory`.
@@ -86,6 +88,8 @@ export function Composer(props: ComposerProps) {
   const ref = useRef<HTMLTextAreaElement>(null);
   const composing = useRef(false);
   const draftRef = useRef(text);
+  // The session whose draft `draftRef.current` belongs to; kept in sync in the switch effect.
+  const sessionIdRef = useRef(props.sessionId);
 
   useEffect(() => {
     ref.current?.focus();
@@ -93,13 +97,15 @@ export function Composer(props: ComposerProps) {
 
   useEffect(() => {
     draftRef.current = text;
-    const handle = setTimeout(() => setPersisted({ ...getPersisted(), draft: text }), 300);
+    // Capture the session here so a late debounce never writes into a newly selected session.
+    const sessionId = sessionIdRef.current;
+    const handle = setTimeout(() => setDraft(text, sessionId), 300);
     return () => clearTimeout(handle);
   }, [text]);
 
   // The debounce alone can lose the last keystrokes when the webview is hidden or replaced.
   useEffect(() => {
-    const flush = () => setPersisted({ ...getPersisted(), draft: draftRef.current });
+    const flush = () => setDraft(draftRef.current, sessionIdRef.current);
     const onVisibility = () => {
       if (document.visibilityState === "hidden") flush();
     };
@@ -111,6 +117,20 @@ export function Composer(props: ComposerProps) {
       flush();
     };
   }, []);
+
+  // Stash the outgoing draft and load the incoming one. Skip the initial mount: the text is
+  // already initialised from getDraft above, and a rerun here would overwrite what the user typed.
+  useEffect(() => {
+    const previous = sessionIdRef.current;
+    if (previous === props.sessionId) return;
+    setDraft(draftRef.current, previous);
+    const next = getDraft(props.sessionId);
+    sessionIdRef.current = props.sessionId;
+    draftRef.current = next;
+    setText(next);
+    setMention(undefined);
+    setHistoryIndex(null);
+  }, [props.sessionId]);
 
   useEffect(() => {
     const el = ref.current;
@@ -208,6 +228,9 @@ export function Composer(props: ComposerProps) {
     if (props.busy) return;
     props.onSend(value);
     setText("");
+    // Clear immediately so a pending pagehide cannot restore the just-sent draft.
+    setDraft("", sessionIdRef.current);
+    draftRef.current = "";
     setMention(undefined);
     setHistoryIndex(null);
     historyDraft.current = "";
