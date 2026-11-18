@@ -121,6 +121,19 @@ describe("chat-for-opencode extension", () => {
     assert.equal(changed.files[0].file, "src/a.txt");
   });
 
+  it("auto-approves permission requests when the setting is enabled", async () => {
+    const config = vscode.workspace.getConfiguration("opencode");
+    await config.update("autoApprovePermissions", true, vscode.ConfigurationTarget.Workspace);
+    try {
+      const mark = posted.length;
+      await controller.receive({ type: "send", text: "[permission] unattended edit", attachments: [], context: [] });
+      await waitFor(() => eventPosted("session.execution.succeeded", mark), "execution succeeded without a reply");
+      assert.equal(eventPosted("permission.asked", mark), undefined, "no inline card is shown");
+    } finally {
+      await config.update("autoApprovePermissions", false, vscode.ConfigurationTarget.Workspace);
+    }
+  });
+
   it("opens an applied change in the native diff editor with the reconstructed original", async () => {
     const patch = "Index: src/a.txt\n===================================================================\n--- src/a.txt\n+++ src/a.txt\n@@ -1,1 +1,1 @@\n-a\n+b\n";
     await controller.receive({ type: "openDiff", file: "src/a.txt", patch, applied: true });

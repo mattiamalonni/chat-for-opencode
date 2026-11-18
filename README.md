@@ -31,7 +31,7 @@ sends **no telemetry**.
 - **Skills**: type `/` to search skills discovered by OpenCode, including global skills; selecting one
   inserts a slash command that loads its instructions with the prompt.
 - **Native diffs**: open proposed changes (before you approve) and applied changes in VS Code's diff editor, plus a list of the files changed in the session.
-- **Permissions and questions inline** in the conversation, never auto-approved.
+- **Permissions and questions inline** in the conversation, never auto-approved by default.
 - **Todo list** when the agent uses OpenCode's (experimental) `todowrite` tool.
 - Clear **error states** with action buttons (OpenCode missing, no provider, connection lost, interrupted response…).
 - Keyboard friendly and screen-reader labelled; works with IMEs; English and Italian UI.
@@ -120,12 +120,17 @@ loads the skill content.
 | `opencode.startupTimeout` | `30000` | ms to wait for the server to become healthy. |
 | `opencode.autoRestart` | `true` | Restart the managed server if it crashes (max 5 times in 2 minutes). |
 | `opencode.sessionPermissions` | ask before edits, shell and external files | Rules added to new sessions. Set `[]` to restore OpenCode's permissive defaults. |
+| `opencode.autoApprovePermissions` | `false` | Auto-approve every inline permission request (granted once, saved rules untouched). Off by default. |
 
 By default new sessions ask before editing files, running shell commands or accessing files outside
 the workspace: OpenCode's base policy (`{"action":"*","effect":"allow"}`) would otherwise approve
 them silently. Choose **Always allow** on a permission card to save an approval for the project.
 Set `opencode.sessionPermissions` to `[]`, or use OpenCode's `permissions` config
 ([docs](https://opencode.ai/docs/permissions/)), to change the defaults.
+
+Enable `opencode.autoApprovePermissions` to bypass the inline cards entirely: every permission
+request is granted once on arrival, so the default `ask` rules still apply but you are not prompted.
+It is off by default; only enable it when you trust unattended edits and shell commands.
 
 > **Note:** session rules take precedence over the `permissions` in your `opencode.json`. With the
 > default setting, an allowlist there such as `{"action":"shell","resource":"git status *","effect":"allow"}`

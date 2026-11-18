@@ -265,6 +265,11 @@
             }
           },
           "markdownDescription": "%config.sessionPermissions%"
+        },
+        "opencode.autoApprovePermissions": {
+          "type": "boolean",
+          "default": false,
+          "markdownDescription": "%config.autoApprovePermissions%"
         }
       }
     }

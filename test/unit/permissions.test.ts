@@ -15,4 +15,9 @@ describe("default session permissions", () => {
     const setting = manifest.contributes.configuration.properties["opencode.sessionPermissions"];
     expect(setting.default).toEqual(DEFAULT_SESSION_PERMISSIONS);
   });
+
+  it("ships auto-approval off by default", () => {
+    const setting = manifest.contributes.configuration.properties["opencode.autoApprovePermissions"];
+    expect(setting).toMatchObject({ type: "boolean", default: false });
+  });
 });

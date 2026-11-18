@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+- New `opencode.autoApprovePermissions` setting (off by default): when enabled, every inline
+  permission request (edits, shell commands, access outside the workspace) is granted once on
+  arrival instead of showing a card. Saved rules are untouched.
+
 ## 0.3.2 — 2026-11-17
 
 - The composer suggests available OpenCode skills when typing `/`. Selecting a skill adds its

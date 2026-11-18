@@ -2,7 +2,16 @@ import * as vscode from "vscode";
 import { ApiError, OpenCodeClient, type PermissionRule } from "../client/http";
 import { EventStream } from "../client/sse";
 import { ExternalServer, ManagedServer, ServerError, type ServerHandle, type ServerState } from "../server/server";
-import type { AgentInfo, FileAttachment, ModelInfo, ModelRef, ServerEvent, SessionInfo, SkillInfo } from "../shared/api";
+import type {
+  AgentInfo,
+  FileAttachment,
+  ModelInfo,
+  ModelRef,
+  PermissionRequest,
+  ServerEvent,
+  SessionInfo,
+  SkillInfo,
+} from "../shared/api";
 import { eventSessionId } from "../shared/chatReducer";
 import { checkCompatibility } from "../shared/compatibility";
 import type {
@@ -118,6 +127,8 @@ export class ChatController implements vscode.Disposable {
   private fileIndex: FileIndex | undefined;
   private readonly context: ContextTracker;
   private readonly disposables: vscode.Disposable[] = [];
+  /** Request ids already granted by auto-approval, so duplicate events don't resurface a card. */
+  private readonly autoApproved = new Set<string>();
   private sessionsTimer: NodeJS.Timeout | undefined;
   private changesTimer: NodeJS.Timeout | undefined;
   private reconcileTimer: NodeJS.Timeout | undefined;
@@ -138,6 +149,11 @@ export class ChatController implements vscode.Disposable {
         this.postInit();
         if (this.folder && !vscode.workspace.workspaceFolders?.some((f) => f.uri.toString() === this.folder?.uri.toString())) {
           void this.switchFolder(this.pickFolder());
+        }
+      }),
+      vscode.workspace.onDidChangeConfiguration((e) => {
+        if (e.affectsConfiguration("opencode.autoApprovePermissions") && this.autoApproveEnabled()) {
+          void this.approvePending();
         }
       }),
     );
@@ -384,6 +400,15 @@ export class ChatController implements vscode.Disposable {
 
   private onEvent(event: ServerEvent): void {
     const sid = eventSessionId(event);
+    if (event.type === "permission.replied") {
+      const requestId = (event.data as { requestID?: string }).requestID;
+      if (requestId) this.autoApproved.delete(requestId);
+    }
+    // Bypass the inline card: grant each request on arrival instead of asking the user.
+    if (event.type === "permission.asked" && sid && sid === this.sessionId && this.autoApproveEnabled()) {
+      void this.autoApprove(event, sid);
+      return;
+    }
     if (sid && sid === this.sessionId) this.post({ type: "event", event });
     // Any new turn invalidates a pending history reconcile from the previous one.
     if (sid === this.sessionId && (event.type === "session.inbox.enqueued" || event.type === "session.execution.started")) {
@@ -427,6 +452,49 @@ export class ChatController implements vscode.Disposable {
         if (choice === open) void vscode.commands.executeCommand("opencode.chatView.focus");
       });
     }
+  }
+
+  /** True when `opencode.autoApprovePermissions` is enabled for the active workspace folder. */
+  private autoApproveEnabled(): boolean {
+    return vscode.workspace
+      .getConfiguration("opencode", this.folder?.uri)
+      .get<boolean>("autoApprovePermissions", false);
+  }
+
+  /**
+   * Replies `once` so the request is granted without persisting a rule. When the reply fails the
+   * card is shown as usual, so nothing is blocked silently.
+   */
+  private async approveOnce(client: OpenCodeClient, sessionId: string, requestId: string): Promise<boolean> {
+    if (this.autoApproved.has(requestId)) return true;
+    this.autoApproved.add(requestId);
+    try {
+      await client.replyPermission(sessionId, requestId, "once");
+      return true;
+    } catch (err) {
+      this.autoApproved.delete(requestId);
+      this.output.warn(`[chat] auto-approve failed for ${requestId}: ${String(err)}`);
+      return false;
+    }
+  }
+
+  private async autoApprove(event: ServerEvent, sessionId: string): Promise<void> {
+    const request = event.data as PermissionRequest;
+    const client = this.client;
+    if (!client || !(await this.approveOnce(client, sessionId, request.id))) {
+      if (sessionId === this.sessionId) this.post({ type: "event", event });
+      return;
+    }
+    this.output.info(`[chat] auto-approved ${request.action} (${sessionId})`);
+  }
+
+  /** Grants requests that were already pending when the setting was turned on. */
+  private async approvePending(): Promise<void> {
+    const client = this.client;
+    const sid = this.sessionId;
+    if (!client || !sid) return;
+    const pending = await client.permissions(sid).catch(() => [] as PermissionRequest[]);
+    for (const request of pending) await this.approveOnce(client, sid, request.id);
   }
 
   private scheduleSessions(): void {
@@ -500,6 +568,15 @@ export class ChatController implements vscode.Disposable {
     // A newer prompt may have started while history was loading; its events are fresher.
     if (stale?.()) return;
     this.sessionId = info.id;
+    // Requests created before the setting was enabled must not linger as cards.
+    let pending = permissions;
+    if (pending.length > 0 && this.autoApproveEnabled() && this.client) {
+      const unresolved: PermissionRequest[] = [];
+      for (const request of pending) {
+        if (!(await this.approveOnce(this.client, info.id, request.id))) unresolved.push(request);
+      }
+      pending = unresolved;
+    }
     await this.ctx.workspaceState.update(SESSION_KEY(this.folder.uri.toString()), info.id);
     if (info.model && this.models.some((m) => m.id === info.model?.id && m.providerID === info.model?.providerID)) {
       this.selectedModel = info.model;
@@ -515,7 +592,7 @@ export class ChatController implements vscode.Disposable {
         model: info.model,
         busy: (info.time.busy ?? 0) > (info.time.idle ?? 0),
         messages,
-        permissions,
+        permissions: pending,
         forms,
       },
     });

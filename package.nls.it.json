@@ -19,5 +19,6 @@
   "config.startupTimeout": "Millisecondi di attesa perché `opencode serve` risponda.",
   "config.autoRestart": "Riavvia automaticamente il server gestito se termina in modo inatteso (max 5 volte in 2 minuti).",
   "config.sessionPermissions": "Regole di autorizzazione (`action`, `resource`, `effect`) aggiunte alle nuove sessioni. Per impostazione predefinita l'estensione chiede conferma prima di modifiche, comandi shell e accessi fuori dal workspace; imposta `[]` per ripristinare i permessi permissivi di OpenCode. Vedi https://opencode.ai/docs/permissions/.",
+  "config.autoApprovePermissions": "Approva automaticamente ogni richiesta di autorizzazione (modifiche, comandi shell, accessi fuori dal workspace) senza mostrare la scheda inline. Le richieste sono concesse una sola volta, quindi le regole salvate non cambiano. Disattivato per impostazione predefinita: abilitalo solo se ti fidi dell'agente per modifiche non presidiate.",
   "command.moveView": "Sposta vista chat… (barra laterale sinistra/destra, pannello)"
 }
