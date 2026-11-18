@@ -60,6 +60,9 @@ export const STRINGS = {
   currentFile: "Current file",
   selection: "Selection",
   attachFile: "Attach file",
+  pickFiles: "Attach files from disk",
+  dropFilesOverlay: "Drop files to attach them to the message",
+  dropFilesHint: "Hold Shift while dragging files into the chat, or click the folder to pick them from disk.",
   suggestions: "Files and skills",
   noFilesOrSkillsFound: "No matching suggestions",
   permissionTitle: "Permission required",
@@ -124,6 +127,7 @@ export const STRINGS = {
   "error.noWorkspace": "Open a folder to chat with OpenCode.",
   "error.requestFailed": "Request to OpenCode failed.",
   "error.compactFailed": "Could not compact the conversation.",
+  "error.attachmentTooLarge": "An attached file is larger than 20 MiB and was not included.",
 } as const;
 
 export type StringKey = keyof typeof STRINGS;

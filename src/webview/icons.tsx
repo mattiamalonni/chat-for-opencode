@@ -37,6 +37,7 @@ export const IconPlus = svg("M7.25 2h1.5v5.25H14v1.5H8.75V14h-1.5V8.75H2v-1.5h5.
 export const IconClose = svg("m8 7 4-4 1 1-4 4 4 4-1 1-4-4-4 4-1-1 4-4-4-4 1-1z");
 export const IconChevron = svg("M5.7 3.3 10.4 8l-4.7 4.7-1-1L8.4 8 4.7 4.3z");
 export const IconFile = svg("M3 1h6.4L13 4.6V15H3zm1 1v12h8V5H9V2zm6 .4V4h1.6z");
+export const IconFolder = svg("M1.5 2.5h4.2l1.6 1.8h7.2V14H1.5zm1 1.3v8.9h10.5V5.6H6.5z");
 export const IconFileCode = fileSvg("M6.3 8 4.8 9.5 6.3 11M9.7 8l1.5 1.5-1.5 1.5M8.6 7.4 7.4 12.6");
 export const IconFileMarkdown = fileSvg("M4.9 12V8.6l1.3 1.8 1.3-1.8V12M9.5 12V8.6M9.5 10.2l2-1.6M9.5 10.2l2 1.8");
 export const IconFileJson = fileSvg("M6.5 8.2c-.8 0-1.2.4-1.2 1.1v.7c0 .6-.2.9-.6 1.1.4.2.6.5.6 1.1v.7c0 .7.4 1.1 1.2 1.1M9.5 8.2c.8 0 1.2.4 1.2 1.1v.7c0 .6.2.9.6 1.1-.4.2-.6.5-.6 1.1v.7c0 .7-.4 1.1-1.2 1.1");

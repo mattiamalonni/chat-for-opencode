@@ -8,7 +8,7 @@ import { ContextMeter } from "./contextMeter";
 import { FileTypeIcon } from "./fileIcons";
 import { Picker } from "./picker";
 import { useT } from "./i18n";
-import { IconAt, IconClose, IconCompact, IconPlus, IconSelection, IconSend, IconShield, IconStop, IconTool } from "./icons";
+import { IconAt, IconClose, IconCompact, IconFolder, IconPlus, IconSelection, IconSend, IconShield, IconStop, IconTool } from "./icons";
 import { getPersisted, post, setPersisted } from "./vscode";
 
 export interface ComposerProps {
@@ -379,6 +379,16 @@ export function Composer(props: ComposerProps) {
         >
           <IconAt />
         </button>
+        <button
+          type="button"
+          class="icon-button tooltip-host tooltip-above tooltip-left"
+          data-tooltip={t("pickFiles")}
+          aria-label={t("pickFiles")}
+          disabled={props.disabled}
+          onClick={() => post({ type: "pickFiles" })}
+        >
+          <IconFolder />
+        </button>
         {props.agents.length > 0 && (
           <Picker
             label={t("agent")}
@@ -463,6 +473,7 @@ export function Composer(props: ComposerProps) {
         )}
       </div>
       </div>
+      <div class="drop-hint">{t("dropFilesHint")}</div>
     </div>
   );
 }

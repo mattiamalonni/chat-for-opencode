@@ -77,6 +77,19 @@ export interface Attachment {
   detail?: string;
 }
 
+/** A file dragged into the chat from the OS or from another VS Code view. */
+export interface DroppedFile {
+  name: string;
+  /** `file://` URI supplied by the drag source, when available. */
+  uri?: string;
+  /** Absolute local path supplied by Electron's `File.path`, when available. */
+  path?: string;
+  /** Base64 content, used only when the drag source exposes no path. */
+  base64?: string;
+  /** MIME type of the content, from the dropped `File.type`. */
+  mime?: string;
+}
+
 export interface FolderInfo {
   uri: string;
   name: string;
@@ -152,6 +165,8 @@ export type WebviewMessage =
   | { type: "formReply"; sessionId: string; formId: string; answer: Record<string, FormValue> }
   | { type: "formCancel"; sessionId: string; formId: string }
   | { type: "searchFiles"; query: string }
+  | { type: "dropFiles"; files: DroppedFile[] }
+  | { type: "pickFiles" }
   | { type: "openDiff"; file: string; patch: string; applied: boolean }
   | { type: "openFile"; path: string }
   | { type: "openLink"; href: string }

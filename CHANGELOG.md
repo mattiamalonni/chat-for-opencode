@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- Files can now be **dragged into the chat from outside** (desktop, file manager or another VS Code
+  view) and are attached as chips. VS Code only delivers these drops while **Shift** is held, so the
+  composer shows a hint; the new folder button opens a **native file picker** as an alternative.
+  Files outside the workspace are attached as `data:` URLs, so the model receives their content
+  directly instead of a path it has to look for on disk.
 - **Clickable file references**: paths in the conversation (`src/app.ts:42`, `foo.ts#L7`), tool
   inputs, permission resources and changed-file rows now open the file in the editor at the exact
   line, instead of being copied by hand.

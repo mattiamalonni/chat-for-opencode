@@ -19,6 +19,7 @@ import { contractSignature, emptyContract, type ContractReport } from "../shared
 import type { Attachment, ConnectionStatus, ContextItem, FolderInfo, HostMessage, SessionSummary, UiError } from "../shared/protocol";
 import { STRINGS, type Strings } from "../shared/strings";
 import { Composer } from "./composer";
+import { collectDroppedFiles, hasFiles, readFileAsBase64, type DragData } from "./dropFiles";
 import { env, isolateKeys } from "./env";
 import { StringsContext, useT } from "./i18n";
 import { IconCheck, IconChevron, IconClose, IconDiff, IconEdit, IconError, IconHistory, IconPlus, IconRefresh, IconTrash, IconWarning } from "./icons";
@@ -62,6 +63,8 @@ export function App() {
   const [scrollToken, setScrollToken] = useState(0);
   const [showSessions, setShowSessions] = useState(false);
   const [announcement, setAnnouncement] = useState("");
+  const [dropping, setDropping] = useState(false);
+  const dragDepth = useRef(0);
   const queue = useRef<ServerEvent[]>([]);
   const frame = useRef<number | undefined>(undefined);
   // Conversation-scoped state must be dropped when the loaded session changes (new session,
@@ -205,6 +208,53 @@ export function App() {
     setScrollToken((n) => n + 1);
   };
 
+  // VS Code delivers file drops to a webview only while Shift is held (otherwise it opens the file
+  // in an editor). Listen on window, not just the app element, so events targeting any child are
+  // still seen. Dropped files become attachments, exactly like @-mentions.
+  useEffect(() => {
+    const onDragEnter = (e: DragEvent) => {
+      if (!hasFiles(e.dataTransfer as DragData | null)) return;
+      e.preventDefault();
+      dragDepth.current++;
+      setDropping(true);
+    };
+    const onDragOver = (e: DragEvent) => {
+      if (!hasFiles(e.dataTransfer as DragData | null)) return;
+      e.preventDefault();
+      if (e.dataTransfer) e.dataTransfer.dropEffect = "copy";
+    };
+    const onDragLeave = () => {
+      if (dragDepth.current === 0) return;
+      dragDepth.current--;
+      if (dragDepth.current === 0) setDropping(false);
+    };
+    const onDrop = async (e: DragEvent) => {
+      if (!hasFiles(e.dataTransfer as DragData | null)) return;
+      e.preventDefault();
+      e.stopPropagation();
+      dragDepth.current = 0;
+      setDropping(false);
+      const files = await collectDroppedFiles(e.dataTransfer as DragData, readFileAsBase64);
+      if (files.length > 0) post({ type: "dropFiles", files });
+    };
+    const onDragEnd = () => {
+      dragDepth.current = 0;
+      setDropping(false);
+    };
+    window.addEventListener("dragenter", onDragEnter);
+    window.addEventListener("dragover", onDragOver);
+    window.addEventListener("dragleave", onDragLeave);
+    window.addEventListener("drop", onDrop);
+    window.addEventListener("dragend", onDragEnd);
+    return () => {
+      window.removeEventListener("dragenter", onDragEnter);
+      window.removeEventListener("dragover", onDragOver);
+      window.removeEventListener("dragleave", onDragLeave);
+      window.removeEventListener("drop", onDrop);
+      window.removeEventListener("dragend", onDragEnd);
+    };
+  }, []);
+
   const connected = status.status === "connected" || status.status === "reconnecting";
   const title = chat.title || sessions.find((s) => s.id === chat.sessionId)?.title || strings.untitled;
 
@@ -280,6 +330,11 @@ export function App() {
           focusToken={focusToken}
           canCompact={!!chat.sessionId && !chat.busy && connected}
         />
+        {dropping && (
+          <div class="drop-overlay" aria-hidden="true">
+            <div class="drop-overlay-inner">{strings.dropFilesOverlay}</div>
+          </div>
+        )}
         </div>
       </WebviewErrorBoundary>
     </StringsContext.Provider>

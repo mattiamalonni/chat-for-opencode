@@ -113,6 +113,52 @@ test("adding the active file and removing a selection toggles the context chips"
   expect(send && "context" in send && send.context.map((c) => c.kind)).toEqual(["file"]);
 });
 
+test("dropping a file from outside shows an overlay and attaches it", async ({ page }) => {
+  await boot(page);
+
+  await page.evaluate(() => {
+    const dt = new DataTransfer();
+    dt.setData("text/uri-list", "file:///Users/me/notes.txt");
+    window.dispatchEvent(new DragEvent("dragenter", { bubbles: true, cancelable: true, dataTransfer: dt }));
+    window.dispatchEvent(new DragEvent("dragover", { bubbles: true, cancelable: true, dataTransfer: dt }));
+  });
+  await expect(page.locator(".drop-overlay")).toContainText(STRINGS.dropFilesOverlay);
+
+  await page.evaluate(() => {
+    const dt = new DataTransfer();
+    dt.setData("text/uri-list", "file:///Users/me/notes.txt");
+    window.dispatchEvent(new DragEvent("drop", { bubbles: true, cancelable: true, dataTransfer: dt }));
+  });
+  await expect(page.locator(".drop-overlay")).toHaveCount(0);
+  expect(await lastPosted(page, "dropFiles")).toMatchObject({
+    files: [{ name: "notes.txt", uri: "file:///Users/me/notes.txt" }],
+  });
+  await expect(page.locator(".chip").filter({ hasText: "notes.txt" })).toHaveCount(1);
+
+  const input = page.getByRole("textbox", { name: STRINGS.inputLabel });
+  await input.fill("Summarize this");
+  await input.press("Enter");
+  const send = await lastPosted(page, "send");
+  expect(send && "attachments" in send && send.attachments.map((a) => a.name)).toContain("notes.txt");
+});
+
+test("a dropped file without a path is sent to the host as content", async ({ page }) => {
+  await boot(page);
+  await page.evaluate(() => {
+    const dt = new DataTransfer();
+    dt.items.add(new File(["hello"], "clip.txt", { type: "text/plain" }));
+    window.dispatchEvent(new DragEvent("drop", { bubbles: true, cancelable: true, dataTransfer: dt }));
+  });
+  expect(await lastPosted(page, "dropFiles")).toMatchObject({ files: [{ name: "clip.txt", base64: "aGVsbG8=" }] });
+  await expect(page.locator(".chip").filter({ hasText: "clip.txt" })).toHaveCount(1);
+});
+
+test("the folder button asks the host to open the native file picker", async ({ page }) => {
+  await boot(page);
+  await page.getByRole("button", { name: STRINGS.pickFiles }).click();
+  expect(await lastPosted(page, "pickFiles")).toMatchObject({ type: "pickFiles" });
+});
+
 test("Shift+Enter inserts a newline instead of sending", async ({ page }) => {
   await boot(page);
   const input = page.getByRole("textbox", { name: STRINGS.inputLabel });

@@ -1,3 +1,5 @@
+import * as fs from "node:fs/promises";
+import * as path from "node:path";
 import * as vscode from "vscode";
 import { ApiError, OpenCodeClient, type PermissionRule } from "../client/http";
 import { EventStream } from "../client/sse";
@@ -21,6 +23,7 @@ import type {
   Attachment,
   ConnectionStatus,
   ContextItem,
+  DroppedFile,
   HostMessage,
   SessionSummary,
   UiError,
@@ -39,6 +42,29 @@ const AGENT_KEY = "opencode.lastAgent";
 const COMPAT_DISMISSED_KEY = "opencode.compatibilityDismissedFor";
 const CONTRACT_DISMISSED_KEY = "opencode.contractDismissedFor";
 const AUTO_APPROVE_KEY = (folder: string) => `opencode.autoApprove:${folder}`;
+/** OpenCode rejects decoded attachments above this size. */
+const MAX_ATTACHMENT_BYTES = 20 * 1024 * 1024;
+
+const ATTACHMENT_MIME: Record<string, string> = {
+  ".txt": "text/plain",
+  ".md": "text/markdown",
+  ".json": "application/json",
+  ".jsonc": "application/json",
+  ".yaml": "text/plain",
+  ".yml": "text/plain",
+  ".csv": "text/csv",
+  ".svg": "image/svg+xml",
+  ".png": "image/png",
+  ".jpg": "image/jpeg",
+  ".jpeg": "image/jpeg",
+  ".gif": "image/gif",
+  ".webp": "image/webp",
+  ".pdf": "application/pdf",
+};
+
+function mimeFromName(name: string): string {
+  return ATTACHMENT_MIME[path.extname(name).toLowerCase()] ?? "application/octet-stream";
+}
 
 export function translatedStrings(): Strings {
   const out = {} as Strings;
@@ -857,6 +883,79 @@ export class ChatController implements vscode.Disposable {
     this.post({ type: "addAttachment", item });
   }
 
+  /**
+   * Inline attachment: OpenCode puts a `data:` URL's decoded content straight into the prompt. A
+   * `file:` URL outside the project only gives the agent a path, so it wastes turns looking for it.
+   */
+  private attachInline(name: string, base64: string, mime: string | undefined, detail?: string): void {
+    if (Buffer.byteLength(base64, "base64") > MAX_ATTACHMENT_BYTES) {
+      this.noticeTooLarge(name);
+      return;
+    }
+    this.addAttachment({ uri: `data:${mime || mimeFromName(name)};base64,${base64}`, name, kind: "file", detail });
+  }
+
+  private noticeTooLarge(name: string): void {
+    const s = translatedStrings();
+    this.post({ type: "notice", error: { kind: "requestFailed", message: s["error.attachmentTooLarge"], detail: name, actions: [] } });
+  }
+
+  private async attachUri(uri: vscode.Uri, name?: string): Promise<void> {
+    if (uri.scheme !== "file") return;
+    const label = name || path.basename(uri.fsPath);
+    const detail = vscode.workspace.asRelativePath(uri, false);
+    if (vscode.workspace.getWorkspaceFolder(uri)) {
+      // The server can read project files itself, preserving line ranges on @-mentions.
+      this.addAttachment({ uri: uri.toString(), name: label, kind: "file", detail });
+      return;
+    }
+    // Outside the workspace: send the content inline so the model actually receives it.
+    const stat = await fs.stat(uri.fsPath);
+    if (stat.size > MAX_ATTACHMENT_BYTES) return this.noticeTooLarge(label);
+    const bytes = await fs.readFile(uri.fsPath);
+    this.attachInline(label, bytes.toString("base64"), mimeFromName(label), detail);
+  }
+
+  /** Files dropped into the webview, which cannot expose a path for OS drags. */
+  private async dropFiles(files: DroppedFile[]): Promise<void> {
+    for (const file of files) {
+      try {
+        if (file.base64) {
+          this.attachInline(file.name, file.base64, file.mime, file.name);
+          continue;
+        }
+        const uri = file.uri
+          ? (() => {
+              const parsed = vscode.Uri.parse(file.uri);
+              return parsed.scheme === "file" ? parsed : undefined;
+            })()
+          : file.path
+            ? vscode.Uri.file(file.path)
+            : undefined;
+        if (uri) await this.attachUri(uri, file.name);
+      } catch (err) {
+        this.output.warn(`[chat] failed to attach dropped file ${file.name}: ${String(err)}`);
+      }
+    }
+  }
+
+  /** Native file picker: a reliable alternative to drag & drop, which VS Code gates behind Shift. */
+  async pickFiles(): Promise<void> {
+    const uris = await vscode.window.showOpenDialog({
+      canSelectMany: true,
+      title: vscode.l10n.t("Attach files to the chat"),
+      openLabel: vscode.l10n.t("Attach"),
+    });
+    if (!uris) return;
+    for (const uri of uris) {
+      try {
+        await this.attachUri(uri);
+      } catch (err) {
+        this.output.warn(`[chat] failed to attach picked file ${uri.fsPath}: ${String(err)}`);
+      }
+    }
+  }
+
   addSelection(editor: vscode.TextEditor | undefined): boolean {
     if (!editor) return false;
     const att = selectionAttachment(editor);
@@ -1016,6 +1115,10 @@ export class ChatController implements vscode.Disposable {
         this.post({ type: "fileResults", query: msg.query, items });
         return;
       }
+      case "dropFiles":
+        return this.dropFiles(msg.files);
+      case "pickFiles":
+        return this.pickFiles();
       case "openDiff":
         if (this.folder) await this.diffs.open(this.folder.uri, msg.file, msg.patch, msg.applied);
         return;

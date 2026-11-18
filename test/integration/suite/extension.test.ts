@@ -1,4 +1,5 @@
 import * as assert from "node:assert/strict";
+import { writeFileSync } from "node:fs";
 import * as path from "node:path";
 import * as vscode from "vscode";
 import type { ChatController } from "../../../src/chat/controller";
@@ -190,6 +191,28 @@ describe("chat-for-opencode extension", () => {
     await controller.receive({ type: "searchFiles", query: "app" });
     const res = await waitFor(() => lastPosted("fileResults", mark), "fileResults");
     assert.equal(res.items[0]?.detail, "src/app.ts");
+  });
+
+  it("sends dropped files outside the workspace inline, so the model gets their content", async () => {
+    const mark = posted.length;
+    const external = path.join(path.dirname(workspace), "oc-it-external.txt");
+    writeFileSync(external, "outside the workspace");
+    await controller.receive({
+      type: "dropFiles",
+      files: [
+        { name: "app.ts", uri: vscode.Uri.file(path.join(workspace, "src", "app.ts")).toString() },
+        { name: "external.txt", path: external },
+        { name: "clip.txt", base64: Buffer.from("hello from drop").toString("base64"), mime: "text/plain" },
+      ],
+    });
+    const adds = posted.slice(mark).filter((m) => m.type === "addAttachment");
+    assert.equal(adds.length, 3);
+    // Inside the project the server reads the file itself; outside it the content is inline.
+    assert.match(adds[0].item.uri, /^file:\/\//);
+    assert.ok(adds[1].item.uri.startsWith("data:text/plain;base64,"));
+    assert.equal(Buffer.from(adds[1].item.uri.split(",")[1], "base64").toString(), "outside the workspace");
+    assert.ok(adds[2].item.uri.startsWith("data:text/plain;base64,"));
+    assert.equal(Buffer.from(adds[2].item.uri.split(",")[1], "base64").toString(), "hello from drop");
   });
 
   it("starts a new session and switches back to the previous one", async () => {

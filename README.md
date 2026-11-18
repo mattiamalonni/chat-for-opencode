@@ -29,6 +29,7 @@ sends **no telemetry**.
 - A **contract smoke test** on connect names the features that a non-2.2.7 server cannot support, instead of only warning about the version number.
 - **Editor context**: the active file and selection are attached automatically as chips you can remove before sending.
 - **`@` mentions** with fuzzy workspace file search, **Add Selection to Chat** / **Add File to Chat** in the editor and explorer context menus.
+- **Attach external files** by dragging them into the chat (**hold Shift**: VS Code otherwise opens the file in an editor) or with the folder button, which opens a native file picker. Files outside the workspace are sent **inline** so the model receives their content instead of only a path to look for.
 - **Clickable file references**: `src/app.ts:42` in a reply, a tool's input path, a permission resource or a changed-file row opens the file at that line in the editor.
 - **Skills**: type `/` to search skills discovered by OpenCode, including global skills; selecting one
   inserts a slash command that loads its instructions with the prompt.

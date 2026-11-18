@@ -14,7 +14,18 @@
   window.addEventListener("keydown", (e) => window.__windowKeys.push((e.ctrlKey ? "Ctrl+" : "") + (e.metaKey ? "Meta+" : "") + (e.altKey ? "Alt+" : "") + e.key));
   let state;
   window.acquireVsCodeApi = () => ({
-    postMessage: (m) => window.__posted.push(JSON.parse(JSON.stringify(m))),
+    postMessage: (m) => {
+      window.__posted.push(JSON.parse(JSON.stringify(m)));
+      // The real host turns dropped files into attachments; mimic that reply here.
+      if (m && m.type === "dropFiles") {
+        setTimeout(() => {
+          for (const f of m.files) {
+            const uri = f.uri || (f.path ? "file://" + f.path.replace(/\\/g, "/") : "data:" + (f.mime || "text/plain") + ";base64," + f.base64);
+            window.postMessage({ type: "addAttachment", item: { uri, name: f.name, kind: "file", detail: f.name } }, "*");
+          }
+        }, 0);
+      }
+    },
     getState: () => state,
     setState: (s) => { state = s; },
   });
