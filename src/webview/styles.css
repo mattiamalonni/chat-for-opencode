@@ -153,9 +153,13 @@ details[open] > summary > .chevron,
   background: var(--vscode-editorWidget-background, var(--vscode-notifications-background, var(--vscode-panel-background)));
   color: var(--vscode-editorWidget-foreground, var(--vscode-foreground));
   box-shadow: 0 2px 6px var(--vscode-widget-shadow, rgba(0, 0, 0, 0.35));
-  font-size: 0.95em;
+  /* Same size everywhere, regardless of the host control's own font. */
+  font-family: var(--vscode-font-family, inherit);
+  font-size: var(--vscode-font-size, 12px);
   line-height: 1.25;
-  /* Wrap long labels instead of growing past the view (see data-tip-dir below). */
+  /* Measure at natural width so the side-picker logic below sees the real size even while hidden,
+     then cap it so long labels wrap instead of growing past the view. */
+  width: max-content;
   max-width: min(260px, calc(100vw - 16px));
   white-space: normal;
   pointer-events: none;
@@ -1151,7 +1155,7 @@ button:disabled {
 
 .drop-hint {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   gap: 2px;
   padding: 3px 2px 0;
   font-size: 11px;
@@ -1161,7 +1165,19 @@ button:disabled {
 
 .drop-hint .icon-button {
   flex: none;
-  margin-top: -4px;
+}
+
+/* Compact and context meter share the file-picker row instead of crowding the toolbar. */
+.drop-hint-tools {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex: none;
+  margin-left: auto;
+}
+
+.drop-hint-tools .icon-button.compact {
+  height: 24px;
 }
 
 .composer {
@@ -1370,11 +1386,6 @@ button:disabled {
   min-width: 0;
 }
 
-.toolbar .icon-button.compact {
-  flex: none;
-  height: 24px;
-}
-
 .toolbar .icon-button:disabled {
   opacity: 0.4;
   cursor: default;
@@ -1393,7 +1404,6 @@ button:disabled {
   align-items: center;
   gap: 3px;
   flex: none;
-  margin-left: auto;
   height: 24px;
   padding: 0 6px;
   border: 1px solid transparent;
@@ -1420,9 +1430,11 @@ button:disabled {
   background: var(--vscode-toolbar-hoverBackground);
 }
 
-/* Keep the model picker readable when the view is very narrow. */
-@media (max-width: 340px) {
-  .auto-approve span {
+/* A resized side bar is tight well before 380px: drop the toggle's label to an icon to make room
+   for the model picker and the other controls. The tooltip and aria-label keep it discoverable. */
+@media (max-width: 400px) {
+  .auto-approve span,
+  .drop-hint > span {
     display: none;
   }
 }
@@ -1432,6 +1444,7 @@ button:disabled {
   align-items: center;
   justify-content: center;
   flex: none;
+  margin-left: auto; /* the toolbar no longer has the auto-approve spacer */
   border: none;
   border-radius: 4px;
   width: 26px;

@@ -466,39 +466,6 @@ export function Composer(props: ComposerProps) {
             }
           />
         )}
-        <button
-          type="button"
-          class={`auto-approve tooltip-host tooltip-above ${props.autoApprove ? "on" : ""}`}
-          data-tooltip={props.autoApprove ? t("autoApproveOn") : t("autoApproveOff")}
-          aria-label={t("autoApprove")}
-          aria-pressed={props.autoApprove}
-          onClick={() => props.onToggleAutoApprove(!props.autoApprove)}
-        >
-          <IconShield />
-          <span>{t("autoApprove")}</span>
-        </button>
-        <button
-          type="button"
-          class="icon-button compact tooltip-host tooltip-above"
-          data-tooltip={t("compactConversation")}
-          aria-label={t("compactConversation")}
-          disabled={props.disabled || props.busy || !props.canCompact}
-          onClick={() => post({ type: "compact" })}
-        >
-          <IconCompact />
-        </button>
-        {currentModel?.limit?.context ? (
-          <ContextMeter used={props.contextTokens} limit={currentModel.limit.context} cost={props.cost} />
-        ) : props.cost !== undefined ? (
-          <span
-            class="context-meter cost-only tooltip-host tooltip-above"
-            role="img"
-            aria-label={t("sessionCost", `$${props.cost.toFixed(2)}`)}
-            data-tooltip={t("sessionCost", `$${props.cost.toFixed(2)}`)}
-          >
-            ${props.cost.toFixed(2)}
-          </span>
-        ) : null}
         {props.busy ? (
           <button type="button" class="send stop tooltip-host tooltip-above" data-tooltip={`${t("stop")} (Esc)`} aria-label={t("stop")} onClick={() => post({ type: "abort" })}>
             <IconStop />
@@ -522,6 +489,41 @@ export function Composer(props: ComposerProps) {
           <IconFolder />
         </button>
         <span>{t("dropFilesHint")}</span>
+        <div class="drop-hint-tools">
+          <button
+            type="button"
+            class={`auto-approve tooltip-host tooltip-above ${props.autoApprove ? "on" : ""}`}
+            data-tooltip={props.autoApprove ? t("autoApproveOn") : t("autoApproveOff")}
+            aria-label={t("autoApprove")}
+            aria-pressed={props.autoApprove}
+            onClick={() => props.onToggleAutoApprove(!props.autoApprove)}
+          >
+            <IconShield />
+            <span>{t("autoApprove")}</span>
+          </button>
+          <button
+            type="button"
+            class="icon-button compact tooltip-host tooltip-above"
+            data-tooltip={t("compactConversation")}
+            aria-label={t("compactConversation")}
+            disabled={props.disabled || props.busy || !props.canCompact}
+            onClick={() => post({ type: "compact" })}
+          >
+            <IconCompact />
+          </button>
+          {currentModel?.limit?.context ? (
+            <ContextMeter used={props.contextTokens} limit={currentModel.limit.context} cost={props.cost} />
+          ) : props.cost !== undefined ? (
+            <span
+              class="context-meter cost-only tooltip-host tooltip-above"
+              role="img"
+              aria-label={t("sessionCost", `$${props.cost.toFixed(2)}`)}
+              data-tooltip={t("sessionCost", `$${props.cost.toFixed(2)}`)}
+            >
+              ${props.cost.toFixed(2)}
+            </span>
+          ) : null}
+        </div>
       </div>
     </div>
   );
