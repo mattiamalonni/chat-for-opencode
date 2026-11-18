@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.3.7 — 2026-11-18
 
 - Images and other files **pasted into the prompt** (for example a screenshot from the clipboard)
   are now attached as chips and sent with the message, just like dropped or picked files. Plain-text
@@ -8,6 +8,8 @@
 - Added a compact **Build / Plan** dropdown in the composer toolbar to switch between OpenCode's two
   built-in agents. It starts in **Build** mode by default and stays available even when the server
   does not expose the agent list; the full agent picker remains next to it for custom agents.
+- The composer's **@** toolbar button was removed (typing `@` still opens file/skill suggestions);
+  the folder button now sits in the file drop hint, next to the drag-and-paste prompt.
 
 ## 0.3.6 — 2026-11-18
 
