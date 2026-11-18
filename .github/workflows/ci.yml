@@ -60,12 +60,14 @@ jobs:
           node-version-file: .nvmrc
           cache: npm
       - run: npm ci
-      # @vscode/test-electron unpacks VS Code into .vscode-test and skips the
-      # download when the folder already contains the requested version.
+      # Cache only the downloaded binary (vscode-<platform>-<version>). Caching
+      # the whole .vscode-test folder would also restore user-data/extensions:
+      # stale global state makes the extension resume a session the fresh mock
+      # server doesn't know, and the prompt tests hang or fail.
       - uses: actions/cache@v4
         with:
-          path: .vscode-test
-          key: linux-vscode-${{ matrix.vscode }}-${{ hashFiles('package.json') }}
+          path: .vscode-test/vscode-*
+          key: linux-vscode-bin-v2-${{ matrix.vscode }}-${{ hashFiles('package.json') }}
       - run: xvfb-run -a npm run test:integration
         env:
           VSCODE_TEST_VERSION: ${{ matrix.vscode }}
@@ -90,8 +92,8 @@ jobs:
       - run: npm ci
       - uses: actions/cache@v4
         with:
-          path: .vscode-test
-          key: ${{ runner.os }}-vscode-stable-${{ hashFiles('package.json') }}
+          path: .vscode-test/vscode-*
+          key: ${{ runner.os }}-vscode-bin-v2-stable-${{ hashFiles('package.json') }}
       - run: npm run test:integration
         env:
           VSCODE_TEST_VERSION: stable
