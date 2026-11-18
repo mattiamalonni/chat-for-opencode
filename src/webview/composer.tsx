@@ -47,6 +47,29 @@ const SKILL_COMMAND_RE = /(^|\s)\/([^\s/]*)$/;
 type MentionItem = { kind: "file"; item: Attachment } | { kind: "skill"; item: SkillSuggestion };
 type Mention = { query: string; start: number; kind: "file" | "skill" };
 
+/**
+ * Compact dropdown for OpenCode's built-in `build` and `plan` agents. It is always shown: older
+ * servers may not expose `/api/agent`, but both agents still exist and can be selected on a session.
+ */
+function ModePicker(props: {
+  selectedAgent?: string;
+  onSelect: (agent: string) => void;
+}) {
+  const t = useT();
+  return (
+    <Picker
+      label={t("mode")}
+      class="mode"
+      items={[
+        { value: "build", label: t("build"), description: t("buildModeTooltip") },
+        { value: "plan", label: t("plan"), description: t("planModeTooltip") },
+      ]}
+      value={props.selectedAgent === "plan" ? "plan" : "build"}
+      onChange={props.onSelect}
+    />
+  );
+}
+
 export function Composer(props: ComposerProps) {
   const t = useT();
   const [text, setText] = useState(() => getPersisted().draft ?? "");
@@ -242,6 +265,8 @@ export function Composer(props: ComposerProps) {
   );
   const modelKey = props.selectedModel ? `${props.selectedModel.providerID}/${props.selectedModel.id}` : "";
   const currentModel = props.models.find((m) => `${m.providerID}/${m.id}` === modelKey);
+  // build/plan are already offered by the mode picker; show the agent dropdown only for extras.
+  const hasExtraAgents = props.agents.some((a) => a.id !== "build" && a.id !== "plan");
   const listId = "mention-list";
 
   return (
@@ -389,7 +414,11 @@ export function Composer(props: ComposerProps) {
         >
           <IconFolder />
         </button>
-        {props.agents.length > 0 && (
+        <ModePicker
+          selectedAgent={props.selectedAgent}
+          onSelect={(agent) => post({ type: "setAgent", agent })}
+        />
+        {hasExtraAgents && (
           <Picker
             label={t("agent")}
             class="agent"
@@ -428,7 +457,6 @@ export function Composer(props: ComposerProps) {
             }
           />
         )}
-        <span class="spacer" />
         <button
           type="button"
           class={`auto-approve tooltip-host tooltip-above ${props.autoApprove ? "on" : ""}`}

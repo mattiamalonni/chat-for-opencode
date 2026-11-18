@@ -27,6 +27,7 @@ const MODELS = [
 const AGENTS = [
   { id: "build", name: "Build", description: "The default agent.", mode: "primary", hidden: false },
   { id: "plan", name: "Plan", description: "Read-only planning agent.", mode: "primary", hidden: false },
+  { id: "reviewer", name: "Reviewer", description: "Reviews code.", mode: "primary", hidden: false },
 ];
 
 async function host(page: Page, msg: HostMessage): Promise<void> {
@@ -679,6 +680,38 @@ test("slash commands select skills and preserve other slash commands", async ({ 
   await input.fill("/unknown command");
   await input.press("Enter");
   expect(await lastPosted(page, "send")).toMatchObject({ type: "send", text: "/unknown command" });
+});
+
+test("build/plan mode picker defaults to build and switches agents", async ({ page }) => {
+  await boot(page);
+  const trigger = page.getByRole("button", { name: `${STRINGS.mode}: ${STRINGS.build}` });
+  await expect(trigger).toBeVisible();
+
+  await trigger.click();
+  const menu = page.getByRole("listbox", { name: STRINGS.mode });
+  await expect(menu.getByRole("option", { name: /Build/ })).toHaveAttribute("aria-selected", "true");
+  await menu.getByRole("option", { name: /Plan/ }).click();
+  expect(await lastPosted(page, "setAgent")).toEqual({ type: "setAgent", agent: "plan" });
+  await expect(menu).toHaveCount(0);
+  // The host echoes the new selection; until then the trigger still shows Build.
+  await expect(page.getByRole("button", { name: `${STRINGS.mode}: ${STRINGS.build}` })).toBeVisible();
+
+  await host(page, { type: "catalog", models: MODELS as never, agents: AGENTS as never, skills: [], selectedModel: { id: "hy4-flash-free", providerID: "opencode" }, selectedAgent: "plan" });
+  await expect(page.getByRole("button", { name: `${STRINGS.mode}: ${STRINGS.plan}` })).toBeVisible();
+
+  await page.getByRole("button", { name: `${STRINGS.mode}: ${STRINGS.plan}` }).click();
+  await page.getByRole("listbox", { name: STRINGS.mode }).getByRole("option", { name: /Build/ }).click();
+  expect(await lastPosted(page, "setAgent")).toEqual({ type: "setAgent", agent: "build" });
+  await host(page, { type: "catalog", models: MODELS as never, agents: AGENTS as never, skills: [], selectedModel: { id: "hy4-flash-free", providerID: "opencode" }, selectedAgent: "build" });
+  await expect(page.getByRole("button", { name: `${STRINGS.mode}: ${STRINGS.build}` })).toBeVisible();
+
+  // Servers without /api/agent have no agent picker, but the built-in mode picker must still work.
+  await host(page, { type: "catalog", models: MODELS as never, agents: [] as never, skills: [], selectedModel: { id: "hy4-flash-free", providerID: "opencode" }, selectedAgent: "build" });
+  await expect(page.getByRole("button", { name: `${STRINGS.mode}: ${STRINGS.build}` })).toBeVisible();
+  await expect(page.getByRole("button", { name: `${STRINGS.agent}: Build` })).toHaveCount(0);
+  await page.getByRole("button", { name: `${STRINGS.mode}: ${STRINGS.build}` }).click();
+  await page.getByRole("listbox", { name: STRINGS.mode }).getByRole("option", { name: /Plan/ }).click();
+  expect(await lastPosted(page, "setAgent")).toEqual({ type: "setAgent", agent: "plan" });
 });
 
 test("custom pickers: agent, variant and searchable model (mouse + keyboard)", async ({ page }) => {

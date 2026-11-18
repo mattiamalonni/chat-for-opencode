@@ -371,7 +371,10 @@ export class ChatController implements vscode.Disposable {
     const [models, defaultModel, agents, skills] = await Promise.all([
       client.models().catch(() => [] as ModelInfo[]),
       client.defaultModel().catch(() => null),
-      client.agents().catch(() => [] as AgentInfo[]),
+      client.agents().catch((err: unknown) => {
+        this.output.warn(`[chat] failed to load agents: ${String(err)}`);
+        return [] as AgentInfo[];
+      }),
       client.skills().catch((err: unknown) => {
         this.output.warn(`[chat] failed to load skills: ${String(err)}`);
         return [] as SkillInfo[];
@@ -386,9 +389,13 @@ export class ChatController implements vscode.Disposable {
     const fallback = defaultModel ?? this.models[0];
     this.selectedModel = exists(saved) ? saved : fallback ? { id: fallback.id, providerID: fallback.providerID } : undefined;
     const savedAgent = this.ctx.globalState.get<string>(AGENT_KEY);
-    this.selectedAgent = this.agents.some((a) => a.id === savedAgent)
-      ? savedAgent
-      : (this.agents.find((a) => a.id === "build") ?? this.agents[0])?.id;
+    // Even when the server exposes no agents, build/plan are built in: keep Build as the default.
+    const fallbackAgent = (this.agents.find((a) => a.id === "build") ?? this.agents[0])?.id ?? "build";
+    this.selectedAgent = this.agents.length === 0
+      ? savedAgent ?? "build"
+      : this.agents.some((a) => a.id === savedAgent)
+        ? savedAgent
+        : fallbackAgent;
 
     const sessionId = this.sessionId ?? this.ctx.workspaceState.get<string>(SESSION_KEY(this.folder.uri.toString()));
     let session: SessionInfo | undefined;

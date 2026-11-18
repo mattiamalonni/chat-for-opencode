@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+- Added a compact **Build / Plan** dropdown in the composer toolbar to switch between OpenCode's two
+  built-in agents. It starts in **Build** mode by default and stays available even when the server
+  does not expose the agent list; the full agent picker remains next to it for custom agents.
+
 ## 0.3.6 — 2026-11-18
 
 - The **Changed files** panel now has a check button next to Refresh to mark the current changes as
