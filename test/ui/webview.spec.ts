@@ -74,6 +74,8 @@ test("welcome screen, sending with context and removing context chips", async ({
   const csp = await boot(page);
   await expect(page.getByRole("heading", { name: STRINGS.welcomeTitle })).toBeVisible();
   await expect(page.locator(".chip")).toHaveCount(2);
+  // File-type icons: app.ts is code, the range is a selection.
+  await expect(page.locator(".chip .file-icon.code")).toHaveCount(1);
   await page.screenshot({ path: join(SHOTS, "01-welcome-dark.png") });
 
   await page.getByRole("button", { name: `${STRINGS.removeContext}: app.ts`, exact: true }).click();
@@ -121,6 +123,7 @@ test("streams a real recorded conversation with reasoning, markdown and tool car
   await thoughts.locator("summary").click();
   await expect(thoughts).toHaveAttribute("open", "");
 
+  // Tool calls keep the order the model produced them in, around their narration.
   const tools = page.locator(".tool");
   await expect(tools).toHaveCount(3);
   await expect(tools.nth(0).locator(".tool-name")).toHaveText("write");
@@ -129,6 +132,79 @@ test("streams a real recorded conversation with reasoning, markdown and tool car
   await expect(tools.nth(1).locator(".tool-body")).toContainText("PATH_DOES_NOT_EXIST");
   await expect(tools.nth(1).locator(".tool-header")).toHaveAttribute("aria-expanded", "true");
   await page.screenshot({ path: join(SHOTS, "02-conversation-dark.png"), fullPage: true });
+});
+
+test("keeps thoughts and tools in production order and groups adjacent calls", async ({ page }) => {
+  await boot(page);
+  const sid = "ses_order";
+  const m1 = { sessionID: sid, assistantMessageID: "m1" };
+  const m2 = { sessionID: sid, assistantMessageID: "m2" };
+  const tool = (base: typeof m1, id: string, name: string, input: Record<string, unknown>): ServerEvent[] => [
+    { type: "session.tool.input.started", data: { ...base, id, name } },
+    { type: "session.tool.input.ended", data: { ...base, id, text: JSON.stringify(input) } },
+    { type: "session.tool.called", data: { ...base, id, input } },
+    { type: "session.tool.success", data: { ...base, id, content: [{ type: "text", text: "ok" }] } },
+  ];
+  await openSession(page, sid, [
+    { type: "session.step.started", data: { ...m1, agent: "build" } },
+    { type: "session.reasoning.started", data: { ...m1, ordinal: 0 } },
+    { type: "session.reasoning.ended", data: { ...m1, ordinal: 0, text: "first thought" } },
+    { type: "session.text.started", data: { ...m1, ordinal: 0 } },
+    { type: "session.text.ended", data: { ...m1, ordinal: 0, text: "checking files" } },
+    ...tool(m1, "t1", "read", { path: "a.txt" }),
+    ...tool(m1, "t2", "read", { path: "b.txt" }),
+    { type: "session.step.ended", data: { ...m1, finish: "tool-calls" } },
+    { type: "session.step.started", data: { ...m2, agent: "build" } },
+    { type: "session.reasoning.started", data: { ...m2, ordinal: 0 } },
+    { type: "session.reasoning.ended", data: { ...m2, ordinal: 0, text: "second thought" } },
+    ...tool(m2, "t3", "shell", { command: "ls" }),
+    { type: "session.step.ended", data: { ...m2, finish: "tool-calls" } },
+    { type: "session.execution.succeeded", data: { sessionID: sid } },
+  ]);
+
+  // Both calls of the first step share one accordion...
+  const group = page.locator(".tool-group");
+  await expect(group).toHaveCount(1);
+  await group.locator(".tool-group-header").click();
+  await expect(group.locator(".tool")).toHaveCount(2);
+  // ...but the next step's call stays after its own thought.
+  const standalone = page.locator(".conversation > .tool");
+  await expect(standalone).toHaveCount(1);
+  await expect(standalone.locator(".tool-name")).toHaveText("shell");
+
+  const firstText = await page.locator(".md").first().boundingBox();
+  const groupBox = await group.boundingBox();
+  const secondThought = await page.locator(".reasoning").nth(1).boundingBox();
+  const standaloneBox = await standalone.boundingBox();
+  expect(firstText!.y).toBeLessThan(groupBox!.y);
+  expect(groupBox!.y).toBeLessThan(secondThought!.y);
+  expect(secondThought!.y).toBeLessThan(standaloneBox!.y);
+});
+
+test("a new prompt follows the latest message even after scrolling up", async ({ page }) => {
+  await page.setViewportSize({ width: 420, height: 500 });
+  await boot(page);
+  await openSession(page, S1, fixture("real-sse1.jsonl"));
+  const conversation = page.locator(".conversation");
+  await expect.poll(async () => conversation.evaluate((el) => el.scrollHeight > el.clientHeight)).toBe(true);
+
+  await conversation.evaluate((el) => {
+    el.scrollTop = 0;
+    el.dispatchEvent(new Event("scroll"));
+  });
+  const jump = page.getByRole("button", { name: STRINGS.jumpToLatest });
+  await expect(jump).toBeVisible();
+
+  await host(page, {
+    type: "event",
+    event: {
+      type: "session.inbox.enqueued",
+      data: { sessionID: S1, inboxID: "msg_follow", item: { type: "user", payload: { text: "a second prompt" } } },
+    },
+  });
+  await expect.poll(async () => conversation.evaluate((el) => el.scrollHeight - el.scrollTop - el.clientHeight)).toBeLessThan(40);
+  await expect(jump).toHaveCount(0);
+  await expect(page.locator(".msg.user .user-text").last()).toHaveText("a second prompt");
 });
 
 test("renders markdown with highlighted code and copies code via the host", async ({ page }) => {

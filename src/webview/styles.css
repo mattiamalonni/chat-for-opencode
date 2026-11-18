@@ -299,6 +299,41 @@ details[open] > summary > .chevron,
   outline-offset: -2px;
 }
 
+.conversation-wrap {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.jump-latest {
+  position: absolute;
+  left: 50%;
+  bottom: 10px;
+  transform: translateX(-50%);
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--vscode-widget-border, var(--vscode-contrastBorder, transparent));
+  background: var(--vscode-button-background);
+  color: var(--vscode-button-foreground);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
+  font-size: 0.9em;
+  cursor: pointer;
+}
+
+.jump-latest:hover {
+  background: var(--vscode-button-hoverBackground);
+}
+
+.jump-latest svg {
+  transform: rotate(90deg);
+}
+
 .welcome {
   margin: auto 0;
   text-align: center;
@@ -535,6 +570,34 @@ details[open] > summary > .chevron,
 
 .tool.attention {
   border-color: var(--vscode-inputValidation-warningBorder, var(--vscode-focusBorder));
+}
+
+.tool-group {
+  border: 1px solid var(--vscode-widget-border, var(--vscode-panel-border, transparent));
+  border-radius: 4px;
+  background: var(--vscode-editorWidget-background);
+  min-width: 0;
+}
+
+.tool-group.attention {
+  border-color: var(--vscode-inputValidation-warningBorder, var(--vscode-focusBorder));
+}
+
+.tool-group-body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 0 4px 4px;
+}
+
+.tool-group-body > .tool {
+  border: none;
+  border-radius: 0;
+  background: transparent;
+}
+
+.tool-group-body > .tool + .tool {
+  border-top: 1px solid var(--vscode-widget-border, var(--vscode-panel-border, transparent));
 }
 
 .tool-header {
@@ -936,6 +999,38 @@ button:disabled {
   display: flex;
   flex-wrap: wrap;
   gap: 4px;
+}
+
+.file-icon {
+  flex: 0 0 auto;
+}
+
+.file-icon.code {
+  color: var(--vscode-charts-blue, #3794ff);
+}
+
+.file-icon.markdown,
+.file-icon.style {
+  color: var(--vscode-charts-purple, #b180d7);
+}
+
+.file-icon.json,
+.file-icon.config {
+  color: var(--vscode-charts-yellow, #cca700);
+}
+
+.file-icon.image,
+.file-icon.shell {
+  color: var(--vscode-charts-green, #89d185);
+}
+
+.file-icon.data {
+  color: var(--vscode-charts-orange, #d18616);
+}
+
+.file-icon.doc,
+.file-icon.other {
+  color: var(--vscode-descriptionForeground);
 }
 
 .chip {
@@ -1348,7 +1443,12 @@ button:disabled {
 
 /* High contrast themes */
 body.vscode-high-contrast .tool,
+body.vscode-high-contrast .tool-group,
 body.vscode-high-contrast .chip,
 body.vscode-high-contrast .msg.user .bubble {
   border-color: var(--vscode-contrastBorder);
+}
+
+body.vscode-high-contrast .file-icon {
+  color: var(--vscode-foreground);
 }

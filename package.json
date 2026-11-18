@@ -90,6 +90,11 @@
         "category": "OpenCode"
       },
       {
+        "command": "opencode.account",
+        "title": "%command.account%",
+        "category": "OpenCode"
+      },
+      {
         "command": "opencode.showLogs",
         "title": "%command.showLogs%",
         "category": "OpenCode",

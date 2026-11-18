@@ -14,17 +14,38 @@ import {
 } from "../shared/chatReducer";
 import type { ActionId } from "../shared/protocol";
 import { isolateKeys } from "./env";
+import { FileTypeIcon } from "./fileIcons";
 import { useT } from "./i18n";
-import { IconCheck, IconChevron, IconDiff, IconError, IconFile, IconInfo, IconSelection, IconTool, IconWarning } from "./icons";
+import { IconCheck, IconChevron, IconDiff, IconError, IconInfo, IconSelection, IconTool, IconWarning } from "./icons";
 import { renderMarkdown } from "./markdown";
 import { post } from "./vscode";
+
+/** URI decoding can throw on malformed escapes; never let that take down the whole chat. */
+function fileNameOf(uri: string): string {
+  const raw = uri.split("/").pop() ?? uri;
+  try {
+    return decodeURIComponent(raw);
+  } catch {
+    return raw;
+  }
+}
 
 export function Markdown({ text }: { text: string }) {
   const html = useMemo(() => renderMarkdown(text), [text]);
   return <div class="md" dangerouslySetInnerHTML={{ __html: html }} />;
 }
 
-export function MessageView({ message, state, grouped }: { message: UiMessage; state: ChatState; grouped: boolean }) {
+export function MessageView({
+  message,
+  state,
+  grouped,
+  showStatus = true,
+}: {
+  message: UiMessage;
+  state: ChatState;
+  grouped: boolean;
+  showStatus?: boolean;
+}) {
   const t = useT();
   if (message.kind === "user") {
     return (
@@ -35,8 +56,8 @@ export function MessageView({ message, state, grouped }: { message: UiMessage; s
             <ul class="chips" aria-label={t("context")}>
               {message.files.map((f) => (
                 <li class="chip readonly" key={f.uri} title={f.uri}>
-                  {f.uri.includes("?start=") ? <IconSelection /> : <IconFile />}
-                  <span>{f.name ?? decodeURIComponent(f.uri.split("/").pop() ?? f.uri)}</span>
+                  {f.uri.includes("?start=") ? <IconSelection /> : <FileTypeIcon path={f.name ?? f.uri} />}
+                  <span>{f.name ?? fileNameOf(f.uri)}</span>
                 </li>
               ))}
             </ul>
@@ -46,7 +67,7 @@ export function MessageView({ message, state, grouped }: { message: UiMessage; s
     );
   }
   if (message.kind === "notice") return <NoticeView notice={message} />;
-  return <AssistantView message={message} state={state} grouped={grouped} />;
+  return <AssistantView message={message} state={state} grouped={grouped} showStatus={showStatus} />;
 }
 
 function NoticeView({ notice }: { notice: UiNotice }) {
@@ -82,9 +103,18 @@ export function ActionButton({ id }: { id: ActionId }) {
   );
 }
 
-function AssistantView({ message, state, grouped }: { message: UiAssistantMessage; state: ChatState; grouped: boolean }) {
+function AssistantView({
+  message,
+  state,
+  grouped,
+  showStatus = true,
+}: {
+  message: UiAssistantMessage;
+  state: ChatState;
+  grouped: boolean;
+  showStatus?: boolean;
+}) {
   const t = useT();
-  const empty = message.parts.length === 0;
   return (
     <article class={`msg assistant${grouped ? " grouped" : ""}`} aria-label={t("assistant")} aria-busy={!message.done}>
       {message.parts.map((p) =>
@@ -96,15 +126,36 @@ function AssistantView({ message, state, grouped }: { message: UiAssistantMessag
           <Markdown key={p.key} text={p.text} />
         ),
       )}
-      {empty && !message.done && <div class="typing" aria-label={t("thinking")}><span /><span /><span /></div>}
-      {message.retry && <div class="notice warning" role="status"><IconWarning />{t("retrying", message.retry.attempt, message.retry.message)}</div>}
+      {showStatus && <AssistantStatus message={message} typing={message.parts.length === 0} />}
+    </article>
+  );
+}
+
+/** Retry/error feedback and the waiting indicator, shared by whole and split assistant messages. */
+export function AssistantStatus({ message, typing }: { message: UiAssistantMessage; typing?: boolean }) {
+  const t = useT();
+  return (
+    <>
+      {typing && !message.done && (
+        <div class="typing" aria-label={t("thinking")}>
+          <span />
+          <span />
+          <span />
+        </div>
+      )}
+      {message.retry && (
+        <div class="notice warning" role="status">
+          <IconWarning />
+          {t("retrying", message.retry.attempt, message.retry.message)}
+        </div>
+      )}
       {message.error && (
         <div class="notice error" role="alert">
           <IconError />
           <span>{message.error.message}</span>
         </div>
       )}
-    </article>
+    </>
   );
 }
 
@@ -136,7 +187,42 @@ export function toolSummary(part: ToolPart): string {
   return "";
 }
 
-function ToolCard({ part, state }: { part: ToolPart; state: ChatState }) {
+export function ToolGroup({ parts, state }: { parts: ToolPart[]; state: ChatState }) {
+  const t = useT();
+  const needsUser = parts.some((p) => permissionsForTool(state, p.id).length > 0 || formsForTool(state, p.id).length > 0);
+  const [open, setOpen] = useState(false);
+  useEffect(() => {
+    if (needsUser) setOpen(true);
+  }, [needsUser]);
+  const expanded = open || needsUser;
+  const running = parts.some((p) => p.status === "running" || p.status === "streaming");
+  const failed = parts.some((p) => p.status === "error");
+  const status = running ? "running" : failed ? "error" : "completed";
+  const statusLabel = running ? t("running") : failed ? t("failed") : t("completed");
+  const names = [...new Set(parts.map((p) => p.name))].join(", ");
+  const id = `tool-group-${parts[0].id}`;
+  return (
+    <section class={`tool-group${needsUser ? " attention" : ""}`}>
+      <button type="button" class="tool-header tool-group-header" aria-expanded={expanded} aria-controls={id} onClick={() => setOpen(!open)}>
+        <IconChevron class="chevron" />
+        <span class={`status-dot ${status}`} role="img" aria-label={statusLabel} title={statusLabel}>
+          {status === "completed" ? <IconCheck /> : status === "error" ? <IconError /> : <IconTool />}
+        </span>
+        <span class="tool-name">{t("toolCalls", parts.length)}</span>
+        <span class="tool-summary" title={names}>{names}</span>
+      </button>
+      {expanded && (
+        <div class="tool-group-body" id={id}>
+          {parts.map((p) => (
+            <ToolCard key={p.key} part={p} state={state} />
+          ))}
+        </div>
+      )}
+    </section>
+  );
+}
+
+export function ToolCard({ part, state }: { part: ToolPart; state: ChatState }) {
   const t = useT();
   const permissions = permissionsForTool(state, part.id);
   const forms = formsForTool(state, part.id);

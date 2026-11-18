@@ -5,9 +5,10 @@ import type { Attachment, ContextItem } from "../shared/protocol";
 import { isolateKeys } from "./env";
 import { formatTokens } from "../shared/format";
 import { ContextMeter } from "./contextMeter";
+import { FileTypeIcon } from "./fileIcons";
 import { Picker } from "./picker";
 import { useT } from "./i18n";
-import { IconAt, IconClose, IconFile, IconSelection, IconSend, IconStop, IconTool } from "./icons";
+import { IconAt, IconClose, IconSelection, IconSend, IconStop, IconTool } from "./icons";
 import { getPersisted, post, setPersisted } from "./vscode";
 
 export interface ComposerProps {
@@ -187,7 +188,7 @@ export function Composer(props: ComposerProps) {
         <ul class="chips" aria-label={t("context")}>
           {visibleContext.map((c) => (
             <li class={`chip ${c.kind === "file" ? "implicit" : ""}`} key={c.id} title={c.detail ?? c.uri}>
-              {c.kind === "selection" ? <IconSelection /> : <IconFile />}
+              {c.kind === "selection" ? <IconSelection /> : <FileTypeIcon path={c.label} />}
               <span>{c.label}</span>
               <span class="chip-kind">{c.kind === "file" ? t("currentFile") : t("selection")}</span>
               <button type="button" class="chip-remove" aria-label={`${t("removeContext")}: ${c.label}`} onClick={() => props.onExclude(c.id)}>
@@ -197,7 +198,7 @@ export function Composer(props: ComposerProps) {
           ))}
           {props.attachments.map((a) => (
             <li class="chip" key={a.uri} title={a.detail ?? a.uri}>
-              {a.kind === "selection" ? <IconSelection /> : <IconFile />}
+              {a.kind === "selection" ? <IconSelection /> : <FileTypeIcon path={a.name} />}
               <span>{a.kind === "selection" ? (a.detail ?? a.name) : a.name}</span>
               <button type="button" class="chip-remove" aria-label={`${t("removeContext")}: ${a.name}`} onClick={() => props.onRemoveAttachment(a.uri)}>
                 <IconClose />
@@ -226,7 +227,7 @@ export function Composer(props: ComposerProps) {
                     pick(r);
                   }}
                 >
-                  {r.kind === "file" ? <IconFile /> : <IconTool />}
+                  {r.kind === "file" ? <FileTypeIcon path={r.item.detail ?? r.item.name} /> : <IconTool />}
                   <span class="mention-name">{r.item.name}</span>
                   <span class="mention-path">{r.kind === "file" ? r.item.detail : `@${r.item.id}${r.item.description ? ` · ${r.item.description}` : ""}`}</span>
                 </li>

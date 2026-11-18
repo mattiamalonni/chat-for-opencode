@@ -1,6 +1,17 @@
+import { Component, type ComponentChildren } from "preact";
 import { useEffect, useMemo, useReducer, useRef, useState } from "preact/hooks";
 import type { AgentInfo, FileDiff, ModelInfo, ModelRef, ServerEvent, SkillSuggestion } from "../shared/api";
-import { chatReducer, initialChatState, orphanForms, orphanPermissions, selectTodos } from "../shared/chatReducer";
+import {
+  chatReducer,
+  initialChatState,
+  orphanForms,
+  orphanPermissions,
+  selectTodos,
+  type TextPart,
+  type ToolPart,
+  type UiAssistantMessage,
+  type UiMessage,
+} from "../shared/chatReducer";
 import { SUPPORTED_SERVER_VERSION, type Compatibility } from "../shared/compatibility";
 import type { Attachment, ConnectionStatus, ContextItem, FolderInfo, HostMessage, SessionSummary, UiError } from "../shared/protocol";
 import { STRINGS, type Strings } from "../shared/strings";
@@ -10,7 +21,7 @@ import { StringsContext, useT } from "./i18n";
 import { IconCheck, IconChevron, IconClose, IconDiff, IconError, IconHistory, IconPlus, IconRefresh, IconTrash, IconWarning } from "./icons";
 import { setCopyLabel } from "./markdown";
 import { Picker } from "./picker";
-import { ActionButton, FileList, FormCard, MessageView, PermissionCard } from "./messages";
+import { ActionButton, AssistantStatus, FileList, FormCard, MessageView, PermissionCard, ToolCard, ToolGroup } from "./messages";
 import { onHostMessage, post } from "./vscode";
 
 interface Catalog {
@@ -40,6 +51,7 @@ export function App() {
   const [changes, setChanges] = useState<FileDiff[]>([]);
   const [notice, setNotice] = useState<UiError | undefined>();
   const [focusToken, setFocusToken] = useState(0);
+  const [scrollToken, setScrollToken] = useState(0);
   const [showSessions, setShowSessions] = useState(false);
   const [announcement, setAnnouncement] = useState("");
   const queue = useRef<ServerEvent[]>([]);
@@ -147,6 +159,8 @@ export function App() {
     post({ type: "send", text: prompt, attachments, context: ctx });
     setAttachments([]);
     setNotice(undefined);
+    // Follow the new prompt even if the user had scrolled up to read older messages.
+    setScrollToken((n) => n + 1);
   };
 
   const connected = status.status === "connected" || status.status === "reconnecting";
@@ -154,7 +168,8 @@ export function App() {
 
   return (
     <StringsContext.Provider value={strings}>
-      <div class="app">
+      <WebviewErrorBoundary>
+        <div class="app">
         <Header
           title={chat.sessionId ? title : strings.untitled}
           folders={folders}
@@ -175,7 +190,7 @@ export function App() {
           />
         )}
         {notice && <NoticeBanner error={notice} onDismiss={() => setNotice(undefined)} />}
-        <Conversation chat={chat} />
+        <Conversation chat={chat} scrollToken={scrollToken} />
         <div class="sr-only" role="status" aria-live="polite">
           {announcement}
         </div>
@@ -200,8 +215,49 @@ export function App() {
           onSend={send}
           focusToken={focusToken}
         />
-      </div>
+        </div>
+      </WebviewErrorBoundary>
     </StringsContext.Provider>
+  );
+}
+
+/**
+ * Catches rendering errors so a single bad message cannot leave the webview blank. The host can
+ * resync history, but it cannot recover a webview whose script has thrown, hence the reload action.
+ */
+class WebviewErrorBoundary extends Component<{ children: ComponentChildren }, { failed: boolean }> {
+  state = { failed: false };
+
+  static getDerivedStateFromError(): { failed: boolean } {
+    return { failed: true };
+  }
+
+  componentDidCatch(error: unknown): void {
+    console.error("[chat] webview render failed", error);
+  }
+
+  render() {
+    return this.state.failed ? <CrashFallback /> : this.props.children;
+  }
+}
+
+function CrashFallback() {
+  const t = useT();
+  return (
+    <div class="app">
+      <div class="banner error" role="alert">
+        <div class="banner-main">
+          <IconError />
+          <strong>{t("crashTitle")}</strong>
+        </div>
+        <p class="banner-text">{t("crashBody")}</p>
+        <div class="banner-actions">
+          <button type="button" class="primary" onClick={() => window.location.reload()}>
+            {t("reloadChat")}
+          </button>
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -393,14 +449,116 @@ function NoticeBanner({ error, onDismiss }: { error: UiError; onDismiss: () => v
   return <ErrorBlock error={error} onDismiss={onDismiss} />;
 }
 
-function Conversation({ chat }: { chat: ReturnType<typeof chatReducer> }) {
+type ConversationItem =
+  | { kind: "message"; message: UiMessage }
+  | { kind: "assistant"; key: string; message: UiAssistantMessage; parts: TextPart[]; grouped: boolean }
+  | { kind: "tool"; key: string; part: ToolPart }
+  | { kind: "tools"; key: string; parts: ToolPart[] }
+  | { kind: "status"; key: string; message: UiAssistantMessage; typing: boolean };
+
+/**
+ * Renders a turn in the order the model produced it: narration and thoughts stay where they
+ * happened, and only adjacent tool calls collapse into one accordion. OpenCode emits one
+ * assistant message per step, so the flattening has to span messages to keep that order.
+ */
+function conversationItems(messages: UiMessage[]): ConversationItem[] {
+  const items: ConversationItem[] = [];
+  let turn: UiAssistantMessage[] = [];
+
+  const flushTurn = () => {
+    if (turn.length === 0) return;
+    let tools: ToolPart[] = [];
+    let started = false;
+
+    const flushTools = () => {
+      if (tools.length === 0) return;
+      if (tools.length === 1) items.push({ kind: "tool", key: tools[0].key, part: tools[0] });
+      else items.push({ kind: "tools", key: `tools:${tools[0].key}`, parts: tools });
+      tools = [];
+      started = true;
+    };
+
+    for (const m of turn) {
+      let texts: TextPart[] = [];
+      const flushTexts = () => {
+        if (texts.length === 0) return;
+        items.push({ kind: "assistant", key: `${m.id}:${texts[0].key}`, message: m, parts: texts, grouped: started });
+        texts = [];
+        started = true;
+      };
+      for (const p of m.parts) {
+        if (p.kind === "tool") {
+          flushTexts();
+          tools.push(p);
+        } else {
+          flushTools();
+          texts.push(p);
+        }
+      }
+      flushTexts();
+    }
+    flushTools();
+
+    // Retry/error feedback belongs to the turn, after whatever content it managed to produce.
+    for (const m of turn) {
+      if (m.retry || m.error) items.push({ kind: "status", key: `status:${m.id}`, message: m, typing: false });
+    }
+    const last = turn.at(-1);
+    if (last && !last.done && last.parts.length === 0) {
+      items.push({ kind: "status", key: `typing:${last.id}`, message: last, typing: true });
+    }
+    turn = [];
+  };
+
+  for (const m of messages) {
+    if (m.kind === "assistant") {
+      turn.push(m);
+      continue;
+    }
+    flushTurn();
+    items.push({ kind: "message", message: m });
+  }
+  flushTurn();
+  return items;
+}
+
+function Conversation({ chat, scrollToken }: { chat: ReturnType<typeof chatReducer>; scrollToken: number }) {
   const t = useT();
   const ref = useRef<HTMLDivElement>(null);
   const stick = useRef(true);
+  const lastId = useRef<string | undefined>(undefined);
+  const [atBottom, setAtBottom] = useState(true);
+
+  const scrollToEnd = () => {
+    const el = ref.current;
+    if (!el) return;
+    el.scrollTop = el.scrollHeight;
+    stick.current = true;
+    setAtBottom(true);
+  };
+
+  // A new prompt always brings the conversation back to the latest message, even if the user had
+  // scrolled up. Without this, the reply streams in off-screen and the chat appears frozen.
+  useEffect(() => {
+    const last = chat.messages.at(-1);
+    if (last && last.id !== lastId.current && last.kind === "user") scrollToEnd();
+    lastId.current = last?.id;
+  }, [chat.messages]);
+
+  useEffect(() => {
+    lastId.current = undefined;
+    scrollToEnd();
+  }, [chat.sessionId]);
+
+  useEffect(() => {
+    scrollToEnd();
+  }, [scrollToken]);
+
   useEffect(() => {
     const el = ref.current;
     if (el && stick.current) el.scrollTop = el.scrollHeight;
   });
+
   const orphanP = orphanPermissions(chat);
   const orphanF = orphanForms(chat);
   const onClick = (e: MouseEvent) => {
@@ -420,28 +578,50 @@ function Conversation({ chat }: { chat: ReturnType<typeof chatReducer> }) {
     }
   };
   return (
-    <div
-      class="conversation"
-      ref={ref}
-      role="log"
-      aria-label={t("appName")}
-      aria-busy={chat.busy}
-      tabIndex={0}
-      onScroll={(e) => {
-        const el = e.currentTarget as HTMLDivElement;
-        stick.current = el.scrollHeight - el.scrollTop - el.clientHeight < 40;
-      }}
-      onClick={onClick}
-    >
+    <div class="conversation-wrap">
+      <div
+        class="conversation"
+        ref={ref}
+        role="log"
+        aria-label={t("appName")}
+        aria-busy={chat.busy}
+        tabIndex={0}
+        onScroll={(e) => {
+          const el = e.currentTarget as HTMLDivElement;
+          const bottom = el.scrollHeight - el.scrollTop - el.clientHeight < 40;
+          stick.current = bottom;
+          setAtBottom((prev) => (prev === bottom ? prev : bottom));
+        }}
+        onClick={onClick}
+      >
       {chat.messages.length === 0 && (
         <div class="welcome">
           <h2>{t("welcomeTitle")}</h2>
           <p>{t("welcomeBody")}</p>
         </div>
       )}
-      {chat.messages.map((m, i) => (
-        <MessageView key={m.id} message={m} state={chat} grouped={i > 0 && m.kind === "assistant" && chat.messages[i - 1].kind === "assistant"} />
-      ))}
+      {conversationItems(chat.messages).map((item) => {
+        switch (item.kind) {
+          case "tools":
+            return <ToolGroup key={item.key} parts={item.parts} state={chat} />;
+          case "tool":
+            return <ToolCard key={item.key} part={item.part} state={chat} />;
+          case "assistant":
+            return (
+              <MessageView
+                key={item.key}
+                message={{ ...item.message, parts: item.parts }}
+                state={chat}
+                grouped={item.grouped}
+                showStatus={false}
+              />
+            );
+          case "status":
+            return <AssistantStatus key={item.key} message={item.message} typing={item.typing} />;
+          case "message":
+            return <MessageView key={item.message.id} message={item.message} state={chat} grouped={false} />;
+        }
+      })}
       {orphanP.map((p) => <PermissionCard key={p.id} request={p} />)}
       {orphanF.map((f) => <FormCard key={f.id} form={f} />)}
       {chat.busy && chat.messages.at(-1)?.kind !== "assistant" && (
@@ -456,6 +636,13 @@ function Conversation({ chat }: { chat: ReturnType<typeof chatReducer> }) {
           <IconWarning />
           {t("retrying", chat.retry.attempt, chat.retry.message)}
         </div>
+      )}
+      </div>
+      {!atBottom && chat.messages.length > 0 && (
+        <button type="button" class="jump-latest" onClick={scrollToEnd}>
+          <IconChevron />
+          {t("jumpToLatest")}
+        </button>
       )}
     </div>
   );

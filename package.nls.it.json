@@ -8,6 +8,7 @@
   "command.addSelectionToChat": "Aggiungi selezione alla chat",
   "command.addFileToChat": "Aggiungi file alla chat",
   "command.focus": "Vai alla chat",
+  "command.account": "Account OpenCode",
   "command.showLogs": "Mostra log",
   "command.setServerPassword": "Imposta password del server…",
   "command.stopServer": "Arresta server",

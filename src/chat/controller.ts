@@ -120,6 +120,8 @@ export class ChatController implements vscode.Disposable {
   private readonly disposables: vscode.Disposable[] = [];
   private sessionsTimer: NodeJS.Timeout | undefined;
   private changesTimer: NodeJS.Timeout | undefined;
+  private reconcileTimer: NodeJS.Timeout | undefined;
+  private executionGeneration = 0;
   private connecting: Promise<void> | undefined;
   private wasDisconnected = false;
 
@@ -383,6 +385,10 @@ export class ChatController implements vscode.Disposable {
   private onEvent(event: ServerEvent): void {
     const sid = eventSessionId(event);
     if (sid && sid === this.sessionId) this.post({ type: "event", event });
+    // Any new turn invalidates a pending history reconcile from the previous one.
+    if (sid === this.sessionId && (event.type === "session.inbox.enqueued" || event.type === "session.execution.started")) {
+      this.executionGeneration++;
+    }
     switch (event.type) {
       case "session.created":
       case "session.renamed":
@@ -395,6 +401,14 @@ export class ChatController implements vscode.Disposable {
         break;
       default:
         break;
+    }
+    if (
+      sid === this.sessionId &&
+      (event.type === "session.execution.succeeded" ||
+        event.type === "session.execution.failed" ||
+        event.type === "session.execution.interrupted")
+    ) {
+      this.scheduleReconcile();
     }
     if (event.type === "session.deleted" && sid === this.sessionId) {
       void this.newSession();
@@ -425,6 +439,34 @@ export class ChatController implements vscode.Disposable {
     this.changesTimer = setTimeout(() => void this.refreshChanges().catch(() => {}), 400);
   }
 
+  /**
+   * The event stream is live-only, so a missed terminal event can leave the webview showing an
+   * incomplete turn forever. After each turn, re-read the session and replace the webview state.
+   * Skipped when another prompt starts meanwhile, since its live events are newer than the snapshot.
+   */
+  private scheduleReconcile(): void {
+    if (this.reconcileTimer) clearTimeout(this.reconcileTimer);
+    const sid = this.sessionId;
+    const generation = this.executionGeneration;
+    this.reconcileTimer = setTimeout(() => {
+      this.reconcileTimer = undefined;
+      if (!sid || sid !== this.sessionId || generation !== this.executionGeneration) return;
+      void this.reconcileSession(sid, generation);
+    }, 350);
+  }
+
+  private async reconcileSession(sid: string, generation: number): Promise<void> {
+    if (!this.client || sid !== this.sessionId) return;
+    try {
+      const info = await this.client.getSession(sid);
+      if (sid !== this.sessionId || generation !== this.executionGeneration) return;
+      await this.loadSession(info, () => sid !== this.sessionId || generation !== this.executionGeneration);
+    } catch (err) {
+      // A failed reconcile is not worth surfacing: the live stream may still have delivered everything.
+      this.output.warn(`[chat] session reconcile failed: ${String(err)}`);
+    }
+  }
+
   async refreshSessions(): Promise<void> {
     if (!this.client || !this.folder) return;
     const list = await this.client.listSessions(this.folder.uri.fsPath);
@@ -448,13 +490,15 @@ export class ChatController implements vscode.Disposable {
     this.post({ type: "changedFiles", files });
   }
 
-  private async loadSession(info: SessionInfo): Promise<void> {
+  private async loadSession(info: SessionInfo, stale?: () => boolean): Promise<void> {
     if (!this.client || !this.folder) return;
     const [messages, permissions, forms] = await Promise.all([
       this.client.messages(info.id),
       this.client.permissions(info.id).catch(() => []),
       this.client.forms(info.id).catch(() => []),
     ]);
+    // A newer prompt may have started while history was loading; its events are fresher.
+    if (stale?.()) return;
     this.sessionId = info.id;
     await this.ctx.workspaceState.update(SESSION_KEY(this.folder.uri.toString()), info.id);
     if (info.model && this.models.some((m) => m.id === info.model?.id && m.providerID === info.model?.providerID)) {
@@ -482,6 +526,8 @@ export class ChatController implements vscode.Disposable {
   // ---- commands ---------------------------------------------------------------------------
 
   async newSession(): Promise<void> {
+    if (this.reconcileTimer) clearTimeout(this.reconcileTimer);
+    this.reconcileTimer = undefined;
     this.sessionId = undefined;
     if (this.folder) await this.ctx.workspaceState.update(SESSION_KEY(this.folder.uri.toString()), undefined);
     this.post({ type: "session", session: null });
@@ -492,6 +538,8 @@ export class ChatController implements vscode.Disposable {
   }
 
   async reconnect(): Promise<void> {
+    if (this.reconcileTimer) clearTimeout(this.reconcileTimer);
+    this.reconcileTimer = undefined;
     if (!this.server) return this.connect();
     this.setStatus("starting");
     this.stream?.close();
@@ -518,6 +566,8 @@ export class ChatController implements vscode.Disposable {
 
   async switchFolder(folder: vscode.WorkspaceFolder | undefined): Promise<void> {
     if (folder?.uri.toString() === this.folder?.uri.toString()) return;
+    if (this.reconcileTimer) clearTimeout(this.reconcileTimer);
+    this.reconcileTimer = undefined;
     this.stream?.close();
     this.stream = undefined;
     this.client = undefined;
@@ -671,6 +721,11 @@ export class ChatController implements vscode.Disposable {
   }
 
   private async send(text: string, attachments: Attachment[], context: ContextItem[]): Promise<void> {
+    this.executionGeneration++;
+    if (this.reconcileTimer) {
+      clearTimeout(this.reconcileTimer);
+      this.reconcileTimer = undefined;
+    }
     if (!this.client) await this.connect();
     const client = this.client;
     if (!client || !this.folder) throw new Error(translatedStrings()["error.connectionLost"]);
@@ -735,6 +790,7 @@ export class ChatController implements vscode.Disposable {
     this.fileIndex?.dispose();
     if (this.sessionsTimer) clearTimeout(this.sessionsTimer);
     if (this.changesTimer) clearTimeout(this.changesTimer);
+    if (this.reconcileTimer) clearTimeout(this.reconcileTimer);
     for (const d of this.disposables) d.dispose();
   }
 
