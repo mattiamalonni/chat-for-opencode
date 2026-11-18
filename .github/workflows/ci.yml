@@ -47,22 +47,12 @@ jobs:
           if-no-files-found: ignore
 
   integration:
-    name: VS Code integration (${{ matrix.os }}, ${{ matrix.vscode }})
-    runs-on: ${{ matrix.os }}
+    name: VS Code integration (${{ matrix.vscode }})
+    runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        include:
-          # Current stable on every desktop OS we support.
-          - os: ubuntu-latest
-            vscode: stable
-          - os: macos-latest
-            vscode: stable
-          - os: windows-latest
-            vscode: stable
-          # The minimum supported engine only needs one runner (the fastest).
-          - os: ubuntu-latest
-            vscode: "1.99.3"
+        vscode: [stable, "1.99.3"]
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
@@ -75,17 +65,36 @@ jobs:
       - uses: actions/cache@v4
         with:
           path: .vscode-test
-          key: ${{ runner.os }}-vscode-${{ matrix.vscode }}-${{ hashFiles('package.json') }}
-      - name: Run @vscode/test-electron suite (Linux, headless)
-        if: runner.os == 'Linux'
-        run: xvfb-run -a npm run test:integration
+          key: linux-vscode-${{ matrix.vscode }}-${{ hashFiles('package.json') }}
+      - run: xvfb-run -a npm run test:integration
         env:
           VSCODE_TEST_VERSION: ${{ matrix.vscode }}
-      - name: Run @vscode/test-electron suite (macOS / Windows)
-        if: runner.os != 'Linux'
-        run: npm run test:integration
+
+  # Windows/macOS are slow runners and the platform-specific code paths are
+  # mostly in the managed server. Keep them as a release gate (this workflow is
+  # called by release.yml) instead of running them on every PR/push.
+  integration-cross-platform:
+    name: VS Code integration (${{ matrix.os }})
+    if: github.event_name == 'workflow_call'
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      - uses: actions/cache@v4
+        with:
+          path: .vscode-test
+          key: ${{ runner.os }}-vscode-stable-${{ hashFiles('package.json') }}
+      - run: npm run test:integration
         env:
-          VSCODE_TEST_VERSION: ${{ matrix.vscode }}
+          VSCODE_TEST_VERSION: stable
 
   package:
     name: Package .vsix
