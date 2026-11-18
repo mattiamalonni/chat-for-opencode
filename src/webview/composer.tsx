@@ -30,6 +30,8 @@ export interface ComposerProps {
   onAddAttachment: (a: Attachment) => void;
   fileResults: { query: string; items: Attachment[] };
   onSend: (text: string) => void;
+  /** Previously sent prompts, oldest first, recalled with Up/Down. */
+  promptHistory: string[];
   focusToken: number;
   /** Estimated tokens currently in the session context. */
   contextTokens?: number;
@@ -46,6 +48,9 @@ export function Composer(props: ComposerProps) {
   const [text, setText] = useState(() => getPersisted().draft ?? "");
   const [mention, setMention] = useState<Mention | undefined>();
   const [active, setActive] = useState(0);
+  // null = not browsing history; otherwise index into `props.promptHistory`.
+  const [historyIndex, setHistoryIndex] = useState<number | null>(null);
+  const historyDraft = useRef("");
   const ref = useRef<HTMLTextAreaElement>(null);
   const composing = useRef(false);
 
@@ -116,6 +121,16 @@ export function Composer(props: ComposerProps) {
     });
   };
 
+  /** Replace the input with a remembered prompt and leave the caret at the end. */
+  const recall = (index: number | null, value: string) => {
+    setHistoryIndex(index);
+    setText(value);
+    requestAnimationFrame(() => {
+      const end = value.length;
+      ref.current?.setSelectionRange(end, end);
+    });
+  };
+
   const send = () => {
     const value = text.trim();
     if (!value || props.disabled) return;
@@ -123,6 +138,8 @@ export function Composer(props: ComposerProps) {
     props.onSend(value);
     setText("");
     setMention(undefined);
+    setHistoryIndex(null);
+    historyDraft.current = "";
   };
 
   const onKeyDown = (e: KeyboardEvent) => {
@@ -156,6 +173,28 @@ export function Composer(props: ComposerProps) {
       e.stopPropagation();
       post({ type: "abort" });
       return;
+    }
+    // Shell-style prompt history: Up recalls the last prompt and older ones, Down walks forward
+    // and finally restores whatever the user was typing. Mention suggestions keep their own keys.
+    if (!mention && !e.shiftKey && !composing.current && !e.isComposing) {
+      if (e.key === "ArrowUp" && props.promptHistory.length > 0) {
+        e.preventDefault();
+        if (historyIndex === null) {
+          historyDraft.current = text;
+          const last = props.promptHistory.length - 1;
+          recall(last, props.promptHistory[last]);
+        } else if (historyIndex > 0) {
+          recall(historyIndex - 1, props.promptHistory[historyIndex - 1]);
+        }
+        return;
+      }
+      if (e.key === "ArrowDown" && historyIndex !== null) {
+        e.preventDefault();
+        const next = historyIndex + 1;
+        if (next < props.promptHistory.length) recall(next, props.promptHistory[next]);
+        else recall(null, historyDraft.current);
+        return;
+      }
     }
     const action = composerAction(e, composing.current);
     if (action === "send") {
@@ -272,6 +311,8 @@ export function Composer(props: ComposerProps) {
           onInput={(e) => {
             const el = e.currentTarget as HTMLTextAreaElement;
             setText(el.value);
+            // Editing a recalled prompt starts a fresh draft; a new Up begins from the latest one.
+            if (historyIndex !== null) setHistoryIndex(null);
             if (!composing.current) updateMention(el.value, el.selectionStart);
           }}
           onKeyDown={onKeyDown}

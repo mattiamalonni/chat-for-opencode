@@ -124,6 +124,41 @@ test("Shift+Enter inserts a newline instead of sending", async ({ page }) => {
   expect(await lastPosted(page, "send")).toBeUndefined();
 });
 
+test("Up/Down in the composer recall previously sent prompts", async ({ page }) => {
+  await boot(page);
+  await openSession(page, S1, [
+    {
+      type: "session.inbox.enqueued",
+      data: { sessionID: S1, inboxID: "msg_old", item: { type: "user", payload: { text: "first prompt" } } },
+    },
+    {
+      type: "session.inbox.enqueued",
+      data: { sessionID: S1, inboxID: "msg_last", item: { type: "user", payload: { text: "second prompt" } } },
+    },
+  ]);
+  const input = page.getByRole("textbox", { name: STRINGS.inputLabel });
+  await expect(page.locator(".msg.user .user-text")).toHaveText(["first prompt", "second prompt"]);
+
+  await input.press("ArrowUp");
+  await expect(input).toHaveValue("second prompt");
+  await input.press("ArrowUp");
+  await expect(input).toHaveValue("first prompt");
+  // Oldest prompt: another Up stays put instead of clearing the field.
+  await input.press("ArrowUp");
+  await expect(input).toHaveValue("first prompt");
+  await input.press("ArrowDown");
+  await expect(input).toHaveValue("second prompt");
+  await input.press("ArrowDown");
+  await expect(input).toHaveValue("");
+
+  // Starting from a draft, Down after the newest prompt restores that draft.
+  await input.fill("unfinished draft");
+  await input.press("ArrowUp");
+  await expect(input).toHaveValue("second prompt");
+  await input.press("ArrowDown");
+  await expect(input).toHaveValue("unfinished draft");
+});
+
 test("streams a real recorded conversation with reasoning, markdown and tool cards", async ({ page }) => {
   await boot(page);
   const events = fixture("real-sse1.jsonl");
@@ -315,6 +350,8 @@ test("question forms render options and submit the answer", async ({ page }) => 
   await openSession(page, S2, events.slice(0, created + 1));
   const form = page.locator("form.card.question");
   await expect(form).toBeVisible();
+  // The raw JSON input is redundant while the friendly question is pending.
+  await expect(page.locator(".tool:has(form.card.question) .tool-pre")).toHaveCount(0);
   await form.getByLabel("Blue").check();
   await page.screenshot({ path: join(SHOTS, "04-question-dark.png"), fullPage: true });
   await form.getByRole("button", { name: STRINGS.submit }).click();

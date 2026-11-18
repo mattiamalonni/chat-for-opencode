@@ -11,6 +11,7 @@ import {
   type ToolPart,
   type UiAssistantMessage,
   type UiMessage,
+  type UiUserMessage,
 } from "../shared/chatReducer";
 import { SUPPORTED_SERVER_VERSION, type Compatibility } from "../shared/compatibility";
 import type { Attachment, ConnectionStatus, ContextItem, FolderInfo, HostMessage, SessionSummary, UiError } from "../shared/protocol";
@@ -155,6 +156,11 @@ export function App() {
   }, [chat.forms.length]);
 
   const todos = useMemo(() => selectTodos(chat), [chat.messages]);
+  // Prompts already sent in this session, oldest first, for the composer's Up/Down history.
+  const promptHistory = useMemo(
+    () => chat.messages.filter((m): m is UiUserMessage => m.kind === "user").map((m) => m.text),
+    [chat.messages],
+  );
   // The active file is opt-in; selections stay attached until the user removes them.
   const selectedContext = useMemo(
     () => new Set(context.filter((c) => contextChoice.get(c.id) ?? c.kind === "selection").map((c) => c.id)),
@@ -233,6 +239,7 @@ export function App() {
           onAddAttachment={(a) => setAttachments((prev) => (prev.some((x) => x.uri === a.uri) ? prev : [...prev, a]))}
           fileResults={fileResults}
           onSend={send}
+          promptHistory={promptHistory}
           focusToken={focusToken}
         />
         </div>

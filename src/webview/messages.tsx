@@ -235,6 +235,9 @@ export function ToolCard({ part, state }: { part: ToolPart; state: ChatState }) 
   const [open, setOpen] = useState(false);
   const files = selectToolFiles(part);
   const expanded = open || needsUser;
+  // When a question is pending, the FormCard already renders the same
+  // information in a friendly way — showing the raw JSON input too is noise.
+  const showInput = part.inputText && forms.length === 0;
   const summary = toolSummary(part);
   const statusLabel =
     part.status === "completed" ? t("completed") : part.status === "error" ? t("failed") : needsUser ? t("pending") : t("running");
@@ -254,7 +257,7 @@ export function ToolCard({ part, state }: { part: ToolPart; state: ChatState }) 
       </button>
       {expanded && (
         <div class="tool-body" id={id}>
-          {part.inputText && (
+          {showInput && (
             <div class="tool-section">
               <div class="tool-label">{t("input")}</div>
               <pre class="tool-pre">{part.inputText}</pre>
