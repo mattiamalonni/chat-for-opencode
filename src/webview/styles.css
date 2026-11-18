@@ -774,6 +774,14 @@ details[open] > summary > .chevron,
 
 .card.question {
   border-color: var(--vscode-focusBorder);
+  padding: 12px;
+  gap: 12px;
+}
+
+/* Give the form header its own zone so the fields don't crowd it. */
+.card.question > .card-title {
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--vscode-widget-border, var(--vscode-panel-border, transparent));
 }
 
 .card-title {
@@ -797,6 +805,12 @@ details[open] > summary > .chevron,
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
+}
+
+/* Separate the buttons from the last option. */
+.card.question > .card-actions {
+  padding-top: 10px;
+  border-top: 1px solid var(--vscode-widget-border, var(--vscode-panel-border, transparent));
 }
 
 button.primary,
@@ -842,7 +856,7 @@ button:disabled {
 .field {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 4px;
   border: none;
   margin: 0;
   padding: 0;
@@ -857,8 +871,9 @@ button:disabled {
 .field legend {
   display: flex;
   flex-direction: column;
+  gap: 2px;
   padding: 0;
-  margin-bottom: 2px;
+  margin-bottom: 4px;
 }
 
 .field-title {
@@ -868,14 +883,15 @@ button:disabled {
 .field-desc {
   color: var(--vscode-descriptionForeground);
   font-size: 0.9em;
+  line-height: 1.4;
 }
 
 .option {
   display: flex;
   align-items: flex-start;
   gap: 8px;
-  padding: 4px 6px;
-  margin: 0 -6px;
+  padding: 6px 8px;
+  margin: 0 -8px;
   border-radius: 4px;
   cursor: pointer;
 }
@@ -902,7 +918,7 @@ button:disabled {
 .option-text {
   display: flex;
   flex-direction: column;
-  gap: 1px;
+  gap: 2px;
   min-width: 0;
 }
 
