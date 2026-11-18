@@ -2,11 +2,7 @@
 
 [![CI](https://github.com/mattiamalonni/chat-for-opencode/actions/workflows/ci.yml/badge.svg)](https://github.com/mattiamalonni/chat-for-opencode/actions/workflows/ci.yml)
 
-> **Unofficial.** This extension is a community project and is not affiliated with or endorsed by the OpenCode team.
-
-> **Made with vibe coding.** This extension was built through vibe coding, with AI agents as
-> development partners throughout the process — from architecture and implementation to tests and
-> docs. A hands-on experiment in building a real, fully working VS Code extension with AI.
+> **Unofficial.** This extension is a vibe-coded community project and is not affiliated with or endorsed by the OpenCode team.
 
 A Copilot-style chat in the VS Code sidebar for [OpenCode](https://opencode.ai), the open-source
 coding agent. The extension is a **client** of the OpenCode v2 server (`opencode serve`) running
