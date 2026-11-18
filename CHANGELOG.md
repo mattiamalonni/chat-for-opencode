@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.3.8 — 2026-11-18
+
+- The `/` picker now includes OpenCode **commands** alongside skills and runs them through the
+  server's command endpoint.
+- **Slash suggestions** are populated on a fresh window or right after *New session*, and refresh
+  when OpenCode registers or removes skills/commands while the chat is open. The highlighted row
+  stays visible while navigating a long list with the keyboard.
+
 ## 0.3.7 — 2026-11-18
 
 - Images and other files **pasted into the prompt** (for example a screenshot from the clipboard)
