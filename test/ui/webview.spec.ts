@@ -207,6 +207,34 @@ test("a new prompt follows the latest message even after scrolling up", async ({
   await expect(page.locator(".msg.user .user-text").last()).toHaveText("a second prompt");
 });
 
+test("a live prompt with a file attachment renders without crashing", async ({ page }) => {
+  await boot(page);
+  await openSession(page, S1, []);
+  await host(page, {
+    type: "event",
+    event: {
+      type: "session.inbox.enqueued",
+      data: {
+        sessionID: S1,
+        inboxID: "msg_file",
+        item: {
+          type: "user",
+          payload: {
+            text: "What is in this file?",
+            // Live attachments carry the location under `source`, not at the top level.
+            files: [
+              { data: "YQo=", mime: "text/plain", source: { type: "uri", uri: "file:///work/src/app.ts" }, name: "app.ts" },
+            ],
+          },
+        },
+      },
+    },
+  });
+  await expect(page.locator(".msg.user .user-text").last()).toHaveText("What is in this file?");
+  await expect(page.locator(".msg.user .chip")).toHaveText(["app.ts"]);
+  await expect(page.getByText(STRINGS.crashBody)).toHaveCount(0);
+});
+
 test("renders markdown with highlighted code and copies code via the host", async ({ page }) => {
   await boot(page);
   const md = "Here:\n\n```ts\nconst answer: number = 42;\n```\n\n<img src=x onerror=alert(1)> [docs](https://opencode.ai)";

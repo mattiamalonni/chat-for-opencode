@@ -318,7 +318,10 @@ export function applyEvent(state: ChatState, event: ServerEvent): ChatState {
 
   switch (event.type) {
     case "session.inbox.enqueued": {
-      const item = d.item as { type?: string; payload?: { text?: string; files?: { uri: string; name?: string }[] } };
+      const item = d.item as {
+        type?: string;
+        payload?: { text?: string; files?: { uri?: string; name?: string; source?: { uri?: string } }[] };
+      };
       if (item?.type !== "user") return state;
       const id = str(d, "inboxID");
       if (state.messages.some((m) => m.id === id)) return state;
@@ -327,7 +330,10 @@ export function applyEvent(state: ChatState, event: ServerEvent): ChatState {
         id,
         created,
         text: item.payload?.text ?? "",
-        files: (item.payload?.files ?? []).map((f) => ({ uri: f.uri, name: f.name })),
+        // Attachments delivered by the live stream carry their location in `source`, like history.
+        files: (item.payload?.files ?? [])
+          .map((f) => ({ uri: f.uri ?? f.source?.uri ?? "", name: f.name }))
+          .filter((f) => f.uri || f.name),
       };
       return { ...state, messages: insertSorted(state.messages, msg) };
     }

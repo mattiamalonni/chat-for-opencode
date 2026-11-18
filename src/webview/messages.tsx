@@ -54,12 +54,17 @@ export function MessageView({
           <div class="user-text">{message.text}</div>
           {message.files.length > 0 && (
             <ul class="chips" aria-label={t("context")}>
-              {message.files.map((f) => (
-                <li class="chip readonly" key={f.uri} title={f.uri}>
-                  {f.uri.includes("?start=") ? <IconSelection /> : <FileTypeIcon path={f.name ?? f.uri} />}
-                  <span>{f.name ?? fileNameOf(f.uri)}</span>
-                </li>
-              ))}
+              {message.files.map((f) => {
+                // Older/foreign payloads may lack a location; render the chip instead of crashing.
+                const uri = f.uri ?? "";
+                const name = f.name ?? (uri ? fileNameOf(uri) : "");
+                return (
+                  <li class="chip readonly" key={uri || name} title={uri || name}>
+                    {uri.includes("?start=") ? <IconSelection /> : <FileTypeIcon path={name || uri} />}
+                    <span>{name}</span>
+                  </li>
+                );
+              })}
             </ul>
           )}
         </div>

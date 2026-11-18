@@ -183,4 +183,30 @@ describe("chatReducer history loading", () => {
     });
     expect(state.messages).toHaveLength(1);
   });
+
+  it("maps live user attachments from source.uri like history", () => {
+    let state = open("s");
+    state = chatReducer(state, {
+      type: "event",
+      event: {
+        type: "session.inbox.enqueued",
+        data: {
+          sessionID: "s",
+          inboxID: "msg_1",
+          item: {
+            type: "user",
+            payload: {
+              text: "What is in this file?",
+              files: [
+                { data: "YQo=", mime: "text/plain", source: { type: "uri", uri: "file:///work/a.txt" }, name: "a.txt" },
+              ],
+            },
+          },
+        },
+      },
+    });
+    expect(state.messages).toHaveLength(1);
+    const user = state.messages[0];
+    expect(user.kind === "user" && user.files).toEqual([{ uri: "file:///work/a.txt", name: "a.txt" }]);
+  });
 });
