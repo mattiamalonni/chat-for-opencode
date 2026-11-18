@@ -867,7 +867,7 @@ test("the changed-files panel falls back to patches from tool metadata", async (
 test("the changed-files refresh button has an instant tooltip and still refreshes", async ({ page }) => {
   await boot(page);
   await host(page, { type: "changedFiles", files: [{ file: "src/a.txt", patch: "@@", additions: 1, deletions: 1, status: "modified" }] });
-  const button = page.locator(".panel.changes > summary .tooltip-host");
+  const button = page.locator(".panel.changes > summary .refresh-changes");
   await expect(button).toBeVisible();
   await expect(button).toHaveAttribute("aria-label", STRINGS.refresh);
 
@@ -882,6 +882,45 @@ test("the changed-files refresh button has an instant tooltip and still refreshe
 
   await button.click();
   expect(await lastPosted(page, "refreshChanges")).toEqual({ type: "refreshChanges" });
+});
+
+test("the changed-files check button hides the panel until the changes change", async ({ page }) => {
+  await boot(page);
+  const file = (name: string) => ({ file: name, patch: "@@", additions: 1, deletions: 1, status: "modified" as const });
+  await host(page, { type: "changedFiles", files: [file("src/a.txt")] });
+  const panel = page.locator(".panel.changes");
+  await expect(panel).toBeVisible();
+
+  const check = page.locator(".panel.changes > summary .dismiss-changes");
+  await expect(check).toHaveAttribute("aria-label", STRINGS.dismissChanges);
+  await check.click();
+  await expect(panel).toHaveCount(0);
+
+  // A resync with the same files keeps it hidden.
+  await host(page, { type: "changedFiles", files: [file("src/a.txt")] });
+  await expect(panel).toHaveCount(0);
+
+  // New changes bring it back.
+  await host(page, { type: "changedFiles", files: [file("src/b.txt")] });
+  await expect(panel).toBeVisible();
+  await expect(panel.locator(".file-name")).toHaveText("src/b.txt");
+});
+
+test("the changed-files refresh and check buttons sit together on the right", async ({ page }) => {
+  await boot(page);
+  await host(page, { type: "changedFiles", files: [{ file: "src/a.txt", patch: "@@", additions: 1, deletions: 1, status: "modified" }] });
+  const summary = page.locator(".panel.changes > summary");
+  const refresh = summary.locator(".refresh-changes");
+  const check = summary.locator(".dismiss-changes");
+  await expect(refresh).toBeVisible();
+  await expect(check).toBeVisible();
+
+  const s = (await summary.boundingBox())!;
+  const r = (await refresh.boundingBox())!;
+  const c = (await check.boundingBox())!;
+  // The two buttons are adjacent, and the group is flush with the summary's right edge.
+  expect(c.x - (r.x + r.width)).toBeLessThan(8);
+  expect(s.x + s.width - (c.x + c.width)).toBeLessThan(8);
 });
 
 test("session cost from usage updates appears in the context meter tooltip", async ({ page }) => {

@@ -1114,7 +1114,9 @@ button:disabled {
   overflow: auto;
 }
 
-.panel > summary .icon-button {
+/* Push the button group to the right; only the first button takes the auto margin so the
+   remaining buttons stay right next to it instead of being spread across the summary. */
+.panel > summary .icon-button:first-of-type {
   margin-left: auto;
 }
 

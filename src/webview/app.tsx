@@ -57,6 +57,7 @@ export function App() {
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [fileResults, setFileResults] = useState<{ query: string; items: Attachment[] }>({ query: "", items: [] });
   const [changes, setChanges] = useState<FileDiff[]>([]);
+  const [dismissedChanges, setDismissedChanges] = useState<string | null>(null);
   const [autoApprove, setAutoApprove] = useState(false);
   const [notice, setNotice] = useState<UiError | undefined>();
   const [focusToken, setFocusToken] = useState(0);
@@ -106,6 +107,7 @@ export function App() {
             lastSessionId.current = id;
             setAttachments([]);
             setChanges([]);
+            setDismissedChanges(null);
             setNotice(undefined);
             clearReplyFailures();
             // Context chips belong to the editor, not the chat: keep the user's explicit
@@ -184,6 +186,12 @@ export function App() {
   const todos = useMemo(() => selectTodos(chat), [chat.messages]);
   // GET /session/{id}/diff is empty outside git repos, so fall back to patches in tool metadata.
   const changedFiles = useMemo(() => mergeChangedFiles(changes, chat), [changes, chat.messages, chat.touchedFiles]);
+  // "Mark as reviewed" hides the panel until the set of changed files actually changes again.
+  const changesSignature = useMemo(
+    () => JSON.stringify(changedFiles.map((f) => [f.file, f.status, f.additions, f.deletions, f.patch])),
+    [changedFiles],
+  );
+  const changesDismissed = dismissedChanges !== null && dismissedChanges === changesSignature;
   // Prompts already sent in this session, oldest first, for the composer's Up/Down history.
   const promptHistory = useMemo(
     () => chat.messages.filter((m): m is UiUserMessage => m.kind === "user").map((m) => m.text),
@@ -298,7 +306,9 @@ export function App() {
           {announcement}
         </div>
         {todos && todos.length > 0 && <TodoPanel todos={todos} />}
-        {changedFiles.length > 0 && <ChangesPanel files={changedFiles} />}
+        {changedFiles.length > 0 && !changesDismissed && (
+          <ChangesPanel files={changedFiles} onDismiss={() => setDismissedChanges(changesSignature)} />
+        )}
         <Composer
           busy={chat.busy}
           contextTokens={chat.contextTokens}
@@ -924,7 +934,7 @@ function TodoPanel({ todos }: { todos: { content: string; status: string }[] }) 
   );
 }
 
-function ChangesPanel({ files }: { files: FileDiff[] }) {
+function ChangesPanel({ files, onDismiss }: { files: FileDiff[]; onDismiss: () => void }) {
   const t = useT();
   return (
     <details class="panel changes">
@@ -933,7 +943,7 @@ function ChangesPanel({ files }: { files: FileDiff[] }) {
         <IconDiff /> {t("changedFiles")} ({files.length})
         <button
           type="button"
-          class="icon-button tooltip-host"
+          class="icon-button tooltip-host refresh-changes"
           data-tooltip={t("refresh")}
           aria-label={t("refresh")}
           onClick={(e) => {
@@ -942,6 +952,19 @@ function ChangesPanel({ files }: { files: FileDiff[] }) {
           }}
         >
           <IconRefresh />
+        </button>
+        <button
+          type="button"
+          class="icon-button tooltip-host dismiss-changes"
+          data-tooltip={t("dismissChanges")}
+          aria-label={t("dismissChanges")}
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            onDismiss();
+          }}
+        >
+          <IconCheck />
         </button>
       </summary>
       <FileList files={files} applied />

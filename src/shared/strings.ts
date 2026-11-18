@@ -53,6 +53,7 @@ export const STRINGS = {
   changedFiles: "Changed files",
   noChanges: "No file changes in this session",
   refresh: "Refresh changed files",
+  dismissChanges: "Mark changed files as reviewed and hide this section",
   todos: "Todos",
   context: "Context",
   removeContext: "Remove from message",
