@@ -1,12 +1,27 @@
 # Changelog
 
-## Unreleased
+## 0.3.3 — 2026-11-18
+
+**Behaviour change**
+
+- **Auto context** now shows the active file as a chip but attaches it to a message only when you
+  click its **+** button; the selection stays attached automatically. Chips can be toggled on/off
+  with **+** / ×. Disable `opencode.autoContext` to hide both chips. Previously both were attached
+  automatically and a chip could only be removed.
 
 - New `opencode.autoApprovePermissions` setting (off by default): when enabled, every inline
   permission request (edits, shell commands, access outside the workspace) is granted once on
   arrival instead of showing a card. Saved rules are untouched.
 - The composer has an **Auto-approve** toggle next to the context meter to turn this on for a single
   chat; the per-chat choice is remembered, while the setting remains the default for new chats.
+- New **OpenCode: Account** command and a clickable status bar icon to view saved OpenCode logins
+  (the tooltip lists them) and sign in via `opencode auth login` without leaving VS Code.
+- Tool calls are grouped in a compact card per step, context chips and attachments show file-type
+  icons, and a **Jump to latest** button appears after scrolling up during a response.
+- The chat view shows a **Reload chat** action if it stops working instead of going blank, and
+  re-reads a finished turn's history so a missed live event can't leave a response stuck.
+- Fixed attachments delivered by the live stream without a top-level `uri`; malformed payloads no
+  longer make the chat crash.
 
 ## 0.3.2 — 2026-11-17
 
