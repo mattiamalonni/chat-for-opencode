@@ -65,7 +65,6 @@ export const STRINGS = {
   addContext: "Add to message",
   currentFile: "Current file",
   selection: "Selection",
-  attachFile: "Attach file",
   pickFiles: "Attach files from disk",
   dropFilesOverlay: "Drop files to attach them to the message",
   dropFilesHint: "Hold Shift while dragging files into the chat, or click the folder to pick them from disk.",

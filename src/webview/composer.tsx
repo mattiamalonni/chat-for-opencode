@@ -8,7 +8,7 @@ import { ContextMeter } from "./contextMeter";
 import { FileTypeIcon } from "./fileIcons";
 import { Picker } from "./picker";
 import { useT } from "./i18n";
-import { IconAt, IconClose, IconCompact, IconFolder, IconPlus, IconSelection, IconSend, IconShield, IconStop, IconTool } from "./icons";
+import { IconClose, IconCompact, IconFolder, IconPlus, IconSelection, IconSend, IconShield, IconStop, IconTool } from "./icons";
 import { getPersisted, post, setPersisted } from "./vscode";
 
 export interface ComposerProps {
@@ -382,38 +382,6 @@ export function Composer(props: ComposerProps) {
         />
       </div>
       <div class="toolbar">
-        <button
-          type="button"
-          class="icon-button tooltip-host tooltip-above tooltip-left"
-          data-tooltip={t("attachFile")}
-          aria-label={t("attachFile")}
-          onClick={() => {
-            const el = ref.current;
-            if (!el) return;
-            const pos = el.selectionStart ?? text.length;
-            const prefix = pos > 0 && !/\s$/.test(text.slice(0, pos)) ? " @" : "@";
-            const next = text.slice(0, pos) + prefix + text.slice(pos);
-            setText(next);
-            const caret = pos + prefix.length;
-            requestAnimationFrame(() => {
-              el.focus();
-              el.setSelectionRange(caret, caret);
-              updateMention(next, caret);
-            });
-          }}
-        >
-          <IconAt />
-        </button>
-        <button
-          type="button"
-          class="icon-button tooltip-host tooltip-above tooltip-left"
-          data-tooltip={t("pickFiles")}
-          aria-label={t("pickFiles")}
-          disabled={props.disabled}
-          onClick={() => post({ type: "pickFiles" })}
-        >
-          <IconFolder />
-        </button>
         <ModePicker
           selectedAgent={props.selectedAgent}
           onSelect={(agent) => post({ type: "setAgent", agent })}
@@ -501,7 +469,19 @@ export function Composer(props: ComposerProps) {
         )}
       </div>
       </div>
-      <div class="drop-hint">{t("dropFilesHint")}</div>
+      <div class="drop-hint">
+        <button
+          type="button"
+          class="icon-button tooltip-host tooltip-above tooltip-left"
+          data-tooltip={t("pickFiles")}
+          aria-label={t("pickFiles")}
+          disabled={props.disabled}
+          onClick={() => post({ type: "pickFiles" })}
+        >
+          <IconFolder />
+        </button>
+        <span>{t("dropFilesHint")}</span>
+      </div>
     </div>
   );
 }

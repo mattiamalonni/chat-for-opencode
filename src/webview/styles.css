@@ -1147,10 +1147,18 @@ button:disabled {
 /* ---- composer -------------------------------------------------------------------------- */
 
 .drop-hint {
+  display: flex;
+  align-items: flex-start;
+  gap: 2px;
   padding: 3px 2px 0;
   font-size: 11px;
   line-height: 1.3;
   color: var(--vscode-descriptionForeground);
+}
+
+.drop-hint .icon-button {
+  flex: none;
+  margin-top: -4px;
 }
 
 .composer {
