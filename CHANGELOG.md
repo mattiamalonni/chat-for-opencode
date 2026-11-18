@@ -14,6 +14,7 @@
 - Session cost and token usage are restored from history on reload/resync instead of disappearing
   after every turn.
 - Fixed a trailing multi-byte UTF-8 character being dropped when an SSE stream ended mid-character.
+- Opening more than 200 virtual diffs no longer risks blanking a diff tab that is still open.
 - Removed an unused external-server failure path.
 
 ## 0.3.4 — 2026-11-18

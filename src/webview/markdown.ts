@@ -39,7 +39,11 @@ const marked = new Marked({
 
 const cache = new Map<string, string>();
 
-/** Markdown → sanitised HTML. Small cache because streaming re-renders the same prefixes. */
+/**
+ * Markdown → sanitised HTML. The cache helps when a message component remounts or the same text is
+ * rendered again; streaming deltas are new strings each frame, so `Markdown`'s `useMemo([text])`
+ * is what avoids re-rendering completed parts.
+ */
 export function renderMarkdown(source: string): string {
   const hit = cache.get(source);
   if (hit !== undefined) return hit;

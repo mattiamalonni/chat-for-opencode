@@ -118,7 +118,7 @@ state — drafts, staged attachments and the changed-files panel — while a sam
 
 ## Security
 
-* Webview CSP: `default-src 'none'; script-src 'nonce-…'; style-src ${cspSource} 'unsafe-inline';
+* Webview CSP: `default-src 'none'; script-src 'nonce-…'; style-src ${cspSource};
   img-src ${cspSource} data:; font-src ${cspSource}`. No remote scripts, no `connect-src`
   (the webview never talks to the server directly).
 * Markdown HTML is sanitised with DOMPurify.

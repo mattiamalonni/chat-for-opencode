@@ -1,8 +1,10 @@
 import * as path from "node:path";
 import * as vscode from "vscode";
+import { evictableKey } from "../shared/diffCache";
 import { applyPatch, sidesFromPatch } from "../shared/patch";
 
 export const DIFF_SCHEME = "opencode-diff";
+const MAX_VIRTUAL_DOCS = 200;
 
 /** Serves the read-only "other side" of OpenCode diffs as virtual documents. */
 export class DiffService implements vscode.TextDocumentContentProvider {
@@ -20,8 +22,14 @@ export class DiffService implements vscode.TextDocumentContentProvider {
       query: `${label}-${++this.counter}`,
     });
     this.contents.set(uri.toString(), content);
-    // Keep memory bounded.
-    if (this.contents.size > 200) this.contents.delete(this.contents.keys().next().value as string);
+    // Keep memory bounded, but never blank a diff tab that is still open.
+    if (this.contents.size > MAX_VIRTUAL_DOCS) {
+      const open = new Set(
+        vscode.workspace.textDocuments.filter((d) => d.uri.scheme === DIFF_SCHEME).map((d) => d.uri.toString()),
+      );
+      const victim = evictableKey(this.contents, open);
+      if (victim) this.contents.delete(victim);
+    }
     return uri;
   }
 
