@@ -3,6 +3,7 @@ import * as path from "node:path";
 import * as vscode from "vscode";
 import type { ChatController } from "../../../src/chat/controller";
 import type { HostMessage } from "../../../src/shared/protocol";
+import { normalizeFsPath } from "./paths";
 
 const workspace = process.env.OC_IT_WORKSPACE!;
 let controller: ChatController;
@@ -161,7 +162,7 @@ describe("chat-for-opencode extension", () => {
       return t && t.input instanceof vscode.TabInputTextDiff && t;
     }, "diff tab");
     const input = tab.input as vscode.TabInputTextDiff;
-    assert.equal(input.modified.fsPath, path.join(workspace, "src", "a.txt"));
+    assert.equal(normalizeFsPath(input.modified.fsPath), normalizeFsPath(path.join(workspace, "src", "a.txt")));
     const original = await vscode.workspace.openTextDocument(input.original);
     assert.equal(original.getText(), "a\n");
     await vscode.commands.executeCommand("workbench.action.closeAllEditors");

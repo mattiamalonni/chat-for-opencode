@@ -4,6 +4,7 @@ import * as path from "node:path";
 import * as vscode from "vscode";
 import type { ChatController } from "../../../src/chat/controller";
 import type { HostMessage } from "../../../src/shared/protocol";
+import { normalizeFsPath } from "./paths";
 
 const workspace = process.env.OC_IT_WORKSPACE!;
 let controller: ChatController;
@@ -56,7 +57,7 @@ describe("real opencode serve inside VS Code", () => {
       return t && t.input instanceof vscode.TabInputTextDiff && t;
     }, "diff tab", 10_000);
     const input = tab.input as vscode.TabInputTextDiff;
-    assert.equal(input.modified.fsPath, path.join(workspace, "a.txt"));
+    assert.equal(normalizeFsPath(input.modified.fsPath), normalizeFsPath(path.join(workspace, "a.txt")));
     assert.equal((await vscode.workspace.openTextDocument(input.original)).getText(), "a\n");
   });
 
