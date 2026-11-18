@@ -8,7 +8,7 @@ import { ContextMeter } from "./contextMeter";
 import { FileTypeIcon } from "./fileIcons";
 import { Picker } from "./picker";
 import { useT } from "./i18n";
-import { IconAt, IconClose, IconPlus, IconSelection, IconSend, IconStop, IconTool } from "./icons";
+import { IconAt, IconClose, IconPlus, IconSelection, IconSend, IconShield, IconStop, IconTool } from "./icons";
 import { getPersisted, post, setPersisted } from "./vscode";
 
 export interface ComposerProps {
@@ -19,6 +19,9 @@ export interface ComposerProps {
   skills: SkillSuggestion[];
   selectedModel?: ModelRef;
   selectedAgent?: string;
+  /** Per-chat auto-approval of permission requests. */
+  autoApprove: boolean;
+  onToggleAutoApprove: (enabled: boolean) => void;
   context: ContextItem[];
   selectedContext: Set<string>;
   onToggleContext: (id: string) => void;
@@ -352,6 +355,17 @@ export function Composer(props: ComposerProps) {
           />
         )}
         <span class="spacer" />
+        <button
+          type="button"
+          class={`auto-approve ${props.autoApprove ? "on" : ""}`}
+          title={props.autoApprove ? t("autoApproveOn") : t("autoApproveOff")}
+          aria-label={t("autoApprove")}
+          aria-pressed={props.autoApprove}
+          onClick={() => props.onToggleAutoApprove(!props.autoApprove)}
+        >
+          <IconShield />
+          <span>{t("autoApprove")}</span>
+        </button>
         {currentModel?.limit?.context ? <ContextMeter used={props.contextTokens} limit={currentModel.limit.context} /> : null}
         {props.busy ? (
           <button type="button" class="send stop" title={`${t("stop")} (Esc)`} aria-label={t("stop")} onClick={() => post({ type: "abort" })}>

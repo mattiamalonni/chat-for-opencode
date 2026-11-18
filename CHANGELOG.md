@@ -5,6 +5,8 @@
 - New `opencode.autoApprovePermissions` setting (off by default): when enabled, every inline
   permission request (edits, shell commands, access outside the workspace) is granted once on
   arrival instead of showing a card. Saved rules are untouched.
+- The composer has an **Auto-approve** toggle next to the context meter to turn this on for a single
+  chat; the per-chat choice is remembered, while the setting remains the default for new chats.
 
 ## 0.3.2 — 2026-11-17
 

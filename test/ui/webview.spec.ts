@@ -296,6 +296,18 @@ test("permission requests appear inside the tool card and are never auto-approve
   await expect(card).toHaveCount(0);
 });
 
+test("the composer toggles auto-approval for the current chat", async ({ page }) => {
+  await boot(page);
+  await openSession(page, S1, []);
+  const toggle = page.getByRole("button", { name: STRINGS.autoApprove });
+  await expect(toggle).toHaveAttribute("aria-pressed", "false");
+  await toggle.click();
+  expect(await lastPosted(page, "setAutoApprove")).toEqual({ type: "setAutoApprove", enabled: true });
+  await host(page, { type: "autoApprove", enabled: true });
+  await expect(toggle).toHaveAttribute("aria-pressed", "true");
+  await expect(toggle).toHaveAttribute("title", STRINGS.autoApproveOn);
+});
+
 test("question forms render options and submit the answer", async ({ page }) => {
   await boot(page);
   const events = fixture("real-sse4.jsonl");

@@ -50,6 +50,7 @@ export function App() {
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [fileResults, setFileResults] = useState<{ query: string; items: Attachment[] }>({ query: "", items: [] });
   const [changes, setChanges] = useState<FileDiff[]>([]);
+  const [autoApprove, setAutoApprove] = useState(false);
   const [notice, setNotice] = useState<UiError | undefined>();
   const [focusToken, setFocusToken] = useState(0);
   const [scrollToken, setScrollToken] = useState(0);
@@ -121,6 +122,9 @@ export function App() {
           break;
         case "changedFiles":
           setChanges(msg.files);
+          break;
+        case "autoApprove":
+          setAutoApprove(msg.enabled);
           break;
         case "focusInput":
           setFocusToken((n) => n + 1);
@@ -212,6 +216,8 @@ export function App() {
           skills={catalog.skills}
           selectedModel={catalog.selectedModel}
           selectedAgent={catalog.selectedAgent}
+          autoApprove={autoApprove}
+          onToggleAutoApprove={(enabled) => post({ type: "setAutoApprove", enabled })}
           context={context}
           selectedContext={selectedContext}
           onToggleContext={(id) =>

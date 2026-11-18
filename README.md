@@ -120,7 +120,7 @@ loads the skill content.
 | `opencode.startupTimeout` | `30000` | ms to wait for the server to become healthy. |
 | `opencode.autoRestart` | `true` | Restart the managed server if it crashes (max 5 times in 2 minutes). |
 | `opencode.sessionPermissions` | ask before edits, shell and external files | Rules added to new sessions. Set `[]` to restore OpenCode's permissive defaults. |
-| `opencode.autoApprovePermissions` | `false` | Auto-approve every inline permission request (granted once, saved rules untouched). Off by default. |
+| `opencode.autoApprovePermissions` | `false` | Default for new chats: auto-approve every inline permission request (granted once, saved rules untouched). The **Auto-approve** toggle in the composer overrides it per chat. |
 
 By default new sessions ask before editing files, running shell commands or accessing files outside
 the workspace: OpenCode's base policy (`{"action":"*","effect":"allow"}`) would otherwise approve
@@ -128,9 +128,11 @@ them silently. Choose **Always allow** on a permission card to save an approval 
 Set `opencode.sessionPermissions` to `[]`, or use OpenCode's `permissions` config
 ([docs](https://opencode.ai/docs/permissions/)), to change the defaults.
 
-Enable `opencode.autoApprovePermissions` to bypass the inline cards entirely: every permission
-request is granted once on arrival, so the default `ask` rules still apply but you are not prompted.
-It is off by default; only enable it when you trust unattended edits and shell commands.
+Enable `opencode.autoApprovePermissions` — or use the **Auto-approve** toggle at the bottom of the
+composer — to bypass the inline cards: every permission request is granted once on arrival, so the
+default `ask` rules still apply but you are not prompted. The toggle applies to the current chat
+and is remembered across reloads; the setting is the default for chats where it was never changed.
+Auto-approval is off by default; only enable it when you trust unattended edits and shell commands.
 
 > **Note:** session rules take precedence over the `permissions` in your `opencode.json`. With the
 > default setting, an allowlist there such as `{"action":"shell","resource":"git status *","effect":"allow"}`

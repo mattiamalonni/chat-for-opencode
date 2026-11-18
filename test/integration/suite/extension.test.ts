@@ -123,15 +123,34 @@ describe("chat-for-opencode extension", () => {
 
   it("auto-approves permission requests when the setting is enabled", async () => {
     const config = vscode.workspace.getConfiguration("opencode");
+    const mark = posted.length;
     await config.update("autoApprovePermissions", true, vscode.ConfigurationTarget.Workspace);
     try {
-      const mark = posted.length;
+      await waitFor(() => lastPosted("autoApprove", mark)?.enabled === true, "setting reflected in the composer");
       await controller.receive({ type: "send", text: "[permission] unattended edit", attachments: [], context: [] });
       await waitFor(() => eventPosted("session.execution.succeeded", mark), "execution succeeded without a reply");
       assert.equal(eventPosted("permission.asked", mark), undefined, "no inline card is shown");
     } finally {
       await config.update("autoApprovePermissions", false, vscode.ConfigurationTarget.Workspace);
     }
+  });
+
+  it("remembers auto-approval per chat, overriding the global default", async () => {
+    const sessionId = controller.debugState.sessionId!;
+    const mark = posted.length;
+    await controller.receive({ type: "setAutoApprove", enabled: true });
+    await waitFor(() => lastPosted("autoApprove", mark)?.enabled === true, "auto-approve on for this chat");
+    await controller.receive({ type: "send", text: "[permission] unattended per-chat edit", attachments: [], context: [] });
+    await waitFor(() => eventPosted("session.execution.succeeded", mark), "execution succeeded without a reply");
+    assert.equal(eventPosted("permission.asked", mark), undefined, "no inline card is shown");
+
+    // A new chat follows the global default (off)...
+    await controller.receive({ type: "newSession" });
+    await waitFor(() => lastPosted("autoApprove", mark)?.enabled === false, "off for a new chat");
+    // ...while reopening the chat restores its own toggle.
+    await controller.receive({ type: "selectSession", id: sessionId });
+    await waitFor(() => lastPosted("autoApprove", mark)?.enabled === true, "remembered per chat");
+    await controller.receive({ type: "setAutoApprove", enabled: false });
   });
 
   it("opens an applied change in the native diff editor with the reconstructed original", async () => {

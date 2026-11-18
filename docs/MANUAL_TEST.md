@@ -23,8 +23,9 @@ Prerequisites: OpenCode v2 on `PATH` (`opencode --version`), a provider configur
    Click **Allow once**. The file changes; *Changed files (1)* appears above the input; clicking
    the file opens the applied diff.
 7. **Reject**: ask for another edit and press **Reject**: the tool card turns red, file unchanged.
-7b. **Auto-approve**: enable `opencode.autoApprovePermissions`, ask for another edit: no permission
-    card appears and the file changes right away. Disable it again and confirm the cards return.
+7b. **Auto-approve**: click **Auto-approve** in the composer, ask for another edit: no permission
+    card appears and the file changes right away. Switch chats and confirm the toggle is per chat;
+    disable it again and confirm the cards return.
 8. **Context**: open `a.txt`, select the line. Chips `a.txt (Current file)` and `a.txt:1` appear;
    remove one with ×; send `What does the selection contain?`. The user bubble lists the attachment.
    Right-click → *Add Selection to Chat* adds a chip.

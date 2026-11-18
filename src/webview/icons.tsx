@@ -49,6 +49,14 @@ export const IconFileDoc = fileSvg("M5 8.6h6M5 10.4h6M5 12.2h3.8");
 export const IconSelection = svg("M2 3h12v1H2zm0 3h8v1H2zm0 3h12v1H2zm0 3h6v1H2z");
 export const IconTool = svg("M13.6 2.4a3.5 3.5 0 0 0-4.7 4.2L2.2 13.3l1.5 1.5 6.7-6.7a3.5 3.5 0 0 0 4.2-4.7l-2 2-1.5-.4-.4-1.5z");
 export const IconCheck = svg("M6.3 11.3 2.7 7.7l-1 1 4.6 4.6 8-8-1-1z");
+export const IconShield = function IconShield(props: P) {
+  return (
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.2" aria-hidden="true" focusable="false" {...props}>
+      <path d="M8 1.6 3 3.4v4c0 3.1 2 5.7 5 6.9 3-1.2 5-3.8 5-6.9v-4z" stroke-linejoin="round" />
+      <path d="m5.9 7.9 1.4 1.4 2.8-3" stroke-linecap="round" stroke-linejoin="round" />
+    </svg>
+  );
+};
 export const IconError = svg("M8 1a7 7 0 1 1 0 14A7 7 0 0 1 8 1zm-.7 3v5h1.4V4zm0 6.3v1.4h1.4v-1.4z");
 export const IconWarning = svg("M8 1 15 14H1zm-.7 4v4.5h1.4V5zm0 5.8v1.4h1.4v-1.4z");
 export const IconInfo = svg("M8 1a7 7 0 1 1 0 14A7 7 0 0 1 8 1zm-.7 6v5h1.4V7zm0-2.7v1.4h1.4V4.3z");

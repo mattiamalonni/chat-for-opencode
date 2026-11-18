@@ -114,6 +114,7 @@ export type HostMessage =
   | { type: "fileResults"; query: string; items: Attachment[] }
   | { type: "addAttachment"; item: Attachment }
   | { type: "changedFiles"; files: FileDiff[] }
+  | { type: "autoApprove"; enabled: boolean }
   | { type: "focusInput" }
   | { type: "notice"; error: UiError };
 
@@ -127,6 +128,7 @@ export type WebviewMessage =
   | { type: "refreshSessions" }
   | { type: "setModel"; model: ModelRef }
   | { type: "setAgent"; agent: string }
+  | { type: "setAutoApprove"; enabled: boolean }
   | { type: "permissionReply"; sessionId: string; requestId: string; decision: PermissionDecision }
   | { type: "formReply"; sessionId: string; formId: string; answer: Record<string, FormValue> }
   | { type: "formCancel"; sessionId: string; formId: string }

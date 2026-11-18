@@ -40,9 +40,10 @@ test or a manual probe actually ran.
   `opencode.sessionPermissions` default). Sessions created elsewhere, or after setting that option
   to `[]`, still follow OpenCode's permissive defaults. **Always allow** saves a project-scoped
   approval; use OpenCode's `permissions` config for stricter, global rules.
-- **Auto-approval grants each request once.** With `opencode.autoApprovePermissions` enabled the
-  inline cards are skipped and every request is granted once on arrival; saved rules are untouched,
-  so turning the option off restores prompting immediately.
+- **Auto-approval grants each request once.** With `opencode.autoApprovePermissions` enabled (or the
+  composer's **Auto-approve** toggle for a single chat) the inline cards are skipped and every
+  request is granted once on arrival; saved rules are untouched, so turning it off restores prompting
+  immediately. A per-chat choice overrides the setting and is remembered across reloads.
 - **Session rules override `opencode.json` rules** (verified with 2.2.7: a config rule
   `shell echo * allow` was still prompted with the default `shell * ask` session rule). Users with
   an allowlist in their OpenCode config must copy it into `opencode.sessionPermissions` or set that

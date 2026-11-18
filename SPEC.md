@@ -76,6 +76,7 @@ All messages are JSON objects with a `type` discriminator, defined in `src/share
 | `fileResults` | `query`, `items` | answer to `searchFiles` |
 | `addAttachment` | `item` | "Add selection to chat" command |
 | `changedFiles` | `files: FileDiff[]` | after a step that touched files |
+| `autoApprove` | `enabled: boolean` | per-chat auto-approval loaded / toggled |
 | `focusInput` | – | `opencode.focus` |
 | `notice` | `UiError` | transient error (e.g. prompt rejected) |
 
@@ -88,6 +89,7 @@ All messages are JSON objects with a `type` discriminator, defined in `src/share
 | `abort` | – |
 | `newSession`, `selectSession {id}`, `deleteSession {id}`, `refreshSessions` | |
 | `setModel {providerID, id, variant?}`, `setAgent {id}` | |
+| `setAutoApprove {enabled}` | per-chat auto-approval toggle |
 | `permissionReply {requestId, sessionId, decision: once\|always\|reject}` | |
 | `formReply {formId, sessionId, answer}`, `formCancel {formId, sessionId}` | |
 | `searchFiles {query}` | |
