@@ -358,6 +358,24 @@ test("question forms render options and submit the answer", async ({ page }) => 
   expect(await lastPosted(page, "formReply")).toMatchObject({ answer: { q0: "Blue" } });
 });
 
+test("cancelling a question unlocks the composer", async ({ page }) => {
+  await boot(page);
+  const events = fixture("real-sse4.jsonl");
+  const created = events.findIndex((e) => e.type === "form.created");
+  await openSession(page, S2, events.slice(0, created + 1));
+  await expect(page.getByRole("button", { name: STRINGS.stop })).toBeVisible();
+
+  const form = page.locator("form.card.question");
+  await form.getByRole("button", { name: STRINGS.cancel }).click();
+  const formId = (events[created].data as { form: { id: string } }).form.id;
+  expect(await lastPosted(page, "formCancel")).toMatchObject({ formId });
+
+  // The server may answer with only `form.cancelled` and no terminal execution event.
+  await host(page, { type: "event", event: { type: "form.cancelled", data: { id: formId, sessionID: S2 } } });
+  await expect(form).toHaveCount(0);
+  await expect(page.getByRole("button", { name: STRINGS.send })).toBeVisible();
+});
+
 test("todo list from todowrite", async ({ page }) => {
   await boot(page);
   await openSession(page, S3, fixture("real-sse6.jsonl"));

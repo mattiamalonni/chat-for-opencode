@@ -17,6 +17,9 @@
 - Fixed a trailing multi-byte UTF-8 character being dropped when an SSE stream ended mid-character.
 - Opening more than 200 virtual diffs no longer risks blanking a diff tab that is still open.
 - Removed an unused external-server failure path.
+- Fixed the composer staying on **Stop** after cancelling a question: dismissing a form now clears
+  the session's busy state locally, so a new prompt can be sent even when OpenCode emits no terminal
+  execution event.
 
 ## 0.3.4 — 2026-11-18
 

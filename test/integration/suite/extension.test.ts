@@ -276,4 +276,25 @@ describe("chat-for-opencode extension", () => {
     );
     assert.equal(idle.type === "event" && (idle.event.data as { status: { type: string } }).status.type, "idle");
   });
+
+  it("keeps the composer usable after cancelling a question", async () => {
+    const mark = posted.length;
+    await controller.receive({ type: "send", text: "[question] pick a color", attachments: [], context: [] });
+    const created = await waitFor(() => eventPosted("form.created", mark), "question form");
+    assert.ok(created.type === "event");
+    const form = (created.event.data as { form: { id: string; sessionID: string } }).form;
+
+    // Dismissing a form must unlock the composer even when the server sends no terminal
+    // execution event (the mock keeps running, so only the local idle event proves the fix).
+    const beforeCancel = posted.length;
+    await controller.receive({ type: "formCancel", sessionId: form.sessionID, formId: form.id });
+    const idle = await waitFor(
+      () => posted.slice(beforeCancel).find((m) => m.type === "event" && m.event.type === "session.status"),
+      "local idle status after cancel",
+    );
+    assert.ok(idle.type === "event");
+    const data = idle.event.data as { status: { type: string }; sessionID: string };
+    assert.equal(data.status.type, "idle");
+    assert.equal(data.sessionID, form.sessionID);
+  });
 });

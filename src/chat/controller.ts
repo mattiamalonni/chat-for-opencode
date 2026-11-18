@@ -207,6 +207,18 @@ export class ChatController implements vscode.Disposable {
     return new vscode.Disposable(() => this.postListeners.delete(listener));
   }
 
+  /**
+   * Marks a session idle in the webview without waiting for a server terminal event. OpenCode can
+   * end a turn (a second interrupt, a dismissed question) without emitting one, which would leave
+   * the composer stuck on "stop" forever.
+   */
+  private postLocalIdle(sid: string): void {
+    this.post({
+      type: "event",
+      event: { type: "session.status", data: { sessionID: sid, status: { type: "idle" } } } as ServerEvent,
+    });
+  }
+
   private pickFolder(): vscode.WorkspaceFolder | undefined {
     const folders = vscode.workspace.workspaceFolders ?? [];
     const active = vscode.window.activeTextEditor?.document.uri;
@@ -851,7 +863,7 @@ export class ChatController implements vscode.Disposable {
           await this.client.interrupt(sid);
           // A server that receives a second interrupt on an already-idle session emits no
           // terminal event. Clear busy locally so the composer can never stay stuck on "stop".
-          this.post({ type: "event", event: { type: "session.status", data: { sessionID: sid, status: { type: "idle" } } } as ServerEvent });
+          this.postLocalIdle(sid);
         }
         return;
       }
@@ -909,9 +921,18 @@ export class ChatController implements vscode.Disposable {
       case "formReply":
         await this.client?.replyForm(msg.sessionId, msg.formId, msg.answer);
         return;
-      case "formCancel":
-        await this.client?.cancelForm(msg.sessionId, msg.formId);
+      case "formCancel": {
+        const sid = msg.sessionId;
+        try {
+          await this.client?.cancelForm(sid, msg.formId);
+        } finally {
+          // Dismissing a question ends the assistant's step, but the server may answer with
+          // only `form.cancelled` and no terminal execution event. Clear busy locally so the
+          // composer can never stay stuck on "stop" (same guard as `abort`).
+          this.postLocalIdle(sid);
+        }
         return;
+      }
       case "searchFiles": {
         const items = (await this.fileIndex?.search(msg.query)) ?? [];
         this.post({ type: "fileResults", query: msg.query, items });

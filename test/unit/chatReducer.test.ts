@@ -101,6 +101,25 @@ describe("chatReducer with recorded opencode 2.2.7 streams", () => {
     expect(state.forms).toHaveLength(0);
   });
 
+  it("unlocks the composer when a question form is cancelled", () => {
+    const form = { id: "frm_1", sessionID: S2, title: "Questions", fields: [] };
+    let state = chatReducer(open(S2), {
+      type: "events",
+      events: [
+        { type: "session.execution.started", data: { sessionID: S2 } },
+        { type: "form.created", data: { sessionID: S2, form } },
+      ],
+    });
+    expect(state.busy).toBe(true);
+    expect(state.forms).toHaveLength(1);
+    state = chatReducer(state, {
+      type: "event",
+      event: { type: "form.cancelled", data: { sessionID: S2, id: form.id } },
+    });
+    expect(state.forms).toHaveLength(0);
+    expect(state.busy).toBe(false);
+  });
+
   it("marks interrupted executions and stops being busy", () => {
     const events = fixture("real-sse5.jsonl");
     const state = chatReducer(open(S2), { type: "events", events });

@@ -570,10 +570,17 @@ export function applyEvent(state: ChatState, event: ServerEvent): ChatState {
       if (state.forms.some((f) => f.id === form.id)) return state;
       return { ...state, forms: [...state.forms, form] };
     }
-    case "form.replied":
-    case "form.cancelled": {
+    case "form.replied": {
       const id = str(d, "id");
       return { ...state, forms: state.forms.filter((f) => f.id !== id) };
+    }
+    case "form.cancelled": {
+      const id = str(d, "id");
+      // Dismissing a question ends the assistant's step. The server may not follow with a
+      // terminal execution event, so settle the turn and unlock the composer here as well
+      // (defence in depth with the controller's local idle status).
+      const s = finishAll(state);
+      return { ...s, forms: s.forms.filter((f) => f.id !== id), busy: false, retry: undefined };
     }
     default:
       return state;
