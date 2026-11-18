@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- A finished turn now folds its intermediate steps (thinking, tool calls and narration), including
+  the reasoning attached to the final answer, into a single expandable "Show N steps" row — leaving
+  only the final answer visible. During streaming nothing is hidden, and searching a session expands
+  the folded steps automatically.
 - Messages can be **queued** while the agent works (plain Enter) or sent as a **steer** that
   interrupts the current answer (Ctrl/Cmd+Enter), using OpenCode's `delivery` field.
 - Composer drafts now survive a window reload (per session, in `workspaceState`).

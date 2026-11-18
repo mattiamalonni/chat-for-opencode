@@ -885,6 +885,35 @@ details[open] > summary > .chevron,
   border-top: 1px solid var(--vscode-widget-border, var(--vscode-panel-border, transparent));
 }
 
+/* A finished turn folds its intermediate steps into one expandable row. */
+.turn-steps {
+  min-width: 0;
+}
+
+.turn-steps-header {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  background: none;
+  border: none;
+  padding: 4px 0;
+  cursor: pointer;
+  text-align: left;
+  color: var(--vscode-descriptionForeground);
+}
+
+.turn-steps-header:hover {
+  color: var(--vscode-foreground);
+}
+
+.turn-steps-body {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 2px 0 4px;
+}
+
 .tool-header {
   width: 100%;
   display: flex;

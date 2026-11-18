@@ -287,6 +287,15 @@ test("streams a real recorded conversation with reasoning, markdown and tool car
   await thoughts.locator("summary").click();
   await expect(thoughts).toHaveAttribute("open", "");
 
+  // The finished turn folds its intermediate work; expand it to inspect the tools.
+  const steps = page.locator(".turn-steps");
+  await expect(steps).toHaveCount(1);
+  const stepsHeader = steps.locator(".turn-steps-header");
+  await expect(stepsHeader).toHaveAttribute("aria-expanded", "false");
+  await stepsHeader.click();
+  await expect(stepsHeader).toHaveAttribute("aria-expanded", "true");
+  await expect(stepsHeader).toContainText(STRINGS.hideSteps);
+
   // Tool calls keep the order the model produced them in, around their narration.
   const tools = page.locator(".tool");
   await expect(tools).toHaveCount(3);
@@ -343,6 +352,54 @@ test("keeps thoughts and tools in production order and groups adjacent calls", a
   expect(firstText!.y).toBeLessThan(groupBox!.y);
   expect(groupBox!.y).toBeLessThan(secondThought!.y);
   expect(secondThought!.y).toBeLessThan(standaloneBox!.y);
+});
+
+test("a finished turn folds its intermediate steps and can expand them", async ({ page }) => {
+  await boot(page);
+  const sid = "ses_fold";
+  const base = { sessionID: sid };
+  const events: ServerEvent[] = [
+    { type: "session.inbox.enqueued", created: 1000, data: { ...base, inboxID: "u1", item: { type: "user", payload: { text: "do it" } } } },
+    { type: "session.execution.started", created: 1010, data: base },
+    { type: "session.step.started", created: 1100, data: { ...base, assistantMessageID: "m1", agent: "build" } },
+    { type: "session.reasoning.started", created: 1110, data: { ...base, assistantMessageID: "m1", ordinal: 0 } },
+    { type: "session.reasoning.ended", created: 1120, data: { ...base, assistantMessageID: "m1", ordinal: 0, text: "thinking hard" } },
+    { type: "session.text.started", created: 1130, data: { ...base, assistantMessageID: "m1", ordinal: 0 } },
+    { type: "session.text.ended", created: 1140, data: { ...base, assistantMessageID: "m1", ordinal: 0, text: "intermediate narration" } },
+    { type: "session.step.ended", created: 1150, data: { ...base, assistantMessageID: "m1", finish: "tool-calls" } },
+    { type: "session.step.started", created: 1200, data: { ...base, assistantMessageID: "m2", agent: "build" } },
+    { type: "session.reasoning.started", created: 1205, data: { ...base, assistantMessageID: "m2", ordinal: 0 } },
+    { type: "session.reasoning.ended", created: 1206, data: { ...base, assistantMessageID: "m2", ordinal: 0, text: "final thought" } },
+    { type: "session.text.started", created: 1210, data: { ...base, assistantMessageID: "m2", ordinal: 0 } },
+    { type: "session.text.ended", created: 1220, data: { ...base, assistantMessageID: "m2", ordinal: 0, text: "final answer" } },
+    { type: "session.step.ended", created: 1230, data: { ...base, assistantMessageID: "m2", finish: "stop" } },
+  ];
+  await openSession(page, sid, events);
+  // Still running: nothing is hidden so the stream stays visible.
+  await expect(page.locator(".turn-steps")).toHaveCount(0);
+  await expect(page.locator(".conversation")).toContainText("intermediate narration");
+
+  await host(page, { type: "event", event: { type: "session.execution.succeeded", created: 1300, data: base } });
+
+  const steps = page.locator(".turn-steps");
+  await expect(steps).toHaveCount(1);
+  await expect(page.locator(".conversation")).toContainText("final answer");
+  await expect(page.locator(".conversation")).not.toContainText("intermediate narration");
+  await expect(page.locator(".conversation")).not.toContainText("final thought");
+
+  const header = steps.locator(".turn-steps-header");
+  await expect(header).toHaveAttribute("aria-expanded", "false");
+  await expect(header).toContainText(STRINGS.showSteps.replace("{0}", "2"));
+  await header.click();
+  await expect(header).toHaveAttribute("aria-expanded", "true");
+  await expect(header).toContainText(STRINGS.hideSteps);
+  await expect(steps).toContainText("intermediate narration");
+  await expect(steps).toContainText("thinking hard");
+  await expect(steps).toContainText("final thought");
+
+  await header.click();
+  await expect(header).toHaveAttribute("aria-expanded", "false");
+  await expect(page.locator(".conversation")).not.toContainText("intermediate narration");
 });
 
 test("a new prompt follows the latest message even after scrolling up", async ({ page }) => {

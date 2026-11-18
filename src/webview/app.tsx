@@ -940,6 +940,7 @@ type ConversationItem =
   | { kind: "tool"; key: string; part: ToolPart }
   | { kind: "tools"; key: string; parts: ToolPart[] }
   | { kind: "status"; key: string; message: UiAssistantMessage; typing: boolean }
+  | { kind: "turnSteps"; key: string; items: ConversationItem[]; count: number }
   | { kind: "turnStats"; key: string; stats: TurnStats };
 
 /** The summary of a turn is emitted once, after the last assistant message it produced. */
@@ -964,13 +965,14 @@ function conversationItems(messages: UiMessage[], turns: TurnStats[]): Conversat
 
   const flushTurn = () => {
     if (turn.length === 0) return;
+    const turnItems: ConversationItem[] = [];
     let tools: ToolPart[] = [];
     let started = false;
 
     const flushTools = () => {
       if (tools.length === 0) return;
-      if (tools.length === 1) items.push({ kind: "tool", key: tools[0].key, part: tools[0] });
-      else items.push({ kind: "tools", key: `tools:${tools[0].key}`, parts: tools });
+      if (tools.length === 1) turnItems.push({ kind: "tool", key: tools[0].key, part: tools[0] });
+      else turnItems.push({ kind: "tools", key: `tools:${tools[0].key}`, parts: tools });
       tools = [];
       started = true;
     };
@@ -979,7 +981,7 @@ function conversationItems(messages: UiMessage[], turns: TurnStats[]): Conversat
       let texts: TextPart[] = [];
       const flushTexts = () => {
         if (texts.length === 0) return;
-        items.push({ kind: "assistant", key: `${m.id}:${texts[0].key}`, message: m, parts: texts, grouped: started });
+        turnItems.push({ kind: "assistant", key: `${m.id}:${texts[0].key}`, message: m, parts: texts, grouped: started });
         texts = [];
         started = true;
       };
@@ -998,13 +1000,59 @@ function conversationItems(messages: UiMessage[], turns: TurnStats[]): Conversat
 
     // Retry/error feedback belongs to the turn, after whatever content it managed to produce.
     for (const m of turn) {
-      if (m.retry || m.error) items.push({ kind: "status", key: `status:${m.id}`, message: m, typing: false });
+      if (m.retry || m.error) turnItems.push({ kind: "status", key: `status:${m.id}`, message: m, typing: false });
     }
     const last = turn.at(-1);
     if (last && !last.done && last.parts.length === 0) {
-      items.push({ kind: "status", key: `typing:${last.id}`, message: last, typing: true });
+      turnItems.push({ kind: "status", key: `typing:${last.id}`, message: last, typing: true });
     }
     const stats = statsForTurn(turns, turn);
+
+    // A finished turn keeps only its final answer on screen. Everything the model did to get
+    // there (thinking, tool calls and intermediate narration) folds into one expandable block.
+    // While the turn is still running nothing is hidden, so the stream stays visible.
+    if (stats) {
+      let answer = -1;
+      for (let i = turnItems.length - 1; i >= 0; i--) {
+        const it = turnItems[i];
+        if (it.kind === "assistant" && it.parts.some((p) => p.kind === "text")) {
+          answer = i;
+          break;
+        }
+      }
+      if (answer > 0) {
+        const steps = turnItems.slice(0, answer);
+        const visible = turnItems.slice(answer);
+        const final = visible[0];
+        // The last message often carries its final reasoning beside the answer text. Fold that
+        // reasoning in too, so the only thing left above the accordion is the answer itself.
+        if (final.kind === "assistant") {
+          const thoughts = final.parts.filter((p) => p.kind === "reasoning");
+          const text = final.parts.filter((p) => p.kind === "text");
+          if (thoughts.length > 0 && text.length > 0) {
+            steps.push({
+              kind: "assistant",
+              key: `${final.key}:thoughts`,
+              message: final.message,
+              parts: thoughts,
+              grouped: final.grouped,
+            });
+            visible[0] = { ...final, parts: text };
+          }
+        }
+        const toolCalls = steps.reduce(
+          (n, it) => n + (it.kind === "tool" ? 1 : it.kind === "tools" ? it.parts.length : 0),
+          0,
+        );
+        const count = toolCalls || steps.filter((it) => it.kind === "assistant").length || steps.length;
+        items.push({ kind: "turnSteps", key: `steps:${stats.id}`, items: steps, count });
+        items.push(...visible);
+      } else {
+        items.push(...turnItems);
+      }
+    } else {
+      items.push(...turnItems);
+    }
     if (stats) items.push({ kind: "turnStats", key: `stats:${stats.id}`, stats });
     turn = [];
   };
@@ -1034,6 +1082,8 @@ function itemSearchText(item: ConversationItem): string {
       return item.parts.map((p) => [p.name, p.inputText].join(" ")).join(" ");
     case "status":
       return [item.message.error?.message ?? "", item.message.retry?.message ?? ""].join(" ");
+    case "turnSteps":
+      return item.items.map(itemSearchText).join(" ");
     case "turnStats":
       return "";
   }
@@ -1042,6 +1092,32 @@ function itemSearchText(item: ConversationItem): string {
 // Messages are only measured after layout; a conservative estimate keeps the reserved space stable.
 const ESTIMATED_ROW_HEIGHT = 140;
 const OVERSCAN = 10;
+
+/** The folded intermediate steps of one finished turn, expandable on demand. */
+function TurnSteps({
+  count,
+  filteredOut = false,
+  searchActive = false,
+  children,
+}: {
+  count: number;
+  filteredOut?: boolean;
+  searchActive?: boolean;
+  children: ComponentChildren;
+}) {
+  const t = useT();
+  const [open, setOpen] = useState(false);
+  const expanded = open || searchActive;
+  return (
+    <section class={`turn-steps${filteredOut ? " filtered-out" : ""}`}>
+      <button type="button" class="turn-steps-header" aria-expanded={expanded} onClick={() => setOpen(!open)}>
+        <IconChevron class="chevron" />
+        <span>{expanded ? t("hideSteps") : t(count === 1 ? "showStep" : "showSteps", count)}</span>
+      </button>
+      {expanded && <div class="turn-steps-body">{children}</div>}
+    </section>
+  );
+}
 
 function Conversation({ chat, scrollToken, searchQuery }: { chat: ReturnType<typeof chatReducer>; scrollToken: number; searchQuery: string }) {
   const t = useT();
@@ -1129,6 +1205,47 @@ function Conversation({ chat, scrollToken, searchQuery }: { chat: ReturnType<typ
       post({ type: "openLink", href: link.getAttribute("href") ?? "" });
     }
   };
+  const renderItem = (item: ConversationItem, q: string) => {
+    const filteredOut = !!q && !itemSearchText(item).toLowerCase().includes(q);
+    switch (item.kind) {
+      case "tools":
+        return <ToolGroup key={item.key} parts={item.parts} state={chat} filteredOut={filteredOut} />;
+      case "tool":
+        return <ToolCard key={item.key} part={item.part} state={chat} filteredOut={filteredOut} />;
+      case "assistant":
+        return (
+          <MessageView
+            key={item.key}
+            message={{ ...item.message, parts: item.parts }}
+            state={chat}
+            grouped={item.grouped}
+            showStatus={false}
+            filteredOut={filteredOut}
+          />
+        );
+      case "status":
+        return <AssistantStatus key={item.key} message={item.message} typing={item.typing} filteredOut={filteredOut} />;
+      case "turnSteps":
+        return (
+          <TurnSteps key={item.key} count={item.count} filteredOut={filteredOut} searchActive={!!q}>
+            {item.items.map((child) => renderItem(child, q))}
+          </TurnSteps>
+        );
+      case "turnStats":
+        return <TurnStatsRow key={item.key} stats={item.stats} />;
+      case "message":
+        return (
+          <MessageView
+            key={item.message.id}
+            message={item.message}
+            state={chat}
+            grouped={false}
+            filteredOut={filteredOut}
+            searchQuery={searchQuery}
+          />
+        );
+    }
+  };
   const active = virtual && range.end > 0;
   const visible = active ? items.slice(range.start, range.end) : items;
   return (
@@ -1170,41 +1287,7 @@ function Conversation({ chat, scrollToken, searchQuery }: { chat: ReturnType<typ
           <p>{t("welcomeBody")}</p>
         </div>
       )}
-      {visible.map((item) => {
-        const filteredOut = !!query && !itemSearchText(item).toLowerCase().includes(query);
-        switch (item.kind) {
-          case "tools":
-            return <ToolGroup key={item.key} parts={item.parts} state={chat} filteredOut={filteredOut} />;
-          case "tool":
-            return <ToolCard key={item.key} part={item.part} state={chat} filteredOut={filteredOut} />;
-          case "assistant":
-            return (
-              <MessageView
-                key={item.key}
-                message={{ ...item.message, parts: item.parts }}
-                state={chat}
-                grouped={item.grouped}
-                showStatus={false}
-                filteredOut={filteredOut}
-              />
-            );
-          case "status":
-            return <AssistantStatus key={item.key} message={item.message} typing={item.typing} filteredOut={filteredOut} />;
-          case "turnStats":
-            return <TurnStatsRow key={item.key} stats={item.stats} />;
-          case "message":
-            return (
-              <MessageView
-                key={item.message.id}
-                message={item.message}
-                state={chat}
-                grouped={false}
-                filteredOut={filteredOut}
-                searchQuery={searchQuery}
-              />
-            );
-        }
-      })}
+      {visible.map((item) => renderItem(item, query))}
       {orphanP.map((p) => <PermissionCard key={p.id} request={p} />)}
       {orphanF.map((f) => <FormCard key={f.id} form={f} />)}
       {chat.busy && chat.messages.at(-1)?.kind !== "assistant" && (
