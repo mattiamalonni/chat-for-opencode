@@ -359,6 +359,28 @@ test("plain-text file references open at the exact line", async ({ page }) => {
   expect(await lastPosted(page, "openFile")).toEqual({ type: "openFile", path: "foo.ts:7" });
 });
 
+test("numbers and versions in a reply are not turned into file links", async ({ page }) => {
+  await boot(page);
+  const sid = "ses_numbers";
+  await openSession(page, sid, [
+    { type: "session.step.started", data: { sessionID: sid, assistantMessageID: "m1", agent: "build" } },
+    { type: "session.text.started", data: { sessionID: sid, assistantMessageID: "m1", ordinal: 0 } },
+    {
+      type: "session.text.delta",
+      data: {
+        sessionID: sid,
+        assistantMessageID: "m1",
+        ordinal: 0,
+        delta: "Ho cambiato il timer da 0.25s a 0.30s (v2.10.0). Il file è src/app.ts:42.",
+      },
+    },
+    { type: "session.step.ended", data: { sessionID: sid, assistantMessageID: "m1", finish: "stop" } },
+  ]);
+  const refs = page.locator(".msg.assistant .md").first().locator("a.file-ref");
+  await expect(refs).toHaveCount(1);
+  await expect(refs).toHaveText("src/app.ts:42");
+});
+
 test("tool, permission and changed-file paths open the file with one click", async ({ page }) => {
   await boot(page);
   const events = fixture("real-sse3.jsonl");

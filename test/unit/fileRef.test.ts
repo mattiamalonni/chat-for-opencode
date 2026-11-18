@@ -20,6 +20,13 @@ describe("file references", () => {
     expect(isFileRef("foo.t")).toBe(false);
   });
 
+  it("ignores numbers, versions and durations that look like extensions", () => {
+    for (const value of ["0.2", "0.3", "0.2s", "0.3s", "0.25", "0.30", "0.2ms", "3.14", "1.234", "v2.10.0", "127.0.0.1", "10.20.30"]) {
+      expect(isFileRef(value), value).toBe(false);
+      expect(findFileRefs(`timer da ${value} secondi`), value).toEqual([]);
+    }
+  });
+
   it("converts markdown line anchors to the host's path:line syntax", () => {
     expect(fileRefToOpenPath("foo.ts#L12")).toBe("foo.ts:12");
     expect(fileRefToOpenPath("./foo.ts#L12-L20")).toBe("foo.ts:12");

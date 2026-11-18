@@ -5,10 +5,12 @@
  * Must stay DOM-free: this module is compiled both by the extension host and by the webview.
  */
 
-const SHAPE = /^(?:[A-Za-z]:)?(?:\.{0,2}[/\\])?(?:[\w@.-]+[/\\])*[\w@.-]+\.[A-Za-z0-9]{2,8}$/;
+// The extension must start with a letter: `0.25`, `0.30`, `3.14`, `127.0.0.1`
+// and `0.2ms` all look like `name.ext` to a looser rule, but they are numbers.
+const SHAPE = /^(?:[A-Za-z]:)?(?:\.{0,2}[/\\])?(?:[\w@.-]+[/\\])*[\w@.-]+\.[A-Za-z][A-Za-z0-9]{1,7}$/;
 
 /** Leading delimiter kept outside the link, then the reference itself. */
-const IN_TEXT = /(^|[\s("'`[{])((?:[A-Za-z]:)?(?:\.{0,2}[/\\])?(?:[\w@.-]+[/\\])*[\w@.-]+\.[A-Za-z0-9]{2,8}(?::\d+(?::\d+)?)?(?:#L\d+)?)/g;
+const IN_TEXT = /(^|[\s("'`[{])((?:[A-Za-z]:)?(?:\.{0,2}[/\\])?(?:[\w@.-]+[/\\])*[\w@.-]+\.[A-Za-z][A-Za-z0-9]{1,7}(?::\d+(?::\d+)?)?(?:#L\d+)?)/g;
 
 const NOT_A_FILE = /^(?:[a-z][a-z0-9+.-]*:\/\/|mailto:)/i;
 
