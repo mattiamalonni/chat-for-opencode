@@ -172,6 +172,19 @@ export function App() {
     };
   }, []);
 
+  // The session list is an overlay, so a click anywhere else dismisses it. The header trigger is
+  // excluded: its own handler toggles the list, and closing it here first would swallow that click.
+  useEffect(() => {
+    if (!showSessions) return;
+    const onPointerDown = (event: PointerEvent) => {
+      const target = event.target as Element | null;
+      if (target?.closest(".session-list") || target?.closest(".session-toggle")) return;
+      setShowSessions(false);
+    };
+    document.addEventListener("pointerdown", onPointerDown);
+    return () => document.removeEventListener("pointerdown", onPointerDown);
+  }, [showSessions]);
+
   // Tooltips are absolutely positioned pseudo-elements: even hidden, a long one anchored on the
   // wrong side extends past the viewport and creates a horizontal scrollbar with empty space on
   // the right. Grow each one towards whichever side has room for its (wrapped) width.
@@ -434,14 +447,18 @@ function Header(props: { title: string; folders: { list: FolderInfo[]; active?: 
     <header class="header">
       <button
         type="button"
-        class="session-button"
+        class="session-button session-toggle"
         aria-haspopup="true"
         aria-expanded={props.showSessions}
         aria-label={`${t("sessions")}: ${props.title}`}
         onClick={props.onToggleSessions}
       >
         <IconHistory />
-        <span class="session-title">{props.title}</span>
+        <span class="session-button-label">{t("sessions")}</span>
+        <span class="session-current">
+          <span class="session-current-dot" aria-hidden="true" />
+          <span class="session-title">{props.title}</span>
+        </span>
         <IconChevron class={`chevron ${props.showSessions ? "down" : ""}`} />
       </button>
       {props.folders.list.length > 1 && (
@@ -521,6 +538,10 @@ function SessionList(props: {
           <li key={s.id} class={s.id === props.currentId ? "current" : ""}>
             {renaming === s.id ? (
               <div class="rename" role="group" aria-label={t("renameSession")}>
+                <div class="inline-message">
+                  <IconEdit class="inline-icon" />
+                  <span class="inline-question">{t("renameSession")}</span>
+                </div>
                 <input
                   type="text"
                   class="rename-input"
@@ -539,29 +560,39 @@ function SessionList(props: {
                     }
                   }}
                 />
-                <button type="button" class="primary" onClick={saveRename}>
-                  {t("save")}
-                </button>
-                <button type="button" class="secondary" onClick={closeInline}>
-                  {t("cancel")}
-                </button>
+                <div class="inline-actions">
+                  <button type="button" class="secondary compact" onClick={closeInline}>
+                    {t("cancel")}
+                  </button>
+                  <button type="button" class="primary compact" onClick={saveRename}>
+                    {t("save")}
+                  </button>
+                </div>
               </div>
             ) : confirm === s.id ? (
-              <div class="confirm" role="group" aria-label={t("confirmDelete")}>
-                <span>{t("confirmDelete")}</span>
-                <button
-                  type="button"
-                  class="primary danger"
-                  onClick={() => {
-                    post({ type: "deleteSession", id: s.id });
-                    closeInline();
-                  }}
-                >
-                  {t("deleteSession")}
-                </button>
-                <button type="button" class="secondary" onClick={closeInline}>
-                  {t("cancel")}
-                </button>
+              <div class="confirm" role="group" aria-label={`${t("confirmDelete")}: ${s.title || t("untitled")}`}>
+                <div class="inline-message">
+                  <IconWarning class="inline-icon" />
+                  <div class="inline-text">
+                    <span class="inline-question">{t("confirmDelete")}</span>
+                    <span class="inline-session" title={s.title || t("untitled")}>{s.title || t("untitled")}</span>
+                  </div>
+                </div>
+                <div class="inline-actions">
+                  <button type="button" class="secondary compact" onClick={closeInline} autoFocus>
+                    {t("cancel")}
+                  </button>
+                  <button
+                    type="button"
+                    class="primary danger compact"
+                    onClick={() => {
+                      post({ type: "deleteSession", id: s.id });
+                      closeInline();
+                    }}
+                  >
+                    {t("deleteSession")}
+                  </button>
+                </div>
               </div>
             ) : (
               <>

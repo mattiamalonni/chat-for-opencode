@@ -100,6 +100,33 @@ button {
   background: var(--vscode-toolbar-hoverBackground);
 }
 
+/* The trigger names the picker; the separated, dotted part is the chat you are in. */
+.session-button-label {
+  flex: none;
+  color: var(--vscode-descriptionForeground);
+  font-size: 0.85em;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.session-current {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  flex: 0 1 auto;
+  min-width: 0;
+  padding-left: 8px;
+  border-left: 1px solid var(--vscode-widget-border, var(--vscode-panel-border, transparent));
+}
+
+.session-current-dot {
+  flex: none;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--vscode-focusBorder, var(--vscode-charts-blue, #007fd4));
+}
+
 .session-title {
   flex: 1;
   min-width: 0;
@@ -277,17 +304,73 @@ details[open] > summary > .chevron,
   padding: 8px;
 }
 
+/* Inline rename/delete forms: compact cards instead of controls crammed into one row. */
 .confirm,
 .rename {
   display: flex;
-  align-items: center;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+  padding: 8px 10px;
+  background: var(--vscode-list-hoverBackground);
+  border: 1px solid var(--vscode-widget-border, var(--vscode-panel-border, transparent));
+  border-radius: 4px;
+}
+
+.confirm {
+  border-left: 2px solid var(--vscode-errorForeground, var(--vscode-charts-red, #f14c4c));
+}
+
+.rename {
+  border-left: 2px solid var(--vscode-focusBorder, var(--vscode-charts-blue, #007fd4));
+}
+
+.inline-message {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  min-width: 0;
+}
+
+.inline-icon {
+  flex: 0 0 auto;
+  margin-top: 1px;
+}
+
+.confirm .inline-icon {
+  color: var(--vscode-errorForeground, var(--vscode-charts-red, #f14c4c));
+}
+
+.rename .inline-icon {
+  color: var(--vscode-focusBorder, var(--vscode-charts-blue, #007fd4));
+}
+
+.inline-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.inline-question {
+  font-weight: 600;
+}
+
+.inline-session {
+  color: var(--vscode-descriptionForeground);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.inline-actions {
+  display: flex;
+  justify-content: flex-end;
   gap: 6px;
-  padding: 4px 8px;
-  flex-wrap: wrap;
 }
 
 .rename-input {
-  flex: 1;
+  width: 100%;
   min-width: 0;
   background: var(--vscode-input-background);
   color: var(--vscode-input-foreground);
@@ -968,6 +1051,21 @@ button.danger {
 button.primary.danger {
   background: var(--vscode-inputValidation-errorBackground, var(--vscode-button-background));
   color: var(--vscode-foreground);
+}
+
+/* Destructive confirmation reads as an outlined button, not a heavy filled block. */
+.confirm button.primary.danger {
+  background: transparent;
+  border-color: var(--vscode-errorForeground, var(--vscode-charts-red, #f14c4c));
+  color: var(--vscode-errorForeground, var(--vscode-charts-red, #f14c4c));
+}
+
+.confirm button.primary.danger:hover:not(:disabled) {
+  background: var(--vscode-inputValidation-errorBackground, var(--vscode-list-hoverBackground));
+}
+
+button.compact {
+  padding: 2px 10px;
 }
 
 button:disabled {

@@ -280,6 +280,13 @@
           "type": "boolean",
           "default": false,
           "markdownDescription": "%config.autoApprovePermissions%"
+        },
+        "opencode.sessionPageSize": {
+          "type": "number",
+          "default": 10,
+          "minimum": 1,
+          "maximum": 100,
+          "markdownDescription": "%config.sessionPageSize%"
         }
       }
     }

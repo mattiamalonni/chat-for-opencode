@@ -887,6 +887,15 @@ test("session list: switch and delete with confirmation", async ({ page }) => {
   expect(await lastPosted(page, "selectSession")).toEqual({ type: "selectSession", id: S1 });
   await dialog.getByRole("button", { name: `${STRINGS.deleteSession}: Hello world reply` }).click();
   expect(await lastPosted(page, "deleteSession")).toBeUndefined();
+  // The confirmation names the session it is about to remove and defaults focus to Cancel.
+  const confirm = dialog.getByRole("group", { name: `${STRINGS.confirmDelete}: Hello world reply` });
+  await expect(confirm).toContainText("Hello world reply");
+  await expect(dialog.getByRole("button", { name: STRINGS.cancel })).toBeFocused();
+  await page.screenshot({ path: join(SHOTS, "15-session-delete-confirm-dark.png") });
+  await page.keyboard.press("Escape");
+  await expect(confirm).toHaveCount(0);
+  expect(await lastPosted(page, "deleteSession")).toBeUndefined();
+  await dialog.getByRole("button", { name: `${STRINGS.deleteSession}: Hello world reply` }).click();
   await dialog.getByRole("button", { name: STRINGS.deleteSession, exact: true }).click();
   expect(await lastPosted(page, "deleteSession")).toEqual({ type: "deleteSession", id: S1 });
   await page.keyboard.press("Escape");
@@ -930,12 +939,39 @@ test("session list: rename posts the new title", async ({ page }) => {
   await page.getByRole("button", { name: new RegExp(`^${STRINGS.sessions}:`) }).click();
   const dialog = page.getByRole("dialog", { name: STRINGS.sessions });
   await dialog.getByRole("button", { name: `${STRINGS.renameSession}: Hello world reply` }).click();
+  const card = dialog.getByRole("group", { name: STRINGS.renameSession });
+  await expect(card.locator(".inline-question")).toHaveText(STRINGS.renameSession);
   const input = dialog.getByRole("textbox", { name: STRINGS.sessionTitle });
+  await expect(input).toBeFocused();
   await expect(input).toHaveValue("Hello world reply");
   await input.fill("Renamed chat");
   await input.press("Enter");
   expect(await lastPosted(page, "renameSession")).toEqual({ type: "renameSession", id: S1, title: "Renamed chat" });
   await expect(dialog.getByRole("textbox", { name: STRINGS.sessionTitle })).toHaveCount(0);
+});
+
+test("session list: outside clicks close it, inside clicks and the trigger do not", async ({ page }) => {
+  await boot(page);
+  const trigger = page.getByRole("button", { name: new RegExp(`^${STRINGS.sessions}:`) });
+  await trigger.click();
+  const dialog = page.getByRole("dialog", { name: STRINGS.sessions });
+  await expect(dialog).toBeVisible();
+  await dialog.click({ position: { x: 4, y: 2 } });
+  await expect(dialog).toBeVisible();
+  await page.mouse.click(190, 400);
+  await expect(dialog).toHaveCount(0);
+  await trigger.click();
+  await expect(dialog).toBeVisible();
+  await trigger.click();
+  await expect(dialog).toHaveCount(0);
+});
+
+test("header marks the sessions trigger separately from the current chat", async ({ page }) => {
+  await boot(page);
+  const trigger = page.getByRole("button", { name: `${STRINGS.sessions}: ${STRINGS.untitled}` });
+  await expect(trigger.locator(".session-button-label")).toHaveText(STRINGS.sessions);
+  await expect(trigger.locator(".session-current-dot")).toHaveCount(1);
+  await expect(trigger.locator(".session-title")).toHaveText(STRINGS.untitled);
 });
 
 test("session list: load-more button follows the host's hasMore flag", async ({ page }) => {

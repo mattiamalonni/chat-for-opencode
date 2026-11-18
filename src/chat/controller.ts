@@ -759,10 +759,16 @@ export class ChatController implements vscode.Disposable {
     );
   }
 
+  /** Page size for the session list; kept small so the picker stays scannable. */
+  private sessionPageSize(): number {
+    const configured = vscode.workspace.getConfiguration("opencode", this.folder?.uri).get<number>("sessionPageSize", 10);
+    return Math.min(100, Math.max(1, Math.floor(configured) || 10));
+  }
+
   async refreshSessions(): Promise<void> {
     if (!this.client || !this.folder) return;
     const generation = ++this.sessionsGeneration;
-    const { items, next } = await this.client.listSessionsPage(this.folder.uri.fsPath);
+    const { items, next } = await this.client.listSessionsPage(this.folder.uri.fsPath, this.sessionPageSize());
     const sessions = items.filter((s) => !s.parentID && !s.time.archived);
     const summaries = await this.toSummaries(sessions);
     if (generation !== this.sessionsGeneration) return;
@@ -778,7 +784,7 @@ export class ChatController implements vscode.Disposable {
     this.sessionsLoadingMore = true;
     const generation = this.sessionsGeneration;
     try {
-      const { items, next } = await this.client.listSessionsPage(this.folder.uri.fsPath, 50, this.sessionsCursor);
+      const { items, next } = await this.client.listSessionsPage(this.folder.uri.fsPath, this.sessionPageSize(), this.sessionsCursor);
       const known = new Set(this.sessionItems.map((s) => s.id));
       const fresh: SessionInfo[] = [];
       for (const s of items) {
