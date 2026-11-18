@@ -1,7 +1,9 @@
 # Changelog
 
-## Unreleased
+## 0.3.4 — 2026-11-18
 
+- Press **↑** / **↓** in the composer to recall prompts already sent in the current session
+  (shell-style history); editing a recalled prompt starts a fresh draft.
 - Fixed the composer getting stuck on **Stop** after interrupting a session. OpenCode can leave a
   session's `busy` timestamp newer than `idle` after an interrupt; the post-turn refresh now trusts
   the terminal message in the history, so the send button becomes available again and further
