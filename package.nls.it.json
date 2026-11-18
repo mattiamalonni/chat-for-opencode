@@ -15,7 +15,7 @@
   "command.showChanges": "Mostra file modificati",
   "config.executablePath": "Percorso dell'eseguibile `opencode` usato per avviare `opencode serve` (un processo per cartella dell'area di lavoro).",
   "config.endpoint": "URL di un server OpenCode già in esecuzione (es. `http://127.0.0.1:4096`). Se impostato non viene avviato alcun processo; usa **OpenCode: Imposta password del server…** per salvarne la password nel portachiavi di sistema.",
-  "config.autoContext": "Allega file attivo e selezione a ogni messaggio (ogni elemento può essere rimosso prima dell'invio).",
+  "config.autoContext": "Mostra file attivo e selezione come chip di contesto. Le selezioni vengono allegate automaticamente; aggiungi il file attivo al messaggio con un clic.",
   "config.startupTimeout": "Millisecondi di attesa perché `opencode serve` risponda.",
   "config.autoRestart": "Riavvia automaticamente il server gestito se termina in modo inatteso (max 5 volte in 2 minuti).",
   "config.sessionPermissions": "Regole di autorizzazione (`action`, `resource`, `effect`) aggiunte alle nuove sessioni. Per impostazione predefinita l'estensione chiede conferma prima di modifiche, comandi shell e accessi fuori dal workspace; imposta `[]` per ripristinare i permessi permissivi di OpenCode. Vedi https://opencode.ai/docs/permissions/.",

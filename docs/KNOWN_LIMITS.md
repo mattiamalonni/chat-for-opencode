@@ -58,8 +58,9 @@ test or a manual probe actually ran.
   tool metadata still work.
 - **Diff reconstruction** applies the server's patch to the current file. If the file changed again
   afterwards, the patch may not apply; the extension then shows the hunk-only before/after.
-- **Auto context** attaches the whole active file. For very large files this costs tokens; remove
-  the chip or disable `opencode.autoContext`.
+- **Auto context** shows the whole active file as a chip, but the file is attached only when you add
+  it to the message. Selections are attached automatically. For very large files this costs tokens
+  once added; disable `opencode.autoContext` to hide both chips.
 - **Forms** support the field types seen in 2.2.7's schema (string with/without options, number,
   integer, boolean, multiselect, external). `when` conditions on fields are ignored.
 - **Phase 5 (`@opencode` chat participant) skipped**: the official docs mark the Chat Participant API as

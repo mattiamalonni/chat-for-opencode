@@ -8,7 +8,7 @@ import { ContextMeter } from "./contextMeter";
 import { FileTypeIcon } from "./fileIcons";
 import { Picker } from "./picker";
 import { useT } from "./i18n";
-import { IconAt, IconClose, IconSelection, IconSend, IconStop, IconTool } from "./icons";
+import { IconAt, IconClose, IconPlus, IconSelection, IconSend, IconStop, IconTool } from "./icons";
 import { getPersisted, post, setPersisted } from "./vscode";
 
 export interface ComposerProps {
@@ -20,8 +20,8 @@ export interface ComposerProps {
   selectedModel?: ModelRef;
   selectedAgent?: string;
   context: ContextItem[];
-  excluded: Set<string>;
-  onExclude: (id: string) => void;
+  selectedContext: Set<string>;
+  onToggleContext: (id: string) => void;
   attachments: Attachment[];
   onRemoveAttachment: (uri: string) => void;
   onAddAttachment: (a: Attachment) => void;
@@ -161,7 +161,6 @@ export function Composer(props: ComposerProps) {
     }
   };
 
-  const visibleContext = props.context.filter((c) => !props.excluded.has(c.id));
   const modelItems = useMemo(
     () =>
       [...props.models]
@@ -184,18 +183,38 @@ export function Composer(props: ComposerProps) {
   return (
     <div class="composer">
       <div class="composer-box">
-      {(visibleContext.length > 0 || props.attachments.length > 0) && (
+      {(props.context.length > 0 || props.attachments.length > 0) && (
         <ul class="chips" aria-label={t("context")}>
-          {visibleContext.map((c) => (
-            <li class={`chip ${c.kind === "file" ? "implicit" : ""}`} key={c.id} title={c.detail ?? c.uri}>
-              {c.kind === "selection" ? <IconSelection /> : <FileTypeIcon path={c.label} />}
-              <span>{c.label}</span>
-              <span class="chip-kind">{c.kind === "file" ? t("currentFile") : t("selection")}</span>
-              <button type="button" class="chip-remove" aria-label={`${t("removeContext")}: ${c.label}`} onClick={() => props.onExclude(c.id)}>
-                <IconClose />
-              </button>
-            </li>
-          ))}
+          {props.context.map((c) => {
+            const selected = props.selectedContext.has(c.id);
+            return (
+              <li class={`chip ${c.kind === "file" ? "implicit" : ""} ${selected ? "" : "off"}`} key={c.id} title={c.detail ?? c.uri}>
+                {c.kind === "selection" ? <IconSelection /> : <FileTypeIcon path={c.label} />}
+                <span>{c.label}</span>
+                <span class="chip-kind">{c.kind === "file" ? t("currentFile") : t("selection")}</span>
+                {selected ? (
+                  <button
+                    type="button"
+                    class="chip-remove"
+                    aria-label={`${t("removeContext")}: ${c.label}`}
+                    onClick={() => props.onToggleContext(c.id)}
+                  >
+                    <IconClose />
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    class="chip-add"
+                    aria-label={`${t("addContext")}: ${c.label}`}
+                    title={t("addContext")}
+                    onClick={() => props.onToggleContext(c.id)}
+                  >
+                    <IconPlus />
+                  </button>
+                )}
+              </li>
+            );
+          })}
           {props.attachments.map((a) => (
             <li class="chip" key={a.uri} title={a.detail ?? a.uri}>
               {a.kind === "selection" ? <IconSelection /> : <FileTypeIcon path={a.name} />}

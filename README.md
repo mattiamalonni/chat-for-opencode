@@ -116,7 +116,7 @@ loads the skill content.
 | --- | --- | --- |
 | `opencode.executablePath` | `opencode` | Executable used to start `opencode serve`. |
 | `opencode.endpoint` | `""` | URL of a server you already run (e.g. `http://127.0.0.1:4096`). When set, nothing is spawned. |
-| `opencode.autoContext` | `true` | Attach active file and selection to messages (removable per message). |
+| `opencode.autoContext` | `true` | Show the active file and selection as context chips. Selections are attached automatically; add the active file to a message with one click. |
 | `opencode.startupTimeout` | `30000` | ms to wait for the server to become healthy. |
 | `opencode.autoRestart` | `true` | Restart the managed server if it crashes (max 5 times in 2 minutes). |
 | `opencode.sessionPermissions` | ask before edits, shell and external files | Rules added to new sessions. Set `[]` to restore OpenCode's permissive defaults. |

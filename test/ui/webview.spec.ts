@@ -70,16 +70,17 @@ async function openSession(page: Page, id: string, events: ServerEvent[]): Promi
   for (const event of events) await host(page, { type: "event", event });
 }
 
-test("welcome screen, sending with context and removing context chips", async ({ page }) => {
+test("welcome screen, active file is opt-in and selections are attached", async ({ page }) => {
   const csp = await boot(page);
   await expect(page.getByRole("heading", { name: STRINGS.welcomeTitle })).toBeVisible();
   await expect(page.locator(".chip")).toHaveCount(2);
   // File-type icons: app.ts is code, the range is a selection.
   await expect(page.locator(".chip .file-icon.code")).toHaveCount(1);
+  // The active file is shown but not attached until the user adds it.
+  const addFile = page.getByRole("button", { name: `${STRINGS.addContext}: app.ts`, exact: true });
+  await expect(addFile).toBeVisible();
+  await expect(page.getByRole("button", { name: `${STRINGS.removeContext}: app.ts:3-9`, exact: true })).toBeVisible();
   await page.screenshot({ path: join(SHOTS, "01-welcome-dark.png") });
-
-  await page.getByRole("button", { name: `${STRINGS.removeContext}: app.ts`, exact: true }).click();
-  await expect(page.locator(".chip")).toHaveCount(1);
 
   const input = page.getByRole("textbox", { name: STRINGS.inputLabel });
   await input.fill("Explain this code");
@@ -89,6 +90,27 @@ test("welcome screen, sending with context and removing context chips", async ({
   expect(send && "context" in send && send.context.map((c) => c.kind)).toEqual(["selection"]);
   await expect(input).toHaveValue("");
   expect(csp).toEqual([]);
+});
+
+test("adding the active file and removing a selection toggles the context chips", async ({ page }) => {
+  await boot(page);
+  const chip = page.locator(".chip").first();
+
+  // Adding the file keeps the chip visible but marks it as attached.
+  await page.getByRole("button", { name: `${STRINGS.addContext}: app.ts`, exact: true }).click();
+  await expect(chip).not.toHaveClass(/off/);
+  await expect(page.getByRole("button", { name: `${STRINGS.removeContext}: app.ts`, exact: true })).toBeVisible();
+
+  // Removing the selection keeps its chip too.
+  await page.getByRole("button", { name: `${STRINGS.removeContext}: app.ts:3-9`, exact: true }).click();
+  await expect(page.getByRole("button", { name: `${STRINGS.addContext}: app.ts:3-9`, exact: true })).toBeVisible();
+  await expect(page.locator(".chip")).toHaveCount(2);
+
+  const input = page.getByRole("textbox", { name: STRINGS.inputLabel });
+  await input.fill("Only the file");
+  await input.press("Enter");
+  const send = await lastPosted(page, "send");
+  expect(send && "context" in send && send.context.map((c) => c.kind)).toEqual(["file"]);
 });
 
 test("Shift+Enter inserts a newline instead of sending", async ({ page }) => {

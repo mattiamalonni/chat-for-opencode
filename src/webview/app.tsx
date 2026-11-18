@@ -45,7 +45,8 @@ export function App() {
   const [sessions, setSessions] = useState<SessionSummary[]>([]);
   const [folders, setFolders] = useState<{ list: FolderInfo[]; active?: string }>({ list: [] });
   const [context, setContext] = useState<ContextItem[]>([]);
-  const [excluded, setExcluded] = useState<Set<string>>(new Set());
+  // Explicit user choices per context chip: the active file is opt-in, selections are opt-out.
+  const [contextChoice, setContextChoice] = useState<Map<string, boolean>>(new Map());
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [fileResults, setFileResults] = useState<{ query: string; items: Attachment[] }>({ query: "", items: [] });
   const [changes, setChanges] = useState<FileDiff[]>([]);
@@ -104,6 +105,12 @@ export function App() {
           break;
         case "context":
           setContext(msg.items);
+          setContextChoice((prev) => {
+            if (prev.size === 0) return prev;
+            const ids = new Set(msg.items.map((c) => c.id));
+            const next = new Map([...prev].filter(([id]) => ids.has(id)));
+            return next.size === prev.size ? prev : next;
+          });
           break;
         case "fileResults":
           setFileResults({ query: msg.query, items: msg.items });
@@ -143,14 +150,14 @@ export function App() {
     if (chat.forms.length > 0) setAnnouncement(strings.questionTitle);
   }, [chat.forms.length]);
 
-  // Re-show context chips the user removed once the context itself changes.
-  useEffect(() => {
-    setExcluded((prev) => new Set([...prev].filter((id) => context.some((c) => c.id === id))));
-  }, [context]);
-
   const todos = useMemo(() => selectTodos(chat), [chat.messages]);
+  // The active file is opt-in; selections stay attached until the user removes them.
+  const selectedContext = useMemo(
+    () => new Set(context.filter((c) => contextChoice.get(c.id) ?? c.kind === "selection").map((c) => c.id)),
+    [context, contextChoice],
+  );
   const send = (text: string) => {
-    const ctx = context.filter((c) => !excluded.has(c.id));
+    const ctx = context.filter((c) => selectedContext.has(c.id));
     const skillCommand = /(^|\s)\/(\S+)(?=\s|$)/.exec(text);
     const skill = skillCommand && catalog.skills.find((item) => item.id === skillCommand[2]);
     const prompt = skillCommand && skill
@@ -206,8 +213,15 @@ export function App() {
           selectedModel={catalog.selectedModel}
           selectedAgent={catalog.selectedAgent}
           context={context}
-          excluded={excluded}
-          onExclude={(id) => setExcluded((prev) => new Set([...prev, id]))}
+          selectedContext={selectedContext}
+          onToggleContext={(id) =>
+            setContextChoice((prev) => {
+              const next = new Map(prev);
+              const item = context.find((c) => c.id === id);
+              next.set(id, !(prev.get(id) ?? item?.kind === "selection"));
+              return next;
+            })
+          }
           attachments={attachments}
           onRemoveAttachment={(uri) => setAttachments((prev) => prev.filter((a) => a.uri !== uri))}
           onAddAttachment={(a) => setAttachments((prev) => (prev.some((x) => x.uri === a.uri) ? prev : [...prev, a]))}

@@ -1052,6 +1052,15 @@ button:disabled {
   border-style: dashed;
 }
 
+.chip.off {
+  opacity: 0.65;
+}
+
+.chip.off:hover,
+.chip.off:focus-within {
+  opacity: 1;
+}
+
 .chip.readonly {
   padding-right: 6px;
 }
@@ -1067,7 +1076,8 @@ button:disabled {
   font-size: 0.9em;
 }
 
-.chip-remove {
+.chip-remove,
+.chip-add {
   display: inline-flex;
   background: none;
   border: none;
@@ -1077,7 +1087,8 @@ button:disabled {
   color: inherit;
 }
 
-.chip-remove:hover {
+.chip-remove:hover,
+.chip-add:hover {
   background: var(--vscode-toolbar-hoverBackground);
 }
 

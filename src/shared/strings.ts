@@ -45,6 +45,7 @@ export const STRINGS = {
   todos: "Todos",
   context: "Context",
   removeContext: "Remove from message",
+  addContext: "Add to message",
   currentFile: "Current file",
   selection: "Selection",
   attachFile: "Attach file",
