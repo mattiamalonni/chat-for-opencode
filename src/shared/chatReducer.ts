@@ -100,6 +100,7 @@ export type ChatAction =
       messages: SessionMessage[];
       permissions: PermissionRequest[];
       forms: FormRequest[];
+      usage?: ChatState["usage"];
     }
   | { type: "event"; event: ServerEvent }
   | { type: "events"; events: ServerEvent[] }
@@ -162,6 +163,7 @@ function loadHistory(action: Extract<ChatAction, { type: "load" }>): ChatState {
     forms: action.forms,
     busy,
     contextTokens,
+    usage: action.usage,
   };
 }
 

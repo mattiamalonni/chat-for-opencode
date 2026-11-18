@@ -10,6 +10,7 @@ import type {
   SkillSuggestion,
   ServerEvent,
   SessionMessage,
+  TokenUsage,
 } from "./api";
 import type { Compatibility } from "./compatibility";
 import type { Strings } from "./strings";
@@ -79,6 +80,7 @@ export interface SessionPayload {
   messages: SessionMessage[];
   permissions: PermissionRequest[];
   forms: FormRequest[];
+  usage?: { cost: number; tokens: TokenUsage };
 }
 
 export type HostMessage =

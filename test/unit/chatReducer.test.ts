@@ -256,6 +256,21 @@ describe("busy state after an interrupt", () => {
   });
 });
 
+describe("session usage on load", () => {
+  it("keeps cost and tokens when history is loaded or resynced", () => {
+    const usage = { cost: 0.42, tokens: { input: 1, output: 2, reasoning: 0, cache: { read: 0, write: 0 } } };
+    const state = chatReducer(initialChatState, {
+      type: "load",
+      sessionId: "s",
+      messages: [],
+      permissions: [],
+      forms: [],
+      usage,
+    });
+    expect(state.usage).toEqual(usage);
+  });
+});
+
 describe("changed-file selectors", () => {
   const patch = "@@ -1 +1 @@\n-a\n+b\n";
   const file = (f: string, status: string, additions = 1, deletions = 1) => ({ file: f, patch, status, additions, deletions });

@@ -78,6 +78,34 @@ describe("EventStream", () => {
     await waitUntil(() => events.some((e) => e.type === "custom.ping"));
   });
 
+  it("flushes a multi-byte character split at the very end of the stream", async () => {
+    const bytes = new TextEncoder().encode('data: {"type":"custom.unicode","data":{"v":"é"}}\n\n');
+    const split = bytes.indexOf(0xc3); // first byte of the two-byte é
+    const fetchImpl = (async () =>
+      new Response(
+        new ReadableStream<Uint8Array>({
+          start(controller) {
+            controller.enqueue(bytes.slice(0, split + 1));
+            controller.enqueue(bytes.slice(split + 1));
+            controller.close();
+          },
+        }),
+        { status: 200 },
+      )) as typeof fetch;
+    const events: ServerEvent[] = [];
+    stream = new EventStream({
+      url: "http://localhost/api/event",
+      headers: {},
+      onEvent: (e) => events.push(e),
+      fetchImpl,
+      minBackoffMs: 10,
+      maxBackoffMs: 20,
+    });
+    stream.start();
+    await waitUntil(() => events.some((e) => e.type === "custom.unicode"));
+    expect((events.find((e) => e.type === "custom.unicode")!.data as { v: string }).v).toBe("é");
+  });
+
   it("reports reconnecting on 401 and keeps retrying", async () => {
     mock = await startMockServer({ password: "pw" });
     const statuses: string[] = [];

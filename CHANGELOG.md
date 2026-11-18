@@ -11,6 +11,9 @@
   loading the same session again (a resync) no longer discards them.
 - The composer draft is flushed when the chat view is hidden or reloaded, so the last keystrokes are
   not lost to the save debounce.
+- Session cost and token usage are restored from history on reload/resync instead of disappearing
+  after every turn.
+- Fixed a trailing multi-byte UTF-8 character being dropped when an SSE stream ended mid-character.
 - Removed an unused external-server failure path.
 
 ## 0.3.4 — 2026-11-18

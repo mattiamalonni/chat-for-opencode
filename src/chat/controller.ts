@@ -666,6 +666,8 @@ export class ChatController implements vscode.Disposable {
         messages,
         permissions: pending,
         forms,
+        // Cost/tokens also come from history, so a resync must not clear the composer's meter.
+        usage: info.tokens ? { cost: info.cost ?? 0, tokens: info.tokens } : undefined,
       },
     });
     this.postAutoApprove();

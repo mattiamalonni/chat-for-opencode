@@ -191,6 +191,8 @@ export class EventStream {
         this.kick();
         parser.feed(decoder.decode(value, { stream: true }));
       }
+      // Flush any bytes of a split multi-byte character still held by the decoder.
+      parser.feed(decoder.decode());
       parser.end();
     } catch (err) {
       failure = err;

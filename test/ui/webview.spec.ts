@@ -648,6 +648,20 @@ test("session cost from usage updates appears in the context meter tooltip", asy
     },
   });
   await expect.poll(async () => meter.getAttribute("title")).toContain("$0.12");
+
+  // A same-session reload (e.g. the post-turn resync) must not erase it.
+  await host(page, {
+    type: "session",
+    session: {
+      id: S1,
+      busy: false,
+      messages: [],
+      permissions: [],
+      forms: [],
+      usage: { cost: 0.4321, tokens: { input: 10, output: 5, reasoning: 0, cache: { read: 0, write: 0 } } },
+    },
+  });
+  await expect.poll(async () => meter.getAttribute("title")).toContain("$0.43");
 });
 
 test("errors show actionable banners (server missing, provider, interrupted stream)", async ({ page }) => {

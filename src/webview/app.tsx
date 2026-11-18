@@ -112,6 +112,7 @@ export function App() {
             messages: msg.session?.messages ?? [],
             permissions: msg.session?.permissions ?? [],
             forms: msg.session?.forms ?? [],
+            usage: msg.session?.usage,
           });
           setShowSessions(false);
           break;
