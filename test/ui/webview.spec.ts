@@ -723,6 +723,54 @@ test("slash commands select skills and preserve other slash commands", async ({ 
   expect(await lastPosted(page, "send")).toMatchObject({ type: "send", text: "/unknown command" });
 });
 
+test("slash suggestions include commands, which stay as /command when sent", async ({ page }) => {
+  await boot(page);
+  await host(page, {
+    type: "catalog",
+    models: MODELS as never,
+    agents: AGENTS as never,
+    skills: [{ id: "mock-review", name: "Code review", description: "Review code changes." }],
+    commands: [{ name: "mock-init", description: "Set up the project." }],
+    selectedModel: { id: "hy4-flash-free", providerID: "opencode" },
+    selectedAgent: "build",
+  });
+  const input = page.getByRole("textbox", { name: STRINGS.inputLabel });
+  await input.fill("/");
+  await expect(page.getByRole("option", { name: /mock-init/ })).toBeVisible();
+  await expect(page.getByRole("option", { name: /Code review/ })).toBeVisible();
+  await page.getByRole("option", { name: /mock-init/ }).click();
+  await expect(input).toHaveValue("/mock-init ");
+  await input.press("Enter");
+  expect(await lastPosted(page, "send")).toMatchObject({ type: "send", text: "/mock-init", attachments: [] });
+});
+
+test("keyboard navigation keeps the active suggestion scrolled into view", async ({ page }) => {
+  await boot(page);
+  const many = Array.from({ length: 30 }, (_, i) => ({ id: `skill-${i}`, name: `Skill ${String(i).padStart(2, "0")}`, description: "A description long enough to fill the row." }));
+  await host(page, {
+    type: "catalog",
+    models: MODELS as never,
+    agents: AGENTS as never,
+    skills: many,
+    commands: [],
+    selectedModel: { id: "hy4-flash-free", providerID: "opencode" },
+    selectedAgent: "build",
+  });
+  const input = page.getByRole("textbox", { name: STRINGS.inputLabel });
+  await input.fill("/");
+  const popup = page.getByRole("listbox", { name: STRINGS.suggestions });
+  await expect(popup).toBeVisible();
+  for (let i = 0; i < 25; i++) {
+    await input.press("ArrowDown");
+    const active = popup.locator('li[aria-selected="true"]');
+    const popupBox = (await popup.boundingBox())!;
+    const activeBox = (await active.boundingBox())!;
+    expect(activeBox.y, `step ${i}`).toBeGreaterThanOrEqual(popupBox.y);
+    expect(activeBox.y + activeBox.height, `step ${i}`).toBeLessThanOrEqual(popupBox.y + popupBox.height);
+  }
+  await expect(popup.locator('li[aria-selected="true"]')).toHaveAttribute("id", /^mention-2[0-9]$/);
+});
+
 test("build/plan mode picker defaults to build and switches agents", async ({ page }) => {
   await boot(page);
   const trigger = page.getByRole("button", { name: `${STRINGS.mode}: ${STRINGS.build}` });

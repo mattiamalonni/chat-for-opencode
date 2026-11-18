@@ -1,6 +1,6 @@
 import { Component, type ComponentChildren } from "preact";
 import { useEffect, useMemo, useReducer, useRef, useState } from "preact/hooks";
-import type { AgentInfo, FileDiff, ModelInfo, ModelRef, ServerEvent, SkillSuggestion } from "../shared/api";
+import type { AgentInfo, CommandSuggestion, FileDiff, ModelInfo, ModelRef, ServerEvent, SkillSuggestion } from "../shared/api";
 import {
   chatReducer,
   initialChatState,
@@ -34,6 +34,7 @@ interface Catalog {
   models: ModelInfo[];
   agents: AgentInfo[];
   skills: SkillSuggestion[];
+  commands: CommandSuggestion[];
   selectedModel?: ModelRef;
   selectedAgent?: string;
 }
@@ -48,7 +49,7 @@ export function App() {
   });
   const [contract, setContract] = useState<{ report: ContractReport; dismissed: boolean }>({ report: emptyContract, dismissed: false });
   const [issuesUrl, setIssuesUrl] = useState<string | undefined>();
-  const [catalog, setCatalog] = useState<Catalog>({ models: [], agents: [], skills: [] });
+  const [catalog, setCatalog] = useState<Catalog>({ models: [], agents: [], skills: [], commands: [] });
   const [sessions, setSessions] = useState<SessionSummary[]>([]);
   const [sessionsHasMore, setSessionsHasMore] = useState(false);
   const [folders, setFolders] = useState<{ list: FolderInfo[]; active?: string }>({ list: [] });
@@ -95,7 +96,7 @@ export function App() {
           setContract({ report: msg.contract ?? emptyContract, dismissed: !!msg.contractDismissed });
           break;
         case "catalog":
-          setCatalog({ models: msg.models, agents: msg.agents, skills: msg.skills, selectedModel: msg.selectedModel, selectedAgent: msg.selectedAgent });
+          setCatalog({ models: msg.models, agents: msg.agents, skills: msg.skills, commands: msg.commands ?? [], selectedModel: msg.selectedModel, selectedAgent: msg.selectedAgent });
           break;
         case "sessions":
           setSessions(msg.items);
@@ -220,7 +221,8 @@ export function App() {
   const send = (text: string) => {
     const ctx = context.filter((c) => selectedContext.has(c.id));
     const skillCommand = /(^|\s)\/(\S+)(?=\s|$)/.exec(text);
-    const skill = skillCommand && catalog.skills.find((item) => item.id === skillCommand[2]);
+    const isCommand = skillCommand && catalog.commands.some((item) => item.name === skillCommand[2]);
+    const skill = !isCommand && skillCommand && catalog.skills.find((item) => item.id === skillCommand[2]);
     const prompt = skillCommand && skill
       ? `${text.slice(0, skillCommand.index)}${skillCommand[1]}@${skill.id}${text.slice(skillCommand.index + skillCommand[0].length)}`
       : text;
@@ -331,6 +333,7 @@ export function App() {
           models={catalog.models}
           agents={catalog.agents}
           skills={catalog.skills}
+          commands={catalog.commands}
           selectedModel={catalog.selectedModel}
           selectedAgent={catalog.selectedAgent}
           autoApprove={autoApprove}

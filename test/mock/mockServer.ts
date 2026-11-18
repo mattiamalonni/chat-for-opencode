@@ -99,11 +99,15 @@ const SKILLS = [
   },
 ];
 
+const COMMANDS = [{ name: "mock-init", description: "Set up the project." }];
+
 const PATCH = "Index: src/a.txt\n===================================================================\n--- src/a.txt\n+++ src/a.txt\n@@ -1,1 +1,1 @@\n-a\n+b\n";
 
 export function startMockServer(opts: MockOptions = {}): Promise<MockServer> {
   const password = opts.password ?? randomBytes(12).toString("hex");
   const directory = opts.directory ?? process.cwd();
+  // Mirrors real OpenCode: plugin skills/commands are only registered once a session exists.
+  const lateCatalog = process.env.MOCK_LATE_CATALOG === "1";
   const stepMs = opts.stepMs ?? 10;
   let noModels = opts.noModels ?? false;
   const sessions = new Map<string, MockSession>();
@@ -404,7 +408,9 @@ export function startMockServer(opts: MockOptions = {}): Promise<MockServer> {
     if (path === "/api/model") return send(res, 200, { location: { directory }, data: noModels ? [] : MODELS });
     if (path === "/api/model/default") return send(res, 200, { location: { directory }, data: noModels ? null : MODELS[0] });
     if (path === "/api/agent") return send(res, 200, { location: { directory }, data: AGENTS });
-    if (path === "/api/skill") return send(res, 200, { location: { directory }, data: SKILLS });
+    const catalogReady = !lateCatalog || sessions.size > 0;
+    if (path === "/api/skill") return send(res, 200, { location: { directory }, data: catalogReady ? SKILLS : [] });
+    if (path === "/api/command") return send(res, 200, { location: { directory }, data: catalogReady ? COMMANDS : [] });
     if (path === "/api/event") {
       res.writeHead(200, { "content-type": "text/event-stream", "cache-control": "no-cache", connection: "keep-alive" });
       res.write(`data: ${JSON.stringify({ id: id("evt"), type: "server.connected", data: {} })}\n\n`);
@@ -461,6 +467,10 @@ export function startMockServer(opts: MockOptions = {}): Promise<MockServer> {
         const userId = id("msg");
         void runPrompt(s, String(b.text ?? ""), b.files as Json[] | undefined, userId);
         return send(res, 200, { data: { id: userId, sessionID: s.info.id, type: "user", payload: { text: b.text }, delivery: "steer" } });
+      }
+      if (rest === "command") {
+        void runPrompt(s, `/${String(b.name ?? "")} ${String(b.text ?? "")}`.trim(), b.files as Json[] | undefined, id("msg"));
+        return send(res, 204);
       }
       if (rest === "interrupt") {
         s.interrupted = true;

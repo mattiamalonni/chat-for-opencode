@@ -67,7 +67,9 @@ describe("chat-for-opencode extension", () => {
     const catalog = await waitFor(() => lastPosted("catalog"), "catalog");
     assert.deepEqual(catalog.models.map((m) => m.id), ["mock-fast", "mock-smart"]);
     assert.deepEqual(catalog.agents.map((a) => a.id), ["build", "plan"]);
-    assert.deepEqual(catalog.skills.map((s) => s.id), ["mock-review"]);
+    // Like real OpenCode, the mock registers plugin skills/commands only after a session exists.
+    assert.deepEqual(catalog.skills.map((s) => s.id), []);
+    assert.deepEqual(catalog.commands?.map((c) => c.name), []);
     assert.deepEqual(catalog.selectedModel, { id: "mock-fast", providerID: "mock" });
   });
 
@@ -99,6 +101,12 @@ describe("chat-for-opencode extension", () => {
     assert.ok(eventPosted("session.text.delta", mark), "text deltas forwarded");
     assert.ok(controller.debugState.sessionId?.startsWith("ses_"));
     assert.equal(controller.debugState.storedSession, controller.debugState.sessionId);
+    // Creating the session registers the plugin catalog: the webview must get a refreshed one.
+    const refreshed = await waitFor(() => {
+      const c = lastPosted("catalog", mark);
+      return c && c.skills.some((s) => s.id === "mock-review") && c.commands?.some((x) => x.name === "mock-init") && c;
+    }, "catalog refreshed after the session exists");
+    assert.ok(refreshed);
     const sessions = await waitFor(() => {
       const s = lastPosted("sessions", mark);
       return s && s.items.some((i) => i.title === "hello there") && s;

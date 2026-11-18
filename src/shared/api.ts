@@ -198,6 +198,14 @@ export interface SkillInfo {
 
 export type SkillSuggestion = Pick<SkillInfo, "id" | "name" | "description">;
 
+/** Slash command exposed by GET /api/command (no `id`, only a name). */
+export interface CommandInfo {
+  name: string;
+  description?: string;
+}
+
+export type CommandSuggestion = Pick<CommandInfo, "name" | "description">;
+
 export interface ServerInfo {
   version: string;
   pid: number;

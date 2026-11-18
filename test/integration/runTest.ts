@@ -18,9 +18,9 @@ async function main(): Promise<void> {
   const fake = join(workspace, process.platform === "win32" ? "opencode.cmd" : "opencode");
   const mock = join(root, "out", "test", "mock", "mockServer.js");
   if (process.platform === "win32") {
-    writeFileSync(fake, `@echo off\r\nset MOCK_STATE_FILE=${stateFile}\r\n"${process.execPath}" "${mock}" %*\r\n`);
+    writeFileSync(fake, `@echo off\r\nset MOCK_STATE_FILE=${stateFile}\r\nset MOCK_LATE_CATALOG=1\r\n"${process.execPath}" "${mock}" %*\r\n`);
   } else {
-    writeFileSync(fake, `#!/bin/sh\nMOCK_STATE_FILE="${stateFile}" exec "${process.execPath}" "${mock}" "$@"\n`);
+    writeFileSync(fake, `#!/bin/sh\nMOCK_STATE_FILE="${stateFile}" MOCK_LATE_CATALOG=1 exec "${process.execPath}" "${mock}" "$@"\n`);
     chmodSync(fake, 0o755);
   }
   const real = process.env.OC_IT_REAL === "1";

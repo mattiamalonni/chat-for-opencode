@@ -75,6 +75,21 @@ describe("OpenCodeClient against the mock server", () => {
     expect((await client.agents()).map((a) => a.id)).toContain("plan");
     expect((await client.skills()).map((s) => s.id)).toEqual(["mock-review"]);
     expect(mock.requests.at(-1)?.path).toBe("/api/skill");
+    expect((await client.commands()).map((c) => c.name)).toEqual(["mock-init"]);
+    expect(mock.requests.at(-1)?.path).toBe("/api/command");
+  });
+
+  it("runs a slash command through the command endpoint", async () => {
+    const s = await client.createSession({});
+    await client.command(s.id, "mock-init", "some argument", [{ uri: "file:///work/a.ts", name: "a.ts" }]);
+    expect(mock.requests.at(-1)).toMatchObject({
+      method: "POST",
+      path: `/api/session/${s.id}/command`,
+      body: { name: "mock-init", text: "some argument", files: [{ uri: "file:///work/a.ts", name: "a.ts" }] },
+    });
+    await waitForIdle(client, s.id);
+    const first = (await client.messages(s.id))[0];
+    expect(first.type === "user" && first.text).toBe("/mock-init some argument");
   });
 
   it("replies to permissions and interrupts", async () => {

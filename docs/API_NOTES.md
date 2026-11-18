@@ -64,6 +64,12 @@ Omitted → the server's cwd. Sessions carry their own `location` (set at creati
 | Default model | `GET /api/model/default` | `{data: Model \| null}` |
 | Agents | `GET /api/agent` | `{data: [{id,name,description?,mode: primary\|subagent\|all, hidden}]}`; seen: build, plan (primary, visible), general, explore (subagent), compaction/title/summary (hidden) |
 | Skills | `GET /api/skill` | `{location, data: [{id,name,description?,autoinvoke?,path,content}]}`; uses the server's default location and includes global skill sources |
+| Commands | `GET /api/command` | `{location, data: [{name,description?}]}` (2.2.7: `init`, `review`, `goal`) |
+| Run command | `POST /api/session/{id}/command` `{name,text,files?,...}` | 204; `text` is the argument string after the command name |
+
+> Both catalogs are **empty until a session exists**: plugin-provided skills and commands are
+> registered when a session is created (verified 2.2.7: 0 → 25 skills / 0 → 3 commands on the same
+> server after `POST /api/session`). Refetch after creating/loading a session and republish.
 | Providers | `GET /api/provider` | `{data: [{id, name, activation}]}` |
 | File search | `GET /api/fs/find?query=<q>&type=file&limit=N` | `{data:[{path (relative), type}]}` |
 | Events | `GET /api/event` | SSE, see below |

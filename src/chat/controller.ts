@@ -6,6 +6,7 @@ import { EventStream } from "../client/sse";
 import { ExternalServer, ManagedServer, ServerError, type ServerHandle, type ServerState } from "../server/server";
 import type {
   AgentInfo,
+  CommandInfo,
   FileAttachment,
   FileDiff,
   ModelInfo,
@@ -65,6 +66,8 @@ const ATTACHMENT_MIME: Record<string, string> = {
 function mimeFromName(name: string): string {
   return ATTACHMENT_MIME[path.extname(name).toLowerCase()] ?? "application/octet-stream";
 }
+
+const sameList = (a: string[], b: string[]) => a.length === b.length && a.every((v, i) => v === b[i]);
 
 export function translatedStrings(): Strings {
   const out = {} as Strings;
@@ -156,6 +159,7 @@ export class ChatController implements vscode.Disposable {
   private models: ModelInfo[] = [];
   private agents: AgentInfo[] = [];
   private skills: SkillInfo[] = [];
+  private commands: CommandInfo[] = [];
   private selectedModel: ModelRef | undefined;
   private selectedAgent: string | undefined;
   private fileIndex: FileIndex | undefined;
@@ -368,22 +372,16 @@ export class ChatController implements vscode.Disposable {
     const generation = ++this.sessionLoadGeneration;
     this.contractObservations = {};
     this.contract = emptyContract;
-    const [models, defaultModel, agents, skills] = await Promise.all([
+    const [models, defaultModel, agents] = await Promise.all([
       client.models().catch(() => [] as ModelInfo[]),
       client.defaultModel().catch(() => null),
       client.agents().catch((err: unknown) => {
         this.output.warn(`[chat] failed to load agents: ${String(err)}`);
         return [] as AgentInfo[];
       }),
-      client.skills().catch((err: unknown) => {
-        this.output.warn(`[chat] failed to load skills: ${String(err)}`);
-        return [] as SkillInfo[];
-      }),
     ]);
-    this.observeContract({ version: this.version, models, agents, skills });
     this.models = models.filter((m) => m.enabled !== false);
     this.agents = agents.filter((a) => a.mode !== "subagent" && !a.hidden);
-    this.skills = skills;
     const saved = this.ctx.globalState.get<ModelRef>(MODEL_KEY);
     const exists = (ref?: ModelRef) => !!ref && this.models.some((m) => m.id === ref.id && m.providerID === ref.providerID);
     const fallback = defaultModel ?? this.models[0];
@@ -396,6 +394,9 @@ export class ChatController implements vscode.Disposable {
       : this.agents.some((a) => a.id === savedAgent)
         ? savedAgent
         : fallbackAgent;
+    // Now that model/agent state is complete, a refreshed catalog (if any) can be posted safely.
+    await this.refreshSlashItems();
+    this.observeContract({ version: this.version, models, agents, skills: this.skills });
 
     const sessionId = this.sessionId ?? this.ctx.workspaceState.get<string>(SESSION_KEY(this.folder.uri.toString()));
     let session: SessionInfo | undefined;
@@ -420,12 +421,49 @@ export class ChatController implements vscode.Disposable {
     this.post({ type: "context", items: this.context.current() });
   }
 
+  /**
+   * OpenCode registers plugin-provided skills and commands only once a session exists. The first
+   * GET therefore often returns empty (fresh workspace); refetch as soon as a session is known and
+   * republish the catalog so the `/` suggestions are not stuck empty.
+   */
+  private async refreshSlashItems(): Promise<void> {
+    const client = this.client;
+    if (!client) return;
+    const [skills, commands] = await Promise.all([
+      client.skills().catch((err: unknown) => {
+        this.output.warn(`[chat] failed to load skills: ${String(err)}`);
+        return undefined;
+      }),
+      client.commands().catch((err: unknown) => {
+        this.output.warn(`[chat] failed to load commands: ${String(err)}`);
+        return undefined;
+      }),
+    ]);
+    let changed = false;
+    if (skills && !sameList(
+      skills.map((s) => `${s.id}\u0000${s.name}\u0000${s.description ?? ""}`),
+      this.skills.map((s) => `${s.id}\u0000${s.name}\u0000${s.description ?? ""}`),
+    )) {
+      this.skills = skills;
+      changed = true;
+    }
+    if (commands && !sameList(
+      commands.map((c) => `${c.name}\u0000${c.description ?? ""}`),
+      this.commands.map((c) => `${c.name}\u0000${c.description ?? ""}`),
+    )) {
+      this.commands = commands;
+      changed = true;
+    }
+    if (changed && this.view) this.postCatalog();
+  }
+
   private postCatalog(): void {
     this.post({
       type: "catalog",
       models: this.models,
       agents: this.agents,
       skills: this.skills.map(({ id, name, description }) => ({ id, name, description })),
+      commands: this.commands.map(({ name, description }) => ({ name, description })),
       selectedModel: this.selectedModel,
       selectedAgent: this.selectedAgent,
     });
@@ -501,6 +539,8 @@ export class ChatController implements vscode.Disposable {
       const requestId = (event.data as { requestID?: string }).requestID;
       if (requestId) this.autoApproved.delete(requestId);
     }
+    // Plugin skills/commands can be registered or removed while the chat is open.
+    if (event.type === "skill.updated" || event.type === "command.updated") void this.refreshSlashItems();
     // Bypass the inline card: grant each request on arrival instead of asking the user.
     if (event.type === "permission.asked" && sid && sid === this.sessionId && this.autoApproveEnabled()) {
       void this.autoApprove(event, sid);
@@ -795,6 +835,8 @@ export class ChatController implements vscode.Disposable {
       this.selectedModel = info.model;
     }
     if (info.agent && this.agents.some((a) => a.id === info.agent)) this.selectedAgent = info.agent;
+    await this.refreshSlashItems();
+    if (stale?.()) return;
     this.postCatalog();
     this.post({
       type: "session",
@@ -1192,7 +1234,13 @@ export class ChatController implements vscode.Disposable {
       }
       const sid = this.sessionId;
       if (!sid) return;
-      await client.prompt(sid, text, files);
+      const slash = /^\/(\S+)(?:\s+([\s\S]*))?$/.exec(text);
+      const command = slash && this.commands.find((c) => c.name === slash[1]);
+      if (command && slash) {
+        await client.command(sid, command.name, (slash[2] ?? "").trim(), files);
+      } else {
+        await client.prompt(sid, text, files);
+      }
     } catch (err) {
       const s = translatedStrings();
       const detail = err instanceof Error ? err.message : String(err);

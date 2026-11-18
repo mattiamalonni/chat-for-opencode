@@ -1,5 +1,6 @@
 import type {
   AgentInfo,
+  CommandInfo,
   FileAttachment,
   FileDiff,
   FormRequest,
@@ -174,6 +175,13 @@ export class OpenCodeClient {
     return res.data;
   }
 
+  /** Runs the command's prompt template with `text` as its argument string. */
+  async command(id: string, name: string, text: string, files: FileAttachment[] = []): Promise<void> {
+    const body: Record<string, unknown> = { name, text };
+    if (files.length > 0) body.files = files;
+    await this.request("POST", `api/session/${encodeURIComponent(id)}/command`, { body });
+  }
+
   /** Durably admit a compaction request; the server runs it at the next step boundary. */
   async compact(id: string): Promise<void> {
     await this.request("POST", `api/session/${encodeURIComponent(id)}/compact`, { body: {} });
@@ -253,6 +261,11 @@ export class OpenCodeClient {
 
   async skills(): Promise<SkillInfo[]> {
     const res = await this.request<{ data: SkillInfo[] }>("GET", "api/skill");
+    return res.data;
+  }
+
+  async commands(): Promise<CommandInfo[]> {
+    const res = await this.request<{ data: CommandInfo[] }>("GET", "api/command");
     return res.data;
   }
 

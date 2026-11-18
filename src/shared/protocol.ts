@@ -1,5 +1,6 @@
 import type {
   AgentInfo,
+  CommandSuggestion,
   FileDiff,
   FormRequest,
   FormValue,
@@ -133,6 +134,8 @@ export type HostMessage =
       models: ModelInfo[];
       agents: AgentInfo[];
       skills: SkillSuggestion[];
+      /** Slash commands; optional so older hosts/messages without them still render. */
+      commands?: CommandSuggestion[];
       selectedModel?: ModelRef;
       selectedAgent?: string;
     }

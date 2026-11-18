@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useRef, useState } from "preact/hooks";
-import type { AgentInfo, ModelInfo, ModelRef, SkillSuggestion } from "../shared/api";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "preact/hooks";
+import type { AgentInfo, CommandSuggestion, ModelInfo, ModelRef, SkillSuggestion } from "../shared/api";
 import { composerAction } from "../shared/keys";
 import type { Attachment, ContextItem } from "../shared/protocol";
 import { isolateKeys } from "./env";
@@ -18,6 +18,7 @@ export interface ComposerProps {
   models: ModelInfo[];
   agents: AgentInfo[];
   skills: SkillSuggestion[];
+  commands: CommandSuggestion[];
   selectedModel?: ModelRef;
   selectedAgent?: string;
   /** Per-chat auto-approval of permission requests. */
@@ -45,7 +46,10 @@ export interface ComposerProps {
 const FILE_MENTION_RE = /(^|\s)@([^\s@]*)$/;
 const SKILL_COMMAND_RE = /(^|\s)\/([^\s/]*)$/;
 
-type MentionItem = { kind: "file"; item: Attachment } | { kind: "skill"; item: SkillSuggestion };
+type MentionItem =
+  | { kind: "file"; item: Attachment }
+  | { kind: "skill"; item: SkillSuggestion }
+  | { kind: "command"; item: CommandSuggestion };
 type Mention = { query: string; start: number; kind: "file" | "skill" };
 
 /**
@@ -128,11 +132,29 @@ export function Composer(props: ComposerProps) {
         .filter((skill) => `${skill.id} ${skill.name} ${skill.description ?? ""}`.toLowerCase().includes(mention.query.toLowerCase()))
         .slice(0, 30)
     : [];
+  const commandResults: CommandSuggestion[] = mention?.kind === "skill"
+    ? props.commands
+        .filter((command) => `${command.name} ${command.description ?? ""}`.toLowerCase().includes(mention.query.toLowerCase()))
+        .slice(0, 30)
+    : [];
   const results: MentionItem[] = [
+    ...commandResults.map((item): MentionItem => ({ kind: "command", item })),
     ...(mention?.kind === "skill" || mention?.kind === "file" ? skillResults : []).map((item): MentionItem => ({ kind: "skill", item })),
     ...fileResults.map((item): MentionItem => ({ kind: "file", item })),
   ];
   useEffect(() => setActive(0), [results.length, mention?.query]);
+
+  // Keep the highlighted row inside the scrollable popup when walking a long list with the keys.
+  useLayoutEffect(() => {
+    const list = document.getElementById("mention-list");
+    if (!list || results.length === 0) return;
+    const item = list.children[active] as HTMLElement | undefined;
+    if (!item) return;
+    const top = item.offsetTop;
+    const bottom = top + item.offsetHeight;
+    if (top < list.scrollTop) list.scrollTop = top;
+    else if (bottom > list.scrollTop + list.clientHeight) list.scrollTop = bottom - list.clientHeight;
+  }, [active, results.length, mention?.kind]);
 
   const updateMention = (value: string, caret: number) => {
     const beforeCaret = value.slice(0, caret);
@@ -154,7 +176,11 @@ export function Composer(props: ComposerProps) {
     if (!mention) return;
     const el = ref.current;
     const caret = el?.selectionStart ?? text.length;
-    const label = item.kind === "skill" ? `${mention.kind === "skill" ? "/" : "@"}${item.item.id} ` : `@${item.item.detail ?? item.item.name} `;
+    const label = item.kind === "command"
+      ? `/${item.item.name} `
+      : item.kind === "skill"
+        ? `${mention.kind === "skill" ? "/" : "@"}${item.item.id} `
+        : `@${item.item.detail ?? item.item.name} `;
     const next = text.slice(0, mention.start) + label + text.slice(caret);
     setText(next);
     setMention(undefined);
@@ -327,7 +353,7 @@ export function Composer(props: ComposerProps) {
             ) : (
               results.map((r, i) => (
                 <li
-                  key={r.kind === "file" ? r.item.uri : `skill:${r.item.id}`}
+                  key={r.kind === "file" ? r.item.uri : r.kind === "command" ? `command:${r.item.name}` : `skill:${r.item.id}`}
                   id={`mention-${i}`}
                   role="option"
                   aria-selected={i === active}
@@ -339,7 +365,13 @@ export function Composer(props: ComposerProps) {
                 >
                   {r.kind === "file" ? <FileTypeIcon path={r.item.detail ?? r.item.name} /> : <IconTool />}
                   <span class="mention-name">{r.item.name}</span>
-                  <span class="mention-path">{r.kind === "file" ? r.item.detail : `@${r.item.id}${r.item.description ? ` · ${r.item.description}` : ""}`}</span>
+                  <span class="mention-path">
+                    {r.kind === "file"
+                      ? r.item.detail
+                      : r.kind === "command"
+                        ? `/${r.item.name}${r.item.description ? ` · ${r.item.description}` : ""}`
+                        : `@${r.item.id}${r.item.description ? ` · ${r.item.description}` : ""}`}
+                  </span>
                 </li>
               ))
             )}
