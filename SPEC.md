@@ -66,11 +66,11 @@ All messages are JSON objects with a `type` discriminator, defined in `src/share
 
 | type | payload | when |
 | --- | --- | --- |
-| `init` | `strings`, `folders`, `activeFolder`, `platform` | after `ready` |
-| `connection` | `status: idle\|starting\|connected\|reconnecting\|error`, `error?: UiError` | any status change |
-| `catalog` | `models`, `agents`, `skills`, selected model and agent | after connect / config change |
-| `sessions` | `items: SessionSummary[]`, `currentId`, `hasMore` | list changed / more pages loaded |
-| `session` | `info`, `messages` (raw server history), `permissions`, `forms` | session loaded / resync |
+| `init` | `strings`, `platform`, `folders`, `activeFolder?`, `issuesUrl?` | after `ready` |
+| `connection` | `status: idle\|starting\|connected\|reconnecting\|error`, `error?`, `version?`, `compatibility?`, `compatibilityDismissed?` | any status change |
+| `catalog` | `models`, `agents`, `skills`, `selectedModel?`, `selectedAgent?` | after connect / config change |
+| `sessions` | `items: SessionSummary[]`, `currentId?`, `hasMore?` | list changed / more pages loaded |
+| `session` | `session: SessionPayload \| null` (`id`, `title?`, `agent?`, `model?`, `busy`, raw `messages`, `permissions`, `forms`, `usage?`) | session loaded / resync |
 | `event` | `event` (raw server SSE event for the current session) | live |
 | `context` | `items: ContextItem[]` | active editor / selection changed |
 | `fileResults` | `query`, `items` | answer to `searchFiles` |
@@ -78,29 +78,33 @@ All messages are JSON objects with a `type` discriminator, defined in `src/share
 | `changedFiles` | `files: FileDiff[]` | after a step that touched files |
 | `autoApprove` | `enabled: boolean` | per-chat auto-approval loaded / toggled |
 | `focusInput` | – | `opencode.focus` |
-| `notice` | `UiError` | transient error (e.g. prompt rejected) |
+| `notice` | `error: UiError` (with optional `target` for a failed inline reply) | transient error (e.g. prompt rejected) |
 
 ### Webview → host
 
 | type | payload |
 | --- | --- |
 | `ready` | – |
-| `send` | `text`, `attachments: Attachment[]`, `excludedContext: string[]` |
+| `send` | `text`, `attachments: Attachment[]`, `context: ContextItem[]` |
 | `abort` | – |
 | `newSession`, `selectSession {id}`, `deleteSession {id}`, `renameSession {id, title}`, `refreshSessions`, `loadMoreSessions` | |
-| `setModel {providerID, id, variant?}`, `setAgent {id}` | |
+| `setModel {model}`, `setAgent {agent}` | |
 | `setAutoApprove {enabled}` | per-chat auto-approval toggle |
 | `permissionReply {requestId, sessionId, decision: once\|always\|reject}` | |
 | `formReply {formId, sessionId, answer}`, `formCancel {formId, sessionId}` | |
 | `searchFiles {query}` | |
-| `openDiff {file, patch, applied}`, `openFile {path}` | |
-| `action {id}` | `reconnect`, `showLogs`, `openSettings`, `install`, `login`, `setPassword`, `retry` |
-| `selectFolder {folder}` | |
-| `persistDraft` (handled in webview via setState) | |
+| `openDiff {file, patch, applied}`, `openFile {path}`, `openLink {href}` | |
+| `copy {text}` | copy code block to clipboard |
+| `action {id}` | `reconnect`, `showLogs`, `openSettings`, `install`, `login`, `setPassword`, `openFolder`, `newSession` |
+| `selectFolder {uri}` | switch workspace folder |
+| `refreshChanges` | re-fetch the session diff |
+| `dismissCompatibility {version}` | hide the version warning for this version |
 
-`UiError = { kind, message, detail?, actions: {id,label}[] }`, kinds:
+The composer draft is persisted in the webview with `vscode.setState`; it is not a protocol message.
+
+`UiError = { kind, message, detail?, actions: ActionId[], target?: { kind: "permission" \| "form", id } }`, kinds:
 `notInstalled`, `startFailed`, `unauthorized`, `noProvider`, `connectionLost`, `promptFailed`,
-`interrupted`, `executionFailed`.
+`noWorkspace`, `requestFailed`.
 
 The `skills` catalog is fetched from `GET /api/skill` without a workspace-location override so
 OpenCode includes its global skill sources. The webview receives only each skill's ID, name and

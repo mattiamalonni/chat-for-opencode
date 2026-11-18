@@ -23,6 +23,7 @@ import { StringsContext, useT } from "./i18n";
 import { IconCheck, IconChevron, IconClose, IconDiff, IconEdit, IconError, IconHistory, IconPlus, IconRefresh, IconTrash, IconWarning } from "./icons";
 import { setCopyLabel } from "./markdown";
 import { Picker } from "./picker";
+import { clearReplyFailures, markReplyFailed } from "./replyFeedback";
 import { ActionButton, AssistantStatus, FileList, FormCard, MessageView, PermissionCard, ToolCard, ToolGroup } from "./messages";
 import { onHostMessage, post } from "./vscode";
 
@@ -98,9 +99,11 @@ export function App() {
           if (lastSessionId.current !== id) {
             lastSessionId.current = id;
             setAttachments([]);
-            setContextChoice(new Map());
             setChanges([]);
             setNotice(undefined);
+            clearReplyFailures();
+            // Context chips belong to the editor, not the chat: keep the user's explicit
+            // opt-in/opt-out across session switches (stale ids are pruned on the next `context`).
           }
           dispatch({
             type: "load",
@@ -147,6 +150,7 @@ export function App() {
           setFocusToken((n) => n + 1);
           break;
         case "notice":
+          if (msg.error.target) markReplyFailed(msg.error.target);
           setNotice(msg.error);
           break;
       }

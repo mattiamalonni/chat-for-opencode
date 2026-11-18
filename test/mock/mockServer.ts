@@ -356,6 +356,18 @@ export function startMockServer(opts: MockOptions = {}): Promise<MockServer> {
   function finish(s: MockSession): void {
     const now = Date.now();
     s.info.time = { ...(s.info.time as Json), idle: now, updated: now };
+    const lastUser = [...s.messages].reverse().find((x) => x.type === "user") as Json | undefined;
+    // A dismissed question can end a turn without leaving an idle marker in history and with
+    // `time.busy` newer than `time.idle`. Reproduce that so a resync must not re-lock the composer.
+    if (typeof lastUser?.text === "string" && lastUser.text.includes("[cancel-stale]")) {
+      for (let i = s.messages.length - 1; i >= 0; i--) {
+        if (s.messages[i].type === "idle") {
+          s.messages.splice(i, 1);
+          break;
+        }
+      }
+      s.info.time = { ...(s.info.time as Json), busy: now + 105, updated: Date.now() };
+    }
     persist();
   }
 

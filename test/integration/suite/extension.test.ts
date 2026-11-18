@@ -297,4 +297,23 @@ describe("chat-for-opencode extension", () => {
     assert.equal(data.status.type, "idle");
     assert.equal(data.sessionID, form.sessionID);
   });
+
+  it("does not re-lock the composer on the resync after cancelling a question", async () => {
+    const mark = posted.length;
+    // `[cancel-stale]` makes the mock finish with stale busy timestamps and no idle marker, so
+    // the post-turn reconcile would otherwise bring the stop button back.
+    await controller.receive({ type: "send", text: "[question][cancel-stale] pick a color", attachments: [], context: [] });
+    const created = await waitFor(() => eventPosted("form.created", mark), "question form");
+    assert.ok(created.type === "event");
+    const form = (created.event.data as { form: { id: string; sessionID: string } }).form;
+    await controller.receive({ type: "formCancel", sessionId: form.sessionID, formId: form.id });
+    await waitFor(() => eventPosted("session.execution.succeeded", mark), "execution succeeded");
+
+    const terminalIndex = posted.findIndex((m, i) => i >= mark && m.type === "event" && m.event.type === "session.execution.succeeded");
+    const reconciled = await waitFor(
+      () => posted.slice(terminalIndex + 1).filter((m): m is Extract<HostMessage, { type: "session" }> => m.type === "session").at(-1),
+      "reconciled session after cancel",
+    );
+    assert.equal(reconciled.session?.busy, false);
+  });
 });

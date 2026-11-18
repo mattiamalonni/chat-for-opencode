@@ -159,6 +159,25 @@ test("Up/Down in the composer recall previously sent prompts", async ({ page }) 
   await expect(input).toHaveValue("unfinished draft");
 });
 
+test("modified Up/Down keys move the caret instead of recalling prompts", async ({ page }) => {
+  await boot(page);
+  await openSession(page, S1, [
+    {
+      type: "session.inbox.enqueued",
+      data: { sessionID: S1, inboxID: "msg_old", item: { type: "user", payload: { text: "first prompt" } } },
+    },
+  ]);
+  const input = page.getByRole("textbox", { name: STRINGS.inputLabel });
+  await input.fill("draft in progress");
+  // Cmd/Ctrl+Up are standard caret shortcuts, not prompt-history navigation.
+  await input.press("Meta+ArrowUp");
+  await expect(input).toHaveValue("draft in progress");
+  await input.press("Control+ArrowUp");
+  await expect(input).toHaveValue("draft in progress");
+  await input.press("Alt+ArrowDown");
+  await expect(input).toHaveValue("draft in progress");
+});
+
 test("streams a real recorded conversation with reasoning, markdown and tool cards", async ({ page }) => {
   await boot(page);
   const events = fixture("real-sse1.jsonl");
@@ -329,6 +348,48 @@ test("permission requests appear inside the tool card and are never auto-approve
   expect(reply).toMatchObject({ sessionId: S2, decision: "once" });
   for (const event of events.slice(asked + 1)) await host(page, { type: "event", event });
   await expect(card).toHaveCount(0);
+});
+
+test("a failed permission reply re-enables the card for a retry", async ({ page }) => {
+  await boot(page);
+  const events = fixture("real-sse3.jsonl");
+  const asked = events.findIndex((e) => e.type === "permission.asked");
+  await openSession(page, S2, events.slice(0, asked + 1));
+  const card = page.getByRole("group", { name: new RegExp(STRINGS.permissionTitle) });
+  const allow = card.getByRole("button", { name: STRINGS.permissionAllowOnce });
+
+  await allow.click();
+  await expect(allow).toBeDisabled();
+  const requestId = (events[asked].data as { id: string }).id;
+  // A failed reply produces only a notice tagged with the card, never a `permission.replied`.
+  await host(page, {
+    type: "notice",
+    error: { kind: "requestFailed", message: "Request failed", actions: [], target: { kind: "permission", id: requestId } },
+  });
+  await expect(allow).toBeEnabled();
+  await allow.click();
+  expect((await posted(page)).filter((m) => m.type === "permissionReply")).toHaveLength(2);
+});
+
+test("a failed form reply re-enables submit for a retry", async ({ page }) => {
+  await boot(page);
+  const events = fixture("real-sse4.jsonl");
+  const created = events.findIndex((e) => e.type === "form.created");
+  await openSession(page, S2, events.slice(0, created + 1));
+  const form = page.locator("form.card.question");
+  const submit = form.getByRole("button", { name: STRINGS.submit });
+  await form.getByLabel("Blue").check();
+
+  await submit.click();
+  await expect(submit).toBeDisabled();
+  const formId = (events[created].data as { form: { id: string } }).form.id;
+  await host(page, {
+    type: "notice",
+    error: { kind: "requestFailed", message: "Request failed", actions: [], target: { kind: "form", id: formId } },
+  });
+  await expect(submit).toBeEnabled();
+  await submit.click();
+  expect((await posted(page)).filter((m) => m.type === "formReply")).toHaveLength(2);
 });
 
 test("the composer toggles auto-approval for the current chat", async ({ page }) => {

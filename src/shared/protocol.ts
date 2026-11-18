@@ -37,11 +37,19 @@ export type ActionId =
   | "openFolder"
   | "newSession";
 
+/** Identifies the inline card a failed reply belongs to, so it can re-enable its buttons. */
+export interface ReplyTarget {
+  kind: "permission" | "form";
+  id: string;
+}
+
 export interface UiError {
   kind: UiErrorKind;
   message: string;
   detail?: string;
   actions: ActionId[];
+  /** Set when the error came from replying to an inline card (see webview/replyFeedback). */
+  target?: ReplyTarget;
 }
 
 export interface SessionSummary {

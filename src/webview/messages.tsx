@@ -18,6 +18,7 @@ import { FileTypeIcon } from "./fileIcons";
 import { useT } from "./i18n";
 import { IconCheck, IconChevron, IconDiff, IconError, IconInfo, IconSelection, IconTool, IconWarning } from "./icons";
 import { renderMarkdown } from "./markdown";
+import { clearReplyFailure, useReplyFailed } from "./replyFeedback";
 import { post } from "./vscode";
 
 /** URI decoding can throw on malformed escapes; never let that take down the whole chat. */
@@ -325,11 +326,16 @@ export function FileList({ files, applied }: { files: ChangedFile[]; applied: bo
 export function PermissionCard({ request }: { request: PermissionRequest }) {
   const t = useT();
   const [busy, setBusy] = useState(false);
+  const failed = useReplyFailed("permission", request.id);
+  // A resync re-posts the same pending request as a fresh object: re-enable its buttons.
+  useEffect(() => setBusy(false), [request]);
   const files = request.metadata?.files ?? [];
   const reply = (decision: "once" | "always" | "reject") => {
+    clearReplyFailure({ kind: "permission", id: request.id });
     setBusy(true);
     post({ type: "permissionReply", sessionId: request.sessionID, requestId: request.id, decision });
   };
+  const disabled = busy && !failed;
   const labelId = `perm-${request.id}`;
   return (
     <div class="card permission" role="group" aria-labelledby={labelId}>
@@ -348,15 +354,15 @@ export function PermissionCard({ request }: { request: PermissionRequest }) {
       )}
       {files.length > 0 && <FileList files={files} applied={false} />}
       <div class="card-actions">
-        <button type="button" class="primary" disabled={busy} onClick={() => reply("once")}>
+        <button type="button" class="primary" disabled={disabled} onClick={() => reply("once")}>
           {t("permissionAllowOnce")}
         </button>
         {(request.save?.length ?? 0) > 0 && (
-          <button type="button" class="secondary" disabled={busy} onClick={() => reply("always")}>
+          <button type="button" class="secondary" disabled={disabled} onClick={() => reply("always")}>
             {t("permissionAllowAlways")}
           </button>
         )}
-        <button type="button" class="secondary danger" disabled={busy} onClick={() => reply("reject")}>
+        <button type="button" class="secondary danger" disabled={disabled} onClick={() => reply("reject")}>
           {t("permissionReject")}
         </button>
       </div>
@@ -379,9 +385,12 @@ export function FormCard({ form }: { form: FormRequest }) {
   );
   const [custom, setCustom] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
-  useEffect(() => setBusy(false), [form.id]);
+  const failed = useReplyFailed("form", form.id);
+  // A resync re-posts the same pending form as a fresh object: re-enable its buttons.
+  useEffect(() => setBusy(false), [form]);
   const set = (k: string, v: FormValue | undefined) => setValues((prev) => ({ ...prev, [k]: v }));
   const missing = fields.some((f) => f.required && (values[f.key] === undefined || values[f.key] === ""));
+  const disabled = busy && !failed;
   const submit = (e: Event) => {
     e.preventDefault();
     const answer: Record<string, FormValue> = {};
@@ -390,6 +399,7 @@ export function FormCard({ form }: { form: FormRequest }) {
       if (v === "__custom__") v = custom[f.key] ?? "";
       if (v !== undefined) answer[f.key] = v;
     }
+    clearReplyFailure({ kind: "form", id: form.id });
     setBusy(true);
     post({ type: "formReply", sessionId: form.sessionID, formId: form.id, answer });
   };
@@ -403,14 +413,15 @@ export function FormCard({ form }: { form: FormRequest }) {
         <FieldInput key={f.key} field={f} value={values[f.key]} onChange={(v) => set(f.key, v)} custom={custom[f.key] ?? ""} onCustom={(v) => setCustom((c) => ({ ...c, [f.key]: v }))} />
       ))}
       <div class="card-actions">
-        <button type="submit" class="primary" disabled={busy || missing}>
+        <button type="submit" class="primary" disabled={disabled || missing}>
           {t("submit")}
         </button>
         <button
           type="button"
           class="secondary"
-          disabled={busy}
+          disabled={disabled}
           onClick={() => {
+            clearReplyFailure({ kind: "form", id: form.id });
             setBusy(true);
             post({ type: "formCancel", sessionId: form.sessionID, formId: form.id });
           }}

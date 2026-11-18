@@ -195,7 +195,8 @@ export function Composer(props: ComposerProps) {
     }
     // Shell-style prompt history: Up recalls the last prompt and older ones, Down walks forward
     // and finally restores whatever the user was typing. Mention suggestions keep their own keys.
-    if (!mention && !e.shiftKey && !composing.current && !e.isComposing) {
+    // Only bare Up/Down recall prompts: Cmd/Ctrl/Alt+Up are standard caret-movement shortcuts.
+    if (!mention && !e.shiftKey && !e.metaKey && !e.ctrlKey && !e.altKey && !composing.current && !e.isComposing) {
       if (e.key === "ArrowUp" && props.promptHistory.length > 0) {
         e.preventDefault();
         if (historyIndex === null) {

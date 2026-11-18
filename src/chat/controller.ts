@@ -142,6 +142,13 @@ export class ChatController implements vscode.Disposable {
   private changesTimer: NodeJS.Timeout | undefined;
   private reconcileTimer: NodeJS.Timeout | undefined;
   private executionGeneration = 0;
+  /**
+   * Last locally-posted idle status. A resync before the next turn must not re-lock the composer
+   * with stale server timestamps (e.g. a dismissed question leaves `busy` newer than `idle`).
+   */
+  private localIdle: { sid: string; generation: number } | undefined;
+  /** Invalidates an in-flight session load when a newer session/folder wins the race. */
+  private sessionLoadGeneration = 0;
   private connecting: Promise<void> | undefined;
   private wasDisconnected = false;
 
@@ -186,7 +193,12 @@ export class ChatController implements vscode.Disposable {
       await this.handle(msg);
     } catch (err) {
       this.output.error(`[chat] ${msg.type} failed: ${String(err)}`);
-      this.post({ type: "notice", error: toUiError(err) });
+      const error = toUiError(err);
+      // No `*.replied` event arrives for a failed reply, so tag the notice with the card it
+      // belongs to; the webview uses it to re-enable the card's buttons for a retry.
+      if (msg.type === "permissionReply") error.target = { kind: "permission", id: msg.requestId };
+      else if (msg.type === "formReply" || msg.type === "formCancel") error.target = { kind: "form", id: msg.formId };
+      this.post({ type: "notice", error });
     }
   }
 
@@ -212,7 +224,10 @@ export class ChatController implements vscode.Disposable {
    * end a turn (a second interrupt, a dismissed question) without emitting one, which would leave
    * the composer stuck on "stop" forever.
    */
-  private postLocalIdle(sid: string): void {
+  private postLocalIdle(sid: string, generation = this.executionGeneration): void {
+    // Ignore late results: a newer prompt may have started while interrupt/cancel was in flight.
+    if (sid !== this.sessionId || generation !== this.executionGeneration) return;
+    this.localIdle = { sid, generation };
     this.post({
       type: "event",
       event: { type: "session.status", data: { sessionID: sid, status: { type: "idle" } } } as ServerEvent,
@@ -309,6 +324,7 @@ export class ChatController implements vscode.Disposable {
   private async loadAll(): Promise<void> {
     const client = this.client;
     if (!client || !this.folder) return;
+    const generation = ++this.sessionLoadGeneration;
     const [models, defaultModel, agents, skills] = await Promise.all([
       client.models().catch(() => [] as ModelInfo[]),
       client.defaultModel().catch(() => null),
@@ -337,7 +353,7 @@ export class ChatController implements vscode.Disposable {
     }
     await this.refreshSessions();
     if (session) {
-      await this.loadSession(session);
+      await this.loadSession(session, () => generation !== this.sessionLoadGeneration);
     } else {
       this.sessionId = undefined;
       this.postCatalog();
@@ -367,8 +383,13 @@ export class ChatController implements vscode.Disposable {
   private onServerState(state: ServerState): void {
     if (state.status === "starting" && this.status === "connected") {
       this.setStatus("reconnecting");
-    } else if (state.status === "running" && this.client?.conn.baseUrl !== state.conn.baseUrl) {
-      // The managed process was restarted on a new port.
+    } else if (
+      state.status === "running" &&
+      this.client &&
+      (this.client.conn.baseUrl !== state.conn.baseUrl || this.client.conn.password !== state.conn.password)
+    ) {
+      // The managed process was restarted: the port *and* the random password can change.
+      // Comparing only the URL would leave a stale client on a reused port (endless 401s).
       void this.useConnection(state.conn, state.version).then(
         () => this.output.info("[chat] reconnected to restarted server"),
         (err: unknown) => this.setStatus("error", toUiError(err)),
@@ -408,10 +429,12 @@ export class ChatController implements vscode.Disposable {
   /** Live stream has no replay: re-fetch the current session after a reconnect. */
   private async resync(): Promise<void> {
     try {
+      const generation = this.sessionLoadGeneration;
+      const sid = this.sessionId;
       await this.refreshSessions();
-      if (this.sessionId && this.client) {
-        const info = await this.client.getSession(this.sessionId);
-        await this.loadSession(info);
+      if (sid && sid === this.sessionId && this.client) {
+        const info = await this.client.getSession(sid);
+        await this.loadSession(info, () => generation !== this.sessionLoadGeneration || sid !== this.sessionId);
       }
       if (this.status !== "error" || this.lastError?.kind === "connectionLost") this.setStatus("connected");
     } catch (err) {
@@ -433,9 +456,11 @@ export class ChatController implements vscode.Disposable {
       return;
     }
     if (sid && sid === this.sessionId) this.post({ type: "event", event });
-    // Any new turn invalidates a pending history reconcile from the previous one.
+    // Any new turn invalidates a pending history reconcile from the previous one, and ends the
+    // grace period in which a resync must not re-lock a locally cleared composer.
     if (sid === this.sessionId && (event.type === "session.inbox.enqueued" || event.type === "session.execution.started")) {
       this.executionGeneration++;
+      this.localIdle = undefined;
     }
     switch (event.type) {
       case "session.created":
@@ -589,7 +614,11 @@ export class ChatController implements vscode.Disposable {
     try {
       const info = await this.client.getSession(sid);
       if (sid !== this.sessionId || generation !== this.executionGeneration) return;
-      await this.loadSession(info, () => sid !== this.sessionId || generation !== this.executionGeneration);
+      // If the composer was cleared locally and no new turn has started, the server's timestamps
+      // are stale (a dismissed question can leave `busy` newer than `idle` with no idle message).
+      // Keep it unlocked instead of re-syncing back to "stop".
+      const busyOverride = this.localIdle?.sid === sid && this.localIdle.generation === generation ? false : undefined;
+      await this.loadSession(info, () => sid !== this.sessionId || generation !== this.executionGeneration, busyOverride);
     } catch (err) {
       // A failed reconcile is not worth surfacing: the live stream may still have delivered everything.
       this.output.warn(`[chat] session reconcile failed: ${String(err)}`);
@@ -671,7 +700,7 @@ export class ChatController implements vscode.Disposable {
     this.post({ type: "changedFiles", files });
   }
 
-  private async loadSession(info: SessionInfo, stale?: () => boolean): Promise<void> {
+  private async loadSession(info: SessionInfo, stale?: () => boolean, busyOverride?: boolean): Promise<void> {
     if (!this.client || !this.folder) return;
     const [messages, permissions, forms] = await Promise.all([
       this.client.messages(info.id),
@@ -703,7 +732,7 @@ export class ChatController implements vscode.Disposable {
         title: info.title,
         agent: info.agent,
         model: info.model,
-        busy: sessionIsBusy(info.time, messages),
+        busy: busyOverride ?? sessionIsBusy(info.time, messages),
         messages,
         permissions: pending,
         forms,
@@ -719,6 +748,7 @@ export class ChatController implements vscode.Disposable {
   // ---- commands ---------------------------------------------------------------------------
 
   async newSession(): Promise<void> {
+    this.sessionLoadGeneration++;
     if (this.reconcileTimer) clearTimeout(this.reconcileTimer);
     this.reconcileTimer = undefined;
     this.sessionId = undefined;
@@ -733,6 +763,7 @@ export class ChatController implements vscode.Disposable {
   }
 
   async reconnect(): Promise<void> {
+    this.sessionLoadGeneration++;
     if (this.reconcileTimer) clearTimeout(this.reconcileTimer);
     this.reconcileTimer = undefined;
     if (!this.server) return this.connect();
@@ -749,6 +780,7 @@ export class ChatController implements vscode.Disposable {
   }
 
   async resetServers(): Promise<void> {
+    this.sessionLoadGeneration++;
     this.stream?.close();
     this.stream = undefined;
     this.client = undefined;
@@ -761,6 +793,7 @@ export class ChatController implements vscode.Disposable {
 
   async switchFolder(folder: vscode.WorkspaceFolder | undefined): Promise<void> {
     if (folder?.uri.toString() === this.folder?.uri.toString()) return;
+    this.sessionLoadGeneration++;
     if (this.reconcileTimer) clearTimeout(this.reconcileTimer);
     this.reconcileTimer = undefined;
     this.stream?.close();
@@ -794,7 +827,9 @@ export class ChatController implements vscode.Disposable {
   }
 
   async setPassword(): Promise<void> {
-    const endpoint = vscode.workspace.getConfiguration("opencode").get<string>("endpoint", "").trim();
+    // Use the same folder scope as ServerRegistry.get(), otherwise a per-folder endpoint in a
+    // multi-root workspace is invisible here (and the secret would be stored under the wrong key).
+    const endpoint = vscode.workspace.getConfiguration("opencode", this.folder?.uri).get<string>("endpoint", "").trim();
     if (!endpoint) {
       void vscode.window.showInformationMessage(
         vscode.l10n.t("A password is only needed for an external server (setting opencode.endpoint). The managed server uses a random password automatically."),
@@ -826,7 +861,7 @@ export class ChatController implements vscode.Disposable {
         await vscode.env.openExternal(vscode.Uri.parse("https://opencode.ai/docs/"));
         return;
       case "login": {
-        const exe = vscode.workspace.getConfiguration("opencode").get<string>("executablePath", "opencode") || "opencode";
+        const exe = vscode.workspace.getConfiguration("opencode", this.folder?.uri).get<string>("executablePath", "opencode").trim() || "opencode";
         const terminal = vscode.window.createTerminal({ name: "OpenCode auth", cwd: this.folder?.uri });
         terminal.show();
         terminal.sendText(`${/\s/.test(exe) ? `"${exe}"` : exe} auth login`);
@@ -859,11 +894,12 @@ export class ChatController implements vscode.Disposable {
         return this.send(msg.text, msg.attachments, msg.context);
       case "abort": {
         const sid = this.sessionId;
+        const generation = this.executionGeneration;
         if (this.client && sid) {
           await this.client.interrupt(sid);
           // A server that receives a second interrupt on an already-idle session emits no
           // terminal event. Clear busy locally so the composer can never stay stuck on "stop".
-          this.postLocalIdle(sid);
+          this.postLocalIdle(sid, generation);
         }
         return;
       }
@@ -871,8 +907,10 @@ export class ChatController implements vscode.Disposable {
         return this.newSession();
       case "selectSession": {
         if (!this.client) return;
+        const generation = ++this.sessionLoadGeneration;
         const info = await this.client.getSession(msg.id);
-        return this.loadSession(info);
+        if (generation !== this.sessionLoadGeneration) return;
+        return this.loadSession(info, () => generation !== this.sessionLoadGeneration);
       }
       case "deleteSession":
         if (!this.client) return;
@@ -923,13 +961,14 @@ export class ChatController implements vscode.Disposable {
         return;
       case "formCancel": {
         const sid = msg.sessionId;
+        const generation = this.executionGeneration;
         try {
           await this.client?.cancelForm(sid, msg.formId);
         } finally {
           // Dismissing a question ends the assistant's step, but the server may answer with
           // only `form.cancelled` and no terminal execution event. Clear busy locally so the
           // composer can never stay stuck on "stop" (same guard as `abort`).
-          this.postLocalIdle(sid);
+          this.postLocalIdle(sid, generation);
         }
         return;
       }
@@ -982,6 +1021,7 @@ export class ChatController implements vscode.Disposable {
           .getConfiguration("opencode", this.folder.uri)
           .get<PermissionRule[]>("sessionPermissions", DEFAULT_SESSION_PERMISSIONS);
         const autoApprove = this.pendingAutoApprove;
+        const generation = ++this.sessionLoadGeneration;
         const info = await client.createSession({
           directory: this.folder.uri.fsPath,
           agent: this.selectedAgent,
@@ -992,9 +1032,12 @@ export class ChatController implements vscode.Disposable {
           await this.writeAutoApprove(info.id, autoApprove);
           this.pendingAutoApprove = undefined;
         }
-        await this.loadSession(info);
+        await this.loadSession(info, () => generation !== this.sessionLoadGeneration);
+        if (generation !== this.sessionLoadGeneration) return;
       }
-      await client.prompt(this.sessionId!, text, files);
+      const sid = this.sessionId;
+      if (!sid) return;
+      await client.prompt(sid, text, files);
     } catch (err) {
       const s = translatedStrings();
       const detail = err instanceof Error ? err.message : String(err);

@@ -135,13 +135,6 @@ export class EventStream {
     this.setStatus("closed");
   }
 
-  /** Forces an immediate reconnect (e.g. after the server was restarted). */
-  reconnectNow(): void {
-    if (this.closed) return;
-    this.attempt = 0;
-    this.controller?.abort();
-  }
-
   private setStatus(status: StreamStatus, error?: unknown): void {
     if (this.status === status && error === undefined) return;
     this.status = status;
