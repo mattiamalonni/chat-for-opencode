@@ -4,6 +4,10 @@
 
 > **Unofficial.** This extension is a community project and is not affiliated with or endorsed by the OpenCode team.
 
+> **Made with vibe coding.** This extension was built through vibe coding, with AI agents as
+> development partners throughout the process — from architecture and implementation to tests and
+> docs. A hands-on experiment in building a real, fully working VS Code extension with AI.
+
 A Copilot-style chat in the VS Code sidebar for [OpenCode](https://opencode.ai), the open-source
 coding agent. The extension is a **client** of the OpenCode v2 server (`opencode serve`) running
 on your machine. It does not reimplement the agent, never reads or stores provider API keys and
