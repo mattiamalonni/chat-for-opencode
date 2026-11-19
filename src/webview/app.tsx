@@ -438,16 +438,17 @@ export function App() {
           searchQuery={searchQuery}
           onSearchChange={setSearchQuery}
           searchCount={searchCount}
-        />
-        {showSessions && (
-          <SessionList
-            sessions={sessions}
-            currentId={chat.sessionId}
-            hasMore={sessionsHasMore}
-            onLoadMore={() => post({ type: "loadMoreSessions" })}
-            onClose={() => setShowSessions(false)}
-          />
-        )}
+        >
+          {showSessions && (
+            <SessionList
+              sessions={sessions}
+              currentId={chat.sessionId}
+              hasMore={sessionsHasMore}
+              onLoadMore={() => post({ type: "loadMoreSessions" })}
+              onClose={() => setShowSessions(false)}
+            />
+          )}
+        </Header>
         <StatusBanner status={status.status} error={status.error} />
         {(compatibility.status === "untested" || compatibility.status === "unsupported") && !compatibility.dismissed && (
           <CompatibilityBanner
@@ -624,6 +625,7 @@ function Header(props: {
   searchQuery: string;
   onSearchChange: (value: string) => void;
   searchCount: number;
+  children?: ComponentChildren;
 }) {
   const t = useT();
   const searchRef = useRef<HTMLInputElement>(null);
@@ -704,6 +706,7 @@ function Header(props: {
           </button>
         </div>
       )}
+      {props.children}
     </header>
   );
 }
