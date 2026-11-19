@@ -116,7 +116,6 @@ loads the skill content.
 | OpenCode: New Session | `Cmd/Ctrl+N` (chat focused) |
 | OpenCode: Compact Conversation | – |
 | OpenCode: Reconnect / Restart Server | – |
-| OpenCode: Show Changed Files | – |
 | OpenCode: Move Chat View… | – (left/right side bar or panel) |
 | OpenCode: Show Logs | – |
 | OpenCode: Set Server Password… | – (external server only) |

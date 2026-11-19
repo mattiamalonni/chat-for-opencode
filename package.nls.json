@@ -13,7 +13,6 @@
   "command.showLogs": "Show Logs",
   "command.setServerPassword": "Set Server Password…",
   "command.stopServer": "Stop Server",
-  "command.showChanges": "Show Changed Files",
   "config.executablePath": "Path of the `opencode` executable used to start `opencode serve` (one process per workspace folder).",
   "config.endpoint": "URL of an already running OpenCode server (e.g. `http://127.0.0.1:4096`). When set, no process is started; use **OpenCode: Set Server Password…** to store its password in the OS keychain.",
   "config.autoContext": "Show the active file and selection as context chips. Selections are attached automatically; add the active file to a message with one click.",

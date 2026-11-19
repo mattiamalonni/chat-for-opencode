@@ -59,7 +59,6 @@ describe("chat-for-opencode extension", () => {
       "opencode.showLogs",
       "opencode.setServerPassword",
       "opencode.stopServer",
-      "opencode.showChanges",
       "opencode.moveView",
     ]) {
       assert.ok(all.includes(c), `missing command ${c}`);

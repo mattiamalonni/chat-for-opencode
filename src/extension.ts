@@ -126,17 +126,18 @@ export function activate(context: vscode.ExtensionContext): ExtensionApi {
       chat.addAttachment({ uri: target.toString(), name: path.basename(target.fsPath), kind: "file", detail: vscode.workspace.asRelativePath(target) });
     }),
     vscode.commands.registerCommand("opencode.moveView", async () => {
-      await focusView();
-      // Built-in "View: Move View" quick pick (primary/secondary side bar, panel).
-      await vscode.commands.executeCommand("workbench.action.moveFocusedView");
+      // `workbench.action.moveFocusedView` reads VS Code's internal `focusedView` context key,
+      // which is cleared when focus enters a webview iframe (and by the overflow menu itself).
+      // `trackFocus` fires that blur on a 0ms timer, so even setting the key right before the
+      // command is racy. The non-focused variant passes the view id explicitly to the
+      // destination picker and never errors on a missing focus; it preselects our view when
+      // the key happens to be set.
+      await vscode.commands.executeCommand("setContext", "focusedView", ChatViewProvider.viewId);
+      await vscode.commands.executeCommand("workbench.action.moveView");
     }),
     vscode.commands.registerCommand("opencode.showLogs", () => output.show(true)),
     vscode.commands.registerCommand("opencode.setServerPassword", () => chat.setPassword()),
     vscode.commands.registerCommand("opencode.stopServer", () => registry?.reset()),
-    vscode.commands.registerCommand("opencode.showChanges", async () => {
-      await focusView();
-      await chat.refreshChanges();
-    }),
     vscode.workspace.onDidChangeConfiguration((e) => {
       if (
         e.affectsConfiguration("opencode.executablePath") ||

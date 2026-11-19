@@ -116,12 +116,6 @@
         "category": "OpenCode"
       },
       {
-        "command": "opencode.showChanges",
-        "title": "%command.showChanges%",
-        "category": "OpenCode",
-        "icon": "$(diff-multiple)"
-      },
-      {
         "command": "opencode.moveView",
         "title": "%command.moveView%",
         "category": "OpenCode",
@@ -136,14 +130,9 @@
           "group": "navigation@1"
         },
         {
-          "command": "opencode.showChanges",
-          "when": "view == opencode.chatView",
-          "group": "navigation@2"
-        },
-        {
           "command": "opencode.reconnect",
           "when": "view == opencode.chatView",
-          "group": "navigation@3"
+          "group": "navigation@2"
         },
         {
           "command": "opencode.compact",

@@ -8,6 +8,11 @@
 - Step details appear **above the text they produced**, so no thought is shown after the final
   answer. Fold headers show only the step label, and the turn summary bar reports the total number
   of steps.
+- Removed the **OpenCode: Show Changed Files** command from the chat view title bar (the changed-files
+  panel inside the chat is unchanged).
+- Fixed **Move Chat View…**: it now uses VS Code's view picker, which passes the chat view explicitly
+  to the move command, instead of erroring with "There is no view currently focused" when invoked
+  from the view's overflow menu (webview focus clears VS Code's internal `focusedView` key).
 
 ## 0.3.13 — 2026-11-19
 
