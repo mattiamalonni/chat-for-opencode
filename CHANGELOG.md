@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.3.14 — 2026-11-19
+
+- Finished turns now fold thoughts and tool calls into **expandable per-step details** while prose
+  stays visible. Consecutive textless steps of the same reasoning run merge into one collapsible
+  block, which opens into a timeline-style layout.
+- Step details appear **above the text they produced**, so no thought is shown after the final
+  answer. Fold headers show only the step label, and the turn summary bar reports the total number
+  of steps.
+
 ## 0.3.13 — 2026-11-19
 
 - The chat now tops up incrementally from the server when the panel becomes visible again, and a
