@@ -332,28 +332,28 @@ test("keeps thoughts and tools in production order and groups adjacent calls", a
     { type: "session.execution.succeeded", data: { sessionID: sid } },
   ]);
 
-  // The turn is finished: both steps' details merge into one fold. Expand it to inspect them.
+  // Details come before the prose they produced: step 1's fold, its text, then step 2's fold.
   const blocks = page.locator(".step-block");
-  await expect(blocks).toHaveCount(1);
-  await blocks.locator(".step-fold-header").click();
+  await expect(blocks).toHaveCount(2);
+  for (const header of await blocks.locator(".step-fold-header").all()) await header.click();
 
   // Both calls of the first step share one accordion...
   const group = page.locator(".tool-group");
   await expect(group).toHaveCount(1);
   await group.locator(".tool-group-header").click();
   await expect(group.locator(".tool")).toHaveCount(2);
-  // ...but the next step's call stays after its own thought.
-  const standalone = blocks.locator(".tool").filter({ hasText: "shell" });
+  // ...but the next step's call stays in its own fold.
+  const standalone = blocks.nth(1).locator(".tool");
   await expect(standalone).toHaveCount(1);
   await expect(standalone.locator(".tool-name")).toHaveText("shell");
 
-  const firstText = await page.locator(".md").first().boundingBox();
+  const firstThought = await page.locator(".reasoning").first().boundingBox();
   const groupBox = await group.boundingBox();
-  const secondThought = await page.locator(".reasoning").nth(1).boundingBox();
+  const narration = await page.locator(".md").filter({ hasText: "checking files" }).boundingBox();
   const standaloneBox = await standalone.boundingBox();
-  expect(firstText!.y).toBeLessThan(groupBox!.y);
-  expect(groupBox!.y).toBeLessThan(secondThought!.y);
-  expect(secondThought!.y).toBeLessThan(standaloneBox!.y);
+  expect(firstThought!.y).toBeLessThan(groupBox!.y);
+  expect(groupBox!.y).toBeLessThan(narration!.y);
+  expect(narration!.y).toBeLessThan(standaloneBox!.y);
 });
 
 test("a finished turn folds its intermediate steps and can expand them", async ({ page }) => {
@@ -1531,9 +1531,10 @@ test("a finished turn shows one total for all its steps", async ({ page }) => {
   await expect(stats).toContainText("5.5s");
   await expect(stats).toContainText("505 tokens");
   await expect(stats).toContainText("$0.0030");
+  await expect(stats).toContainText("2 steps");
   await expect(stats).toHaveAttribute(
     "data-tooltip",
-    "From input to the last step: 5.5s · Tokens (all steps): 505 tokens · Cost: $0.0030",
+    "From input to the last step: 5.5s · Tokens (all steps): 505 tokens · Cost: $0.0030 · Steps: 2 steps",
   );
   await page.screenshot({ path: join(SHOTS, "13-turn-stats-dark.png") });
 });

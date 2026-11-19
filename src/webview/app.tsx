@@ -1085,9 +1085,10 @@ function splitStep(items: ConversationItem[]): { prose: ConversationItem[]; deta
 }
 
 /**
- * Prose is shown immediately, while the details (thoughts + tools) of that step and of the
- * following textless steps are merged into a single collapsible right after it. A new prose step
- * closes the current run. The live step's run stays expanded while the turn streams.
+ * The model thinks and acts before it speaks, so a step's details (thoughts + tools) go above its
+ * prose, not below. Consecutive textless steps merge into one collapsible with the next prose
+ * step, which closes the run. A trailing textless run (no following answer) closes at the end.
+ * The live step's run stays expanded while the turn streams.
  */
 function stepBlocks(groups: ConversationItem[][], liveIndex: number): ConversationItem[] {
   const out: ConversationItem[] = [];
@@ -1112,18 +1113,19 @@ function stepBlocks(groups: ConversationItem[][], liveIndex: number): Conversati
 
   for (let s = 0; s < groups.length; s++) {
     const { prose, details } = splitStep(groups[s]);
-    if (prose.length > 0) {
-      // A prose step ends the previous run; show its text now.
-      flushPending();
-      out.push(...prose);
-    }
-    // Details from every step join the current run — including steps that also carried prose.
+    // Details from every step join the run — including this step's own thoughts and tools.
     if (details.length > 0) {
       if (pendingFrom < 0) pendingFrom = s;
       pending.push(...details);
       pendingTo = s;
     }
+    if (prose.length > 0) {
+      // Close the run before the text it produced, so no thought is left after the answer.
+      flushPending();
+      out.push(...prose);
+    }
   }
+  // Steps with no following prose (turn ended after tool calls) still need a fold.
   flushPending();
   return out;
 }
@@ -1256,9 +1258,9 @@ function StepBlock({
   return (
     <section class={`step-block${filteredOut ? " filtered-out" : ""}`}>
       <div class="step-fold">
-        <button type="button" class="step-fold-header" aria-expanded={expanded} onClick={() => setOpen(!open)}>
+        <button type="button" class="step-fold-header" aria-expanded={expanded} aria-label={label} onClick={() => setOpen(!open)}>
           <IconChevron class="chevron" />
-          <span>{label} · {expanded ? t("hideDetails") : t("showDetails")}</span>
+          <span>{label}</span>
         </button>
         {expanded && <div class="step-fold-body">{details.map((d, i) => <div key={`${(d as { key?: string }).key ?? i}`}>{render(d, "")}</div>)}</div>}
       </div>

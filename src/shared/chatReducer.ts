@@ -84,6 +84,8 @@ export interface TurnStats {
   /** Sum of the per-step token counts, so tool-using turns include every LLM call. */
   tokens?: TokenUsage;
   cost?: number;
+  /** Number of LLM steps in the turn (one assistant message per step). */
+  steps?: number;
 }
 
 export interface ChatState {
@@ -377,6 +379,7 @@ function turnsFromHistory(messages: SessionMessage[], alreadySorted = false): Tu
       turns.push(current);
     } else if (m.type === "assistant" && current) {
       current.tokens = addTokens(current.tokens, m.tokens);
+      current.steps = (current.steps ?? 0) + 1;
       if (typeof m.cost === "number") current.cost = (current.cost ?? 0) + m.cost;
       if (m.time.completed !== undefined) lastCompleted = Math.max(lastCompleted ?? 0, m.time.completed);
     } else if (m.type === "idle" && current) {
@@ -699,13 +702,19 @@ export function applyEvent(state: ChatState, event: ServerEvent): ChatState {
         : state.turns;
       return { ...state, busy, retry: undefined, turns };
     }
-    case "session.step.started":
+    case "session.step.started": {
+      // A step can be the first event seen when reattaching mid-turn; make sure it has a turn.
+      const base: ChatState = state.turns.some((t) => t.ended === undefined)
+        ? state
+        : { ...state, turns: [...state.turns, { id: `turn-${created}`, started: created }] };
+      const counted: ChatState = { ...base, turns: withOpenTurn(base, (t) => ({ ...t, steps: (t.steps ?? 0) + 1 })) };
       return updateAssistant(
-        state,
+        counted,
         msgId,
         (m) => ({ ...m, agent: str(d, "agent") || m.agent, model: (d.model as ModelRef) ?? m.model, done: false }),
         () => ({ kind: "assistant", id: msgId, created, agent: str(d, "agent"), parts: [], done: false }),
       );
+    }
     case "session.text.started":
     case "session.reasoning.started": {
       const kind = event.type === "session.text.started" ? "text" : "reasoning";

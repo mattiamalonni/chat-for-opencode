@@ -194,14 +194,16 @@ function StatsRow({ stats }: { stats: TurnStats }) {
     }
     duration = t("turnDurationMinutes", minutes, rest);
   }
+  const steps = stats.steps && stats.steps > 0 ? t("stepCount", stats.steps) : undefined;
   const tokens = total && total > 0 ? t("tokens", formatTokens(total)) : undefined;
   const cost = stats.cost !== undefined && stats.cost > 0 ? `$${stats.cost.toFixed(stats.cost < 0.01 ? 4 : 2)}` : undefined;
-  const shown = [duration, tokens, cost].filter((x): x is string => x !== undefined);
+  const shown = [steps, duration, tokens, cost].filter((x): x is string => x !== undefined);
   const tooltip = t(
     "turnStatsTooltip",
     duration,
     tokens ?? t("turnStatsUnknown"),
     cost ?? t("turnStatsUnknown"),
+    steps ?? t("turnStatsUnknown"),
   );
   return (
     <div class="turn-stats tooltip-host tooltip-above" role="img" aria-label={tooltip} data-tooltip={tooltip}>
