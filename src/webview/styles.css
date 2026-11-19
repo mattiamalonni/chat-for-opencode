@@ -75,7 +75,6 @@ button {
 /* ---- header ---------------------------------------------------------------------------- */
 
 .header {
-  position: relative;
   display: flex;
   align-items: center;
   flex-wrap: wrap;
@@ -254,11 +253,9 @@ details[open] > summary > .chevron,
 
 /* ---- session list ---------------------------------------------------------------------- */
 
-/* Anchored to the header so the list sits flush under the trigger, even when the
-   header grows (search row, folder picker) instead of using a fixed offset. */
 .session-list {
   position: absolute;
-  top: 100%;
+  top: 36px;
   left: 4px;
   right: 4px;
   z-index: 20;
