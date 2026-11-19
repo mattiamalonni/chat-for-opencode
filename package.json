@@ -220,6 +220,11 @@
           "default": true,
           "markdownDescription": "%config.autoContext%"
         },
+        "opencode.dropzone": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "%config.dropzone%"
+        },
         "opencode.startupTimeout": {
           "type": "number",
           "default": 30000,

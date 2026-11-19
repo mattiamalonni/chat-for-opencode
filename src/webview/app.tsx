@@ -77,6 +77,7 @@ export function App() {
   // A live region only announces when its text changes: repeating the same string is silent.
   const announce = (text: string) => setAnnouncement((prev) => ({ text, seq: prev.seq + 1 }));
   const [dropping, setDropping] = useState(false);
+  const [dropzoneEnabled, setDropzoneEnabled] = useState(true);
   const dragDepth = useRef(0);
   const queue = useRef<ServerEvent[]>([]);
   const childQueue = useRef<SubagentEvent[]>([]);
@@ -104,6 +105,7 @@ export function App() {
           env.platform = msg.platform;
           setFolders({ list: msg.folders, active: msg.activeFolder });
           setIssuesUrl(msg.issuesUrl);
+          setDropzoneEnabled(msg.dropzone ?? true);
           break;
         case "connection":
           setStatus({ status: msg.status, error: msg.error });
@@ -195,6 +197,9 @@ export function App() {
           break;
         case "autoApprove":
           setAutoApprove(msg.enabled);
+          break;
+        case "dropzone":
+          setDropzoneEnabled(msg.enabled);
           break;
         case "drafts":
           hydrateDrafts(msg.drafts, msg.globalDraft);
@@ -339,6 +344,11 @@ export function App() {
   // in an editor). Listen on window, not just the app element, so events targeting any child are
   // still seen. Dropped files become attachments, exactly like @-mentions.
   useEffect(() => {
+    if (!dropzoneEnabled) {
+      dragDepth.current = 0;
+      setDropping(false);
+      return;
+    }
     const onDragEnter = (e: DragEvent) => {
       if (!hasFiles(e.dataTransfer as DragData | null)) return;
       e.preventDefault();
@@ -380,7 +390,7 @@ export function App() {
       window.removeEventListener("drop", onDrop);
       window.removeEventListener("dragend", onDragEnd);
     };
-  }, []);
+  }, [dropzoneEnabled]);
 
   const subagentEntries = useMemo(() => {
     const entries: Record<string, SubagentEntry> = {};

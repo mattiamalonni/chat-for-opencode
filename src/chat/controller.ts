@@ -258,6 +258,9 @@ export class ChatController implements vscode.Disposable {
           this.postAutoApprove();
           if (this.permissions.enabled(this.sessionId)) void this.approvePending();
         }
+        if (e.affectsConfiguration("opencode.dropzone")) {
+          this.post({ type: "dropzone", enabled: this.dropzoneEnabled() });
+        }
       }),
     );
   }
@@ -347,7 +350,12 @@ export class ChatController implements vscode.Disposable {
       folders: (vscode.workspace.workspaceFolders ?? []).map((f) => ({ uri: f.uri.toString(), name: f.name })),
       activeFolder: this.folder?.uri.toString(),
       issuesUrl: (this.ctx.extension.packageJSON as { bugs?: { url?: string } }).bugs?.url,
+      dropzone: this.dropzoneEnabled(),
     });
+  }
+
+  private dropzoneEnabled(): boolean {
+    return vscode.workspace.getConfiguration("opencode", this.folder?.uri).get<boolean>("dropzone", true);
   }
 
   private postConnection(status: ConnectionStatus = this.status, error = this.lastError): void {

@@ -148,6 +148,8 @@ export type HostMessage =
       folders: FolderInfo[];
       activeFolder?: string;
       issuesUrl?: string;
+      /** Whether drag & drop of files into the chat is enabled (defaults to true). */
+      dropzone?: boolean;
     }
   | {
       type: "connection";
@@ -184,6 +186,8 @@ export type HostMessage =
   | { type: "addAttachment"; item: Attachment }
   | { type: "changedFiles"; files: FileDiff[] }
   | { type: "autoApprove"; enabled: boolean }
+  /** Dropzone setting changed at runtime; lets the webview rebind drag & drop listeners live. */
+  | { type: "dropzone"; enabled: boolean }
   /** Drafts restored from workspaceState on webview startup (vscode.setState alone dies on reload). */
   | { type: "drafts"; drafts: Record<string, string>; globalDraft?: string }
   | { type: "focusInput" }
