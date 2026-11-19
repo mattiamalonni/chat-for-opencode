@@ -428,6 +428,38 @@ test("a new prompt follows the latest message even after scrolling up", async ({
   await expect(page.locator(".msg.user .user-text").last()).toHaveText("a second prompt");
 });
 
+test("scrolling up near the bottom is not snapped back by unrelated re-renders", async ({ page }) => {
+  await page.setViewportSize({ width: 420, height: 500 });
+  await boot(page);
+  // A long, windowed history: the virtual range changes as we scroll, which re-renders the app.
+  await openSession(page, S1, fixture("real-sse1.jsonl"));
+  const conversation = page.locator(".conversation");
+  await expect.poll(async () => conversation.evaluate((el) => el.scrollHeight > el.clientHeight)).toBe(true);
+
+  await conversation.evaluate((el) => {
+    el.scrollTop = el.scrollHeight;
+    el.dispatchEvent(new Event("scroll"));
+  });
+  await expect.poll(async () => conversation.evaluate((el) => el.scrollHeight - el.scrollTop - el.clientHeight)).toBeLessThan(2);
+  const bottom = await conversation.evaluate((el) => el.scrollTop);
+
+  // Nudge up a few pixels: still inside the 40px "at bottom" band, so `stick` stays true.
+  await conversation.evaluate((el) => {
+    el.scrollTop = Math.max(0, el.scrollTop - 10);
+    el.dispatchEvent(new Event("scroll"));
+  });
+  const nudged = await conversation.evaluate((el) => el.scrollTop);
+  expect(nudged).toBeLessThan(bottom);
+
+  // An unrelated state update used to trigger an unconditional scrollToBottom and undo the nudge.
+  await host(page, {
+    type: "context",
+    items: [{ id: "file:///work/src/app.ts", kind: "file", uri: "file:///work/src/app.ts", label: "app.ts", detail: "src/app.ts" }],
+  });
+  await page.waitForTimeout(100);
+  expect(await conversation.evaluate((el) => el.scrollTop)).toBeLessThanOrEqual(nudged + 1);
+});
+
 test("a live prompt with a file attachment renders without crashing", async ({ page }) => {
   await boot(page);
   await openSession(page, S1, []);

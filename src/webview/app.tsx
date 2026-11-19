@@ -1,5 +1,5 @@
 import { Component, type ComponentChildren } from "preact";
-import { useEffect, useMemo, useReducer, useRef, useState } from "preact/hooks";
+import { useEffect, useLayoutEffect, useMemo, useReducer, useRef, useState } from "preact/hooks";
 import type { AgentInfo, CommandSuggestion, FileDiff, ModelInfo, ModelRef, ServerEvent, SkillSuggestion } from "../shared/api";
 import {
   chatReducer,
@@ -1227,10 +1227,20 @@ function Conversation({ chat, scrollToken, searchQuery }: { chat: ReturnType<typ
     scrollToEnd();
   }, [scrollToken]);
 
-  useEffect(() => {
+  // Pin to the bottom only when the conversation actually grows (a streamed token, a new
+  // message, a new card). This used to run after *every* render, so an unrelated state change
+  // (virtual window, tooltip direction, context chips, session refresh) yanked the view back
+  // down while the user was scrolling up through old history — the chat felt stuck to the
+  // bottom. Comparing scroll heights also avoids fighting the user when content is replaced
+  // rather than appended (e.g. steps folding into a summary).
+  const lastScrollHeight = useRef(0);
+  useLayoutEffect(() => {
     const el = ref.current;
-    if (el && stick.current) el.scrollTop = el.scrollHeight;
-  });
+    if (!el) return;
+    const previous = lastScrollHeight.current;
+    lastScrollHeight.current = el.scrollHeight;
+    if (el.scrollHeight > previous && stick.current) el.scrollTop = el.scrollHeight;
+  }, [chat.messages, chat.permissions, chat.forms, chat.retry, chat.busy, items.length]);
 
   useEffect(
     () => () => {
