@@ -748,9 +748,22 @@ function SessionList(props: {
         else props.onClose();
       }}
     >
-      <button type="button" class="session-new" onClick={() => post({ type: "newSession" })}>
-        <IconPlus /> {t("newSession")}
-      </button>
+      <div class="session-header">
+        <button type="button" class="session-new" onClick={() => post({ type: "newSession" })}>
+          <IconPlus /> {t("newSession")}
+        </button>
+        {props.sessions.length > 0 && (
+          <button
+            type="button"
+            class="icon-button tooltip-host session-delete-all"
+            data-tooltip={t("deleteAllSessions")}
+            aria-label={t("deleteAllSessions")}
+            onClick={() => post({ type: "deleteAllSessions" })}
+          >
+            <IconTrash />
+          </button>
+        )}
+      </div>
       {props.sessions.length === 0 && <div class="empty">{t("noSessions")}</div>}
       <ul>
         {props.sessions.map((s) => (
@@ -853,19 +866,6 @@ function SessionList(props: {
         <button type="button" class="session-more" onClick={props.onLoadMore}>
           {t("loadMoreSessions")}
         </button>
-      )}
-      {props.sessions.length > 0 && (
-        <div class="session-footer">
-          <button
-            type="button"
-            class="icon-button tooltip-host tooltip-above session-delete-all"
-            data-tooltip={t("deleteAllSessions")}
-            aria-label={t("deleteAllSessions")}
-            onClick={() => post({ type: "deleteAllSessions" })}
-          >
-            <IconTrash />
-          </button>
-        </div>
       )}
     </div>
   );

@@ -91,7 +91,7 @@ Press **F5** in this repository to launch an Extension Development Host.
 4. Pick the agent (*Build*, *Plan*, …), model and reasoning effort in the toolbar below the input.
 5. When the agent wants to edit a file or run a command that needs approval, a card appears inside
    the tool call: open the diff, then **Allow once**, **Always allow** or **Reject**.
-6. Use the session button (top left) to switch, resume, rename or delete sessions; `+` starts a new one, *Load more sessions* reaches older ones, and the small trash icon at the bottom deletes every session after a native VS Code confirmation.
+6. Use the session button (top left) to switch, resume, rename or delete sessions; `+` starts a new one, *Load more sessions* reaches older ones, and the small trash icon to the right of `+ New Session` deletes every session after a native VS Code confirmation.
 
 ### Skills
 

@@ -295,8 +295,11 @@ details[open] > summary > .chevron,
   text-align: left;
 }
 
-.session-new {
-  width: 100%;
+/* "New session" and the quiet delete-all icon share one row. */
+.session-header {
+  display: flex;
+  align-items: center;
+  gap: 4px;
   border-bottom: 1px solid var(--vscode-widget-border, transparent);
   margin-bottom: 4px;
 }
@@ -426,15 +429,7 @@ details[open] > summary > .chevron,
   background: var(--vscode-list-hoverBackground);
 }
 
-/* Quiet trash icon in the footer; the destructive step itself is confirmed by VS Code. */
-.session-footer {
-  display: flex;
-  justify-content: flex-end;
-  margin-top: 4px;
-  padding-top: 4px;
-  border-top: 1px solid var(--vscode-widget-border, transparent);
-}
-
+/* Quiet trash icon beside "New session"; the destructive step is confirmed by VS Code. */
 .session-delete-all {
   color: var(--vscode-descriptionForeground);
 }

@@ -995,7 +995,9 @@ test("session list: delete-all is a quiet icon that posts the host message", asy
   await boot(page);
   await page.getByRole("button", { name: new RegExp(`^${STRINGS.sessions}:`) }).click();
   const dialog = page.getByRole("dialog", { name: STRINGS.sessions });
-  const deleteAll = dialog.locator(".session-footer button.session-delete-all");
+  const deleteAll = dialog.locator(".session-header button.session-delete-all");
+  const sameRow = await deleteAll.evaluate((el: HTMLElement) => el.parentElement?.querySelector(".session-new") !== null);
+  expect(sameRow).toBe(true);
   await expect(deleteAll).toBeVisible();
   // Icon only: the label lives in the tooltip/aria-label, not in a wide destructive button,
   // and there is no in-webview confirmation card (VS Code shows the native dialog instead).
