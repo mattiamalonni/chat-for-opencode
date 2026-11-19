@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.3.13 — 2026-11-19
 
 - The chat now tops up incrementally from the server when the panel becomes visible again, and a
   **sync icon** next to the Markdown export reloads the conversation authoritatively on demand. This
