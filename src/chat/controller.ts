@@ -77,6 +77,22 @@ function mimeFromName(name: string): string {
   return ATTACHMENT_MIME[path.extname(name).toLowerCase()] ?? "application/octet-stream";
 }
 
+/**
+ * Quotes a single argument for a shell command sent to an interactive terminal. `executablePath`
+ * is machine-overridable, so it can come from a workspace's settings: concatenating it into a
+ * command line unsafely would let that workspace run arbitrary commands when the user clicks
+ * "Sign in". POSIX uses single quotes (with the usual `'\''` escape); cmd.exe has no safe way to
+ * embed a double quote, so such paths are rejected instead.
+ */
+function quoteForShell(value: string): string {
+  if (/[\0\r\n]/.test(value)) throw new Error("The executable path contains a control character.");
+  if (process.platform === "win32") {
+    if (/["&|<>^%!]/.test(value)) throw new Error('The executable path contains a character cmd.exe cannot quote safely (", &, |, <, >, ^, %, !).');
+    return `"${value}"`;
+  }
+  return `'${value.replace(/'/g, `'\\''`)}'`;
+}
+
 /** Child ids recorded in the tool state of a loaded session's history. */
 function subagentSessionsFromMessages(messages: SessionMessage[]): string[] {
   const ids = new Set<string>();
@@ -207,6 +223,8 @@ export class ChatController implements vscode.Disposable {
   /** High-water mark for incremental resync: the newest history message id of the loaded session. */
   private lastKnownMessage: { sessionId: string; id: string } | undefined;
   private connecting: Promise<void> | undefined;
+  /** Invalidates a `doConnect()` whose `ensure()` was still in flight when the folder/server changed. */
+  private readonly connectGen = new Generation();
   private wasDisconnected = false;
   /** Child sessions spawned by `subagent` tools of the current session (nested ones included). */
   private readonly childSessions = new Set<string>();
@@ -362,12 +380,21 @@ export class ChatController implements vscode.Disposable {
   /** Starts (or reuses) the server for the current folder and loads everything. */
   connect(): Promise<void> {
     if (!this.connecting) {
-      this.connecting = this.doConnect().finally(() => (this.connecting = undefined));
+      const pending = this.doConnect();
+      this.connecting = pending;
+      // Only clear our own entry: a newer connect started after an invalidation must survive the
+      // completion of the one it replaced.
+      const done = () => {
+        if (this.connecting === pending) this.connecting = undefined;
+      };
+      void pending.then(done, done);
     }
     return this.connecting;
   }
 
   private async doConnect(): Promise<void> {
+    const generation = this.connectGen.current();
+    const stale = () => !this.connectGen.is(generation);
     this.folder ??= this.pickFolder();
     if (!this.folder) {
       const s = translatedStrings();
@@ -383,14 +410,23 @@ export class ChatController implements vscode.Disposable {
     this.setStatus("starting");
     try {
       const conn = await server.ensure();
-      await this.useConnection(conn, server.state.status === "running" ? server.state.version : undefined);
+      // A folder switch / reset / reconnect may have happened while `ensure()` was starting the
+      // server. Installing that connection would bind the chat to the wrong (or disposed) server.
+      if (stale()) return;
+      await this.useConnection(conn, server.state.status === "running" ? server.state.version : undefined, stale);
     } catch (err) {
+      if (stale()) return;
       this.output.error(`[chat] connect failed: ${String(err)}`);
       this.setStatus("error", toUiError(err, "startFailed"));
     }
   }
 
-  private async useConnection(conn: { baseUrl: string; password?: string }, version?: string): Promise<void> {
+  private async useConnection(
+    conn: { baseUrl: string; password?: string },
+    version?: string,
+    isStale: () => boolean = () => false,
+  ): Promise<void> {
+    if (isStale()) return;
     if (this.client?.conn.baseUrl === conn.baseUrl && this.client.conn.password === conn.password && this.stream) {
       return;
     }
@@ -834,7 +870,12 @@ export class ChatController implements vscode.Disposable {
     const sid = this.sessionId;
     if (!client || !sid || !this.permissions.enabled(sid)) return;
     const pending = await client.permissions(sid).catch(() => [] as PermissionRequest[]);
-    for (const request of pending) await this.permissions.approveOnce(client, sid, request.id);
+    for (const request of pending) {
+      if (!(await this.permissions.approveOnce(client, sid, request.id))) {
+        // The grant failed: make sure a card is shown instead of silently leaving the agent blocked.
+        this.post({ type: "event", event: { type: "permission.asked", data: request } });
+      }
+    }
   }
 
   private scheduleSessions(): void {
@@ -1109,6 +1150,9 @@ export class ChatController implements vscode.Disposable {
   }
 
   async reconnect(): Promise<void> {
+    const generation = this.connectGen.bump();
+    const stale = () => !this.connectGen.is(generation);
+    this.connecting = undefined;
     this.loadGen.bump();
     this.clearTimers();
     if (!this.server) return this.connect();
@@ -1119,13 +1163,17 @@ export class ChatController implements vscode.Disposable {
     this.lastKnownMessage = undefined;
     try {
       const conn = await this.server.restart();
-      await this.useConnection(conn, this.server.state.status === "running" ? this.server.state.version : undefined);
+      if (stale()) return;
+      await this.useConnection(conn, this.server.state.status === "running" ? this.server.state.version : undefined, stale);
     } catch (err) {
+      if (stale()) return;
       this.setStatus("error", toUiError(err, "startFailed"));
     }
   }
 
   async resetServers(): Promise<void> {
+    this.connectGen.bump();
+    this.connecting = undefined;
     this.loadGen.bump();
     this.clearTimers();
     this.stream?.close();
@@ -1141,6 +1189,8 @@ export class ChatController implements vscode.Disposable {
 
   async switchFolder(folder: vscode.WorkspaceFolder | undefined): Promise<void> {
     if (folder?.uri.toString() === this.folder?.uri.toString()) return;
+    this.connectGen.bump();
+    this.connecting = undefined;
     this.loadGen.bump();
     this.clearTimers();
     this.stream?.close();
@@ -1283,9 +1333,16 @@ export class ChatController implements vscode.Disposable {
         return;
       case "login": {
         const exe = vscode.workspace.getConfiguration("opencode", this.folder?.uri).get<string>("executablePath", "opencode").trim() || "opencode";
+        let command: string;
+        try {
+          command = `${quoteForShell(exe)} auth login`;
+        } catch (err) {
+          void vscode.window.showErrorMessage(vscode.l10n.t("Cannot run OpenCode sign-in: {0}", err instanceof Error ? err.message : String(err)));
+          return;
+        }
         const terminal = vscode.window.createTerminal({ name: "OpenCode auth", cwd: this.folder?.uri });
         terminal.show();
-        terminal.sendText(`${/\s/.test(exe) ? `"${exe}"` : exe} auth login`);
+        terminal.sendText(command);
         return;
       }
       case "setPassword":
@@ -1518,6 +1575,16 @@ export class ChatController implements vscode.Disposable {
       : /^([a-zA-Z]:[\\/]|\/)/.test(file)
         ? vscode.Uri.file(file)
         : vscode.Uri.joinPath(this.folder.uri, file);
+    // Rendered chat content is untrusted model output. Never open a path outside the workspace,
+    // even if a crafted link or `../` sequence makes it through the webview's sanitizer.
+    const root = path.resolve(this.folder.uri.fsPath);
+    const target = path.resolve(uri.fsPath);
+    const lowerRoot = process.platform === "win32" ? root.toLowerCase() : root;
+    const lowerTarget = process.platform === "win32" ? target.toLowerCase() : target;
+    if (lowerTarget !== lowerRoot && !lowerTarget.startsWith(lowerRoot + path.sep)) {
+      this.output.warn(`[chat] blocked an attempt to open a file outside the workspace: ${target}`);
+      return;
+    }
     const doc = await vscode.workspace.openTextDocument(uri.with({ query: "" }));
     const editor = await vscode.window.showTextDocument(doc, { preview: true });
     if (line !== undefined) {

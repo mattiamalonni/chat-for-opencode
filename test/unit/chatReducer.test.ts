@@ -187,6 +187,14 @@ describe("malformed live events degrade gracefully", () => {
     expect(state.model).toEqual(model);
   });
 
+  it("ignores assistant part events without a message id", () => {
+    const state = chatReducer(open("s"), {
+      type: "event",
+      event: { type: "session.text.delta", data: { sessionID: "s", ordinal: 0, delta: "ghost" } },
+    });
+    expect(assistants(state)).toHaveLength(0);
+  });
+
   it("drops malformed permission and form cards without throwing", () => {
     let state = chatReducer(open("s"), {
       type: "events",
@@ -239,6 +247,21 @@ describe("turn metrics", () => {
     expect(turn).toMatchObject({ id: "msg_u1", started: 1000, ended: 6500 });
     expect(turn.tokens).toEqual(total);
     expect(turn.cost).toBeCloseTo(0.003);
+  });
+
+  it("opens a turn on a busy status seen mid-turn, so step tokens are kept", () => {
+    const state = chatReducer(open(S1), {
+      type: "events",
+      events: [
+        { type: "session.status", created: 1000, data: { sessionID: S1, status: { type: "busy" } } },
+        { type: "session.step.started", created: 1100, data: { sessionID: S1, assistantMessageID: "m1" } },
+        { type: "session.step.ended", created: 2000, data: { sessionID: S1, assistantMessageID: "m1", tokens: first, cost: 0.001 } },
+        { type: "session.execution.succeeded", created: 2100, data: { sessionID: S1 } },
+      ],
+    });
+    expect(state.turns).toHaveLength(1);
+    expect(state.turns[0]).toMatchObject({ started: 1000, ended: 2100 });
+    expect(state.turns[0].tokens).toEqual(first);
   });
 
   it("rebuilds one total per turn from history", () => {
@@ -551,6 +574,27 @@ describe("incremental resync", () => {
     const [a] = assistants(next);
     expect(a.done).toBe(true);
     expect(a.parts.map((p) => (p.kind === "text" ? p.text : ""))).toEqual(["done"]);
+  });
+
+  it("does not duplicate a live failure notice when the resynced history reports the same outcome", () => {
+    let state = chatReducer(open("s"), {
+      type: "event",
+      event: { type: "session.execution.failed", created: 1000, data: { sessionID: "s", error: { type: "unknown", message: "boom" } } },
+    });
+    const failed = () => state.messages.filter((m) => m.kind === "notice" && m.code === "failed");
+    expect(failed()).toHaveLength(1);
+    state = chatReducer(state, {
+      type: "append",
+      delta: {
+        sessionId: "s",
+        messages: [
+          { id: "idle_1", type: "idle", outcome: "failed", time: { created: 1001 }, error: { type: "unknown", message: "boom" } },
+        ],
+        permissions: [],
+        forms: [],
+      },
+    });
+    expect(failed()).toHaveLength(1);
   });
 
   it("ignores an empty delta and a delta for another session", () => {

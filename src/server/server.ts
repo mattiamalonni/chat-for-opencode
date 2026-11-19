@@ -128,6 +128,23 @@ export interface ManagedServerOptions {
 
 const LISTEN_RE = /listening on (https?:\/\/[^\s]+)/i;
 
+/**
+ * `executablePath` is machine-overridable, so a workspace can set it. On Windows the child is
+ * handed to cmd.exe (npm `.cmd` shims need a shell); letting shell metacharacters through would
+ * execute arbitrary commands on startup. Reject such paths instead of trying to quote them.
+ */
+function validateExecutable(executable: string, isWindows: boolean): void {
+  if (!executable || /[\0\r\n]/.test(executable)) {
+    throw new ServerError("notInstalled", "The OpenCode executable path is empty or contains a control character.");
+  }
+  if (isWindows && /["&|<>^%!]/.test(executable)) {
+    throw new ServerError(
+      "notInstalled",
+      `The OpenCode executable path cannot be quoted safely for cmd.exe: "${executable}".`,
+    );
+  }
+}
+
 /** Spawns and supervises `opencode serve` for a single workspace folder. */
 export class ManagedServer extends BaseServer {
   readonly managed = true;
@@ -135,6 +152,9 @@ export class ManagedServer extends BaseServer {
   private stopping = false;
   private restarts: number[] = [];
   private restartTimer: NodeJS.Timeout | undefined;
+  /** The delayed restart is shared with `ensure()` so a concurrent caller cannot spawn a second child. */
+  private restarting: Promise<Connection> | undefined;
+  private cancelRestart: (() => void) | undefined;
 
   constructor(private readonly opts: ManagedServerOptions) {
     super(opts.folder);
@@ -142,6 +162,10 @@ export class ManagedServer extends BaseServer {
 
   get pid(): number | undefined {
     return this.child?.pid;
+  }
+
+  ensure(): Promise<Connection> {
+    return this.restarting ?? super.ensure();
   }
 
   protected doStart(): Promise<Connection> {
@@ -154,9 +178,11 @@ export class ManagedServer extends BaseServer {
     return new Promise<Connection>((resolve, reject) => {
       let settled = false;
       let ready = false;
+      let healthStarted = false;
       let stderrTail = "";
       let stdoutBuf = "";
       const isWindows = process.platform === "win32";
+      validateExecutable(executable, isWindows);
       let child: ChildProcess;
       try {
         child = spawn(isWindows && /\s/.test(executable) ? `"${executable}"` : executable, args, {
@@ -181,14 +207,15 @@ export class ManagedServer extends BaseServer {
         reject(error);
       };
 
+      // One deadline measured from process spawn. The health check inherits whatever is left when
+      // the listening line appears: two independent full-length timeouts used to let the outer one
+      // kill a healthy server that simply printed its URL late.
+      const deadline = Date.now() + this.opts.startupTimeoutMs;
+      const remaining = () => Math.max(0, deadline - Date.now());
+      const timeoutMessage = () => `OpenCode did not become healthy within ${this.opts.startupTimeoutMs} ms.`;
+
       const timer = setTimeout(() => {
-        fail(
-          new ServerError(
-            "startFailed",
-            `OpenCode did not report a listening address within ${this.opts.startupTimeoutMs} ms.`,
-            stderrTail,
-          ),
-        );
+        fail(new ServerError("startFailed", timeoutMessage(), stderrTail));
       }, this.opts.startupTimeoutMs);
 
       child.on("error", (err: NodeJS.ErrnoException) => {
@@ -215,9 +242,11 @@ export class ManagedServer extends BaseServer {
           if (!line.trim()) continue;
           log(`[server] ${redact(line, password)}`);
           const m = LISTEN_RE.exec(line);
-          if (m && !settled) {
+          if (m && !settled && !healthStarted) {
+            healthStarted = true;
+            clearTimeout(timer);
             const conn: Connection = { baseUrl: m[1], password };
-            waitForHealthy(conn, this.opts.startupTimeoutMs, () => child.exitCode === null && !settled).then(
+            waitForHealthy(conn, remaining(), () => child.exitCode === null && !settled).then(
               (version) => {
                 if (settled) return;
                 settled = true;
@@ -278,17 +307,32 @@ export class ManagedServer extends BaseServer {
     this.restarts.push(now);
     this.opts.log(`[server] restarting in ${delay} ms (attempt ${this.restarts.length}/${max})`);
     this.setState({ status: "starting" });
-    this.restartTimer = setTimeout(() => {
-      this.restartTimer = undefined;
-      this._state = { status: "stopped" };
-      this.ensure().catch(() => {});
-    }, delay);
+    let cancel!: () => void;
+    const restarting = new Promise<Connection>((resolve, reject) => {
+      cancel = () => reject(new ServerError("startFailed", "OpenCode was stopped while waiting to restart."));
+      this.restartTimer = setTimeout(() => {
+        this.restartTimer = undefined;
+        this.restarting = undefined;
+        this.cancelRestart = undefined;
+        // `super.ensure()` re-enters the normal start path; `this.ensure()` here would recurse.
+        super.ensure().then(resolve, reject);
+      }, delay);
+    });
+    // Nobody is required to await this promise (e.g. `stop()` cancels it); swallow the rejection.
+    void restarting.catch(() => {});
+    this.restarting = restarting;
+    this.cancelRestart = cancel;
   }
 
   async stop(): Promise<void> {
     this.stopping = true;
     if (this.restartTimer) clearTimeout(this.restartTimer);
     this.restartTimer = undefined;
+    if (this.cancelRestart) {
+      this.cancelRestart();
+      this.cancelRestart = undefined;
+    }
+    this.restarting = undefined;
     const child = this.child;
     this.child = undefined;
     if (child) await this.kill(child);

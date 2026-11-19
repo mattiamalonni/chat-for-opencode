@@ -91,6 +91,12 @@ export function Composer(props: ComposerProps) {
   const historyDraft = useRef("");
   const ref = useRef<HTMLTextAreaElement>(null);
   const composing = useRef(false);
+  const blurTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  useEffect(() => () => clearTimeout(blurTimer.current), []);
+  const cancelBlurClose = () => {
+    clearTimeout(blurTimer.current);
+    blurTimer.current = undefined;
+  };
   const draftRef = useRef(text);
   // The session whose draft `draftRef.current` belongs to; kept in sync in the switch effect.
   const sessionIdRef = useRef(props.sessionId);
@@ -186,18 +192,20 @@ export function Composer(props: ComposerProps) {
     ...fileResults.map((item): MentionItem => ({ kind: "file", item })),
   ];
   useEffect(() => setActive(0), [results.length, mention?.query]);
+  // `active` is reset in an effect, so it can briefly point past a freshly shortened `results`.
+  const activeIndex = results.length > 0 ? Math.min(active, results.length - 1) : 0;
 
   // Keep the highlighted row inside the scrollable popup when walking a long list with the keys.
   useLayoutEffect(() => {
     const list = document.getElementById("mention-list");
     if (!list || results.length === 0) return;
-    const item = list.children[active] as HTMLElement | undefined;
+    const item = list.children[activeIndex] as HTMLElement | undefined;
     if (!item) return;
     const top = item.offsetTop;
     const bottom = top + item.offsetHeight;
     if (top < list.scrollTop) list.scrollTop = top;
     else if (bottom > list.scrollTop + list.clientHeight) list.scrollTop = bottom - list.clientHeight;
-  }, [active, results.length, mention?.kind]);
+  }, [activeIndex, results.length, mention?.kind]);
 
   const updateMention = (value: string, caret: number) => {
     const beforeCaret = value.slice(0, caret);
@@ -276,7 +284,8 @@ export function Composer(props: ComposerProps) {
       if (e.key === "Enter" || e.key === "Tab") {
         e.preventDefault();
         e.stopPropagation();
-        pick(results[active]);
+        const chosen = results[activeIndex];
+        if (chosen) pick(chosen);
         return;
       }
     }
@@ -434,9 +443,11 @@ export function Composer(props: ComposerProps) {
           aria-autocomplete="list"
           aria-expanded={!!mention}
           aria-controls={mention ? listId : undefined}
-          aria-activedescendant={mention && results.length > 0 ? `mention-${active}` : undefined}
+          aria-activedescendant={mention && results.length > 0 ? `mention-${activeIndex}` : undefined}
           disabled={props.disabled}
+          onFocus={cancelBlurClose}
           onInput={(e) => {
+            cancelBlurClose();
             const el = e.currentTarget as HTMLTextAreaElement;
             setText(el.value);
             // Editing a recalled prompt starts a fresh draft; a new Up begins from the latest one.
@@ -466,7 +477,14 @@ export function Composer(props: ComposerProps) {
             const el = e.currentTarget as HTMLTextAreaElement;
             updateMention(el.value, el.selectionStart);
           }}
-          onBlur={() => setTimeout(() => setMention(undefined), 150)}
+          onBlur={() => {
+            cancelBlurClose();
+            blurTimer.current = setTimeout(() => {
+              blurTimer.current = undefined;
+              // A mention opened after a quick focus round-trip must not be closed by this timer.
+              if (document.activeElement !== ref.current) setMention(undefined);
+            }, 150);
+          }}
         />
       </div>
       <div class="toolbar">

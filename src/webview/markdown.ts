@@ -89,12 +89,16 @@ export function renderMarkdown(source: string): string {
   const hit = cache.get(source);
   if (hit !== undefined) return hit;
   const raw = marked.parse(source, { async: false }) as string;
-  const dom = new DOMParser().parseFromString(raw, "text/html");
-  linkifyFileRefs(dom.body);
-  const html = DOMPurify.sanitize(dom.body.innerHTML, {
+  // Sanitise the model's HTML *before* linkifying. DOMPurify keeps `data-*` attributes by default,
+  // so adding our `data-file` links first would let a crafted `<a data-file="...">` in a reply
+  // survive as a clickable local-file link. FORBID_ATTR is defence in depth for the same reason.
+  const clean = DOMPurify.sanitize(raw, {
     FORBID_TAGS: ["style", "form", "input", "textarea", "select", "iframe"],
-    FORBID_ATTR: ["style"],
+    FORBID_ATTR: ["style", "data-file"],
   });
+  const dom = new DOMParser().parseFromString(clean, "text/html");
+  linkifyFileRefs(dom.body);
+  const html = dom.body.innerHTML;
   cache.set(source, html);
   if (cache.size > 300) cache.delete(cache.keys().next().value as string);
   return html;

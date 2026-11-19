@@ -37,9 +37,10 @@ test or a manual probe actually ran.
 - **Orphaned servers if VS Code crashes.** Managed servers are stopped on `deactivate` and a PID
   record (no password) is written on start, keyed by folder **and** owning extension-host PID, so
   two windows on the same folder keep separate records. On the next activation, records whose owner
-  is gone are verified against the local server port and reaped. A server that dies before the
-  record is written or a reused host PID pointing at another running OpenCode server on the same
-  port is still not covered.
+  is gone are reaped only if the HTTP probe matches the recorded PID *and* the OS confirms that PID
+  listens on the recorded port (`lsof` on macOS/Linux, `netstat` on Windows). If that tool is
+  unavailable, the reap is skipped on purpose: leaking a server is safer than killing a process
+  whose PID was reused. A server that dies before the record is written is still not covered.
 - **OpenCode's base policy** allows every action without asking (observed with 2.2.7). Sessions
   created by the extension start with `edit`, `shell` and `external_directory` set to `ask` (the
   `opencode.sessionPermissions` default). Sessions created elsewhere, or after setting that option
@@ -53,6 +54,12 @@ test or a manual probe actually ran.
   `shell echo * allow` was still prompted with the default `shell * ask` session rule). Users with
   an allowlist in their OpenCode config must copy it into `opencode.sessionPermissions` or set that
   option to `[]`.
+- **File references open only inside the workspace.** Model output is untrusted: `data-file`
+  attributes from raw HTML are stripped before prose is linkified, and the host refuses to open a
+  reference that resolves outside the folder (including `../` escapes and absolute paths).
+  Permission resources for files genuinely outside the workspace therefore cannot be opened by
+  clicking them; open those from the explorer instead.
+
 - **Other OpenCode versions** are not supported: only 2.2.7's contract (types and SSE fixtures) was
   verified. Other 2.2.x patch releases are assumed compatible without a warning; the chat warns for
   another minor (untested) or major (unsupported) version. A runtime smoke test checks the raw

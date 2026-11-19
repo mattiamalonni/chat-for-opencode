@@ -14,6 +14,8 @@ interface StoredOverrides {
  */
 export class PermissionService {
   private readonly autoApproved = new Set<string>();
+  /** One shared result per request id, so concurrent callers cannot lose a failed reply. */
+  private readonly inFlight = new Map<string, Promise<boolean>>();
   /** Choice for a chat that has no session yet; `undefined` follows the setting. */
   private pending: boolean | undefined;
 
@@ -68,17 +70,27 @@ export class PermissionService {
   }
 
   /** Replies `once` so no rule is persisted; false means the card must be shown. */
-  async approveOnce(client: OpenCodeClient, sessionId: string, requestId: string): Promise<boolean> {
-    if (this.autoApproved.has(requestId)) return true;
-    this.autoApproved.add(requestId);
-    try {
-      await client.replyPermission(sessionId, requestId, "once");
-      return true;
-    } catch (err) {
-      this.autoApproved.delete(requestId);
-      this.log(`[chat] auto-approve failed for ${requestId}: ${String(err)}`);
-      return false;
-    }
+  approveOnce(client: OpenCodeClient, sessionId: string, requestId: string): Promise<boolean> {
+    const existing = this.inFlight.get(requestId);
+    if (existing) return existing;
+    if (this.autoApproved.has(requestId)) return Promise.resolve(true);
+    // Store the promise, not just a marker: every caller must observe the *real* outcome. A failed
+    // reply that was swallowed by a concurrent caller would leave the request pending with no card.
+    const attempt = (async () => {
+      try {
+        await client.replyPermission(sessionId, requestId, "once");
+        this.autoApproved.add(requestId);
+        return true;
+      } catch (err) {
+        this.autoApproved.delete(requestId);
+        this.log(`[chat] auto-approve failed for ${requestId}: ${String(err)}`);
+        return false;
+      } finally {
+        this.inFlight.delete(requestId);
+      }
+    })();
+    this.inFlight.set(requestId, attempt);
+    return attempt;
   }
 
   /** Drops requests granted by auto-approval so stale cards do not reappear after a resync. */

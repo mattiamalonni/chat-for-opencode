@@ -1,7 +1,10 @@
-import { spawn } from "node:child_process";
+import { execFile, spawn } from "node:child_process";
 import { createHash } from "node:crypto";
 import { promises as fs } from "node:fs";
 import { join } from "node:path";
+import { promisify } from "node:util";
+
+const execFileAsync = promisify(execFile);
 
 /**
  * Tracks managed `opencode serve` processes so one that survives a VS Code crash can be reaped
@@ -52,19 +55,46 @@ export async function clearServerRecord(dir: string, folder: string, ownerPid?: 
   }
 }
 
-/** A 401 with OpenCode's Basic realm (or a 200 with a pid) proves the port belongs to OpenCode. */
-async function looksLikeOpenCode(port: number): Promise<boolean> {
+/**
+ * Confirms that `pid` is the process listening on `port`. `process.kill(pid, 0)` alone is not
+ * proof: after a PID reuse it would make us kill an unrelated process. When no OS tool is
+ * available we conservatively skip the reap — a leaked server is better than a wrongful kill.
+ */
+async function ownsPort(pid: number, port: number): Promise<boolean> {
+  try {
+    if (process.platform === "win32") {
+      const { stdout } = await execFileAsync("netstat", ["-ano", "-p", "TCP"], { timeout: 2000 });
+      return stdout.split(/\r?\n/).some((line) => {
+        const columns = line.trim().split(/\s+/);
+        return /LISTENING/i.test(line) && (columns[1] ?? "").endsWith(`:${port}`) && columns.at(-1) === String(pid);
+      });
+    }
+    const { stdout } = await execFileAsync("lsof", ["-nP", `-iTCP:${port}`, "-sTCP:LISTEN", "-t"], { timeout: 2000 });
+    return stdout.split(/\s+/).map(Number).includes(pid);
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * A 401 with OpenCode's Basic realm or a 200 whose `pid` matches the record says "OpenCode" — but
+ * only together with an OS-level check that the recorded PID actually owns the port.
+ */
+async function looksLikeOpenCode(port: number, expectedPid: number): Promise<boolean> {
   try {
     const res = await fetch(`http://127.0.0.1:${port}/api/info`, { signal: AbortSignal.timeout(1500) });
-    if (res.status === 401) return /secure area/i.test(res.headers.get("www-authenticate") ?? "");
-    if (res.ok) {
+    let shapeOk = false;
+    if (res.status === 401) {
+      shapeOk = /secure area/i.test(res.headers.get("www-authenticate") ?? "");
+    } else if (res.ok) {
       const info = (await res.json()) as { pid?: number };
-      return typeof info.pid === "number";
+      shapeOk = info.pid === expectedPid;
     }
+    return shapeOk && (await ownsPort(expectedPid, port));
   } catch {
     // not reachable / not HTTP
+    return false;
   }
-  return false;
 }
 
 async function killPid(pid: number): Promise<void> {
@@ -111,7 +141,7 @@ export async function cleanupOrphanServers(dir: string, log: (line: string) => v
           if (!isAlive(record.pid)) await fs.unlink(path).catch(() => {});
           return;
         }
-        if (isAlive(record.pid) && (await looksLikeOpenCode(record.port))) {
+        if (isAlive(record.pid) && (await looksLikeOpenCode(record.port, record.pid))) {
           log(`[server] reaping orphan opencode serve (pid ${record.pid}, port ${record.port}, folder ${record.folder})`);
           await killPid(record.pid);
         }

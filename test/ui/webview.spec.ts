@@ -1576,3 +1576,17 @@ test("a background subagent's report shows up when it completes", async ({ page 
   expect((await posted(page)).some((m) => m.type === "refreshSubagent")).toBe(true);
   expect(csp).toEqual([]);
 });
+
+test("crafted data-file HTML in a reply is not a clickable file link", async ({ page }) => {
+  await boot(page);
+  const base = { sessionID: S1, assistantMessageID: "a1" };
+  await openSession(page, S1, [
+    { type: "session.inbox.enqueued", data: { sessionID: S1, inboxID: "u1", item: { type: "user", payload: { text: "hi" } } } },
+    { type: "session.step.started", data: base },
+    { type: "session.text.ended", data: { ...base, ordinal: 0, text: '<a href="#" data-file="/etc/passwd">open secret</a>' } },
+    { type: "session.text.ended", data: { ...base, ordinal: 1, text: "see src/app.ts:42" } },
+  ]);
+  const links = page.locator(".conversation a[data-file]");
+  await expect(links).toHaveCount(1);
+  expect(await links.first().getAttribute("data-file")).toContain("src/app.ts:42");
+});

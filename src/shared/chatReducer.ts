@@ -267,9 +267,15 @@ function appendDelta(state: ChatState, delta: SessionDelta): ChatState {
     return state;
   }
   const byId = new Map(state.messages.map((m) => [m.id, m]));
+  // A live terminal event already added a notice keyed by the *event* id; the resynced history
+  // message describing the same outcome has a different id and would otherwise duplicate it.
+  const similarNoticeExists = (ui: UiMessage): boolean =>
+    ui.kind === "notice" &&
+    [...byId.values()].some((m) => m.kind === "notice" && m.code === ui.code && Math.abs(m.created - ui.created) < 2000);
   for (const m of sorted) {
     const ui = fromHistory(m);
-    if (ui) byId.set(ui.id, ui);
+    if (!ui) continue;
+    if (byId.has(ui.id) || !similarNoticeExists(ui)) byId.set(ui.id, ui);
   }
   const messages = [...byId.values()].sort((a, b) => a.created - b.created || cmp(a.id, b.id));
   let contextTokens = state.contextTokens;
@@ -608,12 +614,34 @@ function toolPart(id: string, p: UiPart | undefined): ToolPart {
     : { kind: "tool", key: `tool:${id}`, id, name: "tool", status: "streaming", inputText: "", output: [] };
 }
 
+/** Events that mutate an assistant part. Without a message id they would create a phantom card. */
+const ASSISTANT_PART_EVENTS = new Set([
+  "session.step.started",
+  "session.text.started",
+  "session.reasoning.started",
+  "session.text.delta",
+  "session.reasoning.delta",
+  "session.text.ended",
+  "session.reasoning.ended",
+  "session.tool.input.started",
+  "session.tool.input.delta",
+  "session.tool.input.ended",
+  "session.tool.called",
+  "session.tool.progress",
+  "session.tool.success",
+  "session.tool.failed",
+  "session.step.ended",
+  "session.step.failed",
+  "session.retry.scheduled",
+]);
+
 export function applyEvent(state: ChatState, event: ServerEvent): ChatState {
   const d = (event.data ?? {}) as Data;
   const sid = eventSessionId(event);
   if (state.sessionId === null || sid !== state.sessionId) return state;
   const created = event.created ?? Date.now();
   const msgId = str(d, "assistantMessageID");
+  if (!msgId && ASSISTANT_PART_EVENTS.has(event.type)) return state;
 
   switch (event.type) {
     case "session.inbox.enqueued": {
@@ -663,7 +691,13 @@ export function applyEvent(state: ChatState, event: ServerEvent): ChatState {
           retry: { attempt: status.attempt ?? 0, message: status.message ?? "", next: status.next },
         };
       }
-      return { ...state, busy: status?.type === "busy", retry: undefined };
+      const busy = status?.type === "busy";
+      // Reattaching mid-turn can deliver `busy` without `execution.started`. Open a turn here too,
+      // otherwise `step.ended` has nowhere to put tokens/cost and silently drops them.
+      const turns = busy && !state.turns.some((t) => t.ended === undefined)
+        ? [...state.turns, { id: `turn-${created}`, started: created }]
+        : state.turns;
+      return { ...state, busy, retry: undefined, turns };
     }
     case "session.step.started":
       return updateAssistant(

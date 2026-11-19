@@ -64,6 +64,23 @@ describe("dropFiles", () => {
     expect(await collectDroppedFiles(data, read)).toEqual([{ uri: "file:///work/a.ts", name: "a.ts" }]);
   });
 
+  it("keeps both path-bearing and bytes-only files in a mixed drop", async () => {
+    const onDisk: DropFileLike = { name: "on-disk.txt", path: "/work/on-disk.txt" };
+    const bytes: DropFileLike = { name: "clip.png", arrayBuffer: async () => new TextEncoder().encode("bytes").buffer };
+    const reader = async (f: DropFileLike) => Buffer.from(await f.arrayBuffer!()).toString("base64");
+    expect(await collectDroppedFiles(drag(["Files"], {}, [onDisk, bytes]), reader)).toEqual([
+      { name: "on-disk.txt", path: "/work/on-disk.txt" },
+      { name: "clip.png", base64: "Ynl0ZXM=" },
+    ]);
+  });
+
+  it("dedupes a file:// URI and File.path with different Windows drive-letter casing", async () => {
+    const data = drag(["Files", "text/uri-list"], { "text/uri-list": "file:///c:/work/a.ts" }, [
+      { name: "a.ts", path: "C:\\work\\a.ts" },
+    ]);
+    expect(await collectDroppedFiles(data, read)).toEqual([{ uri: "file:///c:/work/a.ts", name: "a.ts" }]);
+  });
+
   it("skips unreadable files instead of failing the whole drop", async () => {
     const bad: DropFileLike = { name: "bad.bin" };
     const good: DropFileLike = { name: "good.txt", arrayBuffer: async () => new TextEncoder().encode("ok").buffer };

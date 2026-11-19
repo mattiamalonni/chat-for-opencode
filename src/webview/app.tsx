@@ -73,12 +73,15 @@ export function App() {
   const [showSessions, setShowSessions] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
-  const [announcement, setAnnouncement] = useState("");
+  const [announcement, setAnnouncement] = useState({ text: "", seq: 0 });
+  // A live region only announces when its text changes: repeating the same string is silent.
+  const announce = (text: string) => setAnnouncement((prev) => ({ text, seq: prev.seq + 1 }));
   const [dropping, setDropping] = useState(false);
   const dragDepth = useRef(0);
   const queue = useRef<ServerEvent[]>([]);
   const childQueue = useRef<SubagentEvent[]>([]);
   const frame = useRef<number | undefined>(undefined);
+  const tooltipFrame = useRef<number | undefined>(undefined);
   // Conversation-scoped state must be dropped when the loaded session changes (new session,
   // folder switch, switching/deleting a session) but not on a same-session resync.
   const lastSessionId = useRef<string | null | undefined>(undefined);
@@ -230,7 +233,12 @@ export function App() {
   // wrong side extends past the viewport and creates a horizontal scrollbar with empty space on
   // the right. Grow each one towards whichever side has room for its (wrapped) width.
   useEffect(() => {
-    const id = requestAnimationFrame(() => {
+    // This effect runs after every render (including every streamed token). Keep at most one frame
+    // pending instead of cancelling and rescheduling it each time: new cards get measured on the
+    // next frame, while continuous streaming no longer churns the scheduler.
+    if (tooltipFrame.current !== undefined) return;
+    tooltipFrame.current = requestAnimationFrame(() => {
+      tooltipFrame.current = undefined;
       const vw = window.innerWidth;
       const updates: { el: HTMLElement; dir: "left" | "right" }[] = [];
       for (const el of document.querySelectorAll<HTMLElement>(".tooltip-host")) {
@@ -245,8 +253,10 @@ export function App() {
       }
       for (const { el, dir } of updates) el.dataset.tipDir = dir;
     });
-    return () => cancelAnimationFrame(id);
   });
+  useEffect(() => () => {
+    if (tooltipFrame.current !== undefined) cancelAnimationFrame(tooltipFrame.current);
+  }, []);
 
   // Cmd/Ctrl+N creates a new session while the chat has focus. The VS Code webview preload
   // forwards every keydown that reaches `window` to the workbench (see D7), where this chord
@@ -265,14 +275,14 @@ export function App() {
   // Announce completion / attention for screen readers.
   const wasBusy = useRef(false);
   useEffect(() => {
-    if (wasBusy.current && !chat.busy) setAnnouncement(strings.responseComplete);
+    if (wasBusy.current && !chat.busy) announce(strings.responseComplete);
     wasBusy.current = chat.busy;
   }, [chat.busy]);
   useEffect(() => {
-    if (chat.permissions.length > 0) setAnnouncement(strings.permissionTitle);
+    if (chat.permissions.length > 0) announce(strings.permissionTitle);
   }, [chat.permissions.length]);
   useEffect(() => {
-    if (chat.forms.length > 0) setAnnouncement(strings.questionTitle);
+    if (chat.forms.length > 0) announce(strings.questionTitle);
   }, [chat.forms.length]);
 
   const todos = useMemo(() => selectTodos(chat), [chat.messages]);
@@ -444,7 +454,7 @@ export function App() {
         {notice && <NoticeBanner error={notice} onDismiss={() => setNotice(undefined)} />}
         <Conversation chat={chat} scrollToken={scrollToken} searchQuery={searchQuery} />
         <div class="sr-only" role="status" aria-live="polite">
-          {announcement}
+          {announcement.text + "\u200b".repeat(announcement.seq % 2)}
         </div>
         {todos && todos.length > 0 && <TodoPanel todos={todos} />}
         {changedFiles.length > 0 && !changesDismissed && (

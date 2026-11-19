@@ -75,7 +75,7 @@ function nameFrom(value: string): string {
 function normalizePath(value: string): string {
   return value
     .replace(/\\/g, "/")
-    .replace(/^\/([A-Za-z]):/, (_, drive: string) => `${drive.toLowerCase()}:`)
+    .replace(/^\/?([A-Za-z]):/, (_, drive: string) => `${drive.toLowerCase()}:`)
     .replace(/\/{2,}/g, "/")
     .replace(/\/$/, "");
 }
@@ -119,11 +119,11 @@ export async function collectDroppedFiles(drag: DragData, readFile: FileReader):
 
   const files = Array.from(drag.files ?? []);
   for (const file of files) {
-    if (file.path) push({ name: file.name, path: file.path });
-  }
-
-  if (entries.length === 0) {
-    for (const file of files) {
+    if (file.path) {
+      push({ name: file.name, path: file.path });
+    } else {
+      // A mixed drop can contain path-bearing files and clipboard/browser files that only carry
+      // bytes. Decide per file: gating all reads on `entries.length === 0` silently dropped them.
       try {
         const entry: DroppedFile = { name: file.name, base64: await readFile(file) };
         if (file.type) entry.mime = file.type;

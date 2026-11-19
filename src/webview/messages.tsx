@@ -633,7 +633,10 @@ export function PermissionCard({ request }: { request: PermissionRequest }) {
   // Focusing the card (Tab) turns 1/2/3 into Allow once / Always / Reject. Ignore IME and chords so
   // typing in the workbench or composing text never triggers a permission decision by accident.
   const onKeyDown = (e: KeyboardEvent) => {
-    if (e.isComposing || isImeKey(e) || e.ctrlKey || e.metaKey || e.altKey || e.shiftKey || disabled) return;
+    if (e.isComposing || isImeKey(e) || e.ctrlKey || e.metaKey || e.altKey || e.shiftKey || disabled || e.repeat) return;
+    // A focused button or link inside the card must keep its own key handling (and long-press of
+    // the shortcut must not fire several permission replies before the state update lands).
+    if ((e.target as HTMLElement)?.closest("button, input, a, textarea, select")) return;
     let decision: "once" | "always" | "reject" | undefined;
     if (e.key === "1") decision = "once";
     else if (e.key === "2" && hasAlways) decision = "always";
@@ -768,7 +771,7 @@ export function FormCard({ form }: { form: FormRequest }) {
         <IconInfo /> {form.title || t("questionTitle")}
       </div>
       {fields.map((f) => (
-        <FieldInput key={f.key} field={f} value={values[f.key]} onChange={(v) => set(f.key, v)} custom={custom[f.key] ?? ""} onCustom={(v) => setCustom((c) => ({ ...c, [f.key]: v }))} />
+        <FieldInput key={f.key} resetKey={fieldsSignature} field={f} value={values[f.key]} onChange={(v) => set(f.key, v)} custom={custom[f.key] ?? ""} onCustom={(v) => setCustom((c) => ({ ...c, [f.key]: v }))} />
       ))}
       <div class="card-actions">
         <button type="submit" class="primary" disabled={disabled || missing}>
@@ -797,6 +800,7 @@ function FieldInput(props: {
   onChange: (v: FormValue | undefined) => void;
   custom: string;
   onCustom: (v: string) => void;
+  resetKey: string;
 }) {
   const { field: f, value, onChange } = props;
   const t = useT();
@@ -886,18 +890,53 @@ function FieldInput(props: {
     id,
     class: "text-input",
     placeholder: f.placeholder,
-    value: value === undefined ? "" : String(value),
     onKeyDown: isolateKeys,
     onKeyUp: isolateKeys,
-    onInput: (e: Event) => {
-      const raw = (e.target as HTMLInputElement).value;
-      onChange(numeric ? numericValue(raw) : raw);
-    },
   };
   return (
     <label class="field" for={id}>
       {label}
-      {numeric ? <input {...common} type="number" step={f.type === "integer" ? 1 : "any"} /> : <input {...common} type="text" />}
+      {numeric ? (
+        <NumericFieldInput key={props.resetKey} id={id} field={f} value={value} onChange={onChange} />
+      ) : (
+        <input
+          {...common}
+          type="text"
+          value={value === undefined ? "" : String(value)}
+          onInput={(e) => onChange((e.target as HTMLInputElement).value)}
+        />
+      )}
     </label>
+  );
+}
+
+/** Keeps the raw text while typing: `Number("-")` is NaN and would erase the sign mid-entry. */
+function NumericFieldInput(props: {
+  id: string;
+  field: FormField;
+  value: FormValue | undefined;
+  onChange: (v: FormValue | undefined) => void;
+}) {
+  const { id, field, value, onChange } = props;
+  const [raw, setRaw] = useState(value === undefined ? "" : String(value));
+  return (
+    <input
+      id={id}
+      class="text-input"
+      type="number"
+      step={field.type === "integer" ? 1 : "any"}
+      placeholder={field.placeholder}
+      value={raw}
+      onKeyDown={isolateKeys}
+      onKeyUp={isolateKeys}
+      onInput={(e) => {
+        const next = (e.target as HTMLInputElement).value;
+        setRaw(next);
+        onChange(numericValue(next));
+      }}
+      onBlur={() => {
+        if (raw !== "" && numericValue(raw) === undefined) setRaw(value === undefined ? "" : String(value));
+      }}
+    />
   );
 }
