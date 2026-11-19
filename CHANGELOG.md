@@ -1,10 +1,24 @@
 # Changelog
 
-## 0.3.12 — 2026-11-19
+## Unreleased
 
 - The chat now tops up incrementally from the server when the panel becomes visible again, and a
   **sync icon** next to the Markdown export reloads the conversation authoritatively on demand. This
   repairs a chat whose live state drifted from the server (e.g. events missed during a disconnect).
+- Removed message virtualization: every message is now rendered in the DOM instead of just the
+  scrolled window, so scrolling no longer depends on estimated row heights or reserved padding.
+- Drag & drop into the chat can now be turned off with the new `opencode.dropzone` setting (enabled
+  by default), useful when VS Code's default drop behaviour interferes with the chat. The change is
+  applied live, without reloading the window.
+- Hardened connection, server lifecycle and webview correctness: stale connection attempts are
+  invalidated on folder switches and reconnects, orphan cleanup verifies PID/port ownership before
+  killing, and a shared startup deadline and restart promise avoid duplicate managed servers. The
+  webview now uses shell-injection-safe executable paths, sanitizes Markdown before linkifying,
+  confines file references to the workspace, deduplicates permission replies and notices, and fixes
+  mixed drops, numeric inputs, mention clamping and accessibility announcements.
+
+## 0.3.12 — 2026-11-19
+
 - Subagent activity now appears **inline in the conversation**: the subagent tool card stays on one
   line (agent, description, live activity and elapsed time) and expands on demand into a compact
   timeline with the task and final report. Background subagents are supported too, including their
@@ -13,10 +27,8 @@
   sessions, confirmed by a native VS Code dialog. It removes every session in the workspace folder
   (not just the loaded page), clears their drafts and per-chat settings, and leaves an empty chat
   ready for a new prompt.
-- Fixed the chat snapping back to the bottom on unrelated re-renders (tooltips, context updates);
-  it now pins to the bottom only when the conversation actually grows.
-- Removed message virtualization: every message is now rendered in the DOM instead of just the
-  scrolled window, so scrolling no longer depends on estimated row heights or reserved padding.
+- Fixed the chat snapping back to the bottom on unrelated re-renders (tooltips, context updates or
+  virtual window changes); it now pins to the bottom only when the conversation actually grows.
 - Streaming and rendering were optimized: adjacent deltas are coalesced before reducing and turn
   merging is now linear, so long conversations stay responsive while the agent streams. Resource
   cleanup and event guards were tightened so malformed payloads cannot blank the chat view.
