@@ -1,11 +1,20 @@
 # Changelog
 
-## Unreleased
+## 0.3.12 — 2026-11-19
 
+- Subagent activity now appears **inline in the conversation**: the subagent tool card stays on one
+  line (agent, description, live activity and elapsed time) and expands on demand into a compact
+  timeline with the task and final report. Background subagents are supported too, including their
+  late reports.
 - The session list has a discreet trash icon next to **+ New Session** (aligned right) to delete all
   sessions, confirmed by a native VS Code dialog. It removes every session in the workspace folder
   (not just the loaded page), clears their drafts and per-chat settings, and leaves an empty chat
   ready for a new prompt.
+- Fixed the chat snapping back to the bottom on unrelated re-renders (tooltips, context updates or
+  virtual window changes); it now pins to the bottom only when the conversation actually grows.
+- Streaming and rendering were optimized: adjacent deltas are coalesced before reducing and turn
+  merging is now linear, so long conversations stay responsive while the agent streams. Resource
+  cleanup and event guards were tightened so malformed payloads cannot blank the chat view.
 
 ## 0.3.11 — 2026-11-19
 
