@@ -300,18 +300,27 @@ export class ManagedServer extends BaseServer {
   private kill(child: ChildProcess): Promise<void> {
     if (child.exitCode !== null || child.signalCode !== null) return Promise.resolve();
     return new Promise((resolve) => {
+      let force: NodeJS.Timeout | undefined;
+      let fallback: NodeJS.Timeout | undefined;
+      let settled = false;
       const done = () => {
-        clearTimeout(force);
+        if (settled) return;
+        settled = true;
+        if (force) clearTimeout(force);
+        if (fallback) clearTimeout(fallback);
+        child.removeListener("exit", done);
         resolve();
       };
       child.once("exit", done);
-      const force = setTimeout(() => {
+      force = setTimeout(() => {
+        force = undefined;
         try {
           child.kill("SIGKILL");
         } catch {
           // already gone
         }
-        setTimeout(resolve, 500);
+        // Some platforms never report `exit` for a killed child; settle after a short grace.
+        fallback = setTimeout(done, 500);
       }, 3000);
       if (process.platform === "win32" && child.pid) {
         // With shell: true the direct child is cmd.exe; kill the whole tree.

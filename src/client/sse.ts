@@ -116,6 +116,7 @@ export interface EventStreamOptions {
 export class EventStream {
   private controller: AbortController | undefined;
   private closed = false;
+  private started = false;
   private attempt = 0;
   private watchdog: NodeJS.Timeout | undefined;
   private retryTimer: NodeJS.Timeout | undefined;
@@ -124,6 +125,9 @@ export class EventStream {
   constructor(private readonly opts: EventStreamOptions) {}
 
   start(): void {
+    // A second start on a live stream would open a parallel read loop and deliver every event twice.
+    if (this.started && !this.closed) return;
+    this.started = true;
     this.closed = false;
     void this.connect();
   }
@@ -197,6 +201,9 @@ export class EventStream {
     const max = this.opts.maxBackoffMs ?? 10_000;
     const delay = Math.min(max, min * 2 ** this.attempt);
     this.attempt++;
-    this.retryTimer = setTimeout(() => void this.connect(), delay);
+    this.retryTimer = setTimeout(() => {
+      this.retryTimer = undefined;
+      void this.connect();
+    }, delay);
   }
 }

@@ -40,7 +40,7 @@ import type {
   UiErrorKind,
   WebviewMessage,
 } from "../shared/protocol";
-import { STRINGS, type StringKey, type Strings } from "../shared/strings";
+import { STRINGS, type Strings } from "../shared/strings";
 import { ContextTracker, FileIndex, selectionAttachment } from "./context";
 import { DiffService } from "./diff";
 import { DEFAULT_SESSION_PERMISSIONS } from "./permissions";
@@ -75,10 +75,12 @@ function mimeFromName(name: string): string {
   return ATTACHMENT_MIME[path.extname(name).toLowerCase()] ?? "application/octet-stream";
 }
 
+let cachedStrings: Strings | undefined;
+/** Locale and the string table are static for a session: translate once, not on every error/reconnect. */
 export function translatedStrings(): Strings {
-  const out = {} as Strings;
-  for (const [k, v] of Object.entries(STRINGS)) out[k as StringKey] = vscode.l10n.t(v);
-  return out;
+  return (cachedStrings ??= Object.fromEntries(
+    Object.entries(STRINGS).map(([k, v]) => [k, vscode.l10n.t(v)]),
+  ) as Strings);
 }
 
 /** One server per workspace folder, created lazily. */
@@ -222,10 +224,13 @@ export class ChatController implements vscode.Disposable {
   attachView(view: vscode.WebviewView): void {
     this.view = view;
     const sub = view.webview.onDidReceiveMessage((msg: WebviewMessage) => void this.receive(msg));
-    view.onDidDispose(() => {
+    // Register the subscription both here and on view disposal: if the controller is disposed
+    // while the view lives on, the old listener would otherwise keep it reachable forever.
+    this.disposables.push(sub);
+    this.disposables.push(view.onDidDispose(() => {
       sub.dispose();
       if (this.view === view) this.view = undefined;
-    });
+    }));
   }
 
   /** Serializes webview messages: a late `ready`/loadAll must not race a prompt and drop its events. */
@@ -279,6 +284,9 @@ export class ChatController implements vscode.Disposable {
       type: "event",
       event: { type: "session.status", data: { sessionID: sid, status: { type: "idle" } } } as ServerEvent,
     });
+    // The server may emit no terminal event for a local idle, and `onEvent` is the only other
+    // place that refreshes the list — so schedule it here or session rows stay "running" forever.
+    this.scheduleSessions();
   }
 
   private pickFolder(): vscode.WorkspaceFolder | undefined {
@@ -381,6 +389,7 @@ export class ChatController implements vscode.Disposable {
     const client = this.client;
     if (!client || !this.folder) return;
     const generation = this.loadGen.bump();
+    const stale = () => !this.loadGen.is(generation);
     this.contractObservations = {};
     this.contract = emptyContract;
     const [models, defaultModel, agents] = await Promise.all([
@@ -393,11 +402,13 @@ export class ChatController implements vscode.Disposable {
     ]);
     // The contract report still observes the raw values: an adapter that silently drops malformed
     // entries must not hide a server version we cannot really support.
+    if (stale()) return;
     this.catalog.setModelsAndAgents(models, defaultModel, agents);
     const sessionId = this.sessionId ?? this.ctx.workspaceState.get<string>(SESSION_KEY(this.folder.uri.toString()));
     let session: SessionInfo | undefined;
     if (sessionId) {
       session = await client.getSession(sessionId).catch(() => undefined);
+      if (stale()) return;
     }
     // Plugin skills/commands are registered only once a session exists. With no session yet
     // (fresh window, or right after "New session") create a throwaway one so the `/` picker is
@@ -415,12 +426,15 @@ export class ChatController implements vscode.Disposable {
     }
     // Now that model/agent state is complete, a refreshed catalog (if any) can be posted safely.
     await this.catalog.refresh(client);
+    if (stale()) return;
     this.observeContract({ version: this.version, models, agents, skills: this.catalog.skills });
 
     await this.refreshSessions();
+    if (stale()) return;
     if (session) {
-      await this.loadSession(session, () => !this.loadGen.is(generation));
+      await this.loadSession(session, stale);
     } else {
+      if (stale()) return;
       this.sessionId = undefined;
       this.catalog.publish();
       this.post({ type: "session", session: null });
@@ -621,6 +635,16 @@ export class ChatController implements vscode.Disposable {
         if (choice === open) void vscode.commands.executeCommand("opencode.chatView.focus");
       });
     }
+  }
+
+  /** Cancel all deferred work from the previous connection/session before switching or resetting. */
+  private clearTimers(): void {
+    if (this.sessionsTimer) clearTimeout(this.sessionsTimer);
+    this.sessionsTimer = undefined;
+    if (this.changesTimer) clearTimeout(this.changesTimer);
+    this.changesTimer = undefined;
+    if (this.reconcileTimer) clearTimeout(this.reconcileTimer);
+    this.reconcileTimer = undefined;
   }
 
   private postAutoApprove(): void {
@@ -925,8 +949,7 @@ export class ChatController implements vscode.Disposable {
 
   async newSession(): Promise<void> {
     this.loadGen.bump();
-    if (this.reconcileTimer) clearTimeout(this.reconcileTimer);
-    this.reconcileTimer = undefined;
+    this.clearTimers();
     this.sessionId = undefined;
     this.lastKnownMessage = undefined;
     this.permissions.setPending(undefined);
@@ -941,8 +964,7 @@ export class ChatController implements vscode.Disposable {
 
   async reconnect(): Promise<void> {
     this.loadGen.bump();
-    if (this.reconcileTimer) clearTimeout(this.reconcileTimer);
-    this.reconcileTimer = undefined;
+    this.clearTimers();
     if (!this.server) return this.connect();
     this.setStatus("starting");
     this.stream?.close();
@@ -959,6 +981,7 @@ export class ChatController implements vscode.Disposable {
 
   async resetServers(): Promise<void> {
     this.loadGen.bump();
+    this.clearTimers();
     this.stream?.close();
     this.stream = undefined;
     this.client = undefined;
@@ -973,8 +996,7 @@ export class ChatController implements vscode.Disposable {
   async switchFolder(folder: vscode.WorkspaceFolder | undefined): Promise<void> {
     if (folder?.uri.toString() === this.folder?.uri.toString()) return;
     this.loadGen.bump();
-    if (this.reconcileTimer) clearTimeout(this.reconcileTimer);
-    this.reconcileTimer = undefined;
+    this.clearTimers();
     this.stream?.close();
     this.stream = undefined;
     this.client = undefined;
@@ -1316,7 +1338,7 @@ export class ChatController implements vscode.Disposable {
       // steering delivery so OpenCode skips the rest of the old turn.
       if (delivery === "steer") await client.interrupt(sid).catch(() => false);
       if (command && slash) {
-        await client.command(sid, command.name, (slash[2] ?? "").trim(), files);
+        await client.command(sid, command.name, (slash[2] ?? "").trim(), files, delivery);
       } else {
         await client.prompt(sid, text, files, delivery);
       }
@@ -1358,9 +1380,7 @@ export class ChatController implements vscode.Disposable {
     this.stream?.close();
     this.serverSub?.();
     this.fileIndex?.dispose();
-    if (this.sessionsTimer) clearTimeout(this.sessionsTimer);
-    if (this.changesTimer) clearTimeout(this.changesTimer);
-    if (this.reconcileTimer) clearTimeout(this.reconcileTimer);
+    this.clearTimers();
     for (const d of this.disposables) d.dispose();
   }
 

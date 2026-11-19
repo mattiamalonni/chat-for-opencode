@@ -118,6 +118,14 @@ describe("OpenCodeClient against the mock server", () => {
     expect(first.type === "user" && first.text).toBe("/mock-init some argument");
   });
 
+  it("honors queue/steer delivery when running a slash command", async () => {
+    const s = await client.createSession({});
+    await client.command(s.id, "mock-init", "queued", [], "queue");
+    expect(mock.requests.at(-1)?.body).toMatchObject({ name: "mock-init", text: "queued", delivery: "queue" });
+    await client.command(s.id, "mock-init", "now", [], "steer");
+    expect(mock.requests.at(-1)?.body).toMatchObject({ name: "mock-init", text: "now", delivery: "steer" });
+  });
+
   it("replies to permissions and interrupts", async () => {
     const s = await client.createSession({});
     await client.prompt(s.id, "[permission] edit please");

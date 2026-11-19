@@ -142,6 +142,73 @@ describe("chatReducer with recorded opencode 2.2.7 streams", () => {
     const state = chatReducer(open("ses_other"), { type: "events", events: fixture("real-sse1.jsonl") });
     expect(state.messages).toHaveLength(0);
   });
+
+  it("batched deltas produce exactly the same state as applying them one by one", () => {
+    // Delta coalescing is an optimisation: it must never change the resulting conversation.
+    for (const name of ["real-sse1.jsonl", "real-sse2.jsonl", "real-sse3.jsonl", "real-sse4.jsonl", "real-sse5.jsonl", "real-sse6.jsonl"]) {
+      const events = fixture(name);
+      const batched = chatReducer(open(S1), { type: "events", events });
+      const sequential = events.reduce((s, event) => chatReducer(s, { type: "event", event }), open(S1));
+      expect(batched, name).toEqual(sequential);
+    }
+  });
+
+  it("coalesces adjacent deltas but never merges across a different event", () => {
+    // Two deltas for the same part around a delta for another part: each must stay in place.
+    const state = chatReducer(open("s"), {
+      type: "events",
+      events: [
+        { type: "session.text.delta", data: { sessionID: "s", assistantMessageID: "a1", ordinal: 0, delta: "a" } },
+        { type: "session.text.delta", data: { sessionID: "s", assistantMessageID: "a1", ordinal: 1, delta: "X" } },
+        { type: "session.text.delta", data: { sessionID: "s", assistantMessageID: "a1", ordinal: 0, delta: "b" } },
+      ],
+    });
+    const parts = assistants(state)[0].parts;
+    expect(parts.map((p) => (p.kind === "text" ? p.text : ""))).toEqual(["ab", "X"]);
+  });
+});
+
+describe("malformed live events degrade gracefully", () => {
+  it("ignores usage events without token counts instead of erasing usage", () => {
+    const usage = { cost: 0.5, tokens: { input: 1, output: 2, reasoning: 0, cache: { read: 0, write: 0 } } };
+    const state = chatReducer({ ...open("s"), usage }, {
+      type: "event",
+      event: { type: "session.usage.updated", data: { sessionID: "s", cost: 0.9 } },
+    });
+    expect(state.usage).toEqual(usage);
+  });
+
+  it("keeps the selected model when a model-selected event is malformed", () => {
+    const model = { id: "m", providerID: "p" };
+    const state = chatReducer({ ...open("s"), model }, {
+      type: "event",
+      event: { type: "session.model.selected", data: { sessionID: "s" } },
+    });
+    expect(state.model).toEqual(model);
+  });
+
+  it("drops malformed permission and form cards without throwing", () => {
+    let state = chatReducer(open("s"), {
+      type: "events",
+      events: [
+        { type: "permission.asked", data: { sessionID: "s", id: "p1" } },
+        { type: "form.created", data: { sessionID: "s", form: { id: "f1", sessionID: "s", fields: [] } } },
+      ],
+    });
+    expect(state.permissions).toHaveLength(1);
+    expect(state.permissions[0].resources).toEqual([]);
+    expect(state.forms).toHaveLength(1);
+    // A card with no id is unusable: it is dropped instead of crashing the renderer.
+    state = chatReducer(state, {
+      type: "events",
+      events: [
+        { type: "permission.asked", data: { sessionID: "s" } },
+        { type: "form.created", data: { sessionID: "s" } },
+      ],
+    });
+    expect(state.permissions).toHaveLength(1);
+    expect(state.forms).toHaveLength(1);
+  });
 });
 
 describe("turn metrics", () => {

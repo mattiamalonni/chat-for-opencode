@@ -193,9 +193,10 @@ export class OpenCodeClient {
   }
 
   /** Runs the command's prompt template with `text` as its argument string. */
-  async command(id: string, name: string, text: string, files: FileAttachment[] = []): Promise<void> {
+  async command(id: string, name: string, text: string, files: FileAttachment[] = [], delivery?: "steer" | "queue"): Promise<void> {
     const body: Record<string, unknown> = { name, text };
     if (files.length > 0) body.files = files;
+    if (delivery) body.delivery = delivery;
     await this.request("POST", `api/session/${encodeURIComponent(id)}/command`, { body });
   }
 

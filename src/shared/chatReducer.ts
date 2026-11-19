@@ -140,10 +140,63 @@ export function chatReducer(state: ChatState, action: ChatAction): ChatState {
     case "event":
       return applyEvent(state, action.event);
     case "events":
-      return action.events.reduce(applyEvent, state);
+      // A streaming frame carries many consecutive deltas for the same part. Applying each one
+      // would scan and copy the whole message list over and over (O(events × history)). Deltas for
+      // one part are pure string appends, so fold adjacent ones into a single event first.
+      return coalesceDeltas(action.events).reduce(applyEvent, state);
     case "clearError":
       return { ...state, lastError: undefined };
   }
+}
+
+type DeltaTarget = "text" | "reasoning" | "tool-input";
+
+/** Identity of the part a delta appends to, or `undefined` when the event is not a delta. */
+function deltaTarget(event: ServerEvent): string | undefined {
+  let kind: DeltaTarget;
+  switch (event.type) {
+    case "session.text.delta": kind = "text"; break;
+    case "session.reasoning.delta": kind = "reasoning"; break;
+    case "session.tool.input.delta": kind = "tool-input"; break;
+    default: return undefined;
+  }
+  const d = event.data as Data | undefined;
+  if (!d) return undefined;
+  const messageId = str(d, "assistantMessageID");
+  if (!messageId) return undefined;
+  // Include the session: a batch can interleave events from several sessions (see the fixtures).
+  const sessionId = eventSessionId(event) ?? "";
+  const partId = kind === "tool-input" ? `id:${str(d, "id")}` : `ordinal:${String(d.ordinal ?? 0)}`;
+  return `${sessionId}|${kind}|${messageId}|${partId}`;
+}
+
+/**
+ * Merges adjacent deltas that target the same part. Concatenation is associative, so a run of
+ * `text + "a" + "b" + "c"` is indistinguishable from a single `text + "abc"` once reduced — but it
+ * costs one message/part update instead of three. Only *adjacent* events are merged, preserving the
+ * relative order of every other event (starts, ends, tool calls, other sessions, ...).
+ */
+function coalesceDeltas(events: ServerEvent[]): ServerEvent[] {
+  if (events.length < 2) return events;
+  const out: ServerEvent[] = [];
+  let lastTarget: string | undefined;
+  for (const event of events) {
+    const target = deltaTarget(event);
+    const previous = out[out.length - 1];
+    if (target !== undefined && previous && lastTarget === target) {
+      const prevData = (previous.data ?? {}) as Data;
+      const data = (event.data ?? {}) as Data;
+      out[out.length - 1] = {
+        ...previous,
+        data: { ...prevData, delta: str(prevData, "delta") + str(data, "delta") },
+      };
+      // `lastTarget` is unchanged: the merged event still targets the same part.
+    } else {
+      out.push(event);
+      lastTarget = target;
+    }
+  }
+  return out;
 }
 
 /**
@@ -178,7 +231,7 @@ function loadHistory(action: Extract<ChatAction, { type: "load" }>): ChatState {
     agent: action.agent,
     model: action.model,
     messages,
-    turns: turnsFromHistory(sorted),
+    turns: turnsFromHistory(sorted, true),
     permissions: action.permissions,
     forms: action.forms,
     busy,
@@ -211,7 +264,7 @@ function appendDelta(state: ChatState, delta: SessionDelta): ChatState {
   return {
     ...state,
     messages,
-    turns: mergeTurns(state.turns, turnsFromHistory(sorted)),
+    turns: mergeTurns(state.turns, turnsFromHistory(sorted, true)),
     permissions: delta.permissions ?? state.permissions,
     forms: delta.forms ?? state.forms,
     usage: delta.usage ?? state.usage,
@@ -285,8 +338,10 @@ function addTokens(base: TokenUsage | undefined, extra: TokenUsage | undefined):
  * Rebuilds one summary per turn from history. A user message opens a turn, the assistant
  * messages that follow are its steps, and an idle (or the next user message) closes it.
  */
-function turnsFromHistory(messages: SessionMessage[]): TurnStats[] {
-  const sorted = [...messages].sort((a, b) => a.time.created - b.time.created || cmp(a.id, b.id));
+function turnsFromHistory(messages: SessionMessage[], alreadySorted = false): TurnStats[] {
+  // Both callers pass an array they just sorted with the same comparator. Re-sorting would copy
+  // and run O(n log n) comparisons a second time on every load and every resync.
+  const sorted = alreadySorted ? messages : [...messages].sort((a, b) => a.time.created - b.time.created || cmp(a.id, b.id));
   const turns: TurnStats[] = [];
   let current: TurnStats | undefined;
   let lastCompleted: number | undefined;
@@ -339,10 +394,16 @@ function endTurn(state: ChatState, ended: number): TurnStats[] {
 function mergeTurns(current: TurnStats[], incoming: TurnStats[]): TurnStats[] {
   if (incoming.length === 0) return current;
   const merged = current.slice();
+  // Index by id once instead of scanning the whole list for every incoming turn (O(n·m) → O(n+m)).
+  const indexById = new Map(merged.map((t, i) => [t.id, i] as const));
   for (const t of incoming) {
-    const idx = merged.findIndex((x) => x.id === t.id);
-    if (idx === -1) merged.push(t);
-    else merged[idx] = t;
+    const at = indexById.get(t.id);
+    if (at === undefined) {
+      indexById.set(t.id, merged.length);
+      merged.push(t);
+    } else {
+      merged[at] = t;
+    }
   }
   return merged;
 }
@@ -427,6 +488,45 @@ function str(d: Data, k: string): string {
   return typeof v === "string" ? v : "";
 }
 
+/**
+ * Live `permission.asked`/`form.created` events come straight off the wire (the resync path, by
+ * contrast, normalises them in the host). Guarantee the fields the cards dereference so one
+ * malformed event can never blank the whole conversation via the error boundary. Kept local to
+ * avoid dragging the OpenAPI snapshot into the webview bundle.
+ */
+function asPermission(raw: unknown): PermissionRequest | undefined {
+  const d = raw as Data | undefined;
+  if (!d || typeof d !== "object") return undefined;
+  const id = str(d, "id");
+  const sessionID = str(d, "sessionID");
+  if (!id || !sessionID) return undefined;
+  return {
+    ...(d as unknown as PermissionRequest),
+    id,
+    sessionID,
+    action: str(d, "action"),
+    resources: Array.isArray(d.resources) ? d.resources.filter((r): r is string => typeof r === "string") : [],
+    save: Array.isArray(d.save) ? d.save.filter((s): s is string => typeof s === "string") : [],
+  };
+}
+
+function asForm(raw: unknown): FormRequest | undefined {
+  const d = raw as Data | undefined;
+  if (!d || typeof d !== "object") return undefined;
+  const id = str(d, "id");
+  const sessionID = str(d, "sessionID");
+  if (!id || !sessionID) return undefined;
+  return {
+    ...(d as unknown as FormRequest),
+    id,
+    sessionID,
+    title: str(d, "title"),
+    fields: Array.isArray(d.fields)
+      ? (d.fields as FormRequest["fields"]).filter((f) => !!f && typeof f.key === "string")
+      : [],
+  };
+}
+
 export function eventSessionId(event: ServerEvent): string | undefined {
   const d = event.data as Data | undefined;
   if (!d || typeof d !== "object") return undefined;
@@ -458,6 +558,8 @@ function updateAssistant(
 
 function insertSorted(list: UiMessage[], msg: UiMessage): UiMessage[] {
   let i = list.length;
+  // Keep arrival order for equal timestamps: the live stream has no replay, and events that land
+  // in the same millisecond must stay in the order the server produced them (prompt history etc.).
   while (i > 0 && list[i - 1].created > msg.created) i--;
   const copy = list.slice();
   copy.splice(i, 0, msg);
@@ -632,19 +734,22 @@ export function applyEvent(state: ChatState, event: ServerEvent): ChatState {
     }
     case "session.step.ended": {
       const tokens = d.tokens as TokenUsage | undefined;
-      const next = updateAssistant({ ...state, contextTokens: contextTokensOf(tokens) ?? state.contextTokens }, msgId, (m) => ({
+      const withMessage = updateAssistant({ ...state, contextTokens: contextTokensOf(tokens) ?? state.contextTokens }, msgId, (m) => ({
         ...m,
         done: true,
         finish: str(d, "finish") || m.finish,
         retry: undefined,
         parts: m.parts.map((p) => (p.kind === "tool" || p.done ? p : { ...p, done: true })),
       }));
-      next.turns = withOpenTurn(state, (t) => ({
-        ...t,
-        tokens: addTokens(t.tokens, tokens),
-        cost: typeof d.cost === "number" ? (t.cost ?? 0) + d.cost : t.cost,
-      }));
-      return withTouchedFiles(next, d.files);
+      const withTurns: ChatState = {
+        ...withMessage,
+        turns: withOpenTurn(state, (t) => ({
+          ...t,
+          tokens: addTokens(t.tokens, tokens),
+          cost: typeof d.cost === "number" ? (t.cost ?? 0) + d.cost : t.cost,
+        })),
+      };
+      return withTouchedFiles(withTurns, d.files);
     }
     case "session.step.failed": {
       const error = d.error as StructuredError | undefined;
@@ -693,19 +798,28 @@ export function applyEvent(state: ChatState, event: ServerEvent): ChatState {
         messages: [...s.messages, notice(event.id ?? `int-${created}`, created, "warning", "interrupted", str(d, "reason"))],
       };
     }
-    case "session.usage.updated":
-      return { ...state, usage: { cost: Number(d.cost ?? 0), tokens: d.tokens as TokenUsage } };
+    case "session.usage.updated": {
+      // A malformed/truncated event must not erase valid token counts or write `undefined` into
+      // state (the composer treats a present `usage` as authoritative). Keep the previous value.
+      const tokens = d.tokens as TokenUsage | undefined;
+      if (!tokens || typeof tokens.input !== "number" || typeof tokens.output !== "number") return state;
+      return { ...state, usage: { cost: Number(d.cost ?? 0), tokens } };
+    }
     case "session.renamed":
       return { ...state, title: str(d, "title") };
     case "session.agent.selected":
       return { ...state, agent: str(d, "agent") };
-    case "session.model.selected":
-      return { ...state, model: d.model as ModelRef };
+    case "session.model.selected": {
+      // Ignore shape drift instead of overwriting a valid selection with `undefined`.
+      const model = d.model as ModelRef | undefined;
+      if (!model || typeof model.id !== "string" || typeof model.providerID !== "string") return state;
+      return { ...state, model };
+    }
     case "session.compaction.ended":
       return { ...state, contextTokens: undefined, messages: [...state.messages, notice(event.id ?? `cmp-${created}`, created, "info", "compaction", "")] };
     case "permission.asked": {
-      const req = d as unknown as PermissionRequest;
-      if (state.permissions.some((p) => p.id === req.id)) return state;
+      const req = asPermission(d);
+      if (!req || state.permissions.some((p) => p.id === req.id)) return state;
       return { ...state, permissions: [...state.permissions, req] };
     }
     case "permission.replied": {
@@ -713,8 +827,8 @@ export function applyEvent(state: ChatState, event: ServerEvent): ChatState {
       return { ...state, permissions: state.permissions.filter((p) => p.id !== id) };
     }
     case "form.created": {
-      const form = d.form as FormRequest;
-      if (state.forms.some((f) => f.id === form.id)) return state;
+      const form = asForm(d.form);
+      if (!form || state.forms.some((f) => f.id === form.id)) return state;
       return { ...state, forms: [...state.forms, form] };
     }
     case "form.replied": {
@@ -746,6 +860,8 @@ function finishAll(state: ChatState): ChatState {
 
 // ---- selectors ---------------------------------------------------------------------------
 
+const TODO_TOOL_RE = /todo/i;
+
 /** Latest todo list written by the `todowrite` tool (experimental in OpenCode 2.2). */
 export function selectTodos(state: ChatState): Todo[] | undefined {
   for (let i = state.messages.length - 1; i >= 0; i--) {
@@ -753,7 +869,7 @@ export function selectTodos(state: ChatState): Todo[] | undefined {
     if (m.kind !== "assistant") continue;
     for (let j = m.parts.length - 1; j >= 0; j--) {
       const p = m.parts[j];
-      if (p.kind !== "tool" || !/todo/i.test(p.name)) continue;
+      if (p.kind !== "tool" || !TODO_TOOL_RE.test(p.name)) continue;
       const todos = (p.metadata?.todos ?? p.input?.todos) as unknown;
       if (Array.isArray(todos)) {
         return todos
@@ -798,6 +914,9 @@ export function selectToolChangedFiles(state: ChatState): FileDiff[] {
   return [...byFile.values()].sort((a, b) => a.file.localeCompare(b.file));
 }
 
+/** Upper bound on remembered step paths; an unbounded list grows for the whole session lifetime. */
+const MAX_TOUCHED_FILES = 500;
+
 function withTouchedFiles(state: ChatState, files: unknown): ChatState {
   const paths = Array.isArray(files) ? files.filter((f): f is string => typeof f === "string") : [];
   if (paths.length === 0) return state;
@@ -809,7 +928,9 @@ function withTouchedFiles(state: ChatState, files: unknown): ChatState {
       added = true;
     }
   }
-  return added ? { ...state, touchedFiles: [...known] } : state;
+  if (!added) return state;
+  const all = [...known];
+  return { ...state, touchedFiles: all.length > MAX_TOUCHED_FILES ? all.slice(-MAX_TOUCHED_FILES) : all };
 }
 
 /** `/diff` data (when available) is authoritative; tool metadata and step paths fill the gaps. */
@@ -858,4 +979,19 @@ export function orphanForms(state: ChatState): FormRequest[] {
     const id = (f.metadata?.tool as { id?: string } | undefined)?.id;
     return !id || !toolIds.has(id);
   });
+}
+
+/** Both orphan scans in one pass over the conversation (the webview needs them on every render). */
+export function orphanCards(state: ChatState): { permissions: PermissionRequest[]; forms: FormRequest[] } {
+  const toolIds = new Set<string>();
+  for (const m of state.messages) {
+    if (m.kind === "assistant") for (const p of m.parts) if (p.kind === "tool") toolIds.add(p.id);
+  }
+  return {
+    permissions: state.permissions.filter((p) => !p.source || !toolIds.has(p.source.id)),
+    forms: state.forms.filter((f) => {
+      const id = (f.metadata?.tool as { id?: string } | undefined)?.id;
+      return !id || !toolIds.has(id);
+    }),
+  };
 }

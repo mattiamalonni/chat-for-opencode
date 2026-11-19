@@ -5,8 +5,7 @@ import {
   chatReducer,
   initialChatState,
   mergeChangedFiles,
-  orphanForms,
-  orphanPermissions,
+  orphanCards,
   selectTodos,
   type TextPart,
   type ToolPart,
@@ -215,6 +214,9 @@ export function App() {
       const vw = window.innerWidth;
       const updates: { el: HTMLElement; dir: "left" | "right" }[] = [];
       for (const el of document.querySelectorAll<HTMLElement>(".tooltip-host")) {
+        // Direction is decided once: a tooltip's anchor side does not change while the chat
+        // streams, so re-measuring every element on every frame is pure forced-layout cost.
+        if (el.dataset.tipDir) continue;
         const tip = getComputedStyle(el, "::after");
         if (tip.content === "none" || tip.display === "none") continue;
         const width = parseFloat(tip.width) || 0;
@@ -255,7 +257,23 @@ export function App() {
 
   const todos = useMemo(() => selectTodos(chat), [chat.messages]);
   // GET /session/{id}/diff is empty outside git repos, so fall back to patches in tool metadata.
-  const changedFiles = useMemo(() => mergeChangedFiles(changes, chat), [changes, chat.messages, chat.touchedFiles]);
+  // `chat.messages` is a new array on every streamed token, but file diffs only change when a tool
+  // completes. Keep the previous array when its content is identical so the expensive patch
+  // signature below is not rebuilt on every frame.
+  const lastChangedFiles = useRef<FileDiff[]>([]);
+  const changedFiles = useMemo(() => {
+    const next = mergeChangedFiles(changes, chat);
+    const prev = lastChangedFiles.current;
+    if (
+      prev.length === next.length &&
+      prev.every((p, i) => {
+        const n = next[i];
+        return p.file === n.file && p.status === n.status && p.additions === n.additions && p.deletions === n.deletions && p.patch === n.patch;
+      })
+    ) return prev;
+    lastChangedFiles.current = next;
+    return next;
+  }, [changes, chat.messages, chat.touchedFiles]);
   // "Mark as reviewed" hides the panel until the set of changed files actually changes again.
   const changesSignature = useMemo(
     () => JSON.stringify(changedFiles.map((f) => [f.file, f.status, f.additions, f.deletions, f.patch])),
@@ -641,9 +659,17 @@ function Header(props: {
   );
 }
 
+let relativeFormatter: Intl.RelativeTimeFormat | undefined;
+let relativeFormatterLang: string | undefined;
 function relativeTime(ts: number): string {
   const diff = Date.now() - ts;
-  const rtf = new Intl.RelativeTimeFormat(document.documentElement.lang || undefined, { numeric: "auto" });
+  // Intl formatter construction is expensive; building one per session row per render is waste.
+  const lang = document.documentElement.lang || undefined;
+  if (!relativeFormatter || relativeFormatterLang !== lang) {
+    relativeFormatter = new Intl.RelativeTimeFormat(lang, { numeric: "auto" });
+    relativeFormatterLang = lang;
+  }
+  const rtf = relativeFormatter;
   const mins = Math.round(diff / 60_000);
   if (mins < 60) return rtf.format(-mins, "minute");
   const hours = Math.round(mins / 60);
@@ -1223,8 +1249,12 @@ function Conversation({ chat, scrollToken, searchQuery }: { chat: ReturnType<typ
     setRange((prev) => (prev.start === next.start && prev.end === next.end ? prev : next));
   }, [virtual, items.length]);
 
-  const orphanP = orphanPermissions(chat);
-  const orphanF = orphanForms(chat);
+  // One pass over the conversation, recomputed only when permissions/forms/messages change —
+  // not on every token that lands in an already-known message.
+  const { permissions: orphanP, forms: orphanF } = useMemo(
+    () => orphanCards(chat),
+    [chat.messages, chat.permissions, chat.forms],
+  );
   const onClick = (e: MouseEvent) => {
     const target = e.target as HTMLElement;
     const copy = target.closest("[data-action='copy-code']");

@@ -7,7 +7,9 @@ const C = 2 * Math.PI * R;
 /** Ring showing how much of the selected model's context window the conversation uses. */
 export function ContextMeter({ used, limit, cost, estimated }: { used?: number; limit: number; cost?: number; estimated?: boolean }) {
   const t = useT();
-  const known = used !== undefined;
+  // A limit of 0 (or a non-finite value from an older server) would render "Infinity%"; treat it
+  // as unknown instead so the ring and the label stay coherent.
+  const known = used !== undefined && Number.isFinite(used) && Number.isFinite(limit) && limit > 0;
   const ratio = known ? Math.min(1, used / limit) : 0;
   const percent = known ? Math.round((used / limit) * 100) : 0;
   const level = !known ? "unknown" : ratio >= 0.9 ? "critical" : ratio >= 0.75 ? "high" : "normal";

@@ -167,16 +167,19 @@ export function Composer(props: ComposerProps) {
   }, [mention?.query]);
 
   const fileResults = mention?.kind === "file" && props.fileResults.query === mention.query ? props.fileResults.items : [];
-  const skillResults: SkillSuggestion[] = mention?.kind === "skill"
-    ? props.skills
-        .filter((skill) => `${skill.id} ${skill.name} ${skill.description ?? ""}`.toLowerCase().includes(mention.query.toLowerCase()))
-        .slice(0, 30)
-    : [];
-  const commandResults: CommandSuggestion[] = mention?.kind === "skill"
-    ? props.commands
-        .filter((command) => `${command.name} ${command.description ?? ""}`.toLowerCase().includes(mention.query.toLowerCase()))
-        .slice(0, 30)
-    : [];
+  const mentionQuery = mention?.kind === "skill" ? mention.query.trim().toLowerCase() : "";
+  const skillResults: SkillSuggestion[] = useMemo(
+    () => mention?.kind === "skill"
+      ? props.skills.filter((skill) => `${skill.id} ${skill.name} ${skill.description ?? ""}`.toLowerCase().includes(mentionQuery)).slice(0, 30)
+      : [],
+    [mention?.kind, mentionQuery, props.skills],
+  );
+  const commandResults: CommandSuggestion[] = useMemo(
+    () => mention?.kind === "skill"
+      ? props.commands.filter((command) => `${command.name} ${command.description ?? ""}`.toLowerCase().includes(mentionQuery)).slice(0, 30)
+      : [],
+    [mention?.kind, mentionQuery, props.commands],
+  );
   const results: MentionItem[] = [
     ...commandResults.map((item): MentionItem => ({ kind: "command", item })),
     ...(mention?.kind === "skill" || mention?.kind === "file" ? skillResults : []).map((item): MentionItem => ({ kind: "skill", item })),

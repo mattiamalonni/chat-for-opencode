@@ -1,5 +1,5 @@
 import type { ComponentChildren } from "preact";
-import { useEffect, useMemo, useState } from "preact/hooks";
+import { useEffect, useMemo, useRef, useState } from "preact/hooks";
 import type { FormField, FormRequest, FormValue, PermissionRequest } from "../shared/api";
 import {
   formsForTool,
@@ -41,17 +41,28 @@ export function Markdown({ text }: { text: string }) {
   return <div class="md" dangerouslySetInnerHTML={{ __html: html }} />;
 }
 
-/** Plain-text representation used for header search and Markdown export. */
+/**
+ * Plain-text representation used for header search and Markdown export. Messages are immutable
+ * (the reducer allocates a new object only for the one that changed), so cache by identity: the
+ * search count and the export no longer rebuild strings for every unchanged message each frame.
+ */
+const searchTextCache = new WeakMap<UiMessage, string>();
 export function messageSearchText(message: UiMessage): string {
+  const cached = searchTextCache.get(message);
+  if (cached !== undefined) return cached;
+  let text: string;
   if (message.kind === "assistant") {
     const parts = message.parts.map((p) =>
       p.kind === "tool"
         ? [p.name, p.inputText, ...p.output.map((c) => (c.type === "text" ? c.text : `[${c.mime}] ${c.name ?? c.uri}`))].join(" ")
         : p.text,
     );
-    return [...parts, message.error?.message ?? "", message.retry?.message ?? ""].join(" ");
+    text = [...parts, message.error?.message ?? "", message.retry?.message ?? ""].join(" ");
+  } else {
+    text = message.text;
   }
-  return message.text;
+  searchTextCache.set(message, text);
+  return text;
 }
 
 /** Highlights a query in plain text. Markdown bodies keep their rendered HTML and are not rewritten. */
@@ -332,7 +343,7 @@ export function ToolCard({ part, state, filteredOut = false }: { part: ToolPart;
   const forms = formsForTool(state, part.id);
   const needsUser = permissions.length > 0 || forms.length > 0;
   const [open, setOpen] = useState(false);
-  const files = selectToolFiles(part);
+  const files = useMemo(() => selectToolFiles(part), [part.metadata]);
   const expanded = open || needsUser;
   // When a question is pending, the FormCard already renders the same
   // information in a friendly way — showing the raw JSON input too is noise.
@@ -341,9 +352,12 @@ export function ToolCard({ part, state, filteredOut = false }: { part: ToolPart;
   const inputFile = toolFilePath(part);
   const statusLabel =
     part.status === "completed" ? t("completed") : part.status === "error" ? t("failed") : needsUser ? t("pending") : t("running");
-  const output = part.output
-    .map((c) => (c.type === "text" ? c.text : `[${c.mime}] ${c.name ?? c.uri}`))
-    .join("\n");
+  // A completed tool's output can be large, and the card is usually collapsed. Only rebuild the
+  // string when this part's output actually changes (the reducer keeps part identity stable).
+  const output = useMemo(
+    () => part.output.map((c) => (c.type === "text" ? c.text : `[${c.mime}] ${c.name ?? c.uri}`)).join("\n"),
+    [part.output],
+  );
   const id = `tool-${part.id}`;
   return (
     <section class={`tool ${part.status}${needsUser ? " attention" : ""}${filteredOut ? " filtered-out" : ""}`} aria-label={`${t("tool")}: ${part.name}`}>
@@ -523,10 +537,35 @@ export function PermissionCard({ request }: { request: PermissionRequest }) {
 }
 
 function initialValue(f: FormField): FormValue | undefined {
-  if (f.default !== undefined) return f.default as FormValue;
+  const d = f.default;
+  if (d !== undefined) {
+    // A malformed default (null, object, array for a string field) must not leak into the input as
+    // "[object Object]" or be submitted verbatim.
+    switch (f.type) {
+      case "boolean": return typeof d === "boolean" ? d : false;
+      case "multiselect": return Array.isArray(d) ? d.filter((x): x is string => typeof x === "string") : [];
+      case "number":
+      case "integer": return typeof d === "number" && Number.isFinite(d) ? d : undefined;
+      case "external": return undefined;
+      default: return typeof d === "string" || (typeof d === "number" && Number.isFinite(d)) ? (d as FormValue) : undefined;
+    }
+  }
   if (f.type === "boolean") return false;
   if (f.type === "multiselect") return [];
   return undefined;
+}
+
+/** External fields render only a link and carry no answer, so they must never block Submit. */
+function isMissing(f: FormField, v: FormValue | undefined): boolean {
+  if (f.type === "external") return false;
+  if (v === undefined || v === "") return true;
+  return (f.type === "number" || f.type === "integer") && typeof v === "number" && !Number.isFinite(v);
+}
+
+function numericValue(raw: string): FormValue | undefined {
+  if (raw === "") return undefined;
+  const n = Number(raw);
+  return Number.isFinite(n) ? n : undefined;
 }
 
 export function FormCard({ form }: { form: FormRequest }) {
@@ -540,15 +579,29 @@ export function FormCard({ form }: { form: FormRequest }) {
   const failed = useReplyFailed("form", form.id);
   // A resync re-posts the same pending form as a fresh object: re-enable its buttons.
   useEffect(() => setBusy(false), [form]);
+  // If a resync regenerates fields (new keys/defaults) under the same id, re-derive the answers.
+  // Keying only on the cheap signature avoids wiping the user's input on a normal resync.
+  const fieldsSignature = form.fields
+    .map((f) => `${f.key}\u0000${f.type}\u0000${f.required ? 1 : 0}\u0000${JSON.stringify(f.default) ?? ""}`)
+    .join("\u0001");
+  const appliedSignature = useRef(fieldsSignature);
+  useEffect(() => {
+    if (appliedSignature.current === fieldsSignature) return;
+    appliedSignature.current = fieldsSignature;
+    setValues(Object.fromEntries(form.fields.map((f) => [f.key, initialValue(f)])));
+    setCustom({});
+    setBusy(false);
+  }, [fieldsSignature]);
   const set = (k: string, v: FormValue | undefined) => setValues((prev) => ({ ...prev, [k]: v }));
-  const missing = fields.some((f) => f.required && (values[f.key] === undefined || values[f.key] === ""));
+  const missing = fields.some((f) => f.required && isMissing(f, values[f.key]));
   const disabled = busy && !failed;
   const submit = (e: Event) => {
     e.preventDefault();
     const answer: Record<string, FormValue> = {};
     for (const f of form.fields) {
       let v = values[f.key];
-      if (v === "__custom__") v = custom[f.key] ?? "";
+      // Only rewrite our sentinel when it is not a legitimate option value.
+      if (v === "__custom__" && !f.options?.some((o) => o.value === "__custom__")) v = custom[f.key] ?? "";
       if (v !== undefined) answer[f.key] = v;
     }
     clearReplyFailure({ kind: "form", id: form.id });
@@ -685,7 +738,7 @@ function FieldInput(props: {
     onKeyUp: isolateKeys,
     onInput: (e: Event) => {
       const raw = (e.target as HTMLInputElement).value;
-      onChange(numeric ? (raw === "" ? undefined : Number(raw)) : raw);
+      onChange(numeric ? numericValue(raw) : raw);
     },
   };
   return (
