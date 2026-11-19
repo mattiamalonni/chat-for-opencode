@@ -18,12 +18,20 @@ import { fileRefToOpenPath, isFileRef } from "../shared/fileRef";
 import { formatTokens } from "../shared/format";
 import { isImeKey } from "../shared/keys";
 import type { ActionId } from "../shared/protocol";
+import {
+  isSubagentTool,
+  subagentChildId,
+  subagentView,
+  toolObject,
+  type SubagentActivity,
+} from "../shared/subagents";
 import { isolateKeys } from "./env";
 import { FileTypeIcon } from "./fileIcons";
 import { useT } from "./i18n";
 import { IconCheck, IconChevron, IconDiff, IconError, IconFile, IconInfo, IconSelection, IconTool, IconWarning } from "./icons";
 import { renderMarkdown } from "./markdown";
 import { clearReplyFailure, useReplyFailed } from "./replyFeedback";
+import { useSubagent } from "./subagents";
 import { post } from "./vscode";
 
 /** URI decoding can throw on malformed escapes; never let that take down the whole chat. */
@@ -280,14 +288,12 @@ function Reasoning({ part }: { part: TextPart }) {
 const SUMMARY_KEYS = ["description", "filePath", "path", "file", "command", "pattern", "query", "url", "name", "prompt"];
 
 export function toolSummary(part: ToolPart): string {
-  const input = part.input;
-  if (input) {
-    for (const k of SUMMARY_KEYS) {
-      const v = input[k];
-      if (typeof v === "string" && v.trim()) return v.split("\n")[0].slice(0, 120);
-    }
-    if (Array.isArray(input.todos)) return `${input.todos.length} todos`;
+  const input = toolObject(part);
+  for (const k of SUMMARY_KEYS) {
+    const v = input[k];
+    if (typeof v === "string" && v.trim()) return v.split("\n")[0].slice(0, 120);
   }
+  if (Array.isArray(input.todos)) return `${input.todos.length} todos`;
   return "";
 }
 
@@ -302,6 +308,38 @@ function toolFilePath(part: ToolPart): string | undefined {
   return undefined;
 }
 
+/** Ticks once a second only while a subagent is running, for the elapsed-time label. */
+function useNow(active: boolean): number {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    if (!active) return;
+    const id = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(id);
+  }, [active]);
+  return now;
+}
+
+type T = ReturnType<typeof useT>;
+
+function activityText(activity: SubagentActivity, t: T): string {
+  switch (activity.kind) {
+    case "thinking":
+      return `${t("thinking")}…`;
+    case "tool":
+      return activity.tool.summary ? `${activity.tool.name}: ${activity.tool.summary}` : activity.tool.name;
+    case "text":
+      return activity.text.split("\n")[0].slice(0, 100);
+    case "done":
+      return t("completed");
+    case "idle":
+      return t("pending");
+  }
+}
+
+function subagentDot(status: string): "running" | "error" | "completed" {
+  return status === "error" ? "error" : status === "completed" || status === "cancelled" ? "completed" : "running";
+}
+
 export function ToolGroup({ parts, state, filteredOut = false }: { parts: ToolPart[]; state: ChatState; filteredOut?: boolean }) {
   const t = useT();
   const needsUser = parts.some((p) => permissionsForTool(state, p.id).length > 0 || formsForTool(state, p.id).length > 0);
@@ -309,22 +347,40 @@ export function ToolGroup({ parts, state, filteredOut = false }: { parts: ToolPa
   useEffect(() => {
     if (needsUser) setOpen(true);
   }, [needsUser]);
+  const subagentPart = parts.find(isSubagentTool);
+  const subEntry = useSubagent(subagentPart ? subagentChildId(subagentPart) : undefined);
+  const sub = subagentPart ? subagentView(subagentPart, subEntry?.state, subEntry?.meta, state.subagentReports) : undefined;
   const expanded = open || needsUser;
   const running = parts.some((p) => p.status === "running" || p.status === "streaming");
   const failed = parts.some((p) => p.status === "error");
-  const status = running ? "running" : failed ? "error" : "completed";
-  const statusLabel = running ? t("running") : failed ? t("failed") : t("completed");
+  const status = sub ? subagentDot(sub.status) : running ? "running" : failed ? "error" : "completed";
+  const statusLabel = sub
+    ? sub.status === "error"
+      ? t("failed")
+      : sub.status === "cancelled"
+        ? t("cancelled")
+        : sub.status === "completed"
+          ? t("completed")
+          : t("running")
+    : running
+      ? t("running")
+      : failed
+        ? t("failed")
+        : t("completed");
   const names = [...new Set(parts.map((p) => p.name))].join(", ");
+  const headerName = sub ? sub.agent : t("toolCalls", parts.length);
+  const headerSummary = sub ? [sub.title, activityText(sub.activity, t)].filter(Boolean).join(" · ") : names;
   const id = `tool-group-${parts[0].id}`;
   return (
-    <section class={`tool-group${needsUser ? " attention" : ""}${filteredOut ? " filtered-out" : ""}`}>
+    <section class={`tool-group${sub ? " subagent" : ""}${needsUser ? " attention" : ""}${filteredOut ? " filtered-out" : ""}`}>
       <button type="button" class="tool-header tool-group-header" aria-expanded={expanded} aria-controls={id} onClick={() => setOpen(!open)}>
         <IconChevron class="chevron" />
         <span class={`status-dot ${status} tooltip-host`} role="img" aria-label={statusLabel} data-tooltip={statusLabel}>
           {status === "completed" ? <IconCheck /> : status === "error" ? <IconError /> : <IconTool />}
         </span>
-        <span class="tool-name">{t("toolCalls", parts.length)}</span>
-        <span class="tool-summary" title={names}>{names}</span>
+        {sub && <span class="subagent-badge">{t("subagent")}</span>}
+        <span class="tool-name">{headerName}</span>
+        <span class="tool-summary" title={headerSummary}>{headerSummary}</span>
       </button>
       {expanded && (
         <div class="tool-group-body" id={id}>
@@ -337,7 +393,104 @@ export function ToolGroup({ parts, state, filteredOut = false }: { parts: ToolPa
   );
 }
 
-export function ToolCard({ part, state, filteredOut = false }: { part: ToolPart; state: ChatState; filteredOut?: boolean }) {
+/** Dispatch on the tool name so hook order stays stable for each card. */
+export function ToolCard(props: { part: ToolPart; state: ChatState; filteredOut?: boolean }) {
+  return isSubagentTool(props.part)
+    ? <SubagentToolCard part={props.part} state={props.state} filteredOut={props.filteredOut} />
+    : <GenericToolCard {...props} />;
+}
+
+/** The tool result wraps the child report in a `<subagent>` tag; the child's own text is plain. */
+function stripSubagentWrapper(text: string): string {
+  return text.replace(/^\s*<subagent\b[^>]*>\s*/i, "").replace(/\s*<\/subagent>\s*$/i, "");
+}
+
+/** A subagent call stays one line until expanded; its child's progress is shown on demand. */
+function SubagentToolCard({ part, state, filteredOut = false }: { part: ToolPart; state: ChatState; filteredOut?: boolean }) {
+  const t = useT();
+  const sessionId = subagentChildId(part);
+  const entry = useSubagent(sessionId);
+  const view = useMemo(() => subagentView(part, entry?.state, entry?.meta, state.subagentReports), [part, entry, state.subagentReports]);
+  const [open, setOpen] = useState(false);
+  const running = view.status === "running" || view.status === "pending";
+  const now = useNow(running);
+  const dot = subagentDot(view.status);
+  const elapsed = view.started === undefined ? undefined : `${Math.max(0, Math.round(((view.ended ?? now) - view.started) / 1000))}s`;
+  const statusLabel =
+    view.status === "error"
+      ? t("failed")
+      : view.status === "cancelled"
+        ? t("cancelled")
+        : view.status === "completed"
+          ? t("completed")
+          : t("running");
+  const header = [view.agent || t("subagent"), view.title, activityText(view.activity, t), elapsed].filter(Boolean).join(" · ");
+  const id = `subagent-${part.id}`;
+  return (
+    <section class={`tool subagent ${dot}${filteredOut ? " filtered-out" : ""}`} aria-label={`${t("subagent")}: ${header}`}>
+      <button
+        type="button"
+        class="tool-header"
+        aria-expanded={open}
+        aria-controls={id}
+        onClick={() => {
+          const next = !open;
+          setOpen(next);
+          // A background child can finish long after its tool call; if no live state arrived,
+          // ask the host for its history so the report and steps are shown on demand.
+          if (next && sessionId && (!entry || entry.state.messages.length === 0)) post({ type: "refreshSubagent", sessionId });
+        }}
+      >
+        <IconChevron class="chevron" />
+        <span class={`status-dot ${dot} tooltip-host`} role="img" aria-label={statusLabel} data-tooltip={statusLabel}>
+          {dot === "completed" ? <IconCheck /> : dot === "error" ? <IconError /> : <IconTool />}
+        </span>
+        <span class="subagent-badge">{t("subagent")}</span>
+        <span class="tool-summary" title={header}>{header}</span>
+      </button>
+      {open && (
+        <div class="tool-body subagent-body" id={id}>
+          <div class="subagent-activity">
+            <span class="tool-label">{t("activity")}</span>
+            <span>{activityText(view.activity, t)}{elapsed ? ` · ${elapsed}` : ""}</span>
+          </div>
+          {view.task && (
+            <details class="tool-section">
+              <summary class="tool-label">{t("task")}</summary>
+              <pre class="tool-pre">{view.task}</pre>
+            </details>
+          )}
+          {view.tools.length > 0 && (
+            <div class="tool-section">
+              <div class="tool-label">{t("steps")} ({view.tools.length})</div>
+              <ul class="subagent-steps">
+                {view.tools.map((tool, i) => (
+                  <li class={`subagent-step ${tool.status}`} key={`${tool.name}-${i}`}>
+                    <span class={`status-dot ${subagentDot(tool.status)}`} />
+                    <span class="step-name">{tool.name}</span>
+                    {tool.summary && <span class="step-summary" title={tool.summary}>{tool.summary}</span>}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+          {view.report && (
+            <div class="tool-section">
+              <div class="tool-label">{t("report")}</div>
+              <TruncatedPre text={stripSubagentWrapper(view.report)} />
+            </div>
+          )}
+          <details class="tool-section">
+            <summary class="tool-label">{t("input")}</summary>
+            <pre class="tool-pre">{part.inputText}</pre>
+          </details>
+        </div>
+      )}
+    </section>
+  );
+}
+
+function GenericToolCard({ part, state, filteredOut = false }: { part: ToolPart; state: ChatState; filteredOut?: boolean }) {
   const t = useT();
   const permissions = permissionsForTool(state, part.id);
   const forms = formsForTool(state, part.id);

@@ -15,6 +15,7 @@ import type {
   PermissionRequest,
   ServerEvent,
   SessionInfo,
+  SessionMessage,
 } from "../shared/api";
 import {
   normalizeFileDiff,
@@ -26,6 +27,7 @@ import {
   normalizeSessionMessage,
 } from "../shared/adapter";
 import { eventSessionId, sessionIsBusy, sessionLooksBusy, toSessionSummary } from "../shared/chatReducer";
+import { parseSubagentReport } from "../shared/subagentReport";
 import { checkCompatibility } from "../shared/compatibility";
 import { checkContract, contractSignature, emptyContract, type ContractObservations } from "../shared/contract";
 import type {
@@ -73,6 +75,20 @@ const ATTACHMENT_MIME: Record<string, string> = {
 
 function mimeFromName(name: string): string {
   return ATTACHMENT_MIME[path.extname(name).toLowerCase()] ?? "application/octet-stream";
+}
+
+/** Child ids recorded in the tool state of a loaded session's history. */
+function subagentSessionsFromMessages(messages: SessionMessage[]): string[] {
+  const ids = new Set<string>();
+  for (const m of messages) {
+    if (m.type !== "assistant") continue;
+    for (const part of m.content) {
+      if (part.type !== "tool" || (part.name !== "subagent" && part.name !== "task")) continue;
+      const id = (part.state as { metadata?: { sessionID?: unknown } }).metadata?.sessionID;
+      if (typeof id === "string" && id) ids.add(id);
+    }
+  }
+  return [...ids];
 }
 
 let cachedStrings: Strings | undefined;
@@ -192,6 +208,15 @@ export class ChatController implements vscode.Disposable {
   private lastKnownMessage: { sessionId: string; id: string } | undefined;
   private connecting: Promise<void> | undefined;
   private wasDisconnected = false;
+  /** Child sessions spawned by `subagent` tools of the current session (nested ones included). */
+  private readonly childSessions = new Set<string>();
+  /** Parent id per child, so nested subagents can be followed back to the current session. */
+  private readonly sessionParents = new Map<string, string>();
+  /** Invalidates an in-flight child history fetch after a session/folder switch. */
+  private readonly childGen = new Generation();
+  /** Live child events held until the history snapshot is posted, so nothing is overwritten. */
+  private readonly pendingChildEvents = new Map<string, ServerEvent[]>();
+  private static readonly MAX_CHILD_SESSIONS = 30;
 
   constructor(
     private readonly ctx: vscode.ExtensionContext,
@@ -436,6 +461,7 @@ export class ChatController implements vscode.Disposable {
     } else {
       if (stale()) return;
       this.sessionId = undefined;
+      this.resetSubagents();
       this.catalog.publish();
       this.post({ type: "session", session: null });
       this.postAutoApprove();
@@ -565,6 +591,86 @@ export class ChatController implements vscode.Disposable {
     }
   }
 
+  // ---- subagents --------------------------------------------------------------------------
+
+  /** Whether an id is the current session or one of its (possibly nested) child sessions. */
+  private isTrackedSession(id: string): boolean {
+    if (id === this.sessionId) return true;
+    let parent = this.sessionParents.get(id);
+    const seen = new Set<string>();
+    while (parent && !seen.has(parent)) {
+      if (parent === this.sessionId) return true;
+      seen.add(parent);
+      parent = this.sessionParents.get(parent);
+    }
+    return false;
+  }
+
+  private resetSubagents(): void {
+    this.childGen.bump();
+    this.childSessions.clear();
+    this.sessionParents.clear();
+    this.pendingChildEvents.clear();
+  }
+
+  /**
+   * `subagent` calls publish the child id in their progress/success metadata, and OpenCode also
+   * emits `session.created` with `parentID`. Either signal is enough to start following a child:
+   * its events then arrive on the same global stream with a different `sessionID`.
+   */
+  private trackSubagent(childId: string, created?: { parentId?: string; title?: string; agent?: string }): void {
+    if (!this.sessionId || childId === this.sessionId || this.childSessions.has(childId)) return;
+    if (this.childSessions.size >= ChatController.MAX_CHILD_SESSIONS) {
+      const oldest = this.childSessions.values().next().value;
+      if (oldest) {
+        this.childSessions.delete(oldest);
+        this.pendingChildEvents.delete(oldest);
+        this.sessionParents.delete(oldest);
+      }
+    }
+    this.childSessions.add(childId);
+    this.pendingChildEvents.set(childId, []);
+    if (created?.parentId) this.sessionParents.set(childId, created.parentId);
+    void this.loadSubagentSnapshot(childId, created);
+  }
+
+  /** One history fetch on discovery makes the child view complete even after a reconnect. */
+  private async loadSubagentSnapshot(
+    childId: string,
+    created?: { parentId?: string; title?: string; agent?: string },
+  ): Promise<void> {
+    const client = this.client;
+    const parent = this.sessionId;
+    if (!client || !parent) return;
+    const generation = this.childGen.current();
+    const [info, rawMessages, rawPermissions, rawForms] = await Promise.all([
+      client.getSession(childId).catch(() => undefined),
+      client.messages(childId).catch(() => []),
+      client.permissions(childId).catch(() => []),
+      client.forms(childId).catch(() => []),
+    ]);
+    if (!this.childGen.is(generation) || parent !== this.sessionId) return;
+    const safe = normalizeSessionInfo(info) ?? info;
+    const messages = normalizeList(rawMessages, normalizeSessionMessage);
+    this.post({
+      type: "subagent",
+      snapshot: {
+        sessionId: childId,
+        parentId: safe?.parentID ?? created?.parentId ?? this.sessionParents.get(childId),
+        title: created?.title ?? safe?.title,
+        agent: created?.agent ?? safe?.agent,
+        messages,
+        permissions: normalizeList(rawPermissions, normalizePermission),
+        forms: normalizeList(rawForms, normalizeForm),
+        busy: safe ? sessionIsBusy(safe.time, messages) : true,
+      },
+    });
+    // The snapshot replaces the child's webview state; replay everything received while it loaded.
+    const buffered = this.pendingChildEvents.get(childId) ?? [];
+    this.pendingChildEvents.delete(childId);
+    for (const event of buffered) this.post({ type: "subagentEvent", sessionId: childId, event });
+  }
+
   // ---- events -----------------------------------------------------------------------------
 
   private onEvent(event: ServerEvent): void {
@@ -572,6 +678,34 @@ export class ChatController implements vscode.Disposable {
     if (!normalized) return;
     event = normalized;
     const sid = eventSessionId(event);
+    if (event.type === "session.created") {
+      const data = event.data as { sessionID?: string; parentID?: string; title?: string; agent?: string };
+      if (data.sessionID && data.parentID) {
+        this.sessionParents.set(data.sessionID, data.parentID);
+        if (this.isTrackedSession(data.sessionID)) {
+          this.trackSubagent(data.sessionID, data);
+        }
+      }
+    }
+    if (sid === this.sessionId && event.type === "session.tool.progress") {
+      const childId = (event.data as { metadata?: { sessionID?: unknown } }).metadata?.sessionID;
+      if (typeof childId === "string" && childId) this.trackSubagent(childId);
+    }
+    if (sid === this.sessionId && event.type === "session.inbox.enqueued") {
+      // A background child announces its final report after the parent turn has already ended.
+      // Re-read its history now: that is when the steps and the report are actually complete.
+      const item = (event.data as { item?: { type?: string; payload?: { text?: string } } }).item;
+      const parsed = item?.type === "synthetic" ? parseSubagentReport(item.payload?.text) : undefined;
+      if (parsed && this.sessionId) {
+        this.sessionParents.set(parsed.sessionId, this.sessionId);
+        if (this.childSessions.has(parsed.sessionId)) void this.loadSubagentSnapshot(parsed.sessionId);
+        else this.trackSubagent(parsed.sessionId);
+      }
+    }
+    if (event.type === "session.deleted" && sid && this.childSessions.delete(sid)) {
+      this.sessionParents.delete(sid);
+      this.pendingChildEvents.delete(sid);
+    }
     if (event.type === "permission.replied") {
       const requestId = (event.data as { requestID?: string }).requestID;
       if (requestId) this.permissions.forgetRequest(requestId);
@@ -584,6 +718,14 @@ export class ChatController implements vscode.Disposable {
       return;
     }
     if (sid && sid === this.sessionId) this.post({ type: "event", event });
+    else if (sid && this.childSessions.has(sid)) {
+      const buffered = this.pendingChildEvents.get(sid);
+      if (buffered) {
+        if (buffered.length < 500) buffered.push(event);
+      } else {
+        this.post({ type: "subagentEvent", sessionId: sid, event });
+      }
+    }
     // Any new turn invalidates a pending history reconcile from the previous one, and ends the
     // grace period in which a resync must not re-lock a locally cleared composer.
     if (sid === this.sessionId && (event.type === "session.inbox.enqueued" || event.type === "session.execution.started")) {
@@ -911,6 +1053,9 @@ export class ChatController implements vscode.Disposable {
     const info = normalizeSessionInfo(rawInfo) ?? rawInfo;
     const messages = normalizeList(rawMessages, normalizeSessionMessage);
     const forms = normalizeList(rawForms, normalizeForm);
+    if (this.sessionId !== info.id) this.resetSubagents();
+    // Past subagents have no live stream on a reload; load their history for the inline cards.
+    for (const id of subagentSessionsFromMessages(messages)) this.trackSubagent(id);
     this.sessionId = info.id;
     const newest = messages.at(-1);
     this.lastKnownMessage = newest ? { sessionId: info.id, id: newest.id } : undefined;
@@ -951,6 +1096,7 @@ export class ChatController implements vscode.Disposable {
     this.loadGen.bump();
     this.clearTimers();
     this.sessionId = undefined;
+    this.resetSubagents();
     this.lastKnownMessage = undefined;
     this.permissions.setPending(undefined);
     if (this.folder) await this.ctx.workspaceState.update(SESSION_KEY(this.folder.uri.toString()), undefined);
@@ -1282,6 +1428,9 @@ export class ChatController implements vscode.Disposable {
         return this.switchFolder(vscode.workspace.workspaceFolders?.find((f) => f.uri.toString() === msg.uri));
       case "refreshChanges":
         return void (await this.refreshChanges());
+      case "refreshSubagent":
+        // The card was expanded but its live events may have been missed; fetch the child's history.
+        return void (await this.loadSubagentSnapshot(msg.sessionId));
       case "compact":
         return this.compact();
       case "dismissCompatibility":

@@ -1534,3 +1534,56 @@ test("long chip tooltips do not create horizontal scroll", async ({ page }) => {
   const dirs = await page.locator(".chip .tooltip-host").evaluateAll((els) => els.map((el) => (el as HTMLElement).dataset.tipDir));
   expect(dirs).toContain("left");
 });
+
+test("subagent progress stays one line until the tool card is expanded", async ({ page }) => {
+  const csp = await boot(page);
+  const events = fixture("real-sse-subagent.jsonl");
+  const parent = "ses_e0d1a594affeRHT5ks6SqFzeKs";
+  const child = "ses_e0d1a3fbaffewFAJSNZEYUBF3e";
+  const childEvents = events.filter((e) => (e.data as { sessionID?: string }).sessionID === child);
+  // Stop at the parent's tool progress: the child id is known and the turn is still live, so the
+  // card is visible instead of being folded away with the finished turn's steps.
+  const mark = events.findIndex((e) => e.type === "session.tool.progress" && (e.data as { sessionID?: string }).sessionID === parent);
+  expect(mark).toBeGreaterThan(0);
+  await openSession(page, parent, events.slice(0, mark + 1).filter((e) => (e.data as { sessionID?: string }).sessionID === parent));
+
+  // Mid-run: the child's current tool is visible in the single collapsed line.
+  const called = childEvents.findIndex((e) => e.type === "session.tool.called");
+  for (const event of childEvents.slice(0, called + 1)) await host(page, { type: "subagentEvent", sessionId: child, event });
+  const card = page.locator(".tool.subagent").first();
+  await expect(card.locator(".subagent-badge")).toHaveText(STRINGS.subagent);
+  const header = card.locator(".tool-summary");
+  await expect(header).toContainText("explore");
+  await expect(header).toContainText("List files in working directory");
+  await expect.poll(async () => (await header.getAttribute("title")) ?? "").toContain("shell");
+  await expect(card.locator(".subagent-steps")).toHaveCount(0);
+
+  await card.locator(".tool-header").click();
+  await expect(card.locator(".subagent-step").first()).toBeVisible();
+  for (const event of childEvents.slice(called + 1)) await host(page, { type: "subagentEvent", sessionId: child, event });
+  await expect(card).toContainText("The directory contains only a `.git` repository");
+  expect(csp).toEqual([]);
+});
+
+test("a background subagent's report shows up when it completes", async ({ page }) => {
+  const csp = await boot(page);
+  const events = fixture("real-sse-subagent-background.jsonl");
+  const parent = "ses_e0cfd7ffaffem5qaFtNbJsTQHB";
+  const mark = events.findIndex((e) => e.type === "session.tool.progress" && (e.data as { sessionID?: string }).sessionID === parent);
+  expect(mark).toBeGreaterThan(0);
+  await openSession(page, parent, events.slice(0, mark + 1).filter((e) => (e.data as { sessionID?: string }).sessionID === parent));
+
+  // Background children report after the parent turn has ended, via a synthetic notification.
+  const notice = events.find((e) => e.type === "session.inbox.enqueued" && (e.data as { item?: { type?: string } }).item?.type === "synthetic");
+  expect(notice).toBeDefined();
+  await host(page, { type: "event", event: notice! });
+
+  const card = page.locator(".tool.subagent").first();
+  await expect.poll(async () => (await card.locator(".tool-summary").getAttribute("title")) ?? "").toContain("Project Structure Analysis Report");
+  await card.locator(".tool-header").click();
+  await expect(card.locator(".tool-label").filter({ hasText: STRINGS.report })).toBeVisible();
+  await expect(card).toContainText("# Project Structure Analysis Report");
+  // With no live child state, expanding asks the host for its history so the steps appear too.
+  expect((await posted(page)).some((m) => m.type === "refreshSubagent")).toBe(true);
+  expect(csp).toEqual([]);
+});

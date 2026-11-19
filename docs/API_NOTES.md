@@ -121,6 +121,45 @@ form.replied / form.cancelled {id, sessionID}
 
 `ordinal` counters are **per kind** (text 0 and reasoning 0 can coexist in one message).
 
+### Subagents (verified 2.2.7)
+
+A primary agent launches a subagent with the `subagent` tool. The whole exchange is visible on the
+**same global SSE stream**, but the child's events carry the child's `sessionID`:
+
+```
+session.tool.input.started  {sessionID: <parent>, id, name: "subagent"}
+session.tool.input.ended    {…, text: '{"agent":"explore","description":"…","prompt":"…"}'}  <- input may be a JSON string
+session.tool.called         {…, id, input: <JSON string>}
+session.created             {sessionID: <child>, parentID: <parent>, title, agent, model}    <- link
+session.tool.progress       {sessionID: <parent>, id, metadata: {sessionID: <child>, status: "running"}}
+... child session events ... (step/tool/text/reasoning/usage/execution.* with sessionID: <child>)
+session.tool.success        {sessionID: <parent>, id,
+                             content:[{type:"text",text:"<subagent sessionID=… state=\"completed\">…</subagent>"}],
+                             metadata:{sessionID: <child>, status:"completed", truncated:false}}
+```
+
+The child session is hidden from `GET /api/session?parentID=null`, and every child event is dropped
+by a consumer that only forwards the selected `sessionID`. The extension follows children from
+`session.created.parentID` and from `session.tool.progress.metadata.sessionID`, fetches each child's
+history once (`GET /api/session/{child}/message`, `…/permission`, `…/form`) and renders its progress
+inside the subagent tool card. `GET /api/experimental/job?sessionID=<parent>&kind=subagent&descendants=true`
+also lists `Job.Subagent` records (`childSessionID`, `agent`, `description`, `status`, `time`), but no
+`job.*` SSE event exists, so the live stream of the child session is the only source of live progress.
+
+**Background subagents** (`"background": true` in the tool input) behave differently: the parent's
+`session.tool.success` arrives immediately with `metadata.status: "running"` and text saying the
+child works in the background; the child keeps emitting events after the parent turn ended, and its
+final answer is delivered to the parent as a synthetic inbox item:
+
+```
+session.inbox.enqueued {item:{type:"synthetic",
+  payload:{text:"<subagent sessionID=\"ses_…\" state=\"completed\" description=\"…\">REPORT</subagent>"}}}
+session.execution.started  {sessionID: <parent>}   <- parent wakes up to consume the report
+```
+
+The extension parses that wrapper so the report is shown in the tool card even if no child event
+was captured, and re-fetches the child's history at that point to fill in its steps.
+
 ### Message history shape (`GET …/message`)
 
 ```

@@ -12,6 +12,7 @@ import type {
   ToolContent,
 } from "./api";
 import type { SessionDelta, SessionSummary } from "./protocol";
+import { parseSubagentReport } from "./subagentReport";
 
 export type ToolStatus = "streaming" | "running" | "completed" | "error";
 
@@ -100,6 +101,8 @@ export interface ChatState {
   contextTokens?: number;
   /** Paths reported by completed/failed steps, used to list changes without `/diff` patches. */
   touchedFiles?: string[];
+  /** Final reports of background subagents, announced as synthetic messages keyed by child id. */
+  subagentReports?: Record<string, string>;
   agent?: string;
   model?: ModelRef;
 }
@@ -209,6 +212,17 @@ export function contextTokensOf(tokens: TokenUsage | undefined): number | undefi
   return total > 0 ? total : undefined;
 }
 
+/** Background children announce their report inside a synthetic message after the parent turn. */
+function reportsFromHistory(messages: SessionMessage[]): Record<string, string> | undefined {
+  const reports: Record<string, string> = {};
+  for (const m of messages) {
+    if (m.type !== "synthetic") continue;
+    const parsed = parseSubagentReport((m as { text?: string; description?: string }).text ?? (m as { description?: string }).description);
+    if (parsed) reports[parsed.sessionId] = parsed.report;
+  }
+  return Object.keys(reports).length > 0 ? reports : undefined;
+}
+
 function loadHistory(action: Extract<ChatAction, { type: "load" }>): ChatState {
   const sorted = [...action.messages].sort((a, b) => a.time.created - b.time.created || cmp(a.id, b.id));
   const messages: UiMessage[] = [];
@@ -222,6 +236,7 @@ function loadHistory(action: Extract<ChatAction, { type: "load" }>): ChatState {
     // A completed compaction replaces the context with a summary of unknown size.
     else if (m.type === "compaction" && (m as { status?: string }).status === "completed") contextTokens = undefined;
   }
+  const subagentReports = reportsFromHistory(sorted);
   const last = sorted[sorted.length - 1];
   // A terminal idle message wins over a stale `busy` flag from the host (see sessionIsBusy).
   const busy = last?.type === "idle" ? false : (action.busy ?? (last !== undefined && isIncomplete(last)));
@@ -231,6 +246,7 @@ function loadHistory(action: Extract<ChatAction, { type: "load" }>): ChatState {
     agent: action.agent,
     model: action.model,
     messages,
+    subagentReports,
     turns: turnsFromHistory(sorted, true),
     permissions: action.permissions,
     forms: action.forms,
@@ -261,10 +277,12 @@ function appendDelta(state: ChatState, delta: SessionDelta): ChatState {
     if (m.type === "assistant") contextTokens = contextTokensOf(m.tokens) ?? contextTokens;
     else if (m.type === "compaction" && (m as { status?: string }).status === "completed") contextTokens = undefined;
   }
+  const reports = reportsFromHistory(sorted);
   return {
     ...state,
     messages,
     turns: mergeTurns(state.turns, turnsFromHistory(sorted, true)),
+    subagentReports: reports ? { ...(state.subagentReports ?? {}), ...reports } : state.subagentReports,
     permissions: delta.permissions ?? state.permissions,
     forms: delta.forms ?? state.forms,
     usage: delta.usage ?? state.usage,
@@ -433,6 +451,8 @@ function fromHistory(m: SessionMessage): UiMessage | undefined {
     case "compaction":
       return notice(m.id, m.time.created, "info", "compaction", "");
     case "synthetic":
+      // A subagent completion is shown inside its tool card, not as a raw XML notice here.
+      if (parseSubagentReport(m.description ?? m.text)) return undefined;
       return notice(m.id, m.time.created, "info", "synthetic", m.description ?? m.text ?? "");
     case "shell":
       return notice(m.id, m.time.created, "info", "shell", m.command ?? "");
@@ -601,6 +621,13 @@ export function applyEvent(state: ChatState, event: ServerEvent): ChatState {
         type?: string;
         payload?: { text?: string; files?: { uri?: string; name?: string; source?: { uri?: string } }[] };
       };
+      if (item?.type === "synthetic") {
+        const parsed = parseSubagentReport(item.payload?.text);
+        if (parsed) {
+          return { ...state, subagentReports: { ...(state.subagentReports ?? {}), [parsed.sessionId]: parsed.report } };
+        }
+        return state;
+      }
       if (item?.type !== "user") return state;
       const id = str(d, "inboxID");
       if (state.messages.some((m) => m.id === id)) return state;

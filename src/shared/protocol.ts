@@ -125,6 +125,21 @@ export interface SessionDelta {
   model?: ModelRef;
 }
 
+/**
+ * A child session spawned by the `subagent` tool of the session currently shown in the chat.
+ * The host fetches its history once on discovery; live updates arrive as `subagentEvent` messages.
+ */
+export interface SubagentSnapshot {
+  sessionId: string;
+  parentId?: string;
+  title?: string;
+  agent?: string;
+  messages: SessionMessage[];
+  permissions: PermissionRequest[];
+  forms: FormRequest[];
+  busy: boolean;
+}
+
 export type HostMessage =
   | {
       type: "init";
@@ -160,6 +175,10 @@ export type HostMessage =
   | { type: "session"; session: SessionPayload | null }
   | { type: "sessionDelta"; delta: SessionDelta }
   | { type: "event"; event: ServerEvent }
+  /** Initial history of a subagent's child session, so its view survives a reconnect. */
+  | { type: "subagent"; snapshot: SubagentSnapshot }
+  /** Live event belonging to a subagent's child session (not the one shown in the chat). */
+  | { type: "subagentEvent"; sessionId: string; event: ServerEvent }
   | { type: "context"; items: ContextItem[] }
   | { type: "fileResults"; query: string; items: Attachment[] }
   | { type: "addAttachment"; item: Attachment }
@@ -199,5 +218,7 @@ export type WebviewMessage =
   | { type: "action"; id: ActionId }
   | { type: "selectFolder"; uri: string }
   | { type: "refreshChanges" }
+  /** Re-fetch a subagent's child history when its card is expanded without live data. */
+  | { type: "refreshSubagent"; sessionId: string }
   | { type: "dismissCompatibility"; version: string }
   | { type: "dismissContract"; signature: string };

@@ -19,6 +19,7 @@ import { estimateDataUrlTokens } from "../shared/format";
 import { isNewSessionKey } from "../shared/keys";
 import { contractSignature, emptyContract, type ContractReport } from "../shared/contract";
 import type { Attachment, ConnectionStatus, ContextItem, FolderInfo, HostMessage, SessionSummary, UiError } from "../shared/protocol";
+import { initialSubagentState, subagentReducer, type SubagentEvent } from "../shared/subagents";
 import { format, STRINGS, type Strings } from "../shared/strings";
 import { Composer } from "./composer";
 import { collectDroppedFiles, hasFiles, readFileAsBase64, type DragData } from "./dropFiles";
@@ -28,6 +29,7 @@ import { IconCheck, IconChevron, IconClose, IconDiff, IconEdit, IconError, IconF
 import { setCopyLabel } from "./markdown";
 import { Picker } from "./picker";
 import { clearReplyFailures, markReplyFailed } from "./replyFeedback";
+import { SubagentsContext, type SubagentEntry } from "./subagents";
 import { ActionButton, AssistantStatus, FileList, FormCard, MessageView, messageSearchText, PermissionCard, ToolCard, ToolGroup, TurnStatsRow } from "./messages";
 import { visibleRange, type VisibleRange } from "./virtual";
 import { hydrateDrafts, onHostMessage, post } from "./vscode";
@@ -44,6 +46,7 @@ interface Catalog {
 export function App() {
   const [strings, setStrings] = useState<Strings>({ ...STRINGS });
   const [chat, dispatch] = useReducer(chatReducer, initialChatState);
+  const [subagents, subagentDispatch] = useReducer(subagentReducer, initialSubagentState);
   const [status, setStatus] = useState<{ status: ConnectionStatus; error?: UiError }>({ status: "idle" });
   const [compatibility, setCompatibility] = useState<{ status: Compatibility; version?: string; dismissed: boolean }>({
     status: "unknown",
@@ -74,6 +77,7 @@ export function App() {
   const [dropping, setDropping] = useState(false);
   const dragDepth = useRef(0);
   const queue = useRef<ServerEvent[]>([]);
+  const childQueue = useRef<SubagentEvent[]>([]);
   const frame = useRef<number | undefined>(undefined);
   // Conversation-scoped state must be dropped when the loaded session changes (new session,
   // folder switch, switching/deleting a session) but not on a same-session resync.
@@ -83,8 +87,11 @@ export function App() {
     const flush = () => {
       frame.current = undefined;
       const events = queue.current;
+      const childEvents = childQueue.current;
       queue.current = [];
+      childQueue.current = [];
       if (events.length > 0) dispatch({ type: "events", events });
+      if (childEvents.length > 0) subagentDispatch({ type: "events", events: childEvents });
     };
     const off = onHostMessage((msg: HostMessage) => {
       switch (msg.type) {
@@ -109,9 +116,11 @@ export function App() {
           break;
         case "session": {
           queue.current = [];
+          childQueue.current = [];
           const id = msg.session?.id ?? null;
           if (lastSessionId.current !== id) {
             lastSessionId.current = id;
+            subagentDispatch({ type: "clear" });
             setAttachments([]);
             setChanges([]);
             setDismissedChanges(null);
@@ -144,11 +153,22 @@ export function App() {
             frame.current = undefined;
           }
           if (queue.current.length > 0) dispatch({ type: "events", events: queue.current });
+          if (childQueue.current.length > 0) subagentDispatch({ type: "events", events: childQueue.current });
           queue.current = [];
+          childQueue.current = [];
           dispatch({ type: "append", delta: msg.delta });
           break;
         case "event":
           queue.current.push(msg.event);
+          frame.current ??= requestAnimationFrame(flush);
+          break;
+        case "subagent":
+          // A snapshot is authoritative for its child; drop any live events queued before it.
+          childQueue.current = childQueue.current.filter((e) => e.sessionId !== msg.snapshot.sessionId);
+          subagentDispatch({ type: "snapshot", snapshot: msg.snapshot });
+          break;
+        case "subagentEvent":
+          childQueue.current.push({ sessionId: msg.sessionId, event: msg.event });
           frame.current ??= requestAnimationFrame(flush);
           break;
         case "context":
@@ -352,6 +372,14 @@ export function App() {
     };
   }, []);
 
+  const subagentEntries = useMemo(() => {
+    const entries: Record<string, SubagentEntry> = {};
+    for (const id of subagents.order) {
+      const state = subagents.byId[id];
+      if (state) entries[id] = { state, meta: subagents.meta[id] ?? {} };
+    }
+    return entries;
+  }, [subagents]);
   const connected = status.status === "connected" || status.status === "reconnecting";
   const title = chat.title || sessions.find((s) => s.id === chat.sessionId)?.title || strings.untitled;
   // Inline attachments are sent as data URLs; their decoded content costs tokens too.
@@ -374,6 +402,7 @@ export function App() {
 
   return (
     <StringsContext.Provider value={strings}>
+      <SubagentsContext.Provider value={subagentEntries}>
       <WebviewErrorBoundary>
         <div class="app">
         <Header
@@ -463,6 +492,7 @@ export function App() {
         )}
         </div>
       </WebviewErrorBoundary>
+      </SubagentsContext.Provider>
     </StringsContext.Provider>
   );
 }

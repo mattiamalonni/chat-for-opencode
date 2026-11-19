@@ -898,6 +898,79 @@ details[open] > summary > .chevron,
   border-color: var(--vscode-inputValidation-warningBorder, var(--vscode-focusBorder));
 }
 
+/* Small tag that makes it explicit the card belongs to a subagent, not a normal tool. */
+.subagent-badge {
+  flex: none;
+  padding: 0 4px;
+  border: 1px solid currentColor;
+  border-radius: 3px;
+  color: var(--vscode-textLink-foreground, var(--vscode-focusBorder));
+  font-size: 0.82em;
+  line-height: 1.5;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+/* Subagent calls get a subtle accent; all detail stays collapsed until clicked. */
+.tool-group.subagent,
+.tool.subagent {
+  border-left: 2px solid var(--vscode-textLink-foreground, var(--vscode-focusBorder));
+}
+
+.subagent-body .subagent-activity {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+  min-width: 0;
+}
+
+.subagent-body .subagent-activity > span:last-child {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.subagent-steps {
+  list-style: none;
+  margin: 2px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.subagent-step {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  min-width: 0;
+  font-family: var(--vscode-editor-font-family);
+  font-size: 0.9em;
+}
+
+.subagent-step .status-dot {
+  flex: none;
+  transform: translateY(1px);
+}
+
+.subagent-step .step-name {
+  flex: none;
+  font-weight: 600;
+}
+
+.subagent-step .step-summary {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--vscode-descriptionForeground);
+}
+
+.subagent-body details > summary.tool-label {
+  cursor: pointer;
+}
+
 .tool-group-body {
   display: flex;
   flex-direction: column;
