@@ -100,7 +100,7 @@ All messages are JSON objects with a `type` discriminator, defined in `src/share
 | `ready` | – |
 | `send` | `text`, `attachments: Attachment[]`, `context: ContextItem[]` |
 | `abort` | – |
-| `newSession`, `selectSession {id}`, `deleteSession {id}`, `renameSession {id, title}`, `refreshSessions`, `loadMoreSessions` | |
+| `newSession`, `selectSession {id}`, `deleteSession {id}`, `deleteAllSessions`, `renameSession {id, title}`, `refreshSessions`, `loadMoreSessions` | |
 | `setModel {model}`, `setAgent {agent}` | |
 | `setAutoApprove {enabled}` | per-chat auto-approval toggle |
 | `permissionReply {requestId, sessionId, decision: once\|always\|reject}` | |

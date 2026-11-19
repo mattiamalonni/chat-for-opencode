@@ -339,6 +339,32 @@ describe("chat-for-opencode extension", () => {
     assert.equal(data.sessionID, form.sessionID);
   });
 
+  it("deletes every session in the folder with deleteAllSessions", async () => {
+    // Start from a fresh session so the next prompt creates a new one to remove.
+    await controller.receive({ type: "newSession" });
+    const mark = posted.length;
+    await controller.receive({ type: "send", text: "session for bulk delete", attachments: [], context: [] });
+    await waitFor(() => eventPosted("session.execution.succeeded", mark), "bulk-delete session finished");
+    const before = await waitFor(() => {
+      const s = lastPosted("sessions", mark);
+      return s && s.items.length > 0 && s;
+    }, "session list before delete all");
+    assert.ok(before.items.length >= 1);
+    assert.ok(controller.debugState.sessionId);
+
+    const deleting = posted.length;
+    await controller.receive({ type: "deleteAllSessions" });
+
+    const empty = await waitFor(() => {
+      const s = lastPosted("sessions", deleting);
+      return s && s.items.length === 0 && s;
+    }, "empty session list after delete all");
+    assert.deepEqual(empty.items, []);
+    assert.equal(lastPosted("session", deleting)?.session, null);
+    assert.equal(controller.debugState.sessionId, undefined);
+    assert.equal(controller.debugState.storedSession, undefined);
+  });
+
   it("does not re-lock the composer on the resync after cancelling a question", async () => {
     const mark = posted.length;
     // `[cancel-stale]` makes the mock finish with stale busy timestamps and no idle marker, so

@@ -789,6 +789,60 @@ export class ChatController implements vscode.Disposable {
     }
   }
 
+  /**
+   * Deletes every session in the workspace folder, including pages that were never loaded in the
+   * picker. All ids are collected first because pagination uses offset cursors: deleting while
+   * walking the pages would shift the offsets and skip sessions.
+   */
+  async deleteAllSessions(): Promise<void> {
+    const client = this.client;
+    const folder = this.folder;
+    if (!client || !folder) return;
+    const directory = folder.uri.fsPath;
+    const ids = new Set<string>();
+    const seenCursors = new Set<string>();
+    let cursor: string | undefined;
+    for (;;) {
+      const { items, next } = await client.listSessionsPage(directory, 100, cursor);
+      for (const info of items) ids.add(info.id);
+      if (!next || seenCursors.has(next)) break;
+      seenCursors.add(next);
+      cursor = next;
+    }
+
+    const currentId = this.sessionId;
+    const deleted: string[] = [];
+    for (const id of ids) {
+      try {
+        await client.deleteSession(id);
+        deleted.push(id);
+        await this.permissions.write(id, undefined);
+      } catch (err) {
+        // A child already removed with its parent (or a stale session) must not abort the cleanup.
+        this.output.warn(`[chat] failed to delete session ${id}: ${String(err)}`);
+      }
+    }
+
+    if (deleted.length > 0) {
+      const key = DRAFTS_KEY(folder.uri.toString());
+      const saved = this.ctx.workspaceState.get<{ drafts?: Record<string, string> }>(key) ?? {};
+      if (saved.drafts) {
+        const drafts = { ...saved.drafts };
+        for (const id of deleted) delete drafts[id];
+        await this.ctx.workspaceState.update(key, { ...saved, drafts });
+      }
+    }
+
+    if (ids.size > 0 && deleted.length === 0) {
+      // Nothing could be removed; keep the chat as it is and let the list re-sync from the server.
+      await this.refreshSessions();
+      throw new Error(translatedStrings()["error.requestFailed"]);
+    }
+    // Clear the current chat when its session was among the deleted ones (also covers "no session").
+    if (!currentId || ids.has(currentId)) await this.newSession();
+    else await this.refreshSessions();
+  }
+
   async refreshChanges(): Promise<FileDiff[]> {
     let files: FileDiff[] = [];
     if (this.client && this.sessionId) {
@@ -1128,6 +1182,8 @@ export class ChatController implements vscode.Disposable {
         if (msg.id === this.sessionId) await this.newSession();
         else await this.refreshSessions();
         return;
+      case "deleteAllSessions":
+        return this.deleteAllSessions();
       case "renameSession": {
         if (!this.client) return;
         const title = msg.title.trim();

@@ -959,6 +959,46 @@ test("session list: switch and delete with confirmation", async ({ page }) => {
   await expect(dialog).toHaveCount(0);
 });
 
+test("session list: delete all asks for confirmation before posting", async ({ page }) => {
+  await boot(page);
+  await host(page, {
+    type: "sessions",
+    items: [
+      { id: S1, title: "Hello world reply", updated: Date.now() - 120_000, busy: false, needsInput: false },
+      { id: S2, title: "Second chat", updated: Date.now() - 60_000, busy: false, needsInput: false },
+    ],
+    hasMore: true,
+  });
+  await page.getByRole("button", { name: new RegExp(`^${STRINGS.sessions}:`) }).click();
+  const dialog = page.getByRole("dialog", { name: STRINGS.sessions });
+  const deleteAll = dialog.getByRole("button", { name: STRINGS.deleteAllSessions });
+  await expect(deleteAll).toBeVisible();
+  await deleteAll.click();
+  expect(await lastPosted(page, "deleteAllSessions")).toBeUndefined();
+  const confirm = dialog.getByRole("group", { name: STRINGS.confirmDeleteAll });
+  await expect(confirm).toContainText(STRINGS.confirmDeleteAllDetail);
+  await expect(dialog.getByRole("button", { name: STRINGS.cancel })).toBeFocused();
+  await page.keyboard.press("Escape");
+  await expect(confirm).toHaveCount(0);
+  expect(await lastPosted(page, "deleteAllSessions")).toBeUndefined();
+
+  await dialog.getByRole("button", { name: STRINGS.deleteAllSessions }).click();
+  await dialog.getByRole("button", { name: STRINGS.deleteAllSessions, exact: true }).click();
+  expect(await lastPosted(page, "deleteAllSessions")).toEqual({ type: "deleteAllSessions" });
+  await expect(dialog.getByRole("group", { name: STRINGS.confirmDeleteAll })).toHaveCount(0);
+});
+
+test("session list: delete all follows the list being empty or not", async ({ page }) => {
+  await boot(page);
+  await host(page, { type: "sessions", items: [] });
+  await page.getByRole("button", { name: new RegExp(`^${STRINGS.sessions}:`) }).click();
+  const dialog = page.getByRole("dialog", { name: STRINGS.sessions });
+  await expect(dialog.getByText(STRINGS.noSessions)).toBeVisible();
+  await expect(dialog.getByRole("button", { name: STRINGS.deleteAllSessions })).toHaveCount(0);
+  await host(page, { type: "sessions", items: [{ id: S1, title: "Hello world reply", updated: Date.now(), busy: false, needsInput: false }] });
+  await expect(dialog.getByRole("button", { name: STRINGS.deleteAllSessions })).toBeVisible();
+});
+
 test("session list: busy and waiting-for-input sessions show distinct indicators", async ({ page }) => {
   await boot(page);
   await host(page, {

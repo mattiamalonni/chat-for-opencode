@@ -178,6 +178,7 @@ export type WebviewMessage =
   | { type: "newSession" }
   | { type: "selectSession"; id: string }
   | { type: "deleteSession"; id: string }
+  | { type: "deleteAllSessions" }
   | { type: "renameSession"; id: string; title: string }
   | { type: "refreshSessions" }
   | { type: "loadMoreSessions" }

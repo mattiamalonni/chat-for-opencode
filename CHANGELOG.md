@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+- The session list has a **Delete all sessions** action at the bottom, guarded by an inline
+  confirmation. It removes every session in the workspace folder (not just the loaded page), clears
+  their drafts and per-chat settings, and leaves an empty chat ready for a new prompt.
+
 ## 0.3.11 — 2026-11-19
 
 - Finished turns show a compact footer with the wall-clock duration, total tokens and cost for the
