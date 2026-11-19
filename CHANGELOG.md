@@ -2,6 +2,9 @@
 
 ## 0.3.12 — 2026-11-19
 
+- The chat now tops up incrementally from the server when the panel becomes visible again, and a
+  **sync icon** next to the Markdown export reloads the conversation authoritatively on demand. This
+  repairs a chat whose live state drifted from the server (e.g. events missed during a disconnect).
 - Subagent activity now appears **inline in the conversation**: the subagent tool card stays on one
   line (agent, description, live activity and elapsed time) and expands on demand into a compact
   timeline with the task and final report. Background subagents are supported too, including their

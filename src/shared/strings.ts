@@ -12,7 +12,8 @@ export const STRINGS = {
   steerTooltip: "Interrupt the current answer and send this message now (Ctrl/Cmd+Enter)",
   newSession: "New session",
   sessions: "Sessions",
-  // Header actions: export the current session to a local Markdown file, and filter its messages.
+  // Header actions: sync from the server, export to Markdown and filter the current session.
+  syncConversation: "Sync conversation from server",
   exportConversation: "Export conversation as Markdown",
   searchMessages: "Search messages in this session",
   searchMessagesPlaceholder: "Search messages…",

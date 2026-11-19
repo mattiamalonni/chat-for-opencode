@@ -1009,6 +1009,20 @@ test("session list: delete-all is a quiet icon that posts the host message", asy
   expect(await lastPosted(page, "deleteAllSessions")).toEqual({ type: "deleteAllSessions" });
 });
 
+test("header sync icon posts a manual sync and clears its busy state on completion", async ({ page }) => {
+  await boot(page);
+  const sync = page.getByRole("button", { name: STRINGS.syncConversation });
+  await expect(sync).toHaveAttribute("data-tooltip", STRINGS.syncConversation);
+  await expect(sync.locator("svg")).toHaveCount(1);
+  expect(await lastPosted(page, "sync")).toBeUndefined();
+  await sync.click();
+  expect(await lastPosted(page, "sync")).toEqual({ type: "sync" });
+  await expect(sync).toBeDisabled();
+  // The host always answers with `synced`, even when there is no session to reload.
+  await host(page, { type: "synced" });
+  await expect(sync).toBeEnabled();
+});
+
 test("session list: delete all follows the list being empty or not", async ({ page }) => {
   await boot(page);
   await host(page, { type: "sessions", items: [] });

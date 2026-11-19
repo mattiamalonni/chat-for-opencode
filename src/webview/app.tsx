@@ -70,6 +70,7 @@ export function App() {
   const [draftToken, setDraftToken] = useState(0);
   const [scrollToken, setScrollToken] = useState(0);
   const [showSessions, setShowSessions] = useState(false);
+  const [syncing, setSyncing] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [announcement, setAnnouncement] = useState({ text: "", seq: 0 });
@@ -206,6 +207,9 @@ export function App() {
           break;
         case "focusInput":
           setFocusToken((n) => n + 1);
+          break;
+        case "synced":
+          setSyncing(false);
           break;
         case "notice":
           if (msg.error.target) markReplyFailed(msg.error.target);
@@ -418,6 +422,12 @@ export function App() {
     const date = new Date().toISOString().slice(0, 10);
     downloadFile(markdown, `opencode-${chat.sessionId ?? "session"}-${date}.md`);
   };
+  // The host always answers with `synced`, even when there is no session to reload.
+  const syncNow = () => {
+    if (syncing) return;
+    setSyncing(true);
+    post({ type: "sync" });
+  };
 
   return (
     <StringsContext.Provider value={strings}>
@@ -433,6 +443,8 @@ export function App() {
             setShowSessions(!showSessions);
           }}
           onExport={exportConversation}
+          onSync={syncNow}
+          syncing={syncing}
           searchOpen={searchOpen}
           onToggleSearch={() => setSearchOpen((open) => !open)}
           searchQuery={searchQuery}
@@ -620,6 +632,8 @@ function Header(props: {
   showSessions: boolean;
   onToggleSessions: () => void;
   onExport: () => void;
+  onSync: () => void;
+  syncing: boolean;
   searchOpen: boolean;
   onToggleSearch: () => void;
   searchQuery: string;
@@ -660,6 +674,17 @@ function Header(props: {
           onChange={(uri) => post({ type: "selectFolder", uri })}
         />
       )}
+      <button
+        type="button"
+        class={`icon-button tooltip-host${props.syncing ? " syncing" : ""}`}
+        data-tooltip={t("syncConversation")}
+        aria-label={t("syncConversation")}
+        aria-busy={props.syncing}
+        disabled={props.syncing}
+        onClick={props.onSync}
+      >
+        <IconRefresh />
+      </button>
       <button
         type="button"
         class="icon-button tooltip-host"

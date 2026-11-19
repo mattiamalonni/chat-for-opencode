@@ -277,6 +277,12 @@ export class ChatController implements vscode.Disposable {
       sub.dispose();
       if (this.view === view) this.view = undefined;
     }));
+    // The live stream has no replay: top up incrementally when the panel is shown again so a
+    // chat left open in the background cannot drift from the server while it was hidden.
+    this.disposables.push(view.onDidChangeVisibility(() => {
+      // `resync()` also publishes a "connected" status, so never run it while still connecting.
+      if (this.view === view && view.visible && this.status === "connected" && this.client) void this.resync();
+    }));
   }
 
   /** Serializes webview messages: a late `ready`/loadAll must not race a prompt and drop its events. */
@@ -632,6 +638,25 @@ export class ChatController implements vscode.Disposable {
       if (this.status !== "error" || this.lastError?.kind === "connectionLost") this.setStatus("connected");
     } catch (err) {
       this.output.error(`[chat] resync failed: ${String(err)}`);
+    }
+  }
+
+  /**
+   * Manual sync from the header button: an authoritative reload from the server, meant to repair a
+   * chat whose live state drifted. Unlike the visibility top-up, this rebuilds the webview state.
+   * The completion notice is sent in `finally` so the button can never stay stuck on "syncing".
+   */
+  private async syncNow(): Promise<void> {
+    try {
+      const client = this.client;
+      const sid = this.sessionId;
+      if (!client || !sid) return;
+      const generation = this.loadGen.bump();
+      const info = await client.getSession(sid);
+      if (!this.loadGen.is(generation) || sid !== this.sessionId) return;
+      await this.loadSession(info, () => !this.loadGen.is(generation) || sid !== this.sessionId);
+    } finally {
+      this.post({ type: "synced" });
     }
   }
 
@@ -1503,6 +1528,8 @@ export class ChatController implements vscode.Disposable {
         return this.switchFolder(vscode.workspace.workspaceFolders?.find((f) => f.uri.toString() === msg.uri));
       case "refreshChanges":
         return void (await this.refreshChanges());
+      case "sync":
+        return this.syncNow();
       case "refreshSubagent":
         // The card was expanded but its live events may have been missed; fetch the child's history.
         return void (await this.loadSubagentSnapshot(msg.sessionId));

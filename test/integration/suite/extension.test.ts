@@ -123,6 +123,14 @@ describe("chat-for-opencode extension", () => {
     assert.equal(sessions.currentId, controller.debugState.sessionId);
   });
 
+  it("manual sync reloads the session from the server and signals completion", async () => {
+    const mark = posted.length;
+    await controller.receive({ type: "sync" });
+    const synced = await waitFor(() => lastPosted("synced", mark), "sync completion", 5000);
+    assert.equal(synced.type, "synced");
+    assert.ok(lastPosted("session", mark), "fresh history posted to the webview");
+  });
+
   it("asks for permission inline and only proceeds after the reply, then lists changed files", async () => {
     const mark = posted.length;
     await controller.receive({ type: "send", text: "[permission] change a.txt", attachments: [], context: [] });

@@ -191,6 +191,8 @@ export type HostMessage =
   /** Drafts restored from workspaceState on webview startup (vscode.setState alone dies on reload). */
   | { type: "drafts"; drafts: Record<string, string>; globalDraft?: string }
   | { type: "focusInput" }
+  /** Sent after a manual sync completes, so the header button can leave its busy state. */
+  | { type: "synced" }
   | { type: "notice"; error: UiError };
 
 export type WebviewMessage =
@@ -222,6 +224,8 @@ export type WebviewMessage =
   | { type: "action"; id: ActionId }
   | { type: "selectFolder"; uri: string }
   | { type: "refreshChanges" }
+  /** Manual sync from the header: re-read the conversation from the server. */
+  | { type: "sync" }
   /** Re-fetch a subagent's child history when its card is expanded without live data. */
   | { type: "refreshSubagent"; sessionId: string }
   | { type: "dismissCompatibility"; version: string }
