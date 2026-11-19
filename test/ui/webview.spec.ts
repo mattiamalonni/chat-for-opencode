@@ -281,20 +281,17 @@ test("streams a real recorded conversation with reasoning, markdown and tool car
   for (const event of events.slice(firstDelta)) await host(page, { type: "event", event });
   await expect(page.getByRole("button", { name: STRINGS.send })).toBeVisible();
   await expect(page.locator(".msg.assistant .md").first()).toContainText("hello world");
+
+  // Each step keeps its prose visible and folds its own thoughts/tools; expand them all.
+  const blocks = page.locator(".step-block");
+  await expect(blocks.first()).toBeVisible();
+  for (const header of await blocks.locator(".step-fold-header").all()) await header.click();
+
   // Reasoning is collapsed and expandable.
   const thoughts = page.locator(".reasoning").first();
   await expect(thoughts).not.toHaveAttribute("open", "");
   await thoughts.locator("summary").click();
   await expect(thoughts).toHaveAttribute("open", "");
-
-  // The finished turn folds its intermediate work; expand it to inspect the tools.
-  const steps = page.locator(".turn-steps");
-  await expect(steps).toHaveCount(1);
-  const stepsHeader = steps.locator(".turn-steps-header");
-  await expect(stepsHeader).toHaveAttribute("aria-expanded", "false");
-  await stepsHeader.click();
-  await expect(stepsHeader).toHaveAttribute("aria-expanded", "true");
-  await expect(stepsHeader).toContainText(STRINGS.hideSteps);
 
   // Tool calls keep the order the model produced them in, around their narration.
   const tools = page.locator(".tool");
@@ -335,13 +332,18 @@ test("keeps thoughts and tools in production order and groups adjacent calls", a
     { type: "session.execution.succeeded", data: { sessionID: sid } },
   ]);
 
+  // The turn is finished: both steps' details merge into one fold. Expand it to inspect them.
+  const blocks = page.locator(".step-block");
+  await expect(blocks).toHaveCount(1);
+  await blocks.locator(".step-fold-header").click();
+
   // Both calls of the first step share one accordion...
   const group = page.locator(".tool-group");
   await expect(group).toHaveCount(1);
   await group.locator(".tool-group-header").click();
   await expect(group.locator(".tool")).toHaveCount(2);
   // ...but the next step's call stays after its own thought.
-  const standalone = page.locator(".conversation > .tool");
+  const standalone = blocks.locator(".tool").filter({ hasText: "shell" });
   await expect(standalone).toHaveCount(1);
   await expect(standalone.locator(".tool-name")).toHaveText("shell");
 
@@ -375,31 +377,87 @@ test("a finished turn folds its intermediate steps and can expand them", async (
     { type: "session.step.ended", created: 1230, data: { ...base, assistantMessageID: "m2", finish: "stop" } },
   ];
   await openSession(page, sid, events);
-  // Still running: nothing is hidden so the stream stays visible.
-  await expect(page.locator(".turn-steps")).toHaveCount(0);
+  // Both steps carry prose, so each keeps its own fold; the live one is open while streaming.
+  const blocks = page.locator(".step-block");
+  await expect(blocks).toHaveCount(2);
   await expect(page.locator(".conversation")).toContainText("intermediate narration");
+  await expect(page.locator(".conversation")).toContainText("final answer");
+  await expect(blocks.nth(1).locator(".step-fold-header")).toHaveAttribute("aria-expanded", "true");
 
   await host(page, { type: "event", event: { type: "session.execution.succeeded", created: 1300, data: base } });
 
-  const steps = page.locator(".turn-steps");
-  await expect(steps).toHaveCount(1);
+  // Finished: both folds collapse while both texts remain visible.
+  const headers = blocks.locator(".step-fold-header");
+  await expect(headers.nth(0)).toHaveAttribute("aria-expanded", "false");
+  await expect(headers.nth(1)).toHaveAttribute("aria-expanded", "false");
   await expect(page.locator(".conversation")).toContainText("final answer");
-  await expect(page.locator(".conversation")).not.toContainText("intermediate narration");
+  await expect(page.locator(".conversation")).toContainText("intermediate narration");
+  await expect(page.locator(".conversation")).not.toContainText("thinking hard");
   await expect(page.locator(".conversation")).not.toContainText("final thought");
 
-  const header = steps.locator(".turn-steps-header");
-  await expect(header).toHaveAttribute("aria-expanded", "false");
-  await expect(header).toContainText(STRINGS.showSteps.replace("{0}", "2"));
-  await header.click();
-  await expect(header).toHaveAttribute("aria-expanded", "true");
-  await expect(header).toContainText(STRINGS.hideSteps);
-  await expect(steps).toContainText("intermediate narration");
-  await expect(steps).toContainText("thinking hard");
-  await expect(steps).toContainText("final thought");
+  await headers.first().click();
+  await expect(headers.first()).toHaveAttribute("aria-expanded", "true");
+  await expect(blocks.first().locator(".step-fold-body")).toContainText("thinking hard");
+  await expect(blocks.nth(1).locator(".step-fold-body")).toHaveCount(0);
+});
 
-  await header.click();
-  await expect(header).toHaveAttribute("aria-expanded", "false");
-  await expect(page.locator(".conversation")).not.toContainText("intermediate narration");
+test("folds past steps while streaming and keeps the accordion open as new steps arrive", async ({ page }) => {
+  await boot(page);
+  const sid = "ses_stream_fold";
+  const base = { sessionID: sid };
+  const ev = (type: ServerEvent["type"], created: number, data: Record<string, unknown>): ServerEvent =>
+    ({ type, created, data } as ServerEvent);
+  const step = (id: string, created: number, text: string, done: boolean): ServerEvent[] => {
+    const m = { ...base, assistantMessageID: id };
+    return [
+      ev("session.step.started", created, { ...m, agent: "build" }),
+      ev("session.reasoning.started", created, { ...m, ordinal: 0 }),
+      ev("session.reasoning.ended", created + 1, { ...m, ordinal: 0, text: `thought ${text}` }),
+      ev("session.text.started", created + 2, { ...m, ordinal: 0 }),
+      ev("session.text.delta", created + 3, { ...m, ordinal: 0, delta: text }),
+      ...(done
+        ? [
+            ev("session.text.ended", created + 4, { ...m, ordinal: 0, text }),
+            ev("session.step.ended", created + 5, { ...m, finish: "tool-calls" }),
+          ]
+        : []),
+    ];
+  };
+
+  await openSession(page, sid, [
+    ev("session.inbox.enqueued", 1000, { ...base, inboxID: "u1", item: { type: "user", payload: { text: "do it" } } }),
+    ev("session.execution.started", 1010, base),
+    ...step("m1", 1100, "one", true),
+    ...step("m2", 1200, "two", true),
+    ...step("m3", 1300, "three", false),
+  ]);
+
+  const blocks = page.locator(".step-block");
+  const fold = (i: number) => blocks.nth(i).locator(".step-fold-header");
+  await expect(blocks).toHaveCount(3);
+  // Prose from every step stays visible; each step folds only its own thought.
+  await expect(page.locator(".conversation")).toContainText("one");
+  await expect(page.locator(".conversation")).toContainText("two");
+  await expect(page.locator(".conversation")).toContainText("three");
+  await expect(fold(0)).toHaveAttribute("aria-expanded", "false");
+  await expect(fold(1)).toHaveAttribute("aria-expanded", "false");
+  await expect(fold(2)).toHaveAttribute("aria-expanded", "true"); // streaming step
+
+  await fold(0).click();
+  await expect(fold(0)).toHaveAttribute("aria-expanded", "true");
+  await expect(blocks.nth(0)).toContainText("thought one");
+  await expect(blocks.nth(0)).not.toContainText("thought two");
+
+  // Finishing the current step and starting the next one moves the live fold forward.
+  await host(page, { type: "event", event: ev("session.step.ended", 1350, { ...base, assistantMessageID: "m3", finish: "tool-calls" }) });
+  await host(page, { type: "event", event: ev("session.step.started", 1400, { ...base, assistantMessageID: "m4", agent: "build" }) });
+  await host(page, { type: "event", event: ev("session.reasoning.ended", 1405, { ...base, assistantMessageID: "m4", ordinal: 0, text: "thought four" }) });
+  await host(page, { type: "event", event: ev("session.text.delta", 1410, { ...base, assistantMessageID: "m4", ordinal: 0, delta: "four" }) });
+
+  await expect(blocks).toHaveCount(4);
+  await expect(fold(2)).toHaveAttribute("aria-expanded", "false");
+  await expect(fold(3)).toHaveAttribute("aria-expanded", "true");
+  await expect(page.locator(".conversation")).toContainText("four");
 });
 
 test("a new prompt follows the latest message even after scrolling up", async ({ page }) => {
