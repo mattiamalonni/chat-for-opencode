@@ -24,8 +24,6 @@ export const STRINGS = {
   save: "Save",
   loadMoreSessions: "Load more sessions",
   deleteAllSessions: "Delete all sessions",
-  confirmDeleteAll: "Delete all sessions?",
-  confirmDeleteAllDetail: "Every session in this workspace will be permanently removed. This cannot be undone.",
   confirmDelete: "Delete this session?",
   untitled: "New session",
   model: "Model",

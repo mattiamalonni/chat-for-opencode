@@ -353,7 +353,9 @@ describe("chat-for-opencode extension", () => {
     assert.ok(controller.debugState.sessionId);
 
     const deleting = posted.length;
-    await controller.receive({ type: "deleteAllSessions" });
+    // The webview message opens a native modal dialog, which cannot be clicked in tests; call the
+    // deletion itself here (the webview test covers the message that leads to it).
+    await controller.deleteAllSessions();
 
     const empty = await waitFor(() => {
       const s = lastPosted("sessions", deleting);

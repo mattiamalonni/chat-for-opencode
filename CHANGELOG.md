@@ -2,9 +2,9 @@
 
 ## Unreleased
 
-- The session list has a **Delete all sessions** action at the bottom, guarded by an inline
-  confirmation. It removes every session in the workspace folder (not just the loaded page), clears
-  their drafts and per-chat settings, and leaves an empty chat ready for a new prompt.
+- The session list has a discreet trash icon at the bottom to **delete all sessions**, confirmed by
+  a native VS Code dialog. It removes every session in the workspace folder (not just the loaded
+  page), clears their drafts and per-chat settings, and leaves an empty chat ready for a new prompt.
 
 ## 0.3.11 — 2026-11-19
 

@@ -426,34 +426,22 @@ details[open] > summary > .chevron,
   background: var(--vscode-list-hoverBackground);
 }
 
-/* Destructive "clear the whole list" action, kept as a quiet footer until confirmed. */
+/* Quiet trash icon in the footer; the destructive step itself is confirmed by VS Code. */
 .session-footer {
+  display: flex;
+  justify-content: flex-end;
   margin-top: 4px;
   padding-top: 4px;
   border-top: 1px solid var(--vscode-widget-border, transparent);
 }
 
 .session-delete-all {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  width: 100%;
-  padding: 6px 8px;
-  background: none;
-  border: none;
+  color: var(--vscode-descriptionForeground);
+}
+
+.session-delete-all:hover,
+.session-delete-all:focus-visible {
   color: var(--vscode-errorForeground, var(--vscode-charts-red, #f14c4c));
-  cursor: pointer;
-  text-align: center;
-}
-
-.session-delete-all:hover {
-  background: var(--vscode-list-hoverBackground);
-}
-
-.session-confirm-all .inline-session {
-  white-space: normal;
-  line-height: 1.3;
 }
 
 /* ---- banners --------------------------------------------------------------------------- */

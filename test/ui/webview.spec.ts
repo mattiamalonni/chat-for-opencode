@@ -991,33 +991,20 @@ test("session list: switch and delete with confirmation", async ({ page }) => {
   await expect(dialog).toHaveCount(0);
 });
 
-test("session list: delete all asks for confirmation before posting", async ({ page }) => {
+test("session list: delete-all is a quiet icon that posts the host message", async ({ page }) => {
   await boot(page);
-  await host(page, {
-    type: "sessions",
-    items: [
-      { id: S1, title: "Hello world reply", updated: Date.now() - 120_000, busy: false, needsInput: false },
-      { id: S2, title: "Second chat", updated: Date.now() - 60_000, busy: false, needsInput: false },
-    ],
-    hasMore: true,
-  });
   await page.getByRole("button", { name: new RegExp(`^${STRINGS.sessions}:`) }).click();
   const dialog = page.getByRole("dialog", { name: STRINGS.sessions });
-  const deleteAll = dialog.getByRole("button", { name: STRINGS.deleteAllSessions });
+  const deleteAll = dialog.locator(".session-footer button.session-delete-all");
   await expect(deleteAll).toBeVisible();
+  // Icon only: the label lives in the tooltip/aria-label, not in a wide destructive button,
+  // and there is no in-webview confirmation card (VS Code shows the native dialog instead).
+  await expect(deleteAll).toHaveText("");
+  await expect(deleteAll.locator("svg")).toHaveCount(1);
+  await expect(deleteAll).toHaveAttribute("data-tooltip", STRINGS.deleteAllSessions);
+  expect(await lastPosted(page, "deleteAllSessions")).toBeUndefined();
   await deleteAll.click();
-  expect(await lastPosted(page, "deleteAllSessions")).toBeUndefined();
-  const confirm = dialog.getByRole("group", { name: STRINGS.confirmDeleteAll });
-  await expect(confirm).toContainText(STRINGS.confirmDeleteAllDetail);
-  await expect(dialog.getByRole("button", { name: STRINGS.cancel })).toBeFocused();
-  await page.keyboard.press("Escape");
-  await expect(confirm).toHaveCount(0);
-  expect(await lastPosted(page, "deleteAllSessions")).toBeUndefined();
-
-  await dialog.getByRole("button", { name: STRINGS.deleteAllSessions }).click();
-  await dialog.getByRole("button", { name: STRINGS.deleteAllSessions, exact: true }).click();
   expect(await lastPosted(page, "deleteAllSessions")).toEqual({ type: "deleteAllSessions" });
-  await expect(dialog.getByRole("group", { name: STRINGS.confirmDeleteAll })).toHaveCount(0);
 });
 
 test("session list: delete all follows the list being empty or not", async ({ page }) => {

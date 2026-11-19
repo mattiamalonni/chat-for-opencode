@@ -1350,8 +1350,18 @@ export class ChatController implements vscode.Disposable {
         if (msg.id === this.sessionId) await this.newSession();
         else await this.refreshSessions();
         return;
-      case "deleteAllSessions":
+      case "deleteAllSessions": {
+        const answer = await vscode.window.showWarningMessage(
+          vscode.l10n.t("Delete all sessions?"),
+          {
+            modal: true,
+            detail: vscode.l10n.t("Every session in this workspace will be permanently removed. This cannot be undone."),
+          },
+          vscode.l10n.t("Delete all"),
+        );
+        if (answer === undefined) return;
         return this.deleteAllSessions();
+      }
       case "renameSession": {
         if (!this.client) return;
         const title = msg.title.trim();

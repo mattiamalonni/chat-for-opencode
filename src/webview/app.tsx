@@ -716,7 +716,6 @@ function SessionList(props: {
 }) {
   const t = useT();
   const [confirm, setConfirm] = useState<string | undefined>();
-  const [confirmAll, setConfirmAll] = useState(false);
   const [renaming, setRenaming] = useState<string | undefined>();
   const [draft, setDraft] = useState("");
   const ref = useRef<HTMLDivElement>(null);
@@ -727,7 +726,6 @@ function SessionList(props: {
   const closeInline = () => {
     setRenaming(undefined);
     setConfirm(undefined);
-    setConfirmAll(false);
     ref.current?.focus();
   };
   const saveRename = () => {
@@ -746,7 +744,7 @@ function SessionList(props: {
       onKeyDown={(e) => {
         if (e.key !== "Escape") return;
         e.stopPropagation();
-        if (renaming || confirm || confirmAll) closeInline();
+        if (renaming || confirm) closeInline();
         else props.onClose();
       }}
     >
@@ -858,44 +856,15 @@ function SessionList(props: {
       )}
       {props.sessions.length > 0 && (
         <div class="session-footer">
-          {confirmAll ? (
-            <div class="confirm session-confirm-all" role="group" aria-label={t("confirmDeleteAll")}>
-              <div class="inline-message">
-                <IconWarning class="inline-icon" />
-                <div class="inline-text">
-                  <span class="inline-question">{t("confirmDeleteAll")}</span>
-                  <span class="inline-session">{t("confirmDeleteAllDetail")}</span>
-                </div>
-              </div>
-              <div class="inline-actions">
-                <button type="button" class="secondary compact" onClick={closeInline} autoFocus>
-                  {t("cancel")}
-                </button>
-                <button
-                  type="button"
-                  class="primary danger compact"
-                  onClick={() => {
-                    post({ type: "deleteAllSessions" });
-                    closeInline();
-                  }}
-                >
-                  {t("deleteAllSessions")}
-                </button>
-              </div>
-            </div>
-          ) : (
-            <button
-              type="button"
-              class="session-delete-all"
-              onClick={() => {
-                setConfirm(undefined);
-                setRenaming(undefined);
-                setConfirmAll(true);
-              }}
-            >
-              <IconTrash /> {t("deleteAllSessions")}
-            </button>
-          )}
+          <button
+            type="button"
+            class="icon-button tooltip-host tooltip-above session-delete-all"
+            data-tooltip={t("deleteAllSessions")}
+            aria-label={t("deleteAllSessions")}
+            onClick={() => post({ type: "deleteAllSessions" })}
+          >
+            <IconTrash />
+          </button>
         </div>
       )}
     </div>
