@@ -31,7 +31,6 @@ import { Picker } from "./picker";
 import { clearReplyFailures, markReplyFailed } from "./replyFeedback";
 import { SubagentsContext, type SubagentEntry } from "./subagents";
 import { ActionButton, AssistantStatus, FileList, FormCard, MessageView, messageSearchText, PermissionCard, ToolCard, ToolGroup, TurnStatsRow } from "./messages";
-import { visibleRange, type VisibleRange } from "./virtual";
 import { hydrateDrafts, onHostMessage, post } from "./vscode";
 
 interface Catalog {
@@ -1178,10 +1177,6 @@ function itemSearchText(item: ConversationItem): string {
   }
 }
 
-// Messages are only measured after layout; a conservative estimate keeps the reserved space stable.
-const ESTIMATED_ROW_HEIGHT = 140;
-const OVERSCAN = 10;
-
 /** The folded intermediate steps of one finished turn, expandable on demand. */
 function TurnSteps({
   count,
@@ -1213,13 +1208,9 @@ function Conversation({ chat, scrollToken, searchQuery }: { chat: ReturnType<typ
   const ref = useRef<HTMLDivElement>(null);
   const stick = useRef(true);
   const lastId = useRef<string | undefined>(undefined);
-  const scrollFrame = useRef<number | undefined>(undefined);
   const [atBottom, setAtBottom] = useState(true);
   const items = useMemo(() => conversationItems(chat.messages, chat.turns), [chat.messages, chat.turns]);
   const query = searchQuery.trim().toLowerCase();
-  // Only long, unfiltered sessions are windowed. Short chats keep the exact same DOM as before.
-  const virtual = chat.messages.length > 40 && !query;
-  const [range, setRange] = useState<VisibleRange>({ start: 0, end: 0 });
 
   const scrollToEnd = () => {
     const el = ref.current;
@@ -1248,7 +1239,7 @@ function Conversation({ chat, scrollToken, searchQuery }: { chat: ReturnType<typ
 
   // Pin to the bottom only when the conversation actually grows (a streamed token, a new
   // message, a new card). This used to run after *every* render, so an unrelated state change
-  // (virtual window, tooltip direction, context chips, session refresh) yanked the view back
+  // (tooltip direction, context chips, session refresh) yanked the view back
   // down while the user was scrolling up through old history — the chat felt stuck to the
   // bottom. Comparing scroll heights also avoids fighting the user when content is replaced
   // rather than appended (e.g. steps folding into a summary).
@@ -1260,23 +1251,6 @@ function Conversation({ chat, scrollToken, searchQuery }: { chat: ReturnType<typ
     lastScrollHeight.current = el.scrollHeight;
     if (el.scrollHeight > previous && stick.current) el.scrollTop = el.scrollHeight;
   }, [chat.messages, chat.permissions, chat.forms, chat.retry, chat.busy, items.length]);
-
-  useEffect(
-    () => () => {
-      if (scrollFrame.current !== undefined) cancelAnimationFrame(scrollFrame.current);
-    },
-    [],
-  );
-
-  // Recompute the window when the conversation grows (or virtualization turns on). Scrolling is
-  // handled separately so a streaming message does not force a layout read on every token.
-  useEffect(() => {
-    if (!virtual) return;
-    const el = ref.current;
-    if (!el) return;
-    const next = visibleRange(items.length, el.scrollTop, el.clientHeight, ESTIMATED_ROW_HEIGHT, OVERSCAN);
-    setRange((prev) => (prev.start === next.start && prev.end === next.end ? prev : next));
-  }, [virtual, items.length]);
 
   // One pass over the conversation, recomputed only when permissions/forms/messages change —
   // not on every token that lands in an already-known message.
@@ -1349,8 +1323,6 @@ function Conversation({ chat, scrollToken, searchQuery }: { chat: ReturnType<typ
         );
     }
   };
-  const active = virtual && range.end > 0;
-  const visible = active ? items.slice(range.start, range.end) : items;
   return (
     <div class="conversation-wrap">
       <div
@@ -1360,27 +1332,11 @@ function Conversation({ chat, scrollToken, searchQuery }: { chat: ReturnType<typ
         aria-label={t("appName")}
         aria-busy={chat.busy}
         tabIndex={0}
-        style={
-          active
-            ? {
-                paddingTop: 8 + range.start * ESTIMATED_ROW_HEIGHT,
-                paddingBottom: 12 + (items.length - range.end) * ESTIMATED_ROW_HEIGHT,
-              }
-            : undefined
-        }
         onScroll={(e) => {
           const el = e.currentTarget as HTMLDivElement;
           const bottom = el.scrollHeight - el.scrollTop - el.clientHeight < 40;
           stick.current = bottom;
           setAtBottom((prev) => (prev === bottom ? prev : bottom));
-          if (!virtual || scrollFrame.current !== undefined) return;
-          scrollFrame.current = requestAnimationFrame(() => {
-            scrollFrame.current = undefined;
-            const node = ref.current;
-            if (!node) return;
-            const next = visibleRange(items.length, node.scrollTop, node.clientHeight, ESTIMATED_ROW_HEIGHT, OVERSCAN);
-            setRange((prev) => (prev.start === next.start && prev.end === next.end ? prev : next));
-          });
         }}
         onClick={onClick}
       >
@@ -1390,7 +1346,7 @@ function Conversation({ chat, scrollToken, searchQuery }: { chat: ReturnType<typ
           <p>{t("welcomeBody")}</p>
         </div>
       )}
-      {visible.map((item) => renderItem(item, query))}
+      {items.map((item) => renderItem(item, query))}
       {orphanP.map((p) => <PermissionCard key={p.id} request={p} />)}
       {orphanF.map((f) => <FormCard key={f.id} form={f} />)}
       {chat.busy && chat.messages.at(-1)?.kind !== "assistant" && (

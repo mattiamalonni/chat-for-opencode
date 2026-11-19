@@ -10,8 +10,10 @@
   sessions, confirmed by a native VS Code dialog. It removes every session in the workspace folder
   (not just the loaded page), clears their drafts and per-chat settings, and leaves an empty chat
   ready for a new prompt.
-- Fixed the chat snapping back to the bottom on unrelated re-renders (tooltips, context updates or
-  virtual window changes); it now pins to the bottom only when the conversation actually grows.
+- Fixed the chat snapping back to the bottom on unrelated re-renders (tooltips, context updates);
+  it now pins to the bottom only when the conversation actually grows.
+- Removed message virtualization: every message is now rendered in the DOM instead of just the
+  scrolled window, so scrolling no longer depends on estimated row heights or reserved padding.
 - Streaming and rendering were optimized: adjacent deltas are coalesced before reducing and turn
   merging is now linear, so long conversations stay responsive while the agent streams. Resource
   cleanup and event guards were tightened so malformed payloads cannot blank the chat view.

@@ -431,7 +431,7 @@ test("a new prompt follows the latest message even after scrolling up", async ({
 test("scrolling up near the bottom is not snapped back by unrelated re-renders", async ({ page }) => {
   await page.setViewportSize({ width: 420, height: 500 });
   await boot(page);
-  // A long, windowed history: the virtual range changes as we scroll, which re-renders the app.
+  // A long history so the conversation is scrollable.
   await openSession(page, S1, fixture("real-sse1.jsonl"));
   const conversation = page.locator(".conversation");
   await expect.poll(async () => conversation.evaluate((el) => el.scrollHeight > el.clientHeight)).toBe(true);
