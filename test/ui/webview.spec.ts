@@ -1325,6 +1325,36 @@ test("the changed-files refresh button has an instant tooltip and still refreshe
   expect(await lastPosted(page, "refreshChanges")).toEqual({ type: "refreshChanges" });
 });
 
+test("the changed-files header shows the count first, without the +/- icon", async ({ page }) => {
+  await boot(page);
+  const file = (name: string) => ({ file: name, patch: "@@", additions: 1, deletions: 1, status: "modified" as const });
+  await host(page, { type: "changedFiles", files: [file("src/a.txt")] });
+  const summary = page.locator(".panel.changes > summary");
+  await expect(summary).toContainText("1 Changed file");
+  // Only the disclosure chevron remains as a direct-child icon.
+  expect(await summary.locator(":scope > svg").count()).toBe(1);
+
+  await host(page, { type: "changedFiles", files: [file("src/a.txt"), file("src/b.txt")] });
+  await expect(summary).toContainText("2 Changed files");
+});
+
+test("the changed-files view-all button opens one diff with every session file", async ({ page }) => {
+  await boot(page);
+  const files = [
+    { file: "src/a.txt", patch: "@@ -1 +1 @@\n-a\n+b\n", additions: 1, deletions: 1, status: "modified" as const },
+    { file: "src/b.txt", patch: "@@ -1 +1 @@\n-c\n+d\n", additions: 1, deletions: 1, status: "modified" as const },
+  ];
+  await host(page, { type: "changedFiles", files });
+  const button = page.locator(".panel.changes > summary .view-all-changes");
+  await expect(button).toBeVisible();
+  await expect(button).toHaveAttribute("aria-label", STRINGS.viewAllChanges);
+  await button.click();
+  expect(await lastPosted(page, "openDiffs")).toEqual({
+    type: "openDiffs",
+    files: files.map((f) => ({ file: f.file, patch: f.patch })),
+  });
+});
+
 test("the changed-files check button hides the panel until the changes change", async ({ page }) => {
   await boot(page);
   const file = (name: string) => ({ file: name, patch: "@@", additions: 1, deletions: 1, status: "modified" as const });

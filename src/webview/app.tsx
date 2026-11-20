@@ -1488,7 +1488,23 @@ function ChangesPanel({ files, onDismiss }: { files: FileDiff[]; onDismiss: () =
     <details class="panel changes">
       <summary>
         <IconChevron class="chevron" />
-        <IconDiff /> {t("changedFiles")} ({files.length})
+        {files.length === 1 ? t("changedFile", files.length) : t("changedFiles", files.length)}
+        <button
+          type="button"
+          class="icon-button tooltip-host view-all-changes"
+          data-tooltip={t("viewAllChanges")}
+          aria-label={t("viewAllChanges")}
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            post({
+              type: "openDiffs",
+              files: files.filter((f) => f.patch).map((f) => ({ file: f.file, patch: f.patch })),
+            });
+          }}
+        >
+          <IconDiff />
+        </button>
         <button
           type="button"
           class="icon-button tooltip-host refresh-changes"
