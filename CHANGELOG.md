@@ -2,6 +2,20 @@
 
 ## Unreleased
 
+- Fixed **Stop Server leaving the chat unusable**. The command only disposed the server registry, so
+  the controller kept a dead connection and its SSE stream reconnected forever to a closed port.
+  It now tears down the stream and client as well, shows a disconnected state and reconnects
+  automatically on the next prompt.
+- Fixed **turn edit counts disappearing after a resync**. When the server history included token
+  usage, the reconciled turn replaced the live one and lost the insertions/deletions captured from
+  completed tool calls. The counts and files are now carried over instead of overwritten.
+- Fixed **cancelling a question leaving the turn open**: the summary bar now appears and the step
+  folds shut even when the server sends no terminal event.
+- Fixed **required multi-select questions being submittable with nothing selected**.
+- Hardened error details against leaking the managed server password when OpenCode prints it on
+  stderr, and stopped a crafted reply from smuggling in a `data-action="copy-code"` button.
+- Smaller fixes: no unhandled rejection when posting to a disposed webview, no redundant reload of
+  file-icon fonts on every icon reply, and localized strings used for the rollback announcement.
 - The **Changed files** panel is now scoped to the open session. OpenCode's session diff reaches
   the current HEAD, so a session that sat idle while another chat committed work used to list those
   other files as its own; now only paths this session actually edited are shown, with the server's

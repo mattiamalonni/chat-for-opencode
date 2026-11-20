@@ -488,4 +488,16 @@ describe("chat-for-opencode extension", () => {
     assert.equal(reverted.sessionId, sid);
     assert.equal(reverted.text, "turn one");
   });
+
+  it("stops the server cleanly and reconnects on the next prompt", async () => {
+    const oldUrl = controller.debugState.baseUrl;
+    const mark = posted.length;
+    await vscode.commands.executeCommand("opencode.stopServer");
+    await waitFor(() => controller.debugState.status === "idle" && !controller.debugState.baseUrl, "stopped");
+    assert.notEqual(lastPosted("connection", mark)?.status, "reconnecting");
+    const afterStop = posted.length;
+    await controller.receive({ type: "send", text: "after stop", attachments: [], context: [] });
+    await waitFor(() => controller.debugState.status === "connected" && controller.debugState.baseUrl !== oldUrl, "reconnected on send");
+    await waitFor(() => eventPosted("session.execution.succeeded", afterStop), "prompt after the stop succeeded");
+  });
 });

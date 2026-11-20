@@ -86,6 +86,10 @@ export function App() {
   const [announcement, setAnnouncement] = useState({ text: "", seq: 0 });
   // A live region only announces when its text changes: repeating the same string is silent.
   const announce = (text: string) => setAnnouncement((prev) => ({ text, seq: prev.seq + 1 }));
+  // The host-message listener below is installed once; read current strings through a ref so a
+  // later `init` with translations is not shadowed by the first render's defaults.
+  const stringsRef = useRef(strings);
+  stringsRef.current = strings;
   const [dropping, setDropping] = useState(false);
   const [dropzoneEnabled, setDropzoneEnabled] = useState(true);
   const dragDepth = useRef(0);
@@ -221,7 +225,7 @@ export function App() {
           setDraft(msg.text, msg.sessionId);
           setRestoredDraft((prev) => ({ text: msg.text, token: (prev?.token ?? 0) + 1 }));
           post({ type: "saveDraft", sessionId: msg.sessionId, text: msg.text });
-          announce(strings.revertDone);
+          announce(stringsRef.current.revertDone);
           break;
         case "focusInput":
           setFocusToken((n) => n + 1);

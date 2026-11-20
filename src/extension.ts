@@ -137,7 +137,9 @@ export function activate(context: vscode.ExtensionContext): ExtensionApi {
     }),
     vscode.commands.registerCommand("opencode.showLogs", () => output.show(true)),
     vscode.commands.registerCommand("opencode.setServerPassword", () => chat.setPassword()),
-    vscode.commands.registerCommand("opencode.stopServer", () => registry?.reset()),
+    // Reset only the registry would leave the controller holding a disposed handle and an SSE
+    // stream reconnecting to a dead port; tear down the whole connection through the controller.
+    vscode.commands.registerCommand("opencode.stopServer", () => chat.stopServer()),
     vscode.workspace.onDidChangeConfiguration((e) => {
       if (
         e.affectsConfiguration("opencode.executablePath") ||

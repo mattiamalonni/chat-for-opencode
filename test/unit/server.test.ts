@@ -67,6 +67,19 @@ describe.skipIf(isWindows)("ManagedServer", () => {
     expect((err as { detail?: string }).detail).toContain("simulated startup failure");
   });
 
+  it("redacts the password from stderr before exposing it as error detail", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "oc-fake-"));
+    const file = join(dir, "opencode");
+    writeFileSync(file, '#!/bin/sh\necho "server password $OPENCODE_PASSWORD leaked" >&2\nexit 1\n');
+    chmodSync(file, 0o755);
+    const { server } = make(file);
+    const err = await server.ensure().catch((e: unknown) => e);
+    expect(err).toMatchObject({ kind: "startFailed" });
+    const detail = (err as { detail?: string }).detail ?? "";
+    expect(detail).toContain("server password ***");
+    expect(detail).not.toMatch(/server password\s+[A-Za-z0-9+/=]{16,}/);
+  });
+
   it("restarts automatically after a crash and stops cleanly", async () => {
     const { server } = make(fakeOpencode());
     const first = await server.ensure();

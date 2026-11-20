@@ -508,9 +508,15 @@ function mergeTurns(current: TurnStats[], incoming: TurnStats[]): TurnStats[] {
     if (at === undefined) {
       indexById.set(t.id, merged.length);
       merged.push(t);
-    } else {
-      merged[at] = t;
+      continue;
     }
+    // The tail wins for tokens/steps/end, but history often drops completed tools' `metadata.files`.
+    // Keep the file counts captured live instead of replacing the whole turn with a stateless one.
+    const previous = merged[at];
+    const additions = Math.max(previous.additions ?? 0, t.additions ?? 0);
+    const deletions = Math.max(previous.deletions ?? 0, t.deletions ?? 0);
+    const files = t.files?.length ? t.files : previous.files;
+    merged[at] = additions || deletions || files?.length ? { ...t, additions, deletions, files } : t;
   }
   return merged;
 }
@@ -1010,7 +1016,7 @@ export function applyEvent(state: ChatState, event: ServerEvent): ChatState {
       // terminal execution event, so settle the turn and unlock the composer here as well
       // (defence in depth with the controller's local idle status).
       const s = finishAll(state);
-      return { ...s, forms: s.forms.filter((f) => f.id !== id), busy: false, retry: undefined };
+      return { ...s, forms: s.forms.filter((f) => f.id !== id), busy: false, retry: undefined, turns: endTurn(state, created) };
     }
     default:
       return state;

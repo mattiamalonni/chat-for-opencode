@@ -229,7 +229,9 @@ export class ManagedServer extends BaseServer {
 
       child.stderr?.setEncoding("utf8");
       child.stderr?.on("data", (chunk: string) => {
-        stderrTail = (stderrTail + chunk).slice(-4000);
+        // Redact the accumulated tail before it can reach ServerError.detail → the chat UI.
+        // A credential split across two chunks is caught because we redact before slicing.
+        stderrTail = redact(stderrTail + chunk, password).slice(-4000);
         for (const line of chunk.split(/\r?\n/)) if (line.trim()) log(`[server:stderr] ${redact(line, password)}`);
       });
 

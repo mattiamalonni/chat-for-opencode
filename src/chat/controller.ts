@@ -371,7 +371,8 @@ export class ChatController implements vscode.Disposable {
   private readonly postListeners = new Set<(msg: HostMessage) => void>();
 
   post(msg: HostMessage): void {
-    void this.view?.webview.postMessage(msg);
+    // A long-running load/resync can outlive the view; postMessage rejects on a disposed webview.
+    void this.view?.webview.postMessage(msg).then(undefined, () => undefined);
     for (const l of this.postListeners) l(msg);
   }
 
@@ -1364,7 +1365,8 @@ export class ChatController implements vscode.Disposable {
     }
   }
 
-  async resetServers(): Promise<void> {
+  /** Tears down the server/stream/client without binding a new connection. */
+  private async detachServers(): Promise<void> {
     this.connectGen.bump();
     this.connecting = undefined;
     this.loadGen.bump();
@@ -1378,7 +1380,17 @@ export class ChatController implements vscode.Disposable {
     this.serverSub = undefined;
     this.server = undefined;
     await this.registry.reset();
+  }
+
+  async resetServers(): Promise<void> {
+    await this.detachServers();
     if (this.view) await this.connect();
+  }
+
+  /** The "Stop Server" command: stop for good, no immediate reconnect. The next prompt reconnects. */
+  async stopServer(): Promise<void> {
+    await this.detachServers();
+    this.setStatus("idle");
   }
 
   async switchFolder(folder: vscode.WorkspaceFolder | undefined): Promise<void> {

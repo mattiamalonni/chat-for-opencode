@@ -156,4 +156,6 @@ hunks only (`hunksSides`, with a `===== file =====` header per file) and opens o
 * Managed server password: random 32 bytes per spawn, kept in memory only.
   External server password: `SecretStorage`.
 * Server is bound to `127.0.0.1`.
-* Permissions and questions are never auto-answered.
+* Permissions and questions are only auto-answered when the user explicitly opts in
+  (`opencode.autoApprovePermissions` or the per-chat toggle); both default to off. Questions
+  (forms) always require a user answer, even with auto-approval enabled.

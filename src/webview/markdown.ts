@@ -94,9 +94,14 @@ export function renderMarkdown(source: string): string {
   // survive as a clickable local-file link. FORBID_ATTR is defence in depth for the same reason.
   const clean = DOMPurify.sanitize(raw, {
     FORBID_TAGS: ["style", "form", "input", "textarea", "select", "iframe"],
-    FORBID_ATTR: ["style", "data-file"],
+    // Our code-block buttons get `data-action` back in the DOM pass below. Forbidding it here
+    // stops a reply from smuggling in a fake "Copy" button that copies attacker-chosen text.
+    FORBID_ATTR: ["style", "data-file", "data-action"],
   });
   const dom = new DOMParser().parseFromString(clean, "text/html");
+  for (const button of dom.body.querySelectorAll<HTMLElement>(".code-block .code-header .code-copy")) {
+    button.dataset.action = "copy-code";
+  }
   linkifyFileRefs(dom.body);
   const html = dom.body.innerHTML;
   cache.set(source, html);

@@ -60,7 +60,9 @@ const store = {
   version: 0,
 };
 const listeners = new Set<() => void>();
-const addedFonts = new Map<string, FontFace>();
+/** Last definition requested per id, plus its loaded face, so unchanged replies don't reload it. */
+const addedFonts = new Map<string, { font: FileIconFont; face: FontFace }>();
+const fontGen = new Map<string, number>();
 let pending = new Set<string>();
 let scheduled = false;
 
@@ -69,18 +71,27 @@ function notify(): void {
   for (const listener of listeners) listener();
 }
 
+function sameFont(a: FileIconFont | undefined, b: FileIconFont): boolean {
+  return !!a && a.family === b.family && a.src === b.src && a.format === b.format && a.weight === b.weight && a.style === b.style;
+}
+
 function registerFont(id: string, font: FileIconFont): void {
   if (typeof FontFace === "undefined" || !document.fonts) return;
-  const previous = addedFonts.get(id);
+  const current = addedFonts.get(id);
+  if (sameFont(current?.font, font)) return;
+  const generation = (fontGen.get(id) ?? 0) + 1;
+  fontGen.set(id, generation);
   const face = new FontFace(font.family, `url("${font.src}")`, {
     weight: font.weight ?? "normal",
     style: font.style ?? "normal",
   });
-  if (previous) document.fonts.delete(previous);
   void face.load().then(
     () => {
+      // Each icon reply carries all fonts; ignore a load that lost a race to a newer definition.
+      if (fontGen.get(id) !== generation) return;
+      if (current) document.fonts.delete(current.face);
       document.fonts.add(face);
-      addedFonts.set(id, face);
+      addedFonts.set(id, { font, face });
       notify();
     },
     () => undefined,

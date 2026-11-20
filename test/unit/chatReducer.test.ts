@@ -107,18 +107,21 @@ describe("chatReducer with recorded opencode 2.2.7 streams", () => {
     let state = chatReducer(open(S2), {
       type: "events",
       events: [
+        { type: "session.inbox.enqueued", created: 100, data: { sessionID: S2, inboxID: "u1", item: { type: "user", payload: { text: "hi" } } } },
         { type: "session.execution.started", data: { sessionID: S2 } },
         { type: "form.created", data: { sessionID: S2, form } },
       ],
     });
     expect(state.busy).toBe(true);
     expect(state.forms).toHaveLength(1);
+    expect(state.turns.at(-1)?.ended).toBeUndefined();
     state = chatReducer(state, {
       type: "event",
-      event: { type: "form.cancelled", data: { sessionID: S2, id: form.id } },
+      event: { type: "form.cancelled", created: 200, data: { sessionID: S2, id: form.id } },
     });
     expect(state.forms).toHaveLength(0);
     expect(state.busy).toBe(false);
+    expect(state.turns.at(-1)?.ended).toBe(200);
   });
 
   it("marks interrupted executions and stops being busy", () => {
@@ -696,6 +699,9 @@ describe("changed-file selectors", () => {
       model: { id: "m", providerID: "p" },
       time: { created: 1100, completed: 1500 },
       content: [{ type: "tool", id: "t1", name: "edit", state: { status: "completed", input: {}, content: [], metadata: { status: "completed" } } }],
+      // Real assistant history carries tokens, so `turnsFromHistory` emits a turn for this id and
+      // the resync must merge its live-captured file counts instead of replacing the whole turn.
+      tokens: { input: 1, output: 1, reasoning: 0, cache: { read: 0, write: 0 } },
     };
     const resynced = chatReducer(live, {
       type: "append",

@@ -796,6 +796,9 @@ export function initialValue(f: FormField): FormValue | undefined {
 function isMissing(f: FormField, v: FormValue | undefined): boolean {
   if (f.type === "external") return false;
   if (v === undefined || v === "") return true;
+  // `initialValue` gives multiselects an empty array, so a required one must not be submittable
+  // before the user has picked anything.
+  if (f.type === "multiselect" && Array.isArray(v) && v.length === 0) return true;
   return (f.type === "number" || f.type === "integer") && typeof v === "number" && !Number.isFinite(v);
 }
 

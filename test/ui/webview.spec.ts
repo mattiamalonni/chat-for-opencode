@@ -989,6 +989,39 @@ test("question forms render options and submit the answer", async ({ page }) => 
   expect(await lastPosted(page, "formReply")).toMatchObject({ answer: { q0: "Blue" } });
 });
 
+test("a required multiselect question needs at least one choice before submit", async ({ page }) => {
+  await boot(page);
+  await host(page, {
+    type: "session",
+    session: {
+      id: "ses_required_multi",
+      busy: true,
+      messages: [],
+      permissions: [],
+      forms: [{
+        id: "frm_required_multi",
+        sessionID: "ses_required_multi",
+        title: "Questions",
+        metadata: { kind: "question" },
+        fields: [{
+          key: "q0",
+          type: "multiselect",
+          title: "Pick at least one",
+          required: true,
+          options: [{ value: "a", label: "Alpha" }, { value: "b", label: "Beta" }],
+        }],
+      }],
+    },
+  });
+  const form = page.locator(".attention-overlay form.card.question");
+  const submit = form.getByRole("button", { name: STRINGS.submit });
+  await expect(submit).toBeDisabled();
+  await form.getByLabel("Alpha").check();
+  await expect(submit).toBeEnabled();
+  await submit.click();
+  expect(await lastPosted(page, "formReply")).toMatchObject({ answer: { q0: ["a"] } });
+});
+
 test("multi-question forms are asked one at a time and answered with a single reply", async ({ page }) => {
   await boot(page);
   await host(page, {
@@ -2115,6 +2148,20 @@ test("crafted data-file HTML in a reply is not a clickable file link", async ({ 
   const links = page.locator(".conversation a[data-file]");
   await expect(links).toHaveCount(1);
   expect(await links.first().getAttribute("data-file")).toContain("src/app.ts:42");
+});
+
+test("crafted copy-code HTML in a reply is not a clickable copy button", async ({ page }) => {
+  await boot(page);
+  const base = { sessionID: S1, assistantMessageID: "a1" };
+  await openSession(page, S1, [
+    { type: "session.inbox.enqueued", data: { sessionID: S1, inboxID: "u1", item: { type: "user", payload: { text: "hi" } } } },
+    { type: "session.step.started", data: base },
+    {
+      type: "session.text.ended",
+      data: { ...base, ordinal: 0, text: '<div><button type="button" data-action="copy-code">Fake copy</button><code>secret</code></div>' },
+    },
+  ]);
+  await expect(page.locator(".conversation [data-action='copy-code']")).toHaveCount(0);
 });
 
 test("every turn has a rollback button that targets its own prompt and restores it", async ({ page }) => {
