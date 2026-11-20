@@ -198,17 +198,31 @@ function StatsRow({ stats }: { stats: TurnStats }) {
   const tokens = total && total > 0 ? t("tokens", formatTokens(total)) : undefined;
   const cost = stats.cost !== undefined && stats.cost > 0 ? `$${stats.cost.toFixed(stats.cost < 0.01 ? 4 : 2)}` : undefined;
   const shown = [steps, duration, tokens, cost].filter((x): x is string => x !== undefined);
-  const tooltip = t(
+  const additions = stats.additions ?? 0;
+  const deletions = stats.deletions ?? 0;
+  const hasChanges = additions > 0 || deletions > 0;
+  const baseTooltip = t(
     "turnStatsTooltip",
     duration,
     tokens ?? t("turnStatsUnknown"),
     cost ?? t("turnStatsUnknown"),
     steps ?? t("turnStatsUnknown"),
   );
+  const tooltip = hasChanges ? `${baseTooltip} · ${t("turnStatsChanges", additions, deletions)}` : baseTooltip;
   return (
     <div class="turn-stats tooltip-host tooltip-above" role="img" aria-label={tooltip} data-tooltip={tooltip}>
       <span class="turn-stats-line" aria-hidden="true" />
-      <span class="turn-stats-text">{shown.join(" · ")}</span>
+      <span class="turn-stats-text">
+        {shown.join(" · ")}
+        {hasChanges && (
+          <>
+            {shown.length > 0 ? " · " : ""}
+            {additions > 0 && <span class="adds">+{additions}</span>}
+            {additions > 0 && deletions > 0 ? " " : ""}
+            {deletions > 0 && <span class="dels">-{deletions}</span>}
+          </>
+        )}
+      </span>
       <span class="turn-stats-line" aria-hidden="true" />
     </div>
   );

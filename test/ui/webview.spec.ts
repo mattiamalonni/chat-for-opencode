@@ -1539,6 +1539,68 @@ test("a finished turn shows one total for all its steps", async ({ page }) => {
   await page.screenshot({ path: join(SHOTS, "13-turn-stats-dark.png") });
 });
 
+test("a finished turn shows insertions and deletions from its file edits", async ({ page }) => {
+  await boot(page);
+  await host(page, { type: "session", session: { id: "ses_edits", busy: false, messages: [], permissions: [], forms: [] } });
+  const sid = "ses_edits";
+  const base = { sessionID: sid, assistantMessageID: "m1" };
+  const events: ServerEvent[] = [
+    { type: "session.inbox.enqueued", created: 1000, data: { sessionID: sid, inboxID: "u1", item: { type: "user", payload: { text: "edit files" } } } },
+    { type: "session.execution.started", created: 1010, data: { sessionID: sid } },
+    { type: "session.step.started", created: 1100, data: { ...base, agent: "build" } },
+    { type: "session.tool.input.started", created: 1200, data: { ...base, id: "t1", name: "edit" } },
+    { type: "session.tool.called", created: 1250, data: { ...base, id: "t1", input: {} } },
+    {
+      type: "session.tool.success",
+      created: 1300,
+      data: {
+        ...base,
+        id: "t1",
+        content: [{ type: "text", text: "ok" }],
+        metadata: {
+          files: [
+            { file: "a.ts", patch: "@@", additions: 4, deletions: 2, status: "modified" },
+            { file: "b.ts", patch: "@@", additions: 3, deletions: 0, status: "added" },
+          ],
+        },
+      },
+    },
+    { type: "session.step.ended", created: 1500, data: { ...base, finish: "stop", tokens: { input: 10, output: 5, reasoning: 0, cache: { read: 0, write: 0 } } } },
+  ];
+  for (const event of events) await host(page, { type: "event", event });
+  const stats = page.locator(".turn-stats");
+  await expect(stats).toHaveCount(0);
+  await host(page, { type: "event", event: { type: "session.execution.succeeded", created: 1600, data: { sessionID: sid } } });
+  await expect(stats).toHaveCount(1);
+  await expect(stats.locator(".adds")).toHaveText("+7");
+  await expect(stats.locator(".dels")).toHaveText("-2");
+  await expect(stats).toHaveAttribute("data-tooltip", /Insertions: 7 · Deletions: 2/);
+
+  // A reconcile replaces the live tool parts with server history, which may drop `metadata.files`.
+  // The counts captured when the edits happened must survive that resync.
+  await host(page, {
+    type: "sessionDelta",
+    delta: {
+      sessionId: sid,
+      messages: [
+        { id: "u1", type: "user", text: "edit files", time: { created: 1000 } },
+        {
+          id: "m1",
+          type: "assistant",
+          agent: "build",
+          model: { id: "m", providerID: "p" },
+          time: { created: 1100, completed: 1500 },
+          content: [{ type: "tool", id: "t1", name: "edit", state: { status: "completed", input: {}, content: [], metadata: { status: "completed", truncated: false } } }],
+        },
+        { id: "idle1", type: "idle", outcome: "succeeded", time: { created: 1600 } },
+      ],
+    },
+  });
+  await expect(stats).toHaveCount(1);
+  await expect(stats.locator(".adds")).toHaveText("+7");
+  await expect(stats.locator(".dels")).toHaveText("-2");
+});
+
 test("question options stack title above description in one column", async ({ page }) => {
   await boot(page);
   const form = {

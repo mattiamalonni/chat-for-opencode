@@ -86,6 +86,9 @@ export interface TurnStats {
   cost?: number;
   /** Number of LLM steps in the turn (one assistant message per step). */
   steps?: number;
+  /** Insertions/deletions reported by completed file edits in this turn (per-file, latest patch wins). */
+  additions?: number;
+  deletions?: number;
 }
 
 export interface ChatState {
@@ -360,6 +363,39 @@ function addTokens(base: TokenUsage | undefined, extra: TokenUsage | undefined):
   };
 }
 
+interface FileCounts {
+  additions: number;
+  deletions: number;
+}
+
+/** Merges the files reported by one tool's metadata into a per-turn, deduplicated accumulator. */
+function addFileChanges(acc: Map<string, FileCounts>, metadata: unknown): void {
+  if (!metadata || typeof metadata !== "object") return;
+  const files = (metadata as { files?: unknown }).files;
+  if (!Array.isArray(files)) return;
+  for (const f of files) {
+    if (!f || typeof f !== "object") continue;
+    const name = (f as { file?: unknown }).file;
+    if (typeof name !== "string") continue;
+    acc.set(name, {
+      additions: Number((f as { additions?: unknown }).additions) || 0,
+      deletions: Number((f as { deletions?: unknown }).deletions) || 0,
+    });
+  }
+}
+
+function setFileCounts(turn: TurnStats | undefined, acc: Map<string, FileCounts>): void {
+  if (!turn || acc.size === 0) return;
+  let additions = 0;
+  let deletions = 0;
+  for (const v of acc.values()) {
+    additions += v.additions;
+    deletions += v.deletions;
+  }
+  turn.additions = additions;
+  turn.deletions = deletions;
+}
+
 /**
  * Rebuilds one summary per turn from history. A user message opens a turn, the assistant
  * messages that follow are its steps, and an idle (or the next user message) closes it.
@@ -370,11 +406,14 @@ function turnsFromHistory(messages: SessionMessage[], alreadySorted = false): Tu
   const sorted = alreadySorted ? messages : [...messages].sort((a, b) => a.time.created - b.time.created || cmp(a.id, b.id));
   const turns: TurnStats[] = [];
   let current: TurnStats | undefined;
+  let currentFiles = new Map<string, FileCounts>();
   let lastCompleted: number | undefined;
   for (const m of sorted) {
     if (m.type === "user") {
       if (current && current.ended === undefined) current.ended = m.time.created;
+      setFileCounts(current, currentFiles);
       current = { id: m.id, started: m.time.created };
+      currentFiles = new Map();
       lastCompleted = undefined;
       turns.push(current);
     } else if (m.type === "assistant" && current) {
@@ -382,13 +421,18 @@ function turnsFromHistory(messages: SessionMessage[], alreadySorted = false): Tu
       current.steps = (current.steps ?? 0) + 1;
       if (typeof m.cost === "number") current.cost = (current.cost ?? 0) + m.cost;
       if (m.time.completed !== undefined) lastCompleted = Math.max(lastCompleted ?? 0, m.time.completed);
+      for (const c of m.content) {
+        if (c.type === "tool" && c.state.status === "completed") addFileChanges(currentFiles, c.state.metadata);
+      }
     } else if (m.type === "idle" && current) {
       current.ended = m.time.created;
+      setFileCounts(current, currentFiles);
       current = undefined;
     }
   }
   // The last turn may have no idle entry yet; the assistant's completion time is the next best end.
   if (current && current.ended === undefined && lastCompleted !== undefined) current.ended = lastCompleted;
+  setFileCounts(current, currentFiles);
   return turns.filter((t) => t.ended !== undefined && t.tokens !== undefined);
 }
 
@@ -411,6 +455,22 @@ function withOpenTurn(state: ChatState, update: (t: TurnStats) => TurnStats): Tu
     }
   }
   return state.turns;
+}
+
+/**
+ * Captures file-edit counts on the open turn from the live tool parts. They are stored on the
+ * TurnStats so a later reconcile — which replaces live messages with server history that may omit
+ * `metadata.files` — cannot wipe them. Never decreases a count already captured.
+ */
+function withLiveFileChanges(state: ChatState): ChatState {
+  const open = state.turns.find((t) => t.ended === undefined);
+  if (!open) return state;
+  const msgs = state.messages.filter((m): m is UiAssistantMessage => m.kind === "assistant" && m.created >= open.started);
+  const derived = selectTurnFileChanges(msgs);
+  const additions = Math.max(open.additions ?? 0, derived.additions);
+  const deletions = Math.max(open.deletions ?? 0, derived.deletions);
+  if (additions === (open.additions ?? 0) && deletions === (open.deletions ?? 0)) return state;
+  return { ...state, turns: withOpenTurn(state, (t) => ({ ...t, additions, deletions })) };
 }
 
 function endTurn(state: ChatState, ended: number): TurnStats[] {
@@ -789,7 +849,7 @@ export function applyEvent(state: ChatState, event: ServerEvent): ChatState {
     case "session.tool.failed": {
       const id = str(d, "id");
       const failed = event.type === "session.tool.failed";
-      return updateAssistant(state, msgId, (m) =>
+      const updated = updateAssistant(state, msgId, (m) =>
         updatePart(m, `tool:${id}`, (p) => {
           const t = toolPart(id, p);
           return {
@@ -801,6 +861,7 @@ export function applyEvent(state: ChatState, event: ServerEvent): ChatState {
           };
         }),
       );
+      return withLiveFileChanges(updated);
     }
     case "session.step.ended": {
       const tokens = d.tokens as TokenUsage | undefined;
@@ -982,6 +1043,28 @@ export function selectToolChangedFiles(state: ChatState): FileDiff[] {
     }
   }
   return [...byFile.values()].sort((a, b) => a.file.localeCompare(b.file));
+}
+
+/**
+ * Insertions/deletions reported by the completed tools of a single turn. A file edited more than
+ * once in the same turn counts once, using its most recent patch — the same rule the session-wide
+ * `selectToolChangedFiles` uses. Works for both live and reloaded turns: tool parts keep `metadata`.
+ */
+export function selectTurnFileChanges(msgs: UiAssistantMessage[]): { additions: number; deletions: number } {
+  const byFile = new Map<string, ChangedFile>();
+  for (const m of msgs) {
+    for (const p of m.parts) {
+      if (p.kind !== "tool" || p.status !== "completed") continue;
+      for (const f of selectToolFiles(p)) byFile.set(f.file, f);
+    }
+  }
+  let additions = 0;
+  let deletions = 0;
+  for (const f of byFile.values()) {
+    additions += Number(f.additions) || 0;
+    deletions += Number(f.deletions) || 0;
+  }
+  return { additions, deletions };
 }
 
 /** Upper bound on remembered step paths; an unbounded list grows for the whole session lifetime. */

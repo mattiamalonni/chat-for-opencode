@@ -10,6 +10,7 @@ import {
   permissionsForTool,
   selectToolChangedFiles,
   selectTodos,
+  selectTurnFileChanges,
   sessionIsBusy,
   toSessionSummary,
   type ChatState,
@@ -536,6 +537,69 @@ describe("changed-file selectors", () => {
     const state = withToolFiles([file("a.ts", "modified", 1, 1)]);
     const authoritative = { ...file("a.ts", "added", 9, 0), status: "added" as const };
     expect(mergeChangedFiles([authoritative], state)).toEqual([authoritative]);
+  });
+
+  it("sums insertions/deletions for a turn, counting each file once with its latest patch", () => {
+    const state = withToolFiles([file("b.ts", "added", 2, 0)], [file("a.ts", "modified", 3, 1), file("b.ts", "added", 5, 0)]);
+    expect(selectTurnFileChanges(assistants(state))).toEqual({ additions: 8, deletions: 1 });
+  });
+
+  it("returns zero changes when the turn has no completed file edits", () => {
+    const assistant: AssistantMessage = {
+      id: "msg_1",
+      type: "assistant",
+      agent: "build",
+      model: { id: "m", providerID: "p" },
+      time: { created: 1 },
+      content: [{ type: "tool", id: "t", name: "edit", state: { status: "running", input: {}, metadata: { files: [file("pending.ts", "modified")] } } }],
+    };
+    expect(selectTurnFileChanges(assistants(open("s", [assistant])))).toEqual({ additions: 0, deletions: 0 });
+  });
+
+  it("keeps the counts captured live when a resync replaces the tool history", () => {
+    const sid = "ses_counts";
+    const base = { sessionID: sid, assistantMessageID: "m1" };
+    const events: ServerEvent[] = [
+      { type: "session.inbox.enqueued", created: 1000, data: { sessionID: sid, inboxID: "u1", item: { type: "user", payload: { text: "edit" } } } },
+      { type: "session.step.started", created: 1100, data: { ...base, agent: "build" } },
+      { type: "session.tool.input.started", created: 1200, data: { ...base, id: "t1", name: "edit" } },
+      { type: "session.tool.called", created: 1250, data: { ...base, id: "t1", input: {} } },
+      {
+        type: "session.tool.success",
+        created: 1300,
+        data: {
+          ...base,
+          id: "t1",
+          content: [],
+          metadata: { files: [file("a.ts", "modified", 4, 2), file("b.ts", "added", 3, 0)] },
+        },
+      },
+      { type: "session.step.ended", created: 1500, data: { ...base, finish: "stop", tokens: { input: 1, output: 1, reasoning: 0, cache: { read: 0, write: 0 } } } },
+      { type: "session.execution.succeeded", created: 1600, data: { sessionID: sid } },
+    ];
+    const live = chatReducer(open(sid), { type: "events", events });
+    expect(live.turns.at(-1)).toMatchObject({ additions: 7, deletions: 2 });
+
+    const history: AssistantMessage = {
+      id: "m1",
+      type: "assistant",
+      agent: "build",
+      model: { id: "m", providerID: "p" },
+      time: { created: 1100, completed: 1500 },
+      content: [{ type: "tool", id: "t1", name: "edit", state: { status: "completed", input: {}, content: [], metadata: { status: "completed" } } }],
+    };
+    const resynced = chatReducer(live, {
+      type: "append",
+      delta: {
+        sessionId: sid,
+        messages: [
+          { id: "u1", type: "user", text: "edit", time: { created: 1000 } },
+          history,
+          { id: "idle1", type: "idle", outcome: "succeeded", time: { created: 1600 } },
+        ],
+      },
+    });
+    expect(resynced.turns.some((t) => t.additions === 7 && t.deletions === 2)).toBe(true);
   });
 });
 

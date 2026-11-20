@@ -7,6 +7,7 @@ import {
   mergeChangedFiles,
   orphanCards,
   selectTodos,
+  selectTurnFileChanges,
   type TextPart,
   type ToolPart,
   type TurnStats,
@@ -1060,11 +1061,18 @@ type ConversationItem =
 function statsForTurn(turns: TurnStats[], msgs: UiAssistantMessage[]): TurnStats | undefined {
   const first = msgs[0]?.created;
   if (first === undefined) return undefined;
-  for (let i = turns.length - 1; i >= 0; i--) {
-    const t = turns[i];
-    if (t.ended !== undefined && t.started <= first && first <= t.ended) return t;
-  }
-  return undefined;
+  const matches = turns.filter((t) => t.ended !== undefined && t.started <= first && first <= t.ended);
+  if (matches.length === 0) return undefined;
+  // A reconcile can add a history turn covering the same window whose tool metadata omits the
+  // file counts. Prefer the turn that kept the counts captured live; fall back to whatever the
+  // current tool parts still report (e.g. a turn first seen mid-stream).
+  const kept = [...matches].reverse().find((t) => (t.additions ?? 0) > 0 || (t.deletions ?? 0) > 0) ?? matches[matches.length - 1];
+  const derived = selectTurnFileChanges(msgs);
+  return {
+    ...kept,
+    additions: Math.max(kept.additions ?? 0, derived.additions),
+    deletions: Math.max(kept.deletions ?? 0, derived.deletions),
+  };
 }
 
 /** Splits one step into always-visible prose and collapsible thoughts/tools. */
