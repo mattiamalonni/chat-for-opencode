@@ -1532,10 +1532,7 @@ test("a finished turn shows one total for all its steps", async ({ page }) => {
   await expect(stats).toContainText("505 tokens");
   await expect(stats).toContainText("$0.0030");
   await expect(stats).toContainText("2 steps");
-  await expect(stats).toHaveAttribute(
-    "data-tooltip",
-    "From input to the last step: 5.5s · Tokens (all steps): 505 tokens · Cost: $0.0030 · Steps: 2 steps",
-  );
+  await expect(stats).not.toHaveClass(/tooltip-host/);
   await page.screenshot({ path: join(SHOTS, "13-turn-stats-dark.png") });
 });
 
@@ -1574,7 +1571,7 @@ test("a finished turn shows insertions and deletions from its file edits", async
   await expect(stats).toHaveCount(1);
   await expect(stats.locator(".adds")).toHaveText("+7");
   await expect(stats.locator(".dels")).toHaveText("-2");
-  await expect(stats).toHaveAttribute("data-tooltip", /Insertions: 7 · Deletions: 2/);
+  await expect(stats).not.toHaveClass(/tooltip-host/);
   const openDiffs = { type: "openDiffs" as const, files: [{ file: "a.ts", patch: "@@" }, { file: "b.ts", patch: "@@" }] };
   await stats.locator(".turn-stats-changes").click();
   expect(await lastPosted(page, "openDiffs")).toEqual(openDiffs);

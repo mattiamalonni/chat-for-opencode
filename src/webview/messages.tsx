@@ -201,19 +201,15 @@ function StatsRow({ stats }: { stats: TurnStats }) {
   const additions = stats.additions ?? 0;
   const deletions = stats.deletions ?? 0;
   const hasChanges = additions > 0 || deletions > 0;
-  const baseTooltip = t(
-    "turnStatsTooltip",
-    duration,
-    tokens ?? t("turnStatsUnknown"),
-    cost ?? t("turnStatsUnknown"),
-    steps ?? t("turnStatsUnknown"),
-  );
   const openable = (stats.files ?? []).filter((f) => f.patch);
-  const tooltip = hasChanges
-    ? [baseTooltip, t("turnStatsChanges", additions, deletions), openable.length > 0 ? t("turnStatsOpenDiff") : undefined]
-        .filter(Boolean)
-        .join(" · ")
-    : baseTooltip;
+  // No visual tooltip on this bar; the label is only for screen readers.
+  const summaryLabel = [
+    t("turnStatsTooltip", duration, tokens ?? t("turnStatsUnknown"), cost ?? t("turnStatsUnknown"), steps ?? t("turnStatsUnknown")),
+    hasChanges ? t("turnStatsChanges", additions, deletions) : undefined,
+    openable.length > 0 ? t("turnStatsOpenDiff") : undefined,
+  ]
+    .filter(Boolean)
+    .join(" · ");
   const counts = (
     <>
       {additions > 0 && <span class="adds">+{additions}</span>}
@@ -222,7 +218,7 @@ function StatsRow({ stats }: { stats: TurnStats }) {
     </>
   );
   return (
-    <div class="turn-stats tooltip-host tooltip-above" role="group" aria-label={tooltip} data-tooltip={tooltip}>
+    <div class="turn-stats" role="group" aria-label={summaryLabel}>
       <span class="turn-stats-line" aria-hidden="true" />
       <span class="turn-stats-text">
         {shown.join(" · ")}
