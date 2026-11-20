@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.3.18 — 2026-11-20
 
 - Attachment chips on **already-sent prompts** now open their project file with a single click (or
   Enter), just like chips in the composer. The file must still exist in the workspace; selections
