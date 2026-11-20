@@ -11,9 +11,12 @@ test or a manual probe actually ran.
   `opencode serve` but drives the controller through its message API. `npm run test:integration:real:e2e`
   combines the two: real webview clicks plus a real server, waiting for the real streamed reply.
   A full VS Code quit/relaunch is still manual; see [MANUAL_TEST.md](MANUAL_TEST.md).
-- **Windows and Linux.** Everything ran on macOS (arm64). Windows-specific code paths
-  (`shell: true` spawn for `.cmd` shims, `taskkill /T` for shutdown, AltGr handling) are written
-  but untested on Windows. The `ManagedServer` unit tests are skipped on Windows.
+- **Windows and Linux.** Development and manual checks ran on macOS (arm64); CI runs lint, unit,
+  integration and packaging on `ubuntu-latest`, `macos-latest` and `windows-latest`, so the
+  Windows-specific paths (`.cmd` shims under `shell: true`, `taskkill /T`, AltGr handling) now have
+  automated coverage. The `ManagedServer` unit tests are no longer skipped on Windows. What is
+  still unverified is real human interaction on those OSes (see IME below) and the author's own
+  manual walkthrough.
 - **Real IME / Caps Lock on Windows.** IME behaviour is tested with synthetic composition events
   (`isComposing`, `keyCode 229`, `compositionend` before `Enter`) in Chromium, not with a real
   Japanese/Chinese IME, and the Windows Caps Lock IME toggle was not reproduced.

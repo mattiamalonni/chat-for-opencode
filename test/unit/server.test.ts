@@ -9,9 +9,18 @@ import { startMockServer, type MockServer } from "../mock/mockServer";
 
 const MOCK = join(__dirname, "../mock/mockServer.ts");
 
-/** A fake `opencode` executable that runs the mock server CLI. */
+/**
+ * A fake `opencode` executable that runs the mock server CLI. On Windows a `.cmd` shim is used
+ * because ManagedServer spawns through cmd.exe there; a POSIX shell script would be inert.
+ */
 function fakeOpencode(env = ""): string {
   const dir = mkdtempSync(join(tmpdir(), "oc-fake-"));
+  if (isWindows) {
+    const file = join(dir, "opencode.cmd");
+    const setEnv = env ? `set ${env}&& ` : "";
+    writeFileSync(file, `@echo off\r\n${setEnv}"${process.execPath}" --no-warnings "${MOCK}" %*\r\n`);
+    return file;
+  }
   const file = join(dir, "opencode");
   writeFileSync(file, `#!/bin/sh\n${env} exec "${process.execPath}" --no-warnings "${MOCK}" "$@"\n`);
   chmodSync(file, 0o755);
@@ -20,7 +29,7 @@ function fakeOpencode(env = ""): string {
 
 const isWindows = process.platform === "win32";
 
-describe.skipIf(isWindows)("ManagedServer", () => {
+describe("ManagedServer", () => {
   const servers: ManagedServer[] = [];
   afterEach(async () => {
     await Promise.all(servers.map((s) => s.dispose()));
@@ -55,7 +64,10 @@ describe.skipIf(isWindows)("ManagedServer", () => {
   });
 
   it("reports notInstalled when the executable is missing", async () => {
-    const { server } = make("/definitely/not/here/opencode");
+    // With `shell: true`, cmd.exe swallows the child's ENOENT, so exercise the Windows-specific
+    // validation branch instead: an unsafe path must be rejected before anything is spawned.
+    const missing = isWindows ? 'C:\\not"here\\opencode' : "/definitely/not/here/opencode";
+    const { server } = make(missing);
     await expect(server.ensure()).rejects.toMatchObject({ kind: "notInstalled" });
     expect(server.state.status).toBe("failed");
   });

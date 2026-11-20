@@ -16,6 +16,8 @@
   stderr, and stopped a crafted reply from smuggling in a `data-action="copy-code"` button.
 - Smaller fixes: no unhandled rejection when posting to a disposed webview, no redundant reload of
   file-icon fonts on every icon reply, and localized strings used for the rollback announcement.
+- Windows coverage: `ManagedServer` unit tests now run on Windows too (cross-platform `.cmd` fake
+  executable), and the `quoteForShell` cmd.exe rules are unit-tested on every host.
 - Inline attachment copies are capped at 50 (oldest first) so a long session cannot fill the temp
   folder; icon-theme failures now clear the previously registered fonts, and pending permission or
   question requests are announced only once while the chat is hidden.

@@ -51,6 +51,7 @@ import { ContextTracker, FileIndex, selectionAttachment } from "./context";
 import { DiffService } from "./diff";
 import { DEFAULT_SESSION_PERMISSIONS } from "./permissions";
 import { PermissionService } from "./permissionService";
+import { quoteForShell } from "./shell";
 import { attachmentFileName, evictOldestAttachments, isWithinDirectory, normalizePathKey } from "./tempAttachments";
 
 const PASSWORD_KEY = (endpoint: string) => `opencode.password:${endpoint}`;
@@ -85,22 +86,6 @@ const ATTACHMENT_MIME: Record<string, string> = {
 
 function mimeFromName(name: string): string {
   return ATTACHMENT_MIME[path.extname(name).toLowerCase()] ?? "application/octet-stream";
-}
-
-/**
- * Quotes a single argument for a shell command sent to an interactive terminal. `executablePath`
- * is machine-overridable, so it can come from a workspace's settings: concatenating it into a
- * command line unsafely would let that workspace run arbitrary commands when the user clicks
- * "Sign in". POSIX uses single quotes (with the usual `'\''` escape); cmd.exe has no safe way to
- * embed a double quote, so such paths are rejected instead.
- */
-function quoteForShell(value: string): string {
-  if (/[\0\r\n]/.test(value)) throw new Error("The executable path contains a control character.");
-  if (process.platform === "win32") {
-    if (/["&|<>^%!]/.test(value)) throw new Error('The executable path contains a character cmd.exe cannot quote safely (", &, |, <, >, ^, %, !).');
-    return `"${value}"`;
-  }
-  return `'${value.replace(/'/g, `'\\''`)}'`;
 }
 
 /** Child ids recorded in the tool state of a loaded session's history. */
