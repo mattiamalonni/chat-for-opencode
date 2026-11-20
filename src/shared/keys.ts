@@ -18,7 +18,8 @@ export function isImeKey(e: KeyLike): boolean {
 
 /**
  * Keys that must keep reaching VS Code even when the chat composer has focus.
- * Clipboard/undo are included because the webview preload implements them for Electron.
+ * Clipboard/undo/select-all are included because VS Code implements them for Electron: the preload
+ * forwards them and `SelectAllCommand` calls `webview.selectAll()` → `execCommand('selectAll')`.
  */
 function isPassthrough(e: KeyLike, platform: Platform): boolean {
   const mod = platform === "mac" ? e.metaKey && !e.ctrlKey : e.ctrlKey && !e.metaKey;
@@ -29,7 +30,9 @@ function isPassthrough(e: KeyLike, platform: Platform): boolean {
   }
   const k = e.key.length === 1 ? e.key.toLowerCase() : e.key;
   if (e.shiftKey) return k === "p" || k === "z" || k === "e" || k === "f" || k === "x";
-  return ["c", "v", "x", "z", "y", "p", "s", "w", "q", "n", ",", "b"].includes(k) || e.key === "Insert";
+  // "a" is Select All on the platform's primary modifier (Cmd on mac, Ctrl elsewhere). On mac
+  // Ctrl+A is Emacs "beginning of line" and never gets here: `mod` is false, so it stays isolated.
+  return ["a", "c", "v", "x", "z", "y", "p", "s", "w", "q", "n", ",", "b"].includes(k) || e.key === "Insert";
 }
 
 /**

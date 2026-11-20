@@ -801,7 +801,7 @@ test("todo list from todowrite", async ({ page }) => {
   await expect(panel.locator("li")).toHaveCount(3);
 });
 
-test("keyboard isolation: VS Code chords stay in the composer, clipboard passes through", async ({ page }) => {
+test("keyboard isolation: VS Code chords stay in the composer, clipboard and select all pass through", async ({ page }) => {
   await boot(page);
   const input = page.getByRole("textbox", { name: STRINGS.inputLabel });
   await input.click();
@@ -812,11 +812,15 @@ test("keyboard isolation: VS Code chords stay in the composer, clipboard passes 
   await page.keyboard.type("abc");
   await page.keyboard.press("Control+Shift+P");
   await page.keyboard.press("Control+c");
+  // VS Code implements Select All for webviews via webview.selectAll(), so the chord must reach
+  // the preload's bubble listener just like copy/paste.
+  await page.keyboard.press("Control+a");
   const keys = await page.evaluate(() => (window as unknown as { __windowKeys: string[] }).__windowKeys);
   expect(keys).not.toContain("Ctrl+j");
   expect(keys).not.toContain("Ctrl+r");
   expect(keys).not.toContain("a");
   expect(keys).toContain("Ctrl+c");
+  expect(keys).toContain("Ctrl+a");
   expect(keys.some((k) => k.toLowerCase() === "ctrl+p")).toBe(true);
 });
 

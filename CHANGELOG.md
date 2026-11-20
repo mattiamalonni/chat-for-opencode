@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Fixed **Select All** (`Cmd/Ctrl+A`) in the chat input: the chord was swallowed by the composer's
+  keyboard isolation before it could reach VS Code, so the whole prompt could not be selected. It now
+  reaches the webview preload like copy/paste, where VS Code's `SelectAllCommand` handles it.
 - File icons now come from your **active VS Code file icon theme**, so context chips, attachments,
   `@` results and changed-file rows show the same icon as the Explorer. SVG icons and glyph fonts
   (including Seti) are supported, with dark/light/high-contrast variants. The old built-in icons are

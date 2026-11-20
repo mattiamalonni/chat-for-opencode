@@ -57,8 +57,10 @@ The VS Code webview preload forwards every `keydown` that reaches `window` (bubb
 workbench keybinding service (verified in `src/vs/workbench/contrib/webview/browser/pre/index.html`).
 The composer calls `stopPropagation()` for keys it owns (plain keys, Ctrl/Alt combos such as
 Ctrl+J, Ctrl+R, Ctrl+K, AltGr chars), and lets a small allowlist through (clipboard, undo/redo,
-Cmd/Ctrl+Shift+P, Cmd/Ctrl+P, F-keys, …) so the preload's Electron clipboard handling keeps
-working. IME: `isComposing`/`keyCode 229`/`key === "Process"` never trigger send.
+select all, Cmd/Ctrl+Shift+P, Cmd/Ctrl+P, F-keys, …) so the preload's Electron clipboard handling
+keeps working — VS Code implements Select All for webviews via `webview.selectAll()` →
+`execCommand('selectAll')`, so `Cmd/Ctrl+A` must reach the preload too. IME:
+`isComposing`/`keyCode 229`/`key === "Process"` never trigger send.
 
 Cmd/Ctrl+N is the one chord the webview claims from VS Code: a `window` **capture-phase** listener
 stops it before the preload's bubble listener can forward `did-keydown` to the workbench (where it

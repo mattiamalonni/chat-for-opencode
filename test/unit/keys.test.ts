@@ -26,13 +26,19 @@ describe("shouldIsolateKey", () => {
     expect(shouldIsolateKey(k("e", { ctrlKey: true }), "mac")).toBe(true);
   });
 
-  it("lets clipboard, undo and command palette reach VS Code", () => {
+  it("lets clipboard, undo, select all and command palette reach VS Code", () => {
     expect(shouldIsolateKey(k("c", { metaKey: true }), "mac")).toBe(false);
     expect(shouldIsolateKey(k("v", { ctrlKey: true }), "windows")).toBe(false);
     expect(shouldIsolateKey(k("z", { ctrlKey: true }), "linux")).toBe(false);
     expect(shouldIsolateKey(k("P", { metaKey: true, shiftKey: true }), "mac")).toBe(false);
     expect(shouldIsolateKey(k("F1"), "windows")).toBe(false);
     expect(shouldIsolateKey(k("`", { ctrlKey: true, code: "Backquote" }), "mac")).toBe(false);
+    // Select All is implemented by VS Code via webview.selectAll() → execCommand('selectAll').
+    expect(shouldIsolateKey(k("a", { metaKey: true }), "mac")).toBe(false);
+    expect(shouldIsolateKey(k("a", { ctrlKey: true }), "windows")).toBe(false);
+    expect(shouldIsolateKey(k("a", { ctrlKey: true }), "linux")).toBe(false);
+    // Ctrl+A on mac stays isolated: it is the Emacs "beginning of line" key, not Select All.
+    expect(shouldIsolateKey(k("a", { ctrlKey: true }), "mac")).toBe(true);
   });
 
   it("isolates AltGr characters on Windows (reported as Ctrl+Alt)", () => {

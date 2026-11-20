@@ -18,8 +18,10 @@ test or a manual probe actually ran.
   (`isComposing`, `keyCode 229`, `compositionend` before `Enter`) in Chromium, not with a real
   Japanese/Chinese IME, and the Windows Caps Lock IME toggle was not reproduced.
 - **Key isolation inside real VS Code.** Based on reading the VS Code webview preload source
-  (`window` bubble-phase `keydown` forwarding) and tested in Playwright with an equivalent listener;
-  not tested by pressing Ctrl+J in a real VS Code webview.
+  (`window` bubble-phase `keydown` forwarding) and tested in Playwright with an equivalent listener.
+  Select All (`Cmd+A`) was also verified end to end in the real VS Code webview over CDP (the chord
+  reaches the preload and the whole prompt is selected). Other chords such as Ctrl+J were not tested
+  by pressing real keys in a real VS Code webview.
 - **Screen readers.** ARIA roles/labels and live regions are present, and the UI suite now checks
   the accessibility tree of the composer and permission cards; no test with NVDA/VoiceOver.
 - **Long sessions / performance.** History pagination is capped at 2000 messages; markdown is
