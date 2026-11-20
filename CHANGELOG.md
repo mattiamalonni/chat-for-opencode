@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.3.16 — 2026-11-20
 
 - Fixed the **order of thoughts and tools relative to the answer**. A reasoning part emitted after
   a sentence used to be pulled above it, because every detail of a step was grouped before all its
