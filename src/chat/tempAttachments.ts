@@ -31,14 +31,18 @@ export function attachmentFileName(name: string, mime?: string): string {
   return ext ? base : `${base}${extensionForMime(mime)}`;
 }
 
+/**
+ * Normalizes a path for identity checks. `vscode.Uri.file()` lowercases the drive letter on Windows,
+ * so the same file can reach us as `C:\\...` and `c:\\...`; comparing raw strings would reject it.
+ */
+export function normalizePathKey(file: string, platform: NodeJS.Platform = process.platform): string {
+  const resolved = path.resolve(file);
+  return platform === "win32" ? resolved.toLowerCase() : resolved;
+}
+
 /** True when `file` is `dir` itself or lives below it. */
 export function isWithinDirectory(file: string, dir: string): boolean {
-  const root = path.resolve(dir);
-  const target = path.resolve(file);
-  if (process.platform === "win32") {
-    const lowerRoot = root.toLowerCase();
-    const lowerTarget = target.toLowerCase();
-    return lowerTarget === lowerRoot || lowerTarget.startsWith(lowerRoot + path.sep);
-  }
+  const root = normalizePathKey(dir);
+  const target = normalizePathKey(file);
   return target === root || target.startsWith(root + path.sep);
 }

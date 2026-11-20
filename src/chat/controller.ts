@@ -51,7 +51,7 @@ import { ContextTracker, FileIndex, selectionAttachment } from "./context";
 import { DiffService } from "./diff";
 import { DEFAULT_SESSION_PERMISSIONS } from "./permissions";
 import { PermissionService } from "./permissionService";
-import { attachmentFileName, isWithinDirectory } from "./tempAttachments";
+import { attachmentFileName, isWithinDirectory, normalizePathKey } from "./tempAttachments";
 
 const PASSWORD_KEY = (endpoint: string) => `opencode.password:${endpoint}`;
 const SESSION_KEY = (folder: string) => `opencode.session:${folder}`;
@@ -1203,10 +1203,15 @@ export class ChatController implements vscode.Disposable {
   }
 
   async refreshChanges(): Promise<FileDiff[]> {
+    const sid = this.sessionId;
+    const client = this.client;
     let files: FileDiff[] = [];
-    if (this.client && this.sessionId) {
-      files = normalizeList(await this.client.diff(this.sessionId).catch(() => [] as FileDiff[]), normalizeFileDiff);
+    if (client && sid) {
+      files = normalizeList(await client.diff(sid).catch(() => [] as FileDiff[]), normalizeFileDiff);
     }
+    // The fetch is async: a session switch, new chat or folder change can happen while it is in
+    // flight. Posting a diff fetched for the old session would overwrite the new chat's panel.
+    if (sid !== this.sessionId || client !== this.client) return files;
     this.post({ type: "changedFiles", files });
     return files;
   }
@@ -1387,7 +1392,7 @@ export class ChatController implements vscode.Disposable {
       await fs.mkdir(dir, { recursive: true });
       const file = path.join(dir, `${randomUUID()}-${attachmentFileName(name, mime)}`);
       await fs.writeFile(file, bytes);
-      this.tempAttachments.add(file);
+      this.tempAttachments.add(normalizePathKey(file));
       this.addAttachment({ uri: vscode.Uri.file(file).toString(), name, kind: "file", detail });
     } catch (err) {
       this.noticeUnreadable(name, err instanceof Error ? err.message : String(err));
@@ -1844,8 +1849,8 @@ export class ChatController implements vscode.Disposable {
       return;
     }
     if (target.scheme !== "file") return;
-    const file = path.resolve(target.fsPath);
-    if (!this.tempAttachments.has(file) || !isWithinDirectory(file, this.tempAttachmentsDir)) {
+    const file = normalizePathKey(target.fsPath);
+    if (!this.tempAttachments.has(file) || !isWithinDirectory(target.fsPath, this.tempAttachmentsDir)) {
       this.output.warn(`[chat] blocked an attempt to open an attachment outside the temp directory: ${file}`);
       return;
     }

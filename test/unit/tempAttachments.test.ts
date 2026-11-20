@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { attachmentFileName, extensionForMime, isWithinDirectory } from "../../src/chat/tempAttachments";
+import { attachmentFileName, extensionForMime, isWithinDirectory, normalizePathKey } from "../../src/chat/tempAttachments";
 
 describe("tempAttachments", () => {
   it("derives a safe file name and keeps an existing extension", () => {
@@ -20,6 +20,11 @@ describe("tempAttachments", () => {
     expect(extensionForMime("image/jpeg; charset=binary")).toBe(".jpg");
     expect(extensionForMime("application/octet-stream")).toBe(".bin");
     expect(extensionForMime(undefined)).toBe(".bin");
+  });
+
+  it("normalizes the drive letter so a URI-parsed path still matches on Windows", () => {
+    expect(normalizePathKey("C:\\Temp\\shot.png", "win32")).toBe(normalizePathKey("c:\\temp\\SHOT.PNG", "win32"));
+    expect(normalizePathKey("/tmp/shot.png", "linux")).toBe("/tmp/shot.png");
   });
 
   it("accepts only paths inside the temp directory", () => {
