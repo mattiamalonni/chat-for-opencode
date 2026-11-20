@@ -16,8 +16,12 @@ describe("attachment inline policy", () => {
   });
 
   it("decodes file URIs and drops the range query", () => {
-    const uri = pathToFileURL("/tmp/spazi à/file con spazio.txt").toString() + "?start=2&end=4";
-    expect(localPathFromUri(uri)).toBe("/tmp/spazi à/file con spazio.txt");
+    // Build a native absolute path: on Windows a POSIX-looking absolute path is
+    // reinterpreted as drive-relative by pathToFileURL, so a hardcoded "/tmp/…"
+    // expectation would never match what fileURLToPath returns there.
+    const filePath = path.join(path.parse(process.cwd()).root, "tmp", "spazi à", "file con spazio.txt");
+    const uri = pathToFileURL(filePath).toString() + "?start=2&end=4";
+    expect(localPathFromUri(uri)).toBe(filePath);
     expect(localPathFromUri("https://example.com/x")).toBeUndefined();
     expect(localPathFromUri("not a uri")).toBeUndefined();
   });
