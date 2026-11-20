@@ -1990,6 +1990,35 @@ test("subagent progress stays one line until the tool card is expanded", async (
   expect(csp).toEqual([]);
 });
 
+test("a subagent card opens a read-only conversation modal with breadcrumbs", async ({ page }) => {
+  await boot(page);
+  const events = fixture("real-sse-subagent.jsonl");
+  const parent = "ses_e0d1a594affeRHT5ks6SqFzeKs";
+  const child = "ses_e0d1a3fbaffewFAJSNZEYUBF3e";
+  const mark = events.findIndex((e) => e.type === "session.tool.progress" && (e.data as { sessionID?: string }).sessionID === parent);
+  await openSession(page, parent, events.slice(0, mark + 1).filter((e) => (e.data as { sessionID?: string }).sessionID === parent));
+  for (const event of events.filter((e) => (e.data as { sessionID?: string }).sessionID === child)) {
+    await host(page, { type: "subagentEvent", sessionId: child, event });
+  }
+
+  const card = page.locator(".tool.subagent").first();
+  await expect(card.locator(".tool-open")).toHaveAttribute("aria-label", STRINGS.openSubagent);
+  await card.locator(".tool-open").click();
+
+  const modal = page.getByRole("dialog", { name: STRINGS.subagentConversation });
+  await expect(modal).toBeVisible();
+  // The child's own conversation is rendered, not the compact inline card — but with no composer:
+  // prompts and replies still belong to the parent chat.
+  await expect(modal.locator(".msg.user")).toContainText("You are a subagent spawned by another session.");
+  await expect(modal.locator(".composer")).toHaveCount(0);
+  await expect(modal.locator(".crumb")).toHaveCount(2);
+  await expect(modal.locator(".crumb").last()).toHaveText("explore");
+
+  await expect(modal).toBeFocused();
+  await page.keyboard.press("Escape");
+  await expect(modal).toHaveCount(0);
+});
+
 test("a background subagent's report shows up when it completes", async ({ page }) => {
   const csp = await boot(page);
   const events = fixture("real-sse-subagent-background.jsonl");

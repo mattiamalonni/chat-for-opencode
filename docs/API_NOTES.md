@@ -163,6 +163,14 @@ session.execution.started  {sessionID: <parent>}   <- parent wakes up to consume
 The extension parses that wrapper so the report is shown in the tool card even if no child event
 was captured, and re-fetches the child's history at that point to fill in its steps.
 
+The webview keeps a `ChatState` per child, built with the **same reducer as the main chat**, so the
+inline card can show a compact timeline and the **Open subagent conversation** action can promote
+that state to a read-only modal using the normal conversation renderer. Nested children are linked
+by `session.created.parentID`, which lets the modal offer breadcrumbs back to the parent. A child
+whose live state is missing (a past session, or a background child that finished while the webview
+was detached) is re-fetched on demand with `refreshSubagent`, using the same endpoint as the initial
+snapshot. No new host events are needed to open the modal.
+
 ### Message history shape (`GET …/message`)
 
 ```

@@ -21,6 +21,7 @@ sends **no telemetry**.
 - **Streaming chat** with Markdown, syntax highlighting and copy buttons on code blocks.
 - **Collapsible reasoning** ("Thoughts") and **tool cards** that work with any tool name (input, output, errors).
 - **Sessions**: list, create, switch, resume, rename and delete, with *Load more sessions* for older ones and a discreet trash icon to *Delete all sessions* (with a native VS Code confirmation) to clear the workspace at once. The last session of each folder is restored when VS Code restarts.
+- **Subagents**: live progress stays inline in the conversation. Click **Open subagent conversation** on a subagent card to inspect the child session in a read-only modal rendered with the same chat view (steps, thoughts, tools and report). Breadcrumbs navigate nested subagents and lead back to the parent chat; `Esc` or a backdrop click closes it.
 - **Opens on the right** in the Secondary Side Bar, like Copilot Chat (VS Code 1.104+); movable anywhere with *OpenCode: Move Chat View…* or drag and drop.
 - **Context window at a glance**: each model in the picker shows its context size, and a meter
   next to the send button shows how much of it the conversation already uses.

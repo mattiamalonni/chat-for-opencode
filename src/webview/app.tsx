@@ -20,7 +20,7 @@ import { estimateDataUrlTokens } from "../shared/format";
 import { isNewSessionKey } from "../shared/keys";
 import { contractSignature, emptyContract, type ContractReport } from "../shared/contract";
 import type { Attachment, ConnectionStatus, ContextItem, FolderInfo, HostMessage, SessionSummary, UiError } from "../shared/protocol";
-import { initialSubagentState, subagentReducer, type SubagentEvent } from "../shared/subagents";
+import { initialSubagentState, pushSubagentSession, subagentReducer, truncateSubagentStack, type SubagentEvent } from "../shared/subagents";
 import { format, STRINGS, type Strings } from "../shared/strings";
 import { AttentionOverlay } from "./attentionOverlay";
 import { Composer } from "./composer";
@@ -31,7 +31,7 @@ import { IconCheck, IconChevron, IconClose, IconEdit, IconError, IconFileMarkdow
 import { setCopyLabel } from "./markdown";
 import { Picker } from "./picker";
 import { clearReplyFailures, markReplyFailed } from "./replyFeedback";
-import { SubagentsContext, type SubagentEntry } from "./subagents";
+import { SubagentNavContext, SubagentsContext, type SubagentEntry } from "./subagents";
 import { ActionButton, AssistantStatus, FileList, MessageView, messageSearchText, ToolCard, ToolGroup, TurnStatsRow } from "./messages";
 import { hydrateDrafts, onHostMessage, post } from "./vscode";
 
@@ -72,6 +72,12 @@ export function App() {
   const [draftToken, setDraftToken] = useState(0);
   const [scrollToken, setScrollToken] = useState(0);
   const [showSessions, setShowSessions] = useState(false);
+  // Read-only drill-down into a child session. Nested children push a crumb; ancestors are kept so
+  // the report stays reachable without leaving the parent conversation.
+  const [subagentStack, setSubagentStack] = useState<string[]>([]);
+  // Human labels captured from the card that opened each child (the child state alone may not know
+  // its agent name when only live events were received).
+  const [subagentLabels, setSubagentLabels] = useState<Record<string, string>>({});
   const [syncing, setSyncing] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
@@ -128,6 +134,8 @@ export function App() {
           if (lastSessionId.current !== id) {
             lastSessionId.current = id;
             subagentDispatch({ type: "clear" });
+            setSubagentStack([]);
+            setSubagentLabels({});
             setAttachments([]);
             setChanges([]);
             setDismissedChanges(null);
@@ -405,6 +413,13 @@ export function App() {
     }
     return entries;
   }, [subagents]);
+  const openSubagent = (sessionId: string, label?: string) => {
+    setSubagentStack((prev) => pushSubagentSession(prev, sessionId));
+    if (label) setSubagentLabels((prev) => (prev[sessionId] === label ? prev : { ...prev, [sessionId]: label }));
+    // A past child has no live stream; reuse the same on-demand fetch the inline card uses.
+    const entry = subagentEntries[sessionId];
+    if (!entry || entry.state.messages.length === 0) post({ type: "refreshSubagent", sessionId });
+  };
   const connected = status.status === "connected" || status.status === "reconnecting";
   const title = chat.title || sessions.find((s) => s.id === chat.sessionId)?.title || strings.untitled;
   // Inline attachments are sent as data URLs; their decoded content costs tokens too.
@@ -434,6 +449,7 @@ export function App() {
   return (
     <StringsContext.Provider value={strings}>
       <SubagentsContext.Provider value={subagentEntries}>
+      <SubagentNavContext.Provider value={openSubagent}>
       <WebviewErrorBoundary>
         <div class="app">
         <Header
@@ -524,8 +540,19 @@ export function App() {
             <div class="drop-overlay-inner">{strings.dropFilesOverlay}</div>
           </div>
         )}
+        {subagentStack.length > 0 && (
+          <SubagentModal
+            stack={subagentStack}
+            entries={subagentEntries}
+            labels={subagentLabels}
+            parentTitle={title}
+            onNavigate={(depth) => setSubagentStack((prev) => truncateSubagentStack(prev, depth))}
+            onClose={() => setSubagentStack([])}
+          />
+        )}
         </div>
       </WebviewErrorBoundary>
+      </SubagentNavContext.Provider>
       </SubagentsContext.Provider>
     </StringsContext.Provider>
   );
@@ -1304,7 +1331,17 @@ function StepBlock({
   );
 }
 
-function Conversation({ chat, scrollToken, searchQuery }: { chat: ReturnType<typeof chatReducer>; scrollToken: number; searchQuery: string }) {
+function Conversation({
+  chat,
+  scrollToken,
+  searchQuery,
+  label,
+}: {
+  chat: ReturnType<typeof chatReducer>;
+  scrollToken: number;
+  searchQuery: string;
+  label?: string;
+}) {
   const t = useT();
   const ref = useRef<HTMLDivElement>(null);
   const stick = useRef(true);
@@ -1431,7 +1468,7 @@ function Conversation({ chat, scrollToken, searchQuery }: { chat: ReturnType<typ
         class="conversation"
         ref={ref}
         role="log"
-        aria-label={t("appName")}
+        aria-label={label ?? t("appName")}
         aria-busy={chat.busy}
         tabIndex={0}
         onScroll={(e) => {
@@ -1469,6 +1506,106 @@ function Conversation({ chat, scrollToken, searchQuery }: { chat: ReturnType<typ
           {t("jumpToLatest")}
         </button>
       )}
+    </div>
+  );
+}
+
+/**
+ * Read-only drill-down into a child session. It reuses the very same `Conversation` as the main
+ * chat but with the child's `ChatState`, so steps, tools, reasoning and report render identically.
+ * No composer or host actions are wired: replies and prompts still belong to the parent chat.
+ */
+function SubagentModal({
+  stack,
+  entries,
+  labels,
+  parentTitle,
+  onNavigate,
+  onClose,
+}: {
+  stack: string[];
+  entries: Record<string, SubagentEntry>;
+  labels: Record<string, string>;
+  parentTitle: string;
+  onNavigate: (depth: number) => void;
+  onClose: () => void;
+}) {
+  const t = useT();
+  const ref = useRef<HTMLDivElement>(null);
+  const currentId = stack[stack.length - 1];
+  const entry = entries[currentId];
+  const closeRef = useRef(onClose);
+  closeRef.current = onClose;
+  useEffect(() => {
+    ref.current?.focus();
+    // Escape must work even if the user presses it before the focus effect above has run.
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return;
+      e.preventDefault();
+      e.stopPropagation();
+      closeRef.current();
+    };
+    document.addEventListener("keydown", onKeyDown, true);
+    return () => document.removeEventListener("keydown", onKeyDown, true);
+  }, []);
+  return (
+    <div
+      class="subagent-modal-backdrop"
+      onPointerDown={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
+    >
+      <div
+        class="subagent-modal"
+        role="dialog"
+        aria-modal="true"
+        aria-label={t("subagentConversation")}
+        tabIndex={-1}
+        ref={ref}
+        onKeyDown={isolateKeys}
+      >
+        <header class="subagent-modal-header">
+          <nav class="subagent-breadcrumb" aria-label={t("subagentConversation")}>
+            <button type="button" class="crumb" onClick={() => onNavigate(-1)}>
+              {parentTitle || t("mainChat")}
+            </button>
+            {stack.map((id, i) => {
+              const meta = entries[id]?.meta;
+              const label = labels[id] || meta?.agent || meta?.title || t("subagent");
+              const current = i === stack.length - 1;
+              return (
+                <span class="crumb-part" key={id}>
+                  <IconChevron class="chevron" />
+                  <button
+                    type="button"
+                    class={`crumb${current ? " current" : ""}`}
+                    aria-current={current ? "page" : undefined}
+                    onClick={() => onNavigate(i)}
+                  >
+                    {label}
+                  </button>
+                </span>
+              );
+            })}
+          </nav>
+          <button
+            type="button"
+            class="icon-button tooltip-host"
+            data-tooltip={t("dismiss")}
+            aria-label={t("dismiss")}
+            onClick={onClose}
+          >
+            <IconClose />
+          </button>
+        </header>
+        <div class="subagent-modal-body">
+          {entry ? (
+            <Conversation chat={entry.state} scrollToken={0} searchQuery="" label={t("subagentConversation")} />
+          ) : (
+            <div class="empty">{t("loadingSubagent")}</div>
+          )}
+        </div>
+      </div>
     </div>
   );
 }

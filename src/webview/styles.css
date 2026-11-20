@@ -345,6 +345,108 @@ details[open] > summary > .chevron,
   padding: 8px;
 }
 
+/* ---- subagent conversation modal ------------------------------------------------------ */
+
+/* The expand toggle and the "open conversation" action are siblings: nested buttons are invalid. */
+.tool-header-row {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+}
+
+.tool-header-row .tool-header {
+  flex: 1;
+  width: auto;
+}
+
+.tool-open {
+  flex: none;
+  margin-right: 6px;
+}
+
+.subagent-modal-backdrop {
+  position: absolute;
+  inset: 0;
+  z-index: 30;
+  display: flex;
+  padding: 8px;
+  background: var(--vscode-widget-shadow, rgba(0, 0, 0, 0.45));
+}
+
+.subagent-modal {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  border: 1px solid var(--vscode-widget-border, var(--vscode-contrastBorder, transparent));
+  border-radius: 6px;
+  background: var(--vscode-editorWidget-background, var(--vscode-sideBar-background));
+  box-shadow: 0 4px 16px var(--vscode-widget-shadow, rgba(0, 0, 0, 0.3));
+}
+
+.subagent-modal:focus {
+  outline: none;
+}
+
+.subagent-modal-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 6px;
+  border-bottom: 1px solid var(--vscode-widget-border, var(--vscode-panel-border, transparent));
+}
+
+.subagent-breadcrumb {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex: 1;
+  min-width: 0;
+  overflow-x: auto;
+  white-space: nowrap;
+}
+
+.crumb-part {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  min-width: 0;
+}
+
+.crumb {
+  min-width: 0;
+  max-width: 180px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  background: none;
+  border: none;
+  border-radius: 3px;
+  padding: 3px 5px;
+  cursor: pointer;
+  color: var(--vscode-textLink-foreground, var(--vscode-foreground));
+  text-align: left;
+}
+
+.crumb:hover {
+  background: var(--vscode-toolbar-hoverBackground);
+}
+
+.crumb.current {
+  color: var(--vscode-foreground);
+  font-weight: 600;
+  cursor: default;
+}
+
+.subagent-modal-body {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+}
+
 /* Inline rename/delete forms: compact cards instead of controls crammed into one row. */
 .confirm,
 .rename {

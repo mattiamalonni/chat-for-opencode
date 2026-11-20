@@ -32,6 +32,13 @@ test or a manual probe actually ran.
 
 ## Behaviour limits
 
+- **Subagent conversations are read-only in the modal.** It renders the child's steps, thoughts,
+  tools and report, but there is no composer and no approval panel: you cannot send a new prompt to
+  the child, stop it, or answer a permission/question it raises from there. `send`/`abort` are
+  addressed to the currently open session, so steering a child would require a protocol change;
+  use the client that spawned it (or steer the parent) instead. The inline card stays the place to
+  follow live progress.
+
 - **External live updates are polled, not pushed.** A turn started in the TUI (or any other client
   that only shares the on-disk session storage) shows up in the open chat within ~2 seconds, while
   the chat is visible; when it is hidden, opening it re-syncs immediately. Only the **currently open

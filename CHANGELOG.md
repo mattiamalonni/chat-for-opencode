@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+- Subagent cards now have an **Open subagent conversation** action that shows the child session in
+  a read-only modal, rendered with the same conversation view as the main chat (steps, thoughts,
+  tools and report). Breadcrumbs let you navigate nested subagents and return to the parent chat;
+  the modal closes with Escape or by clicking the backdrop. Past children are fetched on demand,
+  exactly as when expanding the inline card.
+
 ## 0.3.16 — 2026-11-20
 
 - Fixed the **order of thoughts and tools relative to the answer**. A reasoning part emitted after

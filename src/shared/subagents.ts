@@ -124,6 +124,20 @@ export function subagentChildId(part: ToolPart): string | undefined {
   return typeof id === "string" && id ? id : undefined;
 }
 
+/**
+ * Stack of children open in the read-only conversation modal. Re-opening a session that is already
+ * on the stack jumps back to it instead of duplicating it (a nested card can point to an ancestor).
+ */
+export function pushSubagentSession(stack: readonly string[], sessionId: string): string[] {
+  const index = stack.indexOf(sessionId);
+  return index >= 0 ? stack.slice(0, index + 1) : [...stack, sessionId];
+}
+
+/** Crumbs up to `depth` inclusive; a negative depth closes the modal. */
+export function truncateSubagentStack(stack: readonly string[], depth: number): string[] {
+  return stack.slice(0, Math.max(0, depth + 1));
+}
+
 function str(value: unknown): string {
   return typeof value === "string" ? value : "";
 }

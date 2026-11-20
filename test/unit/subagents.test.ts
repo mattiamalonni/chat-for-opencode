@@ -7,10 +7,12 @@ import {
   initialSubagentState,
   isSubagentTool,
   parseSubagentReport,
+  pushSubagentSession,
   subagentChildId,
   subagentReducer,
   subagentView,
   toolObject,
+  truncateSubagentStack,
   type SubagentEvent,
 } from "../../src/shared/subagents";
 
@@ -165,5 +167,14 @@ describe("subagents", () => {
     const view = subagentView(tool, child);
     expect(view.status).toBe("running");
     expect(view.activity.kind === "tool" && view.activity.tool.name).toBe("shell");
+  });
+
+  it("navigates the read-only conversation stack without duplicating ancestors", () => {
+    const stack = pushSubagentSession([], "a");
+    expect(pushSubagentSession(stack, "b")).toEqual(["a", "b"]);
+    // A nested card can point back to an ancestor: jump there instead of stacking it twice.
+    expect(pushSubagentSession(["a", "b", "c"], "a")).toEqual(["a"]);
+    expect(truncateSubagentStack(["a", "b", "c"], 1)).toEqual(["a", "b"]);
+    expect(truncateSubagentStack(["a", "b", "c"], -1)).toEqual([]);
   });
 });

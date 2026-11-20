@@ -75,3 +75,5 @@ export const IconRefresh = function IconRefresh(props: P) {
 };
 export const IconCompact = svg("M2 3h4v1H3v3H2zm12 0v4h-1V4h-3V3zm0 10h-4v-1h3V9h1zm-12 0h4v-1H3V9H2zM6 7.5h4v1H6z");
 export const IconHistory = svg("M8 1a7 7 0 1 1-6.6 9.3l1.3-.4A5.6 5.6 0 1 0 3 5H5v1.3H1V2.3h1.3v1.5A7 7 0 0 1 8 1zm-.7 3h1.4v3.7l2.8 1.7-.7 1.2-3.5-2.1z");
+/** Diagonal arrow out of a box: "open this in its own view". */
+export const IconOpen = svg("M9 2h5v5h-1.5V4.6L9.2 8 8.1 6.9l3.4-3.4H9zM3 3h4.5v1.5H4.5v8h8V8.5H14V13H3z");

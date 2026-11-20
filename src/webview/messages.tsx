@@ -28,10 +28,10 @@ import {
 import { isolateKeys } from "./env";
 import { FileTypeIcon } from "./fileIcons";
 import { useT } from "./i18n";
-import { IconCheck, IconChevron, IconError, IconFile, IconInfo, IconSelection, IconTool, IconWarning } from "./icons";
+import { IconCheck, IconChevron, IconError, IconFile, IconInfo, IconOpen, IconSelection, IconTool, IconWarning } from "./icons";
 import { renderMarkdown } from "./markdown";
 import { clearReplyFailure, useReplyFailed } from "./replyFeedback";
-import { useSubagent } from "./subagents";
+import { useOpenSubagent, useSubagent } from "./subagents";
 import { post } from "./vscode";
 
 /** URI decoding can throw on malformed escapes; never let that take down the whole chat. */
@@ -381,6 +381,7 @@ function subagentDot(status: string): "running" | "error" | "completed" {
 
 export function ToolGroup({ parts, state, filteredOut = false }: { parts: ToolPart[]; state: ChatState; filteredOut?: boolean }) {
   const t = useT();
+  const openSubagent = useOpenSubagent();
   const needsUser = parts.some((p) => permissionsForTool(state, p.id).length > 0 || formsForTool(state, p.id).length > 0);
   const [open, setOpen] = useState(false);
   useEffect(() => {
@@ -389,6 +390,7 @@ export function ToolGroup({ parts, state, filteredOut = false }: { parts: ToolPa
   const subagentPart = parts.find(isSubagentTool);
   const subEntry = useSubagent(subagentPart ? subagentChildId(subagentPart) : undefined);
   const sub = subagentPart ? subagentView(subagentPart, subEntry?.state, subEntry?.meta, state.subagentReports) : undefined;
+  const subSessionId = sub?.sessionId;
   const expanded = open || needsUser;
   const running = parts.some((p) => p.status === "running" || p.status === "streaming");
   const failed = parts.some((p) => p.status === "error");
@@ -412,15 +414,28 @@ export function ToolGroup({ parts, state, filteredOut = false }: { parts: ToolPa
   const id = `tool-group-${parts[0].id}`;
   return (
     <section class={`tool-group${sub ? " subagent" : ""}${needsUser ? " attention" : ""}${filteredOut ? " filtered-out" : ""}`}>
-      <button type="button" class="tool-header tool-group-header" aria-expanded={expanded} aria-controls={id} onClick={() => setOpen(!open)}>
-        <IconChevron class="chevron" />
-        <span class={`status-dot ${status} tooltip-host`} role="img" aria-label={statusLabel} data-tooltip={statusLabel}>
-          {status === "completed" ? <IconCheck /> : status === "error" ? <IconError /> : <IconTool />}
-        </span>
-        {sub && <span class="subagent-badge">{t("subagent")}</span>}
-        <span class="tool-name">{headerName}</span>
-        <span class="tool-summary" title={headerSummary}>{headerSummary}</span>
-      </button>
+      <div class="tool-header-row">
+        <button type="button" class="tool-header tool-group-header" aria-expanded={expanded} aria-controls={id} onClick={() => setOpen(!open)}>
+          <IconChevron class="chevron" />
+          <span class={`status-dot ${status} tooltip-host`} role="img" aria-label={statusLabel} data-tooltip={statusLabel}>
+            {status === "completed" ? <IconCheck /> : status === "error" ? <IconError /> : <IconTool />}
+          </span>
+          {sub && <span class="subagent-badge">{t("subagent")}</span>}
+          <span class="tool-name">{headerName}</span>
+          <span class="tool-summary" title={headerSummary}>{headerSummary}</span>
+        </button>
+        {subSessionId && (
+          <button
+            type="button"
+            class="icon-button tool-open tooltip-host"
+            data-tooltip={t("openSubagent")}
+            aria-label={t("openSubagent")}
+            onClick={() => openSubagent(subSessionId, sub.agent || sub.title)}
+          >
+            <IconOpen />
+          </button>
+        )}
+      </div>
       {expanded && (
         <div class="tool-group-body" id={id}>
           {parts.map((p) => (
@@ -447,6 +462,7 @@ function stripSubagentWrapper(text: string): string {
 /** A subagent call stays one line until expanded; its child's progress is shown on demand. */
 function SubagentToolCard({ part, state, filteredOut = false }: { part: ToolPart; state: ChatState; filteredOut?: boolean }) {
   const t = useT();
+  const openSubagent = useOpenSubagent();
   const sessionId = subagentChildId(part);
   const entry = useSubagent(sessionId);
   const view = useMemo(() => subagentView(part, entry?.state, entry?.meta, state.subagentReports), [part, entry, state.subagentReports]);
@@ -467,26 +483,39 @@ function SubagentToolCard({ part, state, filteredOut = false }: { part: ToolPart
   const id = `subagent-${part.id}`;
   return (
     <section class={`tool subagent ${dot}${filteredOut ? " filtered-out" : ""}`} aria-label={`${t("subagent")}: ${header}`}>
-      <button
-        type="button"
-        class="tool-header"
-        aria-expanded={open}
-        aria-controls={id}
-        onClick={() => {
-          const next = !open;
-          setOpen(next);
-          // A background child can finish long after its tool call; if no live state arrived,
-          // ask the host for its history so the report and steps are shown on demand.
-          if (next && sessionId && (!entry || entry.state.messages.length === 0)) post({ type: "refreshSubagent", sessionId });
-        }}
-      >
-        <IconChevron class="chevron" />
-        <span class={`status-dot ${dot} tooltip-host`} role="img" aria-label={statusLabel} data-tooltip={statusLabel}>
-          {dot === "completed" ? <IconCheck /> : dot === "error" ? <IconError /> : <IconTool />}
-        </span>
-        <span class="subagent-badge">{t("subagent")}</span>
-        <span class="tool-summary" title={header}>{header}</span>
-      </button>
+      <div class="tool-header-row">
+        <button
+          type="button"
+          class="tool-header"
+          aria-expanded={open}
+          aria-controls={id}
+          onClick={() => {
+            const next = !open;
+            setOpen(next);
+            // A background child can finish long after its tool call; if no live state arrived,
+            // ask the host for its history so the report and steps are shown on demand.
+            if (next && sessionId && (!entry || entry.state.messages.length === 0)) post({ type: "refreshSubagent", sessionId });
+          }}
+        >
+          <IconChevron class="chevron" />
+          <span class={`status-dot ${dot} tooltip-host`} role="img" aria-label={statusLabel} data-tooltip={statusLabel}>
+            {dot === "completed" ? <IconCheck /> : dot === "error" ? <IconError /> : <IconTool />}
+          </span>
+          <span class="subagent-badge">{t("subagent")}</span>
+          <span class="tool-summary" title={header}>{header}</span>
+        </button>
+        {sessionId && (
+          <button
+            type="button"
+            class="icon-button tool-open tooltip-host"
+            data-tooltip={t("openSubagent")}
+            aria-label={t("openSubagent")}
+            onClick={() => openSubagent(sessionId, view.agent || view.title)}
+          >
+            <IconOpen />
+          </button>
+        )}
+      </div>
       {open && (
         <div class="tool-body subagent-body" id={id}>
           <div class="subagent-activity">
