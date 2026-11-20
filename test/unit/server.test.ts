@@ -81,9 +81,15 @@ describe("ManagedServer", () => {
 
   it("redacts the password from stderr before exposing it as error detail", async () => {
     const dir = mkdtempSync(join(tmpdir(), "oc-fake-"));
-    const file = join(dir, "opencode");
-    writeFileSync(file, '#!/bin/sh\necho "server password $OPENCODE_PASSWORD leaked" >&2\nexit 1\n');
-    chmodSync(file, 0o755);
+    // The child runs through cmd.exe on Windows, so a .cmd shim is required there; a POSIX script
+    // would be inert and cmd.exe would report it as "not recognized" instead of our stderr line.
+    const file = isWindows ? join(dir, "opencode.cmd") : join(dir, "opencode");
+    if (isWindows) {
+      writeFileSync(file, "@echo off\r\necho server password %OPENCODE_PASSWORD% leaked 1>&2\r\nexit /b 1\r\n");
+    } else {
+      writeFileSync(file, '#!/bin/sh\necho "server password $OPENCODE_PASSWORD leaked" >&2\nexit 1\n');
+      chmodSync(file, 0o755);
+    }
     const { server } = make(file);
     const err = await server.ensure().catch((e: unknown) => e);
     expect(err).toMatchObject({ kind: "startFailed" });
