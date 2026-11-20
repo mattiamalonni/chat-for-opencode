@@ -130,6 +130,23 @@ describe("chat-for-opencode extension", () => {
     assert.ok(lastPosted("session", mark), "fresh history posted to the webview");
   });
 
+  it("folds in a prompt written by another client without a manual sync", async () => {
+    const sid = controller.debugState.sessionId;
+    assert.ok(sid, "a session is open");
+    const mark = posted.length;
+    const res = await fetch(`${controller.debugState.baseUrl}/__mock/external`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ sessionID: sid, text: "from the tui" }),
+    });
+    assert.equal(res.status, 204);
+    const delta = await waitFor(() => {
+      const d = lastPosted("sessionDelta", mark);
+      return d && d.delta.messages.some((m) => m.type === "user" && m.text === "from the tui") && d;
+    }, "external prompt folded into the conversation", 12_000);
+    assert.ok(delta);
+  });
+
   it("asks for permission in the overlay and only proceeds after the reply, then lists changed files", async () => {
     const mark = posted.length;
     await controller.receive({ type: "send", text: "[permission] change a.txt", attachments: [], context: [] });

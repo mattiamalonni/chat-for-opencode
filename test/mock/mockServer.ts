@@ -399,6 +399,20 @@ export function startMockServer(opts: MockOptions = {}): Promise<MockServer> {
     const body = req.method === "GET" || req.method === "DELETE" ? undefined : await readBody(req);
     requests.push({ method: req.method ?? "GET", path: path + url.search, body });
 
+    // Test-only: simulate another client (e.g. the TUI) writing a message straight to the shared
+    // session storage. Deliberately no SSE `emit()` — the only way for a subscriber to notice is
+    // to re-read history, which is what the extension's periodic tail sync does.
+    if (path === "/__mock/external" && req.method === "POST") {
+      const b = (body ?? {}) as Json;
+      const s = sessions.get(String(b.sessionID ?? ""));
+      if (!s) return notFound(res);
+      const now = Date.now();
+      s.messages.push({ type: "user", id: id("msg"), text: String(b.text ?? ""), time: { created: now } });
+      s.info.time = { ...(s.info.time as Json), updated: now };
+      persist();
+      return send(res, 204);
+    }
+
     if (req.headers.authorization !== expected) {
       res.writeHead(401, { "content-type": "application/json", "www-authenticate": 'Basic realm="Secure Area"' });
       res.end(JSON.stringify({ _tag: "UnauthorizedError", message: "Authentication required" }));

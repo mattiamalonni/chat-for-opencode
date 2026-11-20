@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- The open conversation now **follows prompts launched from other clients**. The SSE stream only
+  carries events from the server this extension connected to, so a prompt typed in the TUI (or
+  another process sharing the on-disk session storage) used to appear only after pressing **Sync**
+  or **Reconnect**. While the chat is visible, its history is now re-read every 2 seconds and new
+  messages are merged into the conversation live (with the session list and changed files refreshed
+  too). Polling stays out of the way while this chat's own reply is streaming.
 - Fixed **"Could not send the message — Unable to read attachment"** when attaching the current
   file (or any local file) while using an external `opencode.endpoint`. OpenCode resolves `file:`
   attachments against **its own** filesystem, so a server in a container, on another host or behind

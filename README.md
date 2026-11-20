@@ -173,6 +173,11 @@ Auto-approval is off by default; only enable it when you trust unattended edits 
   VS Code `SecretStorage` (OS keychain).
 - Live updates come from the SSE stream `GET /api/event`; after a disconnect the extension
   reconnects and re-fetches the session, because the stream has no replay.
+- The stream only carries events from the server we are connected to. Another client (e.g. the TUI
+  running as its own process) writes sessions to the same on-disk storage without emitting events
+  on our stream, so while the chat is visible the extension also re-reads the open session's history
+  every 2 seconds and folds new messages in automatically — no need to press **Sync** or **Reconnect**.
+  Polling pauses while live events are arriving, so it never races a reply streaming into this chat.
 - Each managed server writes a PID record (no password) in global storage. On the next start,
   servers whose owning VS Code window is gone are reaped; servers owned by another live window
   are left alone.

@@ -32,6 +32,13 @@ test or a manual probe actually ran.
 
 ## Behaviour limits
 
+- **External live updates are polled, not pushed.** A turn started in the TUI (or any other client
+  that only shares the on-disk session storage) shows up in the open chat within ~2 seconds, while
+  the chat is visible; when it is hidden, opening it re-syncs immediately. Only the **currently open
+  session** is followed, and a session opened by another client is not auto-selected. A permission
+  request or question raised by an external turn cannot be answered from this chat — answer it in the
+  client that started the turn.
+
 - **VS Code 1.99–1.103** cannot contribute to the Secondary Side Bar: the chat opens in the Explorer
   there (move it with *OpenCode: Move Chat View…*). VS Code remembers a view moved by the user, so
   users upgrading from such a setup keep their custom location.
