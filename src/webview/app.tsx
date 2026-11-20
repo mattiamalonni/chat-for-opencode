@@ -27,7 +27,7 @@ import { Composer } from "./composer";
 import { collectDroppedFiles, hasFiles, readFileAsBase64, type DragData } from "./dropFiles";
 import { env, isolateKeys } from "./env";
 import { StringsContext, useT } from "./i18n";
-import { IconCheck, IconChevron, IconClose, IconDiff, IconEdit, IconError, IconFileMarkdown, IconHistory, IconPlus, IconRefresh, IconTrash, IconWarning } from "./icons";
+import { IconCheck, IconChevron, IconClose, IconEdit, IconError, IconFileMarkdown, IconHistory, IconPlus, IconRefresh, IconTrash, IconWarning } from "./icons";
 import { setCopyLabel } from "./markdown";
 import { Picker } from "./picker";
 import { clearReplyFailures, markReplyFailed } from "./replyFeedback";
@@ -1484,6 +1484,8 @@ function TodoPanel({ todos }: { todos: { content: string; status: string }[] }) 
 
 function ChangesPanel({ files, onDismiss }: { files: FileDiff[]; onDismiss: () => void }) {
   const t = useT();
+  const additions = files.reduce((n, f) => n + (Number(f.additions) || 0), 0);
+  const deletions = files.reduce((n, f) => n + (Number(f.deletions) || 0), 0);
   return (
     <details class="panel changes">
       <summary>
@@ -1491,8 +1493,7 @@ function ChangesPanel({ files, onDismiss }: { files: FileDiff[]; onDismiss: () =
         {files.length === 1 ? t("changedFile", files.length) : t("changedFiles", files.length)}
         <button
           type="button"
-          class="icon-button tooltip-host view-all-changes"
-          data-tooltip={t("viewAllChanges")}
+          class="icon-button view-all-changes"
           aria-label={t("viewAllChanges")}
           onClick={(e) => {
             e.preventDefault();
@@ -1503,7 +1504,9 @@ function ChangesPanel({ files, onDismiss }: { files: FileDiff[]; onDismiss: () =
             });
           }}
         >
-          <IconDiff />
+          <span class="adds">+{additions}</span>
+          {additions > 0 && deletions > 0 ? " " : ""}
+          {deletions > 0 && <span class="dels">-{deletions}</span>}
         </button>
         <button
           type="button"

@@ -1325,7 +1325,7 @@ test("the changed-files refresh button has an instant tooltip and still refreshe
   expect(await lastPosted(page, "refreshChanges")).toEqual({ type: "refreshChanges" });
 });
 
-test("the changed-files header shows the count first, without the +/- icon", async ({ page }) => {
+test("the changed-files header shows the count first with only the chevron icon", async ({ page }) => {
   await boot(page);
   const file = (name: string) => ({ file: name, patch: "@@", additions: 1, deletions: 1, status: "modified" as const });
   await host(page, { type: "changedFiles", files: [file("src/a.txt")] });
@@ -1348,6 +1348,9 @@ test("the changed-files view-all button opens one diff with every session file",
   const button = page.locator(".panel.changes > summary .view-all-changes");
   await expect(button).toBeVisible();
   await expect(button).toHaveAttribute("aria-label", STRINGS.viewAllChanges);
+  await expect(button.locator(".adds")).toHaveText("+2");
+  await expect(button.locator(".dels")).toHaveText("-2");
+  expect(await button.evaluate((el) => getComputedStyle(el).gap)).toBe("4px");
   await button.click();
   expect(await lastPosted(page, "openDiffs")).toEqual({
     type: "openDiffs",
@@ -1603,7 +1606,7 @@ test("a finished turn shows insertions and deletions from its file edits", async
   await expect(stats.locator(".dels")).toHaveText("-2");
   await expect(stats).not.toHaveClass(/tooltip-host/);
   const openDiffs = { type: "openDiffs" as const, files: [{ file: "a.ts", patch: "@@" }, { file: "b.ts", patch: "@@" }] };
-  await stats.locator(".turn-stats-changes").click();
+  await stats.locator(".change-counts").click();
   expect(await lastPosted(page, "openDiffs")).toEqual(openDiffs);
 
   // A reconcile replaces the live tool parts with server history, which may drop `metadata.files`.
@@ -1629,7 +1632,7 @@ test("a finished turn shows insertions and deletions from its file edits", async
   await expect(stats).toHaveCount(1);
   await expect(stats.locator(".adds")).toHaveText("+7");
   await expect(stats.locator(".dels")).toHaveText("-2");
-  await stats.locator(".turn-stats-changes").click();
+  await stats.locator(".change-counts").click();
   expect(await lastPosted(page, "openDiffs")).toEqual(openDiffs);
 });
 

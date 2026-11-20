@@ -228,7 +228,7 @@ function StatsRow({ stats }: { stats: TurnStats }) {
             {openable.length > 0 ? (
               <button
                 type="button"
-                class="turn-stats-changes"
+                class="change-counts"
                 aria-label={t("openDiff")}
                 onClick={() => post({ type: "openDiffs", files: openable.map((f) => ({ file: f.file, patch: f.patch })) })}
               >

@@ -678,8 +678,8 @@ details[open] > summary > .chevron,
   opacity: 0.7;
 }
 
-/* The insertion/deletion counts double as a button that opens the turn's diffs. */
-.turn-stats-changes {
+/* Insertion/deletion counts double as a button that opens the relevant diffs. */
+.change-counts {
   background: none;
   border: none;
   padding: 0;
@@ -689,9 +689,14 @@ details[open] > summary > .chevron,
   cursor: pointer;
 }
 
-.turn-stats-changes:hover,
-.turn-stats-changes:focus-visible {
+.change-counts:hover,
+.change-counts:focus-visible {
   text-decoration: underline;
+}
+
+/* `icon-button` is an inline-flex, so a plain whitespace node is collapsed: use a real gap. */
+.view-all-changes {
+  gap: 4px;
 }
 
 .md {
@@ -1490,7 +1495,7 @@ button:disabled {
 
 /* Push the button group to the right; only the first button takes the auto margin so the
    remaining buttons stay right next to it instead of being spread across the summary. */
-.panel > summary .icon-button:first-of-type {
+.panel > summary > button:first-of-type {
   margin-left: auto;
 }
 
