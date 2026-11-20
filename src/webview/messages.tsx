@@ -44,6 +44,12 @@ function fileNameOf(uri: string): string {
   }
 }
 
+/** Splits a path into its file name and parent directory (with trailing separator). Accepts both POSIX and Windows separators. */
+function splitFilePath(path: string): { name: string; dir: string } {
+  const i = Math.max(path.lastIndexOf("/"), path.lastIndexOf("\\"));
+  return i < 0 ? { name: path, dir: "" } : { name: path.slice(i + 1), dir: path.slice(0, i + 1) };
+}
+
 export function Markdown({ text }: { text: string }) {
   const html = useMemo(() => renderMarkdown(text), [text]);
   return <div class="md" dangerouslySetInnerHTML={{ __html: html }} />;
@@ -613,37 +619,46 @@ export function FileList({ files, applied }: { files: ChangedFile[]; applied: bo
   const t = useT();
   return (
     <ul class="file-list">
-      {files.map((f) => (
-        <li key={f.file} class="file-item">
-          {f.patch ? (
+      {files.map((f) => {
+        const { name, dir } = splitFilePath(f.file);
+        const label = (
+          <span class="file-name">
+            <span class="file-base">{name}</span>
+            {dir && <span class="file-path">{dir}</span>}
+          </span>
+        );
+        return (
+          <li key={f.file} class="file-item">
+            {f.patch ? (
+              <button
+                type="button"
+                class="file-row"
+                title={`${t("openDiff")}: ${f.file}`}
+                onClick={() => post({ type: "openDiff", file: f.file, patch: f.patch, applied })}
+              >
+                <IconDiff />
+                {label}
+                <span class="adds">+{f.additions}</span>
+                <span class="dels">-{f.deletions}</span>
+              </button>
+            ) : (
+              <span class="file-row" title={t("noDiffAvailable")}>
+                <IconDiff />
+                {label}
+              </span>
+            )}
             <button
               type="button"
-              class="file-row"
-              title={`${t("openDiff")}: ${f.file}`}
-              onClick={() => post({ type: "openDiff", file: f.file, patch: f.patch, applied })}
+              class="file-open tooltip-host"
+              aria-label={t("openFile")}
+              data-tooltip={`${t("openFile")}: ${f.file}`}
+              onClick={() => post({ type: "openFile", path: f.file })}
             >
-              <IconDiff />
-              <span class="file-name">{f.file}</span>
-              <span class="adds">+{f.additions}</span>
-              <span class="dels">-{f.deletions}</span>
+              <IconFile />
             </button>
-          ) : (
-            <span class="file-row" title={t("noDiffAvailable")}>
-              <IconDiff />
-              <span class="file-name">{f.file}</span>
-            </span>
-          )}
-          <button
-            type="button"
-            class="file-open tooltip-host"
-            aria-label={t("openFile")}
-            data-tooltip={`${t("openFile")}: ${f.file}`}
-            onClick={() => post({ type: "openFile", path: f.file })}
-          >
-            <IconFile />
-          </button>
-        </li>
-      ))}
+          </li>
+        );
+      })}
     </ul>
   );
 }

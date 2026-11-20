@@ -1302,7 +1302,8 @@ test("the changed-files panel falls back to patches from tool metadata", async (
   });
   const panel = page.locator(".panel.changes");
   await expect(panel).toBeVisible();
-  await expect(panel.locator(".file-name")).toHaveText("src/tool.txt");
+  await expect(panel.locator(".file-base")).toHaveText("tool.txt");
+  await expect(panel.locator(".file-path")).toHaveText("src/");
 });
 
 test("the changed-files refresh button has an instant tooltip and still refreshes", async ({ page }) => {
@@ -1377,7 +1378,8 @@ test("the changed-files check button hides the panel until the changes change", 
   // New changes bring it back.
   await host(page, { type: "changedFiles", files: [file("src/b.txt")] });
   await expect(panel).toBeVisible();
-  await expect(panel.locator(".file-name")).toHaveText("src/b.txt");
+  await expect(panel.locator(".file-base")).toHaveText("b.txt");
+  await expect(panel.locator(".file-path")).toHaveText("src/");
 });
 
 test("the changed-files refresh and check buttons sit together on the right", async ({ page }) => {
