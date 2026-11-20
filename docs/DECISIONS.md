@@ -106,3 +106,23 @@ version warning honest. Supporting a new server version should extend the adapte
 
 `permission.asked.source.id` equals the tool call id, so the request is attached to that tool card;
 requests without a source are shown at the end of the conversation.
+
+## D14 — File icons are resolved from the user's icon theme, inlined as data URIs
+
+VS Code has no API returning "the themed icon for this path": `ThemeIcon.File` only works in views
+VS Code renders itself (tree, quick pick, timeline), and codicons cover only a handful of file types.
+To make file chips and changed-file rows match the Explorer we therefore read `workbench.iconTheme`,
+find the contributing extension in `vscode.extensions.all` (built-in Seti included), parse its JSON
+with `vscode.workspace.fs.readFile`, and apply the documented association order: file name with a
+parent path segment → file name → extension with parent → extension → language id → default. The
+`light` / `highContrast` sections and `extends` are merged, and `files.associations` overrides the
+language inferred from the path. The language id is reconstructed from installed extensions'
+`contributes.languages` because the webview only knows a path — Seti, for example, maps TypeScript
+only through `languageIds`, not `fileExtensions`.
+
+Icons are requested lazily by the webview (one batch per frame), cached by the host and invalidated
+when the icon theme, color theme, associations or installed extensions change. SVG and glyph-font
+assets are inlined as data URIs rather than exposed with `asWebviewUri`: that avoids changing
+`localResourceRoots` dynamically (the webview view can be recreated) and keeps the standalone UI
+harness — which has no `asWebviewUri` — working unchanged. The cost is a base64 payload (Seti's
+font is ~37 KB → ~50 KB), sent only with icon responses.

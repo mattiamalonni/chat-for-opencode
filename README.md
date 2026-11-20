@@ -34,7 +34,7 @@ sends **no telemetry**.
   `Ctrl/Cmd+Enter` interrupts and sends it immediately (`delivery: steer`). Composer drafts are
   stored per session **and survive a window reload**.
 - A **contract smoke test** on connect names the features that a non-2.2.7 server cannot support, instead of only warning about the version number.
-- **Editor context**: the active file and selection are attached automatically as chips you can remove before sending.
+- **Editor context**: the active file and selection are attached automatically as chips you can remove before sending. File chips use the icons of your active VS Code file icon theme, the same as the Explorer (including dark/light/high-contrast variants and glyph fonts such as Seti).
 - **`@` mentions** with fuzzy workspace file search, **Add Selection to Chat** / **Add File to Chat** in the editor and explorer context menus.
 - **Attach external files** by dragging them into the chat (**hold Shift**: VS Code otherwise opens the file in an editor), by pasting an image or other file into the prompt, or with the folder button, which opens a native file picker. Files outside the workspace are sent **inline** so the model receives their content instead of only a path to look for.
 - **Clickable file references**: `src/app.ts:42` in a reply, a tool's input path, a permission resource or a changed-file row opens the file at that line in the editor.

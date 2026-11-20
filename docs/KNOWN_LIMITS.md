@@ -54,6 +54,10 @@ test or a manual probe actually ran.
   `shell echo * allow` was still prompted with the default `shell * ask` session rule). Users with
   an allowlist in their OpenCode config must copy it into `opencode.sessionPermissions` or set that
   option to `[]`.
+- **Themed file icons are best-effort.** If `workbench.iconTheme` is disabled or the theme cannot be
+  read/parsed, chips keep the extension's built-in fallback icons. The language id is inferred from
+  file names/extensions in `contributes.languages` (plus `files.associations`); a language selected
+  by its first line only, or an unusual theme structure, can resolve to the theme's default icon.
 - **File references open only inside the workspace.** Model output is untrusted: `data-file`
   attributes from raw HTML are stripped before prose is linkified, and the host refuses to open a
   reference that resolves outside the folder (including `../` escapes and absolute paths).

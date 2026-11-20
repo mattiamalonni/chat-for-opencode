@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- File icons now come from your **active VS Code file icon theme**, so context chips, attachments,
+  `@` results and changed-file rows show the same icon as the Explorer. SVG icons and glyph fonts
+  (including Seti) are supported, with dark/light/high-contrast variants. The old built-in icons are
+  only a fallback when the theme has no match. Icons refresh when you switch theme or color theme.
 - Changed-file rows (in the **Changed files** panel and in tool cards) now lead with the file **name**;
   its parent folder follows in smaller, muted text (e.g. `Button.tsx  src/components/`). Files at the
   root show only their name, and the row tooltip still carries the full path.
