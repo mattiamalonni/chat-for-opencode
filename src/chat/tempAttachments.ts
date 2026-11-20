@@ -36,7 +36,8 @@ export function attachmentFileName(name: string, mime?: string): string {
  * so the same file can reach us as `C:\\...` and `c:\\...`; comparing raw strings would reject it.
  */
 export function normalizePathKey(file: string, platform: NodeJS.Platform = process.platform): string {
-  const resolved = path.resolve(file);
+  // Pick the path implementation explicitly so the result does not depend on the test host OS.
+  const resolved = platform === "win32" ? path.win32.resolve(file) : path.posix.resolve(file);
   return platform === "win32" ? resolved.toLowerCase() : resolved;
 }
 
