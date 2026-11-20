@@ -17,7 +17,7 @@ import {
 } from "../shared/chatReducer";
 import { SUPPORTED_SERVER_VERSION, type Compatibility } from "../shared/compatibility";
 import { estimateDataUrlTokens } from "../shared/format";
-import { isNewSessionKey } from "../shared/keys";
+import { isFindKey, isNewSessionKey } from "../shared/keys";
 import { contractSignature, emptyContract, type ContractReport } from "../shared/contract";
 import type { Attachment, ConnectionStatus, ContextItem, FolderInfo, HostMessage, SessionSummary, UiError } from "../shared/protocol";
 import { initialSubagentState, pushSubagentSession, subagentReducer, truncateSubagentStack, type SubagentEvent, type SubagentState } from "../shared/subagents";
@@ -83,6 +83,8 @@ export function App() {
   const [syncing, setSyncing] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  // Bumped by Cmd/Ctrl+F so re-focusing the search works even when it is already open.
+  const [searchFocusToken, setSearchFocusToken] = useState(0);
   const [announcement, setAnnouncement] = useState({ text: "", seq: 0 });
   // A live region only announces when its text changes: repeating the same string is silent.
   const announce = (text: string) => setAnnouncement((prev) => ({ text, seq: prev.seq + 1 }));
@@ -291,15 +293,23 @@ export function App() {
     if (tooltipFrame.current !== undefined) cancelAnimationFrame(tooltipFrame.current);
   }, []);
 
-  // Cmd/Ctrl+N creates a new session while the chat has focus. The VS Code webview preload
-  // forwards every keydown that reaches `window` to the workbench (see D7), where this chord
-  // means "new file". Capture it before that bubble-phase listener so the workbench never sees it.
+  // Cmd/Ctrl+N creates a new session and Cmd/Ctrl+F opens the message search while the chat has
+  // focus. The VS Code webview preload forwards every keydown that reaches `window` to the
+  // workbench (see D7), where these chords mean "new file" / "find". Capture them before that
+  // bubble-phase listener so the workbench never sees them.
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
-      if (!isNewSessionKey(e, env.platform) || e.repeat) return;
-      e.preventDefault();
-      e.stopPropagation();
-      post({ type: "newSession" });
+      if (e.repeat) return;
+      if (isNewSessionKey(e, env.platform)) {
+        e.preventDefault();
+        e.stopPropagation();
+        post({ type: "newSession" });
+      } else if (isFindKey(e, env.platform)) {
+        e.preventDefault();
+        e.stopPropagation();
+        setSearchOpen(true);
+        setSearchFocusToken((token) => token + 1);
+      }
     };
     window.addEventListener("keydown", onKeyDown, true);
     return () => window.removeEventListener("keydown", onKeyDown, true);
@@ -480,6 +490,7 @@ export function App() {
           syncing={syncing}
           searchOpen={searchOpen}
           onToggleSearch={() => setSearchOpen((open) => !open)}
+          searchFocusToken={searchFocusToken}
           searchQuery={searchQuery}
           onSearchChange={setSearchQuery}
           searchCount={searchCount}
@@ -684,6 +695,7 @@ function Header(props: {
   syncing: boolean;
   searchOpen: boolean;
   onToggleSearch: () => void;
+  searchFocusToken: number;
   searchQuery: string;
   onSearchChange: (value: string) => void;
   searchCount: number;
@@ -693,6 +705,13 @@ function Header(props: {
   useEffect(() => {
     if (props.searchOpen) searchRef.current?.focus();
   }, [props.searchOpen]);
+  // Cmd/Ctrl+F re-focuses and selects the query even when the search was already open.
+  useEffect(() => {
+    if (props.searchOpen && props.searchFocusToken > 0) {
+      searchRef.current?.focus();
+      searchRef.current?.select();
+    }
+  }, [props.searchFocusToken]);
   return (
     <header class="header">
       <button

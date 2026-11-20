@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { composerAction, isNewSessionKey, shouldIsolateKey, type KeyLike } from "../../src/shared/keys";
+import { composerAction, isFindKey, isNewSessionKey, shouldIsolateKey, type KeyLike } from "../../src/shared/keys";
 
 function k(key: string, mods: Partial<KeyLike> = {}): KeyLike {
   return {
@@ -76,6 +76,28 @@ describe("isNewSessionKey", () => {
     expect(isNewSessionKey(k("m", { metaKey: true }), "mac")).toBe(false);
     expect(isNewSessionKey(k("Process", { metaKey: true, keyCode: 229 }), "mac")).toBe(false);
     expect(isNewSessionKey(k("n", { isComposing: true, metaKey: true }), "mac")).toBe(false);
+  });
+});
+
+describe("isFindKey", () => {
+  it("matches plain Cmd+F on mac and Ctrl+F elsewhere", () => {
+    expect(isFindKey(k("f", { metaKey: true }), "mac")).toBe(true);
+    expect(isFindKey(k("F", { metaKey: true }), "mac")).toBe(true);
+    expect(isFindKey(k("f", { ctrlKey: true }), "windows")).toBe(true);
+    expect(isFindKey(k("f", { ctrlKey: true }), "linux")).toBe(true);
+  });
+
+  it("ignores the wrong modifier, extra modifiers and IME compositions", () => {
+    expect(isFindKey(k("f", { ctrlKey: true }), "mac")).toBe(false);
+    expect(isFindKey(k("f", { metaKey: true }), "windows")).toBe(false);
+    // Cmd/Ctrl+Shift+F belongs to VS Code's "Find in Files".
+    expect(isFindKey(k("f", { metaKey: true, shiftKey: true }), "mac")).toBe(false);
+    expect(isFindKey(k("f", { metaKey: true, altKey: true }), "mac")).toBe(false);
+    expect(isFindKey(k("f", { metaKey: true, ctrlKey: true }), "mac")).toBe(false);
+    expect(isFindKey(k("a", { metaKey: true }), "mac")).toBe(false);
+    expect(isFindKey(k("f"), "mac")).toBe(false);
+    expect(isFindKey(k("Process", { metaKey: true, keyCode: 229 }), "mac")).toBe(false);
+    expect(isFindKey(k("f", { isComposing: true, metaKey: true }), "mac")).toBe(false);
   });
 });
 

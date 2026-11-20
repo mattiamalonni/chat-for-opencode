@@ -130,6 +130,7 @@ loads the skill content.
 | OpenCode: Add Selection to Chat | `Cmd/Ctrl+Alt+L` (editor with selection) |
 | OpenCode: Add File to Chat | – (editor / explorer context menu) |
 | OpenCode: New Session | `Cmd/Ctrl+N` (chat focused) |
+| Search messages in the chat | `Cmd/Ctrl+F` (chat focused) |
 | OpenCode: Compact Conversation | – |
 | OpenCode: Reconnect / Restart Server | – |
 | OpenCode: Move Chat View… | – (left/right side bar or panel) |

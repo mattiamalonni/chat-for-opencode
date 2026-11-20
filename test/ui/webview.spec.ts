@@ -1182,6 +1182,55 @@ test("Cmd/Ctrl+N starts a new session only while the chat has focus", async ({ p
   expect(await page.evaluate(() => (window as unknown as { __windowKeys: string[] }).__windowKeys)).not.toContain("Meta+n");
 });
 
+test("Cmd/Ctrl+F opens and focuses the chat message search without reaching the workbench", async ({ page }) => {
+  await boot(page); // init platform: windows
+  const input = page.getByRole("textbox", { name: STRINGS.inputLabel });
+  const search = page.getByRole("searchbox", { name: STRINGS.searchMessages });
+  const windowKeys = () => page.evaluate(() => (window as unknown as { __windowKeys: string[] }).__windowKeys);
+  await input.click();
+  await expect(search).toHaveCount(0);
+  await page.evaluate(() => ((window as unknown as { __windowKeys: string[] }).__windowKeys.length = 0));
+
+  await page.keyboard.press("Control+f");
+  await expect(search).toBeVisible();
+  await expect(search).toBeFocused();
+  // The preload listens in the bubble phase: the chord must not reach the workbench's "Find".
+  expect(await windowKeys()).not.toContain("Ctrl+f");
+
+  // Subsequent typing goes into the search, not into the composer.
+  await page.keyboard.type("hello");
+  await expect(search).toHaveValue("hello");
+  await expect(input).toHaveValue("");
+
+  // Pressing it again while the search is open re-focuses and selects the current query.
+  await input.click();
+  await page.evaluate(() => ((window as unknown as { __windowKeys: string[] }).__windowKeys.length = 0));
+  await page.keyboard.press("Control+f");
+  await expect(search).toBeFocused();
+  expect(await search.evaluate((el) => [el.selectionStart, el.selectionEnd])).toEqual([0, 5]);
+  expect(await windowKeys()).not.toContain("Ctrl+f");
+
+  await page.keyboard.press("Escape");
+  await expect(search).toHaveCount(0);
+  // Cmd/Ctrl+Shift+F is left alone so VS Code's "Find in Files" still works. The harness does not
+  // encode Shift in its key log, so check that the chord still reaches the workbench and that the
+  // chat search stays closed.
+  await input.click();
+  await page.evaluate(() => ((window as unknown as { __windowKeys: string[] }).__windowKeys.length = 0));
+  await page.keyboard.press("Control+Shift+f");
+  await expect(search).toHaveCount(0);
+  expect(await windowKeys()).toContain("Ctrl+f");
+
+  // Same behaviour with Cmd on macOS.
+  await host(page, { type: "init", strings: { ...STRINGS }, platform: "mac", folders: [{ uri: "file:///work", name: "work" }], activeFolder: "file:///work", issuesUrl: ISSUES_URL });
+  await input.click();
+  await page.evaluate(() => ((window as unknown as { __windowKeys: string[] }).__windowKeys.length = 0));
+  await page.keyboard.press("Meta+f");
+  await expect(search).toBeVisible();
+  await expect(search).toBeFocused();
+  expect(await windowKeys()).not.toContain("Meta+f");
+});
+
 test("IME composition: Enter confirming a candidate does not send", async ({ page }) => {
   await boot(page);
   const input = page.getByRole("textbox", { name: STRINGS.inputLabel });

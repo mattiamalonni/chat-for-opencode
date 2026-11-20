@@ -62,11 +62,12 @@ keeps working — VS Code implements Select All for webviews via `webview.select
 `execCommand('selectAll')`, so `Cmd/Ctrl+A` must reach the preload too. IME:
 `isComposing`/`keyCode 229`/`key === "Process"` never trigger send.
 
-Cmd/Ctrl+N is the one chord the webview claims from VS Code: a `window` **capture-phase** listener
-stops it before the preload's bubble listener can forward `did-keydown` to the workbench (where it
-would be "New Untitled File") and posts `newSession`. Because key events only reach the webview
-while it is focused, this applies only when the chat has focus. Shift/Alt/Ctrl-on-mac variants are
-left alone.
+Cmd/Ctrl+N and Cmd/Ctrl+F are the chords the webview claims from VS Code: a `window`
+**capture-phase** listener stops them before the preload's bubble listener can forward `did-keydown`
+to the workbench (where they would be "New Untitled File" / "Find") and either posts `newSession`
+or opens and focuses the chat's message search. Because key events only reach the webview while it
+is focused, this applies only when the chat has focus. Shift/Alt/Ctrl-on-mac variants are left
+alone (e.g. Cmd/Ctrl+Shift+F still runs VS Code's "Find in Files").
 
 ## D8 — Todo list from `todowrite`
 

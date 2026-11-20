@@ -48,14 +48,27 @@ export function shouldIsolateKey(e: KeyLike, platform: Platform): boolean {
   return !isPassthrough(e, platform);
 }
 
+/** Plain Cmd (mac) / Ctrl (Windows/Linux) + one letter, with no extra modifiers or IME composition. */
+function isPlainChord(e: KeyLike, platform: Platform, letter: string): boolean {
+  if (isImeKey(e) || e.altKey || e.shiftKey) return false;
+  const mod = platform === "mac" ? e.metaKey && !e.ctrlKey : e.ctrlKey && !e.metaKey;
+  return mod && e.key.toLowerCase() === letter;
+}
+
 /**
  * Cmd+N (mac) / Ctrl+N (Windows/Linux), plain and outside an IME composition: starts a new chat
  * session while the webview has focus. VS Code's workbench would otherwise turn it into a new file.
  */
 export function isNewSessionKey(e: KeyLike, platform: Platform): boolean {
-  if (isImeKey(e) || e.altKey || e.shiftKey) return false;
-  const mod = platform === "mac" ? e.metaKey && !e.ctrlKey : e.ctrlKey && !e.metaKey;
-  return mod && e.key.toLowerCase() === "n";
+  return isPlainChord(e, platform, "n");
+}
+
+/**
+ * Cmd+F (mac) / Ctrl+F (Windows/Linux), plain and outside an IME composition: opens the chat's
+ * message search while the webview has focus, instead of VS Code's editor find widget.
+ */
+export function isFindKey(e: KeyLike, platform: Platform): boolean {
+  return isPlainChord(e, platform, "f");
 }
 
 export type ComposerAction = "send" | "steer" | "newline" | "none";
