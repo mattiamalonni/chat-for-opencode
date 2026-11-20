@@ -51,7 +51,7 @@ import { ContextTracker, FileIndex, selectionAttachment } from "./context";
 import { DiffService } from "./diff";
 import { DEFAULT_SESSION_PERMISSIONS } from "./permissions";
 import { PermissionService } from "./permissionService";
-import { attachmentFileName, isWithinDirectory, normalizePathKey } from "./tempAttachments";
+import { attachmentFileName, evictOldestAttachments, isWithinDirectory, normalizePathKey } from "./tempAttachments";
 
 const PASSWORD_KEY = (endpoint: string) => `opencode.password:${endpoint}`;
 const SESSION_KEY = (folder: string) => `opencode.session:${folder}`;
@@ -254,6 +254,10 @@ export class ChatController implements vscode.Disposable {
 
   /** Inline attachments copied to disk so their chips can be opened in the editor. */
   private readonly tempAttachments = new Set<string>();
+  /** Each copy can be 20 MB; cap the count so a long session cannot fill the temp folder. */
+  private static readonly MAX_TEMP_ATTACHMENTS = 50;
+  /** Attention requests already announced while the chat was hidden (avoids notification spam). */
+  private readonly announcedHiddenAttention = new Set<string>();
 
   private get tempAttachmentsDir(): string {
     // OS temp is cleared by the system on reboot, so staged copies never linger indefinitely.
@@ -338,8 +342,11 @@ export class ChatController implements vscode.Disposable {
     // The live stream has no replay: top up incrementally when the panel is shown again so a
     // chat left open in the background cannot drift from the server while it was hidden.
     this.disposables.push(view.onDidChangeVisibility(() => {
+      if (this.view !== view || !view.visible) return;
+      // Back in view: the user can see the cards, so a later resync must not announce them again.
+      this.announcedHiddenAttention.clear();
       // `resync()` also publishes a "connected" status, so never run it while still connecting.
-      if (this.view === view && view.visible && this.status === "connected" && this.client) void this.resync();
+      if (this.status === "connected" && this.client) void this.resync();
     }));
   }
 
@@ -898,6 +905,10 @@ export class ChatController implements vscode.Disposable {
     if (event.type === "permission.replied") {
       const requestId = (event.data as { requestID?: string }).requestID;
       if (requestId) this.permissions.forgetRequest(requestId);
+      this.announcedHiddenAttention.delete(`permission.asked:${requestId}`);
+    }
+    if (event.type === "form.replied" || event.type === "form.cancelled") {
+      this.announcedHiddenAttention.delete(`form.created:${(event.data as { id?: string }).id}`);
     }
     // Plugin skills/commands can be registered or removed while the chat is open.
     if (event.type === "skill.updated" || event.type === "command.updated") void this.refreshSlashItems();
@@ -957,14 +968,22 @@ export class ChatController implements vscode.Disposable {
       if (files && files.length > 0) this.scheduleChanges();
     }
     if (sid === this.sessionId && (event.type === "permission.asked" || event.type === "form.created") && !this.isVisible) {
-      const msg =
-        event.type === "permission.asked"
-          ? vscode.l10n.t("OpenCode is asking for permission.")
-          : vscode.l10n.t("OpenCode is asking a question.");
-      const open = vscode.l10n.t("Open chat");
-      void vscode.window.showInformationMessage(msg, open).then((choice) => {
-        if (choice === open) void vscode.commands.executeCommand("opencode.chatView.focus");
-      });
+      const id = event.type === "permission.asked"
+        ? (event.data as { id?: string }).id
+        : (event.data as { form?: { id?: string } }).form?.id;
+      const key = `${event.type}:${id}`;
+      // A resync re-posts the same pending request; announce it only once, not on every event.
+      if (id && !this.announcedHiddenAttention.has(key)) {
+        this.announcedHiddenAttention.add(key);
+        const msg =
+          event.type === "permission.asked"
+            ? vscode.l10n.t("OpenCode is asking for permission.")
+            : vscode.l10n.t("OpenCode is asking a question.");
+        const open = vscode.l10n.t("Open chat");
+        void vscode.window.showInformationMessage(msg, open).then((choice) => {
+          if (choice === open) void vscode.commands.executeCommand("opencode.chatView.focus");
+        });
+      }
     }
   }
 
@@ -1327,6 +1346,7 @@ export class ChatController implements vscode.Disposable {
   // ---- commands ---------------------------------------------------------------------------
 
   async newSession(): Promise<void> {
+    this.announcedHiddenAttention.clear();
     this.loadGen.bump();
     this.clearTimers();
     this.sessionId = undefined;
@@ -1367,6 +1387,7 @@ export class ChatController implements vscode.Disposable {
 
   /** Tears down the server/stream/client without binding a new connection. */
   private async detachServers(): Promise<void> {
+    this.announcedHiddenAttention.clear();
     this.connectGen.bump();
     this.connecting = undefined;
     this.loadGen.bump();
@@ -1395,6 +1416,7 @@ export class ChatController implements vscode.Disposable {
 
   async switchFolder(folder: vscode.WorkspaceFolder | undefined): Promise<void> {
     if (folder?.uri.toString() === this.folder?.uri.toString()) return;
+    this.announcedHiddenAttention.clear();
     this.connectGen.bump();
     this.connecting = undefined;
     this.loadGen.bump();
@@ -1440,6 +1462,10 @@ export class ChatController implements vscode.Disposable {
       const file = path.join(dir, `${randomUUID()}-${attachmentFileName(name, mime)}`);
       await fs.writeFile(file, bytes);
       this.tempAttachments.add(normalizePathKey(file));
+      // Evict after a successful write, so a failed write cannot drop a still-usable old copy.
+      evictOldestAttachments(this.tempAttachments, ChatController.MAX_TEMP_ATTACHMENTS, (oldest) => {
+        void fs.unlink(oldest).catch(() => undefined);
+      });
       this.addAttachment({ uri: vscode.Uri.file(file).toString(), name, kind: "file", detail });
     } catch (err) {
       this.noticeUnreadable(name, err instanceof Error ? err.message : String(err));
@@ -1744,8 +1770,9 @@ export class ChatController implements vscode.Disposable {
           this.post({ type: "fileIcons", ...(await this.fileIcons.resolve(msg.paths)) });
         } catch (err) {
           this.output.warn(`[chat] file icon theme: ${String(err)}`);
-          // A broken theme must not make the webview retry forever: answer with explicit misses.
-          this.post({ type: "fileIcons", icons: Object.fromEntries(msg.paths.map((p) => [p, null])), fonts: {} });
+          // A broken theme must not make the webview retry forever: answer with explicit misses and
+          // reset so fonts registered by the previous theme are not kept around.
+          this.post({ type: "fileIcons", reset: true, icons: Object.fromEntries(msg.paths.map((p) => [p, null])), fonts: {} });
         }
         return;
       }

@@ -102,6 +102,11 @@ function applyIcons(msg: Extract<HostMessage, { type: "fileIcons" }>): void {
   if (msg.reset) {
     store.icons.clear();
     store.fonts.clear();
+    if (typeof FontFace !== "undefined" && document.fonts) {
+      for (const { face } of addedFonts.values()) document.fonts.delete(face);
+    }
+    addedFonts.clear();
+    fontGen.clear();
   }
   for (const [id, font] of Object.entries(msg.fonts)) {
     store.fonts.set(id, font);

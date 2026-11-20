@@ -342,12 +342,16 @@ test("Up/Down in the composer recall previously sent prompts", async ({ page }) 
 
 test("modified Up/Down keys move the caret instead of recalling prompts", async ({ page }) => {
   await boot(page);
+  const mark = (await posted(page)).length;
   await openSession(page, S1, [
     {
       type: "session.inbox.enqueued",
       data: { sessionID: S1, inboxID: "msg_old", item: { type: "user", payload: { text: "first prompt" } } },
     },
   ]);
+  // The composer persists the old draft when the session switches; wait for that effect before
+  // typing, otherwise the switch can land after `fill` and silently clear the new text.
+  await expect.poll(async () => (await posted(page)).slice(mark).some((m) => m.type === "saveDraft" && m.text === "")).toBe(true);
   const input = page.getByRole("textbox", { name: STRINGS.inputLabel });
   await input.fill("draft in progress");
   // Cmd/Ctrl+Up are standard caret shortcuts, not prompt-history navigation.

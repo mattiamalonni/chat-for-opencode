@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { attachmentFileName, extensionForMime, isWithinDirectory, normalizePathKey } from "../../src/chat/tempAttachments";
+import { attachmentFileName, evictOldestAttachments, extensionForMime, isWithinDirectory, normalizePathKey } from "../../src/chat/tempAttachments";
 
 describe("tempAttachments", () => {
   it("derives a safe file name and keeps an existing extension", () => {
@@ -33,5 +33,23 @@ describe("tempAttachments", () => {
     expect(isWithinDirectory(root, root)).toBe(true);
     expect(isWithinDirectory("/Users/me/secret.png", root)).toBe(false);
     expect(isWithinDirectory(`${root}-other/shot.png`, root)).toBe(false);
+  });
+
+  it("evicts the oldest entries before a new one is added, only when the cap is full", () => {
+    const files = new Set(["a.png", "b.png", "c.png"]);
+    const evicted: string[] = [];
+    evictOldestAttachments(files, 3, (file) => evicted.push(file));
+    expect([...files]).toEqual(["b.png", "c.png"]);
+    expect(evicted).toEqual(["a.png"]);
+
+    // Room for one more: the next insert brings the set back to the cap without evicting.
+    evictOldestAttachments(files, 3, (file) => evicted.push(file));
+    expect([...files]).toEqual(["b.png", "c.png"]);
+    expect(evicted).toEqual(["a.png"]);
+
+    files.add("d.png");
+    evictOldestAttachments(files, 3, (file) => evicted.push(file));
+    expect([...files]).toEqual(["c.png", "d.png"]);
+    expect(evicted).toEqual(["a.png", "b.png"]);
   });
 });

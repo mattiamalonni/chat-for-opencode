@@ -80,6 +80,10 @@ test or a manual probe actually ran.
   Permission resources for files genuinely outside the workspace therefore cannot be opened by
   clicking them; open those from the explorer instead.
 
+- **Inline attachment copies** (clipboard images, files pasted or dropped without a path) are written
+  to the OS temp folder so their chips can be opened in the editor. The host keeps at most 50 of them,
+  evicting the oldest when a new one arrives; the rest are removed on extension deactivation. A copy
+  evicted this way is no longer openable from an old chip, though its bytes are still in that prompt.
 - **Other OpenCode versions** are not supported: only 2.2.7's contract (types and SSE fixtures) was
   verified. Other 2.2.x patch releases are assumed compatible without a warning; the chat warns for
   another minor (untested) or major (unsupported) version. A runtime smoke test checks the raw

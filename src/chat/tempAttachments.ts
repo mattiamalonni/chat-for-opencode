@@ -47,3 +47,17 @@ export function isWithinDirectory(file: string, dir: string): boolean {
   const target = normalizePathKey(file);
   return target === root || target.startsWith(root + path.sep);
 }
+
+/**
+ * Trims a FIFO set of temp files before a new one is added, evicting the oldest entries through
+ * `onEvict` (the caller does the best-effort `unlink`). Keeping the cap here makes the growth bound
+ * testable without a real extension host.
+ */
+export function evictOldestAttachments(set: Set<string>, limit: number, onEvict: (file: string) => void): void {
+  while (set.size >= limit) {
+    const oldest = set.values().next().value;
+    if (oldest === undefined) return;
+    set.delete(oldest);
+    onEvict(oldest);
+  }
+}
