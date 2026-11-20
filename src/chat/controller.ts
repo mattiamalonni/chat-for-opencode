@@ -1521,9 +1521,26 @@ export class ChatController implements vscode.Disposable {
         return this.setAutoApprove(msg.enabled);
       case "saveDraft":
         return this.saveDraft(msg.sessionId, msg.text);
-      case "permissionReply":
-        await this.client?.replyPermission(msg.sessionId, msg.requestId, msg.decision);
+      case "permissionReply": {
+        const sid = msg.sessionId;
+        const generation = this.executionGen.current();
+        try {
+          await this.client?.replyPermission(sid, msg.requestId, msg.decision);
+          // Rejecting a tool call ends the assistant's turn: stop the generation too, otherwise
+          // the model keeps answering and the composer stays on "stop" with no card left to act on.
+          // "once" and "always" let the turn continue as usual.
+          if (msg.decision === "reject" && this.client && sid) {
+            try {
+              await this.client.interrupt(sid);
+            } catch (err) {
+              this.output.warn(`[chat] interrupt after permission reject failed: ${String(err)}`);
+            }
+          }
+        } finally {
+          if (msg.decision === "reject") this.postLocalIdle(sid, generation);
+        }
         return;
+      }
       case "formReply":
         await this.client?.replyForm(msg.sessionId, msg.formId, msg.answer);
         return;
@@ -1532,10 +1549,20 @@ export class ChatController implements vscode.Disposable {
         const generation = this.executionGen.current();
         try {
           await this.client?.cancelForm(sid, msg.formId);
+          // Dismissing a question ends the assistant's turn: stop the generation too, otherwise
+          // the model keeps answering and the composer stays on "stop" after the form is gone.
+          // An already-idle session may reject the interrupt; the local idle below still applies.
+          if (this.client && sid) {
+            try {
+              await this.client.interrupt(sid);
+            } catch (err) {
+              this.output.warn(`[chat] interrupt after form cancel failed: ${String(err)}`);
+            }
+          }
         } finally {
-          // Dismissing a question ends the assistant's step, but the server may answer with
-          // only `form.cancelled` and no terminal execution event. Clear busy locally so the
-          // composer can never stay stuck on "stop" (same guard as `abort`).
+          // The server may answer with only `form.cancelled` and no terminal execution event.
+          // Clear busy locally so the composer can never stay stuck on "stop" (same guard as
+          // `abort`).
           this.postLocalIdle(sid, generation);
         }
         return;

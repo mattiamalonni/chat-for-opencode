@@ -100,6 +100,11 @@ export const STRINGS = {
   // when the request actually offers an "Always allow" button.
   permissionShortcutHint: "1 / 2 / 3",
   permissionShortcutHintNoAlways: "1 / 3",
+  // Header of the panel that docks pending approvals/questions above the composer.
+  attentionCount: "{0} of {1}",
+  attentionPrevious: "Previous request",
+  attentionNext: "Next request",
+  nextQuestion: "Next question",
   questionTitle: "Question from OpenCode",
   submit: "Submit",
   cancel: "Cancel",

@@ -10,7 +10,8 @@ Run these first; they cover most of the contract with the **mock** server:
 - `npm test` — unit (reducer, adapter, client, SSE, permissions, patches), Playwright UI and
   VS Code integration.
 - `npm run test:integration:e2e` — the **real webview inside VS Code** driven over CDP: typing a
-  prompt, streaming a reply and clicking *Allow once* on an inline permission card.
+  prompt, streaming a reply and clicking *Allow once* on a permission card in the panel above the
+  composer.
 - `npm run test:integration:real` — the extension inside VS Code against a **real** server
   (streaming, permission approval, applied diff, resume after a server restart), but it drives the
   controller through its message API rather than clicking the webview.
@@ -66,8 +67,14 @@ screen readers and multi-window process management.
     `Enter` queues it and `Ctrl/Cmd+Enter` sends now; press `Enter` and confirm the message is
     delivered after the current answer finishes. Repeat with `Ctrl/Cmd+Enter`: the current answer
     must be interrupted and the new one answered.
-12c. **Permission shortcuts**: when a permission card appears, Tab to it and press `1` (Allow once)
-    or `3` (Reject); `2` (Always allow) should only exist when the request offers saved rules.
+12c. **Permission shortcuts**: when a permission card appears in the panel above the composer, Tab
+    to it and press `1` (Allow once) or `3` (Reject); `2` (Always allow) should only exist when the
+    request offers saved rules. With several requests pending, check the counter and that
+    *Previous* / *Next* move through the queue without affecting the current answer. Clicking
+    *Cancel* on a question and *Reject* on a permission card must also stop the current reply (the
+    **Stop** button disappears); *Allow once* / *Always allow* must let it continue. If the agent
+    bundles several questions, check that they are shown one at a time and that *Next question*
+    keeps earlier answers before a single submit.
 12d. **Export and search**: use the header buttons to export the conversation as a `.md` file and to
     search for a word you used earlier; non-matching messages must be hidden and the result count
     shown. Add a large inline attachment and check the context meter shows a `~`-prefixed estimate.

@@ -6,7 +6,7 @@ test or a manual probe actually ran.
 ## Not verified by me
 
 - **Clicking the real sidebar with a real server.** `npm run test:integration:e2e` attaches to the
-  real VS Code webview over CDP against the **mock** server (typing, streaming, inline permission).
+  real VS Code webview over CDP against the **mock** server (typing, streaming, permission approval).
   `npm run test:integration:real` runs the extension inside real VS Code against a real
   `opencode serve` but drives the controller through its message API. `npm run test:integration:real:e2e`
   combines the two: real webview clicks plus a real server, waiting for the real streamed reply.
@@ -49,7 +49,7 @@ test or a manual probe actually ran.
   to `[]`, still follow OpenCode's permissive defaults. **Always allow** saves a project-scoped
   approval; use OpenCode's `permissions` config for stricter, global rules.
 - **Auto-approval grants each request once.** With `opencode.autoApprovePermissions` enabled (or the
-  composer's **Auto-approve** toggle for a single chat) the inline cards are skipped and every
+  composer's **Auto-approve** toggle for a single chat) the approval panel is skipped and every
   request is granted once on arrival; saved rules are untouched, so turning it off restores prompting
   immediately. A per-chat choice overrides the setting and is remembered across reloads.
 - **Session rules override `opencode.json` rules** (verified with 2.2.7: a config rule

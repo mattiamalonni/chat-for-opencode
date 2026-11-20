@@ -130,7 +130,7 @@ describe("chat-for-opencode extension", () => {
     assert.ok(lastPosted("session", mark), "fresh history posted to the webview");
   });
 
-  it("asks for permission inline and only proceeds after the reply, then lists changed files", async () => {
+  it("asks for permission in the overlay and only proceeds after the reply, then lists changed files", async () => {
     const mark = posted.length;
     await controller.receive({ type: "send", text: "[permission] change a.txt", attachments: [], context: [] });
     const asked = await waitFor(() => eventPosted("permission.asked", mark), "permission.asked");
@@ -145,6 +145,23 @@ describe("chat-for-opencode extension", () => {
       return c && c.files.length > 0 && c;
     }, "changed files");
     assert.equal(changed.files[0].file, "src/a.txt");
+  });
+
+  it("rejecting a permission stops the turn and unlocks the composer", async () => {
+    const mark = posted.length;
+    await controller.receive({ type: "send", text: "[permission] reject this edit", attachments: [], context: [] });
+    const asked = await waitFor(() => eventPosted("permission.asked", mark), "permission.asked");
+    assert.ok(asked.type === "event");
+    const data = asked.event.data as { id: string; sessionID: string };
+    const beforeReject = posted.length;
+    await controller.receive({ type: "permissionReply", sessionId: data.sessionID, requestId: data.id, decision: "reject" });
+    const idle = await waitFor(
+      () => posted.slice(beforeReject).find((m) => m.type === "event" && m.event.type === "session.status"),
+      "local idle status after reject",
+    );
+    assert.ok(idle.type === "event");
+    assert.equal((idle.event.data as { status: { type: string } }).status.type, "idle");
+    await waitFor(() => eventPosted("session.execution.interrupted", mark), "execution interrupted");
   });
 
   it("auto-approves permission requests when the setting is enabled", async () => {
@@ -333,7 +350,7 @@ describe("chat-for-opencode extension", () => {
     const form = (created.event.data as { form: { id: string; sessionID: string } }).form;
 
     // Dismissing a form must unlock the composer even when the server sends no terminal
-    // execution event (the mock keeps running, so only the local idle event proves the fix).
+    // execution event, so only the local idle event proves that part of the fix.
     const beforeCancel = posted.length;
     await controller.receive({ type: "formCancel", sessionId: form.sessionID, formId: form.id });
     const idle = await waitFor(
@@ -383,9 +400,10 @@ describe("chat-for-opencode extension", () => {
     assert.ok(created.type === "event");
     const form = (created.event.data as { form: { id: string; sessionID: string } }).form;
     await controller.receive({ type: "formCancel", sessionId: form.sessionID, formId: form.id });
-    await waitFor(() => eventPosted("session.execution.succeeded", mark), "execution succeeded");
+    // Cancelling a question also interrupts the turn, so the terminal event is an interruption.
+    await waitFor(() => eventPosted("session.execution.interrupted", mark), "execution interrupted");
 
-    const terminalIndex = posted.findIndex((m, i) => i >= mark && m.type === "event" && m.event.type === "session.execution.succeeded");
+    const terminalIndex = posted.findIndex((m, i) => i >= mark && m.type === "event" && m.event.type === "session.execution.interrupted");
     const reconciled = await waitFor(
       () => posted.slice(terminalIndex + 1).find((m): m is ReconcileMessage => m.type === "session" || m.type === "sessionDelta"),
       "reconciled session after cancel",

@@ -47,8 +47,13 @@ sends **no telemetry**.
   Each row leads with the file name, followed by its parent folder in smaller text
   (`Button.tsx` `src/components/`); hover for the full path. Files at the root show only their name.
   These combined views are built from the changed hunks only and create no file on disk.
-- **Permissions and questions inline** in the conversation, never auto-approved by default. Focus a
-  permission card and press `1`/`2`/`3` for Allow once / Always allow / Reject.
+- **Permissions and questions in a dedicated panel** docked above the message box, never
+  auto-approved by default — a request is always visible even if its step is folded. When several
+  are pending, the newest is shown first and `Previous` / `Next` cycle through the queue. Focus a
+  permission card and press `1`/`2`/`3` for Allow once / Always allow / Reject. Reject (like
+  Cancel on a question) stops the current reply; the two allow options let it continue. If the
+  agent asks several questions at once, they appear one at a time with **Next question** and a
+  single reply collects all the answers.
 - **Todo list** when the agent uses OpenCode's (experimental) `todowrite` tool.
 - **Export the conversation as Markdown** and **search messages** in the current session from the header.
 - Clear **error states** with action buttons (OpenCode missing, no provider, connection lost, interrupted response…).
@@ -138,7 +143,7 @@ loads the skill content.
 | `opencode.startupTimeout` | `30000` | ms to wait for the server to become healthy. |
 | `opencode.autoRestart` | `true` | Restart the managed server if it crashes (max 5 times in 2 minutes). |
 | `opencode.sessionPermissions` | ask before edits, shell and external files | Rules added to new sessions. Set `[]` to restore OpenCode's permissive defaults. |
-| `opencode.autoApprovePermissions` | `false` | Default for new chats: auto-approve every inline permission request (granted once, saved rules untouched). The **Auto-approve** toggle in the composer overrides it per chat. |
+| `opencode.autoApprovePermissions` | `false` | Default for new chats: auto-approve every permission request without showing the approval panel (granted once, saved rules untouched). The **Auto-approve** toggle in the composer overrides it per chat. |
 | `opencode.sessionPageSize` | `10` | Sessions shown per page in the session list; older ones are fetched with **Load more sessions**. |
 
 By default new sessions ask before editing files, running shell commands or accessing files outside
@@ -148,7 +153,7 @@ Set `opencode.sessionPermissions` to `[]`, or use OpenCode's `permissions` confi
 ([docs](https://opencode.ai/docs/permissions/)), to change the defaults.
 
 Enable `opencode.autoApprovePermissions` — or use the **Auto-approve** toggle at the bottom of the
-composer — to bypass the inline cards: every permission request is granted once on arrival, so the
+composer — to bypass the approval panel: every permission request is granted once on arrival, so the
 default `ask` rules still apply but you are not prompted. The toggle applies to the current chat
 and is remembered across reloads; the setting is the default for chats where it was never changed.
 Auto-approval is off by default; only enable it when you trust unattended edits and shell commands.

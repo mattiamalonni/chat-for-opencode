@@ -20,7 +20,7 @@
   "config.startupTimeout": "Milliseconds to wait for `opencode serve` to become healthy.",
   "config.autoRestart": "Restart the managed server automatically if it exits unexpectedly (max 5 times in 2 minutes).",
   "config.sessionPermissions": "Permission rules (`action`, `resource`, `effect`) added to new sessions. By default the extension asks before edits, shell commands and access outside the workspace; set `[]` to restore OpenCode's permissive defaults. See https://opencode.ai/docs/permissions/.",
-  "config.autoApprovePermissions": "Automatically approve every permission request (edits, shell commands, access outside the workspace) without showing the inline card. Requests are granted once, so saved rules are untouched. Off by default: enable it only if you trust the agent with unattended changes.",
+  "config.autoApprovePermissions": "Automatically approve every permission request (edits, shell commands, access outside the workspace) without showing the approval panel above the composer. Requests are granted once, so saved rules are untouched. Off by default: enable it only if you trust the agent with unattended changes.",
   "config.sessionPageSize": "Number of sessions shown per page in the session list. Use **Load more sessions** to fetch the next page.",
   "command.moveView": "Move Chat View… (left/right side bar, panel)"
 }

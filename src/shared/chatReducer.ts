@@ -1148,17 +1148,3 @@ export function orphanForms(state: ChatState): FormRequest[] {
   });
 }
 
-/** Both orphan scans in one pass over the conversation (the webview needs them on every render). */
-export function orphanCards(state: ChatState): { permissions: PermissionRequest[]; forms: FormRequest[] } {
-  const toolIds = new Set<string>();
-  for (const m of state.messages) {
-    if (m.kind === "assistant") for (const p of m.parts) if (p.kind === "tool") toolIds.add(p.id);
-  }
-  return {
-    permissions: state.permissions.filter((p) => !p.source || !toolIds.has(p.source.id)),
-    forms: state.forms.filter((f) => {
-      const id = (f.metadata?.tool as { id?: string } | undefined)?.id;
-      return !id || !toolIds.has(id);
-    }),
-  };
-}

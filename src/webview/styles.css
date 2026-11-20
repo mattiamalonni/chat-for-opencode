@@ -1261,16 +1261,11 @@ details[open] > summary > .chevron,
   gap: 6px;
 }
 
+/* A question is a regular themed widget, not a decorated dialog: same border and spacing as a card. */
 .card.question {
-  border-color: var(--vscode-focusBorder);
-  padding: 12px;
-  gap: 12px;
-}
-
-/* Give the form header its own zone so the fields don't crowd it. */
-.card.question > .card-title {
-  padding-bottom: 10px;
-  border-bottom: 1px solid var(--vscode-widget-border, var(--vscode-panel-border, transparent));
+  border-color: var(--vscode-widget-border, var(--vscode-panel-border, transparent));
+  padding: 8px;
+  gap: 8px;
 }
 
 .card-title {
@@ -1303,12 +1298,6 @@ details[open] > summary > .chevron,
   white-space: nowrap;
   font-size: 0.8em;
   color: var(--vscode-descriptionForeground);
-}
-
-/* Separate the buttons from the last option. */
-.card.question > .card-actions {
-  padding-top: 10px;
-  border-top: 1px solid var(--vscode-widget-border, var(--vscode-panel-border, transparent));
 }
 
 button.primary,
@@ -1540,6 +1529,76 @@ button:disabled {
   justify-content: center;
   font-size: 10px;
   flex: none;
+}
+
+/* ---- attention overlay ------------------------------------------------------------------ */
+
+/* Docked between the conversation and the composer so a pending request is never hidden inside a
+   folded step. Only layout is custom: colours and borders come from the active VS Code theme. */
+.attention-overlay {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  max-height: 55vh;
+  margin: 0 8px 4px;
+  overflow: hidden;
+  border: 1px solid var(--vscode-widget-border, var(--vscode-panel-border, transparent));
+  border-radius: 3px;
+  background: var(--vscode-editorWidget-background, var(--vscode-editor-background));
+  box-shadow: 0 2px 8px var(--vscode-widget-shadow, transparent);
+}
+
+.attention-head {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--vscode-widget-border, var(--vscode-panel-border, transparent));
+}
+
+.attention-title {
+  font-weight: 600;
+}
+
+.attention-count {
+  margin-left: auto;
+  color: var(--vscode-descriptionForeground);
+  font-variant-numeric: tabular-nums;
+}
+
+.attention-nav {
+  display: flex;
+  gap: 2px;
+}
+
+.attention-prev svg {
+  transform: rotate(180deg);
+}
+
+.attention-body {
+  min-height: 0;
+  overflow-y: auto;
+}
+
+/* No nested card border, but a slightly stronger themed surface so the request stands out from the
+   surrounding chat, with a bit more room between its parts. */
+.attention-body .card {
+  margin: 0;
+  padding: 12px;
+  border: none;
+  background: var(--vscode-input-background, var(--vscode-editor-background));
+  gap: 10px;
+}
+
+.attention-body .card .card-actions {
+  gap: 8px;
+  margin-top: 2px;
+}
+
+.attention-body .card .resources li + li {
+  margin-top: 2px;
 }
 
 /* ---- composer -------------------------------------------------------------------------- */

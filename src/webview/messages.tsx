@@ -1,5 +1,5 @@
 import type { ComponentChildren } from "preact";
-import { useEffect, useMemo, useRef, useState } from "preact/hooks";
+import { useEffect, useMemo, useState } from "preact/hooks";
 import type { FormField, FormRequest, FormValue, PermissionRequest } from "../shared/api";
 import {
   formsForTool,
@@ -594,8 +594,9 @@ function GenericToolCard({ part, state, filteredOut = false }: { part: ToolPart;
         </div>
       )}
       {files.length > 0 && <FileList files={files} applied={part.status === "completed"} />}
-      {permissions.map((p) => <PermissionCard key={p.id} request={p} />)}
-      {forms.map((f) => <FormCard key={f.id} form={f} />)}
+      {/* Requests are rendered once in the attention overlay above the composer. The tool keeps
+          its "attention" marker so it is easy to spot which call is waiting, but the actionable
+          card must not be duplicated here (or hidden inside a folded step). */}
     </section>
   );
 }
@@ -740,7 +741,7 @@ export function PermissionCard({ request }: { request: PermissionRequest }) {
   );
 }
 
-function initialValue(f: FormField): FormValue | undefined {
+export function initialValue(f: FormField): FormValue | undefined {
   const d = f.default;
   if (d !== undefined) {
     // A malformed default (null, object, array for a string field) must not leak into the input as
@@ -772,71 +773,72 @@ function numericValue(raw: string): FormValue | undefined {
   return Number.isFinite(n) ? n : undefined;
 }
 
-export function FormCard({ form }: { form: FormRequest }) {
+/** Collects every field (including hidden ones with their defaults) into the single form reply. */
+export function buildFormAnswer(
+  form: FormRequest,
+  values: Record<string, FormValue | undefined>,
+  custom: Record<string, string>,
+): Record<string, FormValue> {
+  const answer: Record<string, FormValue> = {};
+  for (const f of form.fields) {
+    let v = values[f.key];
+    // Only rewrite our sentinel when it is not a legitimate option value.
+    if (v === "__custom__" && !f.options?.some((o) => o.value === "__custom__")) v = custom[f.key] ?? "";
+    if (v !== undefined) answer[f.key] = v;
+  }
+  return answer;
+}
+
+/**
+ * One field of a question form, shown on its own in the attention overlay.
+ *
+ * A `question` tool can bundle several questions in one server-side form, so the answers are owned
+ * by the overlay (one reply is posted for the whole form at the end) and this card only renders the
+ * current field. The last card submits; earlier ones just move to the next question.
+ */
+export function QuestionCard({
+  form,
+  field,
+  value,
+  custom,
+  busy,
+  last,
+  onChange,
+  onCustom,
+  onNext,
+  onSubmit,
+  onCancel,
+}: {
+  form: FormRequest;
+  field?: FormField;
+  value: FormValue | undefined;
+  custom: string;
+  busy: boolean;
+  last: boolean;
+  onChange: (v: FormValue | undefined) => void;
+  onCustom: (v: string) => void;
+  onNext: () => void;
+  onSubmit: () => void;
+  onCancel: () => void;
+}) {
   const t = useT();
-  const fields = form.fields.filter((f) => !f.hidden);
-  const [values, setValues] = useState<Record<string, FormValue | undefined>>(() =>
-    Object.fromEntries(form.fields.map((f) => [f.key, initialValue(f)])),
-  );
-  const [custom, setCustom] = useState<Record<string, string>>({});
-  const [busy, setBusy] = useState(false);
   const failed = useReplyFailed("form", form.id);
-  // A resync re-posts the same pending form as a fresh object: re-enable its buttons.
-  useEffect(() => setBusy(false), [form]);
-  // If a resync regenerates fields (new keys/defaults) under the same id, re-derive the answers.
-  // Keying only on the cheap signature avoids wiping the user's input on a normal resync.
-  const fieldsSignature = form.fields
-    .map((f) => `${f.key}\u0000${f.type}\u0000${f.required ? 1 : 0}\u0000${JSON.stringify(f.default) ?? ""}`)
-    .join("\u0001");
-  const appliedSignature = useRef(fieldsSignature);
-  useEffect(() => {
-    if (appliedSignature.current === fieldsSignature) return;
-    appliedSignature.current = fieldsSignature;
-    setValues(Object.fromEntries(form.fields.map((f) => [f.key, initialValue(f)])));
-    setCustom({});
-    setBusy(false);
-  }, [fieldsSignature]);
-  const set = (k: string, v: FormValue | undefined) => setValues((prev) => ({ ...prev, [k]: v }));
-  const missing = fields.some((f) => f.required && isMissing(f, values[f.key]));
   const disabled = busy && !failed;
-  const submit = (e: Event) => {
-    e.preventDefault();
-    const answer: Record<string, FormValue> = {};
-    for (const f of form.fields) {
-      let v = values[f.key];
-      // Only rewrite our sentinel when it is not a legitimate option value.
-      if (v === "__custom__" && !f.options?.some((o) => o.value === "__custom__")) v = custom[f.key] ?? "";
-      if (v !== undefined) answer[f.key] = v;
-    }
-    clearReplyFailure({ kind: "form", id: form.id });
-    setBusy(true);
-    post({ type: "formReply", sessionId: form.sessionID, formId: form.id, answer });
-  };
+  const missing = field ? field.required && isMissing(field, value) : false;
   const labelId = `form-${form.id}`;
   return (
-    <form class="card question" aria-labelledby={labelId} onSubmit={submit}>
+    <form class="card question" aria-labelledby={labelId} onSubmit={(e) => { e.preventDefault(); if (!disabled && !missing) onSubmit(); }}>
       <div class="card-title" id={labelId}>
         <IconInfo /> {form.title || t("questionTitle")}
       </div>
-      {fields.map((f) => (
-        <FieldInput key={f.key} resetKey={fieldsSignature} field={f} value={values[f.key]} onChange={(v) => set(f.key, v)} custom={custom[f.key] ?? ""} onCustom={(v) => setCustom((c) => ({ ...c, [f.key]: v }))} />
-      ))}
+      {field && <FieldInput field={field} value={value} onChange={onChange} custom={custom} onCustom={onCustom} resetKey={form.id} />}
       <div class="card-actions">
-        <button type="submit" class="primary" disabled={disabled || missing}>
-          {t("submit")}
-        </button>
-        <button
-          type="button"
-          class="secondary"
-          disabled={disabled}
-          onClick={() => {
-            clearReplyFailure({ kind: "form", id: form.id });
-            setBusy(true);
-            post({ type: "formCancel", sessionId: form.sessionID, formId: form.id });
-          }}
-        >
-          {t("cancel")}
-        </button>
+        {last ? (
+          <button type="submit" class="primary" disabled={disabled || missing}>{t("submit")}</button>
+        ) : (
+          <button type="button" class="primary" disabled={missing} onClick={onNext}>{t("nextQuestion")}</button>
+        )}
+        <button type="button" class="secondary" disabled={disabled} onClick={onCancel}>{t("cancel")}</button>
       </div>
     </form>
   );

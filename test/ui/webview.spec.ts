@@ -685,14 +685,15 @@ test("tool, permission and changed-file paths open the file with one click", asy
   expect(await lastPosted(page, "openDiff")).toMatchObject({ type: "openDiff", file: "a.txt" });
 });
 
-test("permission requests appear inside the tool card and are never auto-approved", async ({ page }) => {
+test("permission requests appear in the attention overlay and are never auto-approved", async ({ page }) => {
   await boot(page);
   const events = fixture("real-sse3.jsonl");
   const asked = events.findIndex((e) => e.type === "permission.asked");
   await openSession(page, S2, events.slice(0, asked + 1));
   const card = page.getByRole("group", { name: new RegExp(STRINGS.permissionTitle) });
   await expect(card).toBeVisible();
-  await expect(page.locator(".tool.attention .card.permission")).toHaveCount(1);
+  await expect(page.locator(".attention-overlay .card.permission")).toHaveCount(1);
+  await expect(page.locator(".conversation .card.permission")).toHaveCount(0);
   expect(await lastPosted(page, "permissionReply")).toBeUndefined();
   await page.screenshot({ path: join(SHOTS, "03-permission-dark.png"), fullPage: true });
 
@@ -704,6 +705,59 @@ test("permission requests appear inside the tool card and are never auto-approve
   expect(reply).toMatchObject({ sessionId: S2, decision: "once" });
   for (const event of events.slice(asked + 1)) await host(page, { type: "event", event });
   await expect(card).toHaveCount(0);
+});
+
+test("pending requests are shown one at a time with a counter and navigation", async ({ page }) => {
+  await boot(page);
+  await host(page, {
+    type: "session",
+    session: {
+      id: S2,
+      busy: true,
+      messages: [],
+      permissions: [
+        { id: "per_a", sessionID: S2, action: "edit", resources: ["a.txt"], save: ["*"], metadata: {} },
+        { id: "per_b", sessionID: S2, action: "shell", resources: ["ls"], save: ["*"], metadata: {} },
+      ],
+      forms: [
+        { id: "frm_a", sessionID: S2, title: "Question", fields: [{ key: "q0", title: "Color", type: "string" }], metadata: {} },
+      ],
+    },
+  });
+  const overlay = page.locator(".attention-overlay");
+  await expect(overlay).toBeVisible();
+  // The newest request (the form) takes the spotlight; the others stay in the queue.
+  await expect(overlay.locator("form.card.question")).toBeVisible();
+  await expect(overlay.locator(".attention-count")).toHaveText("1 of 3");
+  await expect(overlay.locator(".card.permission")).toHaveCount(0);
+
+  await overlay.getByRole("button", { name: STRINGS.attentionPrevious }).click();
+  await expect(overlay.locator(".card.permission .card-title code")).toHaveText("shell");
+  await expect(overlay.locator(".attention-count")).toHaveText("2 of 3");
+
+  await overlay.getByRole("button", { name: STRINGS.attentionPrevious }).click();
+  await expect(overlay.locator(".card.permission .card-title code")).toHaveText("edit");
+  await expect(overlay.locator(".attention-count")).toHaveText("3 of 3");
+  await expect(overlay.getByRole("button", { name: STRINGS.attentionPrevious })).toBeDisabled();
+
+  // Answering the visible request removes it and moves on to the next one.
+  await overlay.getByRole("button", { name: STRINGS.permissionAllowOnce }).click();
+  await host(page, { type: "event", event: { type: "permission.replied", data: { sessionID: S2, requestID: "per_a" } } });
+  await expect(overlay.locator(".card.permission .card-title code")).toHaveText("shell");
+  await expect(overlay.locator(".attention-count")).toHaveText("2 of 2");
+});
+
+test("a pending permission stays visible after its step is folded", async ({ page }) => {
+  await boot(page);
+  const events = fixture("real-sse3.jsonl");
+  const asked = events.findIndex((e) => e.type === "permission.asked");
+  await openSession(page, S2, events.slice(0, asked + 1));
+  await expect(page.locator(".attention-overlay .card.permission")).toBeVisible();
+  await expect(page.locator(".step-fold-body")).toHaveCount(1);
+  // The turn ends with the request still pending: the step folds, the overlay does not.
+  await host(page, { type: "event", event: { type: "session.execution.succeeded", data: { sessionID: S2 }, created: 1794853100000 } });
+  await expect(page.locator(".step-fold-body")).toHaveCount(0);
+  await expect(page.locator(".attention-overlay .card.permission")).toBeVisible();
 });
 
 test("a failed permission reply re-enables the card for a retry", async ({ page }) => {
@@ -765,14 +819,57 @@ test("question forms render options and submit the answer", async ({ page }) => 
   const events = fixture("real-sse4.jsonl");
   const created = events.findIndex((e) => e.type === "form.created");
   await openSession(page, S2, events.slice(0, created + 1));
-  const form = page.locator("form.card.question");
+  const form = page.locator(".attention-overlay form.card.question");
   await expect(form).toBeVisible();
+  await expect(page.locator(".conversation form.card.question")).toHaveCount(0);
   // The raw JSON input is redundant while the friendly question is pending.
-  await expect(page.locator(".tool:has(form.card.question) .tool-pre")).toHaveCount(0);
+  await expect(page.locator(".tool.attention .tool-pre")).toHaveCount(0);
   await form.getByLabel("Blue").check();
   await page.screenshot({ path: join(SHOTS, "04-question-dark.png"), fullPage: true });
   await form.getByRole("button", { name: STRINGS.submit }).click();
   expect(await lastPosted(page, "formReply")).toMatchObject({ answer: { q0: "Blue" } });
+});
+
+test("multi-question forms are asked one at a time and answered with a single reply", async ({ page }) => {
+  await boot(page);
+  await host(page, {
+    type: "session",
+    session: {
+      id: "ses_multi",
+      busy: true,
+      messages: [],
+      permissions: [],
+      forms: [{
+        id: "frm_multi",
+        sessionID: "ses_multi",
+        title: "Questions",
+        metadata: { kind: "question" },
+        fields: [
+          { key: "q0", type: "string", title: "First", options: [{ value: "a", label: "A" }, { value: "b", label: "B" }] },
+          { key: "q1", type: "string", title: "Second", options: [{ value: "x", label: "X" }, { value: "y", label: "Y" }] },
+        ],
+      }],
+    },
+  });
+  const overlay = page.locator(".attention-overlay");
+  await expect(overlay.locator(".attention-count")).toHaveText("1 of 2");
+  await expect(overlay.getByText("First")).toBeVisible();
+  await expect(overlay.getByText("Second")).toHaveCount(0);
+  await expect(overlay.getByRole("button", { name: STRINGS.nextQuestion })).toBeVisible();
+  await expect(overlay.getByRole("button", { name: STRINGS.submit })).toHaveCount(0);
+
+  await overlay.getByLabel("A").check();
+  await overlay.getByRole("button", { name: STRINGS.nextQuestion }).click();
+  await expect(overlay.locator(".attention-count")).toHaveText("2 of 2");
+  await expect(overlay.getByText("Second")).toBeVisible();
+  // Going back to the newer question keeps the first answer instead of resetting it.
+  await overlay.getByRole("button", { name: STRINGS.attentionNext }).click();
+  await expect(overlay.getByLabel("A")).toBeChecked();
+  await overlay.getByRole("button", { name: STRINGS.nextQuestion }).click();
+
+  await overlay.getByLabel("Y").check();
+  await overlay.getByRole("button", { name: STRINGS.submit }).click();
+  expect(await lastPosted(page, "formReply")).toMatchObject({ formId: "frm_multi", answer: { q0: "a", q1: "y" } });
 });
 
 test("cancelling a question unlocks the composer", async ({ page }) => {
@@ -1517,6 +1614,7 @@ test("light theme rendering", async ({ page }) => {
   const events = fixture("real-sse3.jsonl");
   const asked = events.findIndex((e) => e.type === "permission.asked");
   await openSession(page, S2, events.slice(0, asked + 1));
+  await expect(page.locator(".attention-overlay")).toBeVisible();
   await page.screenshot({ path: join(SHOTS, "08-permission-light.png"), fullPage: true });
   const bg = await page.evaluate(() => getComputedStyle(document.body).backgroundColor);
   expect(bg).toBe("rgb(248, 248, 248)");

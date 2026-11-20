@@ -5,7 +5,6 @@ import {
   chatReducer,
   initialChatState,
   mergeChangedFiles,
-  orphanCards,
   selectTodos,
   selectTurnFileChanges,
   selectTurnFiles,
@@ -23,6 +22,7 @@ import { contractSignature, emptyContract, type ContractReport } from "../shared
 import type { Attachment, ConnectionStatus, ContextItem, FolderInfo, HostMessage, SessionSummary, UiError } from "../shared/protocol";
 import { initialSubagentState, subagentReducer, type SubagentEvent } from "../shared/subagents";
 import { format, STRINGS, type Strings } from "../shared/strings";
+import { AttentionOverlay } from "./attentionOverlay";
 import { Composer } from "./composer";
 import { collectDroppedFiles, hasFiles, readFileAsBase64, type DragData } from "./dropFiles";
 import { env, isolateKeys } from "./env";
@@ -32,7 +32,7 @@ import { setCopyLabel } from "./markdown";
 import { Picker } from "./picker";
 import { clearReplyFailures, markReplyFailed } from "./replyFeedback";
 import { SubagentsContext, type SubagentEntry } from "./subagents";
-import { ActionButton, AssistantStatus, FileList, FormCard, MessageView, messageSearchText, PermissionCard, ToolCard, ToolGroup, TurnStatsRow } from "./messages";
+import { ActionButton, AssistantStatus, FileList, MessageView, messageSearchText, ToolCard, ToolGroup, TurnStatsRow } from "./messages";
 import { hydrateDrafts, onHostMessage, post } from "./vscode";
 
 interface Catalog {
@@ -483,6 +483,7 @@ export function App() {
         {changedFiles.length > 0 && !changesDismissed && (
           <ChangesPanel files={changedFiles} onDismiss={() => setDismissedChanges(changesSignature)} />
         )}
+        <AttentionOverlay key={chat.sessionId ?? "new"} state={chat} />
         <Composer
           sessionId={chat.sessionId ?? undefined}
           draftToken={draftToken}
@@ -1330,12 +1331,6 @@ function Conversation({ chat, scrollToken, searchQuery }: { chat: ReturnType<typ
     if (el.scrollHeight > previous && stick.current) el.scrollTop = el.scrollHeight;
   }, [chat.messages, chat.permissions, chat.forms, chat.retry, chat.busy, items.length]);
 
-  // One pass over the conversation, recomputed only when permissions/forms/messages change —
-  // not on every token that lands in an already-known message.
-  const { permissions: orphanP, forms: orphanF } = useMemo(
-    () => orphanCards(chat),
-    [chat.messages, chat.permissions, chat.forms],
-  );
   const onClick = (e: MouseEvent) => {
     const target = e.target as HTMLElement;
     const copy = target.closest("[data-action='copy-code']");
@@ -1432,8 +1427,6 @@ function Conversation({ chat, scrollToken, searchQuery }: { chat: ReturnType<typ
         </div>
       )}
       {items.map((item) => renderItem(item, query))}
-      {orphanP.map((p) => <PermissionCard key={p.id} request={p} />)}
-      {orphanF.map((f) => <FormCard key={f.id} form={f} />)}
       {chat.busy && chat.messages.at(-1)?.kind !== "assistant" && (
         <div class="typing" aria-label={t("thinking")}>
           <span />

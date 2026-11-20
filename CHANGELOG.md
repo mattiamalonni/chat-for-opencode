@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+- Permission requests and questions now appear in a dedicated panel **docked above the composer**
+  instead of inside tool cards. A request stays visible even when its step is folded, and when
+  several are pending the newest is shown first with a counter and *Previous*/*Next* navigation.
+  The panel and its forms are styled only with VS Code theme variables (no custom colours or
+  nested card borders). When a question tool bundles several questions in one form, each question
+  is now asked on its own with **Next question**; the answers are collected and sent as one reply.
+- **Cancel** on a question and **Reject** on a permission request now also interrupt the current
+  turn: the composer unlocks immediately instead of leaving the model running with the Stop button
+  still visible. "Allow once" / "Always allow" still let the turn continue.
 - Fixed **Select All** (`Cmd/Ctrl+A`) in the chat input: the chord was swallowed by the composer's
   keyboard isolation before it could reach VS Code, so the whole prompt could not be selected. It now
   reaches the webview preload like copy/paste, where VS Code's `SelectAllCommand` handles it.
