@@ -295,7 +295,13 @@ describe("chat-for-opencode extension", () => {
     const file = path.join(workspace, "src", "app.ts");
     const uri = `${vscode.Uri.file(file).toString()}?start=2&end=2`;
     await controller.receive({ type: "openAttachment", uri });
-    const editor = await waitFor(() => vscode.window.visibleTextEditors.find((e) => e.document.uri.fsPath === file), "project attachment editor");
+    const editor = await waitFor(
+      () =>
+        vscode.window.visibleTextEditors.find(
+          (e) => normalizeFsPath(e.document.uri.fsPath) === normalizeFsPath(file),
+        ),
+      "project attachment editor",
+    );
     assert.equal(editor.document.getText(), "export const one = 1;\nexport const two = 2;\n");
     assert.equal(editor.selection.start.line, 1);
     await vscode.commands.executeCommand("workbench.action.closeAllEditors");
