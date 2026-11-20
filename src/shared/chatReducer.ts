@@ -132,6 +132,8 @@ export type ChatAction =
   | { type: "append"; delta: SessionDelta }
   | { type: "event"; event: ServerEvent }
   | { type: "events"; events: ServerEvent[] }
+  /** Attach a discovered child id to the still-unlinked `subagent` tool card in the main chat. */
+  | { type: "linkSubagent"; sessionId: string; title?: string }
   | { type: "clearError" };
 
 export const initialChatState: ChatState = {
@@ -146,7 +148,7 @@ export const initialChatState: ChatState = {
 export function chatReducer(state: ChatState, action: ChatAction): ChatState {
   switch (action.type) {
     case "load":
-      return loadHistory(action);
+      return loadHistory(action, state);
     case "append":
       return state.sessionId === action.delta.sessionId ? appendDelta(state, action.delta) : state;
     case "event":
@@ -156,6 +158,39 @@ export function chatReducer(state: ChatState, action: ChatAction): ChatState {
       // would scan and copy the whole message list over and over (O(events × history)). Deltas for
       // one part are pure string appends, so fold adjacent ones into a single event first.
       return coalesceDeltas(action.events).reduce(applyEvent, state);
+    case "linkSubagent": {
+      // OpenCode only writes `metadata.sessionID` into a completed tool's history. A child found
+      // via `session.created`/the session list must still be reachable from its card, so link the
+      // id to the newest unlinked subagent call. Prefer an exact description/title match; when
+      // several children run at once that keeps each card on its own conversation.
+      const candidates: Array<{ index: number; part: ToolPart }> = [];
+      state.messages.forEach((m, mi) => {
+        if (m.kind !== "assistant") return;
+        m.parts.forEach((p, pi) => {
+          if (p.kind !== "tool" || (p.name !== "subagent" && p.name !== "task")) return;
+          if (p.metadata?.sessionID) return;
+          candidates.push({ index: mi * 1000 + pi, part: p });
+        });
+      });
+      candidates.sort((a, b) => b.index - a.index);
+      const description = (p: ToolPart): string | undefined => {
+        const value = p.input?.description;
+        return typeof value === "string" && value.trim() ? value : undefined;
+      };
+      const target = candidates.find((c) => action.title && description(c.part) === action.title) ?? candidates[0];
+      if (!target) return state;
+      const messages = state.messages.map((m, mi) =>
+        m.kind !== "assistant" ? m : {
+          ...m,
+          parts: m.parts.map((p, pi) =>
+            mi * 1000 + pi === target.index && p.kind === "tool"
+              ? { ...p, metadata: { ...(p.metadata ?? {}), sessionID: action.sessionId } }
+              : p,
+          ),
+        },
+      );
+      return { ...state, messages };
+    }
     case "clearError":
       return { ...state, lastError: undefined };
   }
@@ -232,12 +267,43 @@ function reportsFromHistory(messages: SessionMessage[]): Record<string, string> 
   return Object.keys(reports).length > 0 ? reports : undefined;
 }
 
-function loadHistory(action: Extract<ChatAction, { type: "load" }>): ChatState {
+/**
+ * A running `subagent` tool has no child id in persisted history. When a resync replaces a live
+ * message with its history version, carry the id linked from a snapshot over by tool id so the
+ * "Open subagent conversation" action does not blink out and back in.
+ */
+function carrySubagentLinks(previous: UiMessage | undefined, next: UiMessage): UiMessage {
+  if (!previous || previous.kind !== "assistant" || next.kind !== "assistant") return next;
+  const linked = new Map<string, string>();
+  for (const p of previous.parts) {
+    if (p.kind === "tool" && typeof p.metadata?.sessionID === "string") linked.set(p.id, p.metadata.sessionID);
+  }
+  if (linked.size === 0) return next;
+  return {
+    ...next,
+    parts: next.parts.map((p) => {
+      if (p.kind !== "tool" || (p.name !== "subagent" && p.name !== "task") || p.metadata?.sessionID) return p;
+      const sessionID = linked.get(p.id);
+      return sessionID ? { ...p, metadata: { ...(p.metadata ?? {}), sessionID } } : p;
+    }),
+  };
+}
+
+function loadHistory(action: Extract<ChatAction, { type: "load" }>, previous: ChatState): ChatState {
   const sorted = [...action.messages].sort((a, b) => a.time.created - b.time.created || cmp(a.id, b.id));
   const messages: UiMessage[] = [];
   for (const m of sorted) {
     const ui = fromHistory(m);
     if (ui) messages.push(ui);
+  }
+  // A resync of the same session rebuilds cards from history, where a running `subagent` tool has
+  // no `metadata.sessionID` yet. Carry the id we linked earlier over by tool id, or a manual Sync
+  // would make the "Open subagent conversation" action disappear again.
+  if (previous.sessionId === action.sessionId) {
+    const previousById = new Map(previous.messages.map((m) => [m.id, m]));
+    for (let i = 0; i < messages.length; i++) {
+      messages[i] = carrySubagentLinks(previousById.get(messages[i].id), messages[i]);
+    }
   }
   let contextTokens: number | undefined;
   for (const m of sorted) {
@@ -284,7 +350,7 @@ function appendDelta(state: ChatState, delta: SessionDelta): ChatState {
   for (const m of sorted) {
     const ui = fromHistory(m);
     if (!ui) continue;
-    if (byId.has(ui.id) || !similarNoticeExists(ui)) byId.set(ui.id, ui);
+    if (byId.has(ui.id) || !similarNoticeExists(ui)) byId.set(ui.id, carrySubagentLinks(byId.get(ui.id), ui));
   }
   const messages = [...byId.values()].sort((a, b) => a.created - b.created || cmp(a.id, b.id));
   let contextTokens = state.contextTokens;

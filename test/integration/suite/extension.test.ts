@@ -489,6 +489,78 @@ describe("chat-for-opencode extension", () => {
     assert.equal(reverted.text, "turn one");
   });
 
+  it("rediscovers a running subagent and its pending permission after a session switch", async () => {
+    const baseUrl = controller.debugState.baseUrl;
+    assert.ok(baseUrl, "server is running");
+    const previous = controller.debugState.sessionId;
+    const create = async (parentID?: string): Promise<string> => {
+      const res = await fetch(`${baseUrl}/__mock/create`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ directory: controller.debugState.folder ?? workspace, ...(parentID ? { parentID } : {}) }),
+      });
+      assert.equal(res.status, 200);
+      return ((await res.json()) as { data: { id: string } }).data.id;
+    };
+
+    const parent = await create();
+    const child = await create(parent);
+    // A running `subagent` tool persists with `metadata: {}` — OpenCode writes the child id only
+    // on success. Discovery must therefore come from the child's `parentID` in the session list.
+    const seed = await fetch(`${baseUrl}/__mock/messages`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        sessionID: parent,
+        messages: [
+          { type: "user", id: "msg_seed_user", text: "use a subagent", time: { created: 1 } },
+          {
+            type: "assistant",
+            id: "msg_seed_assistant",
+            agent: "build",
+            model: { id: "mock-fast", providerID: "mock" },
+            time: { created: 2 },
+            content: [
+              {
+                type: "tool",
+                id: "tool_seed_subagent",
+                name: "subagent",
+                state: { status: "running", input: { description: "child with permission" }, metadata: {}, content: [] },
+              },
+            ],
+          },
+        ],
+      }),
+    });
+    assert.equal(seed.status, 204);
+    const ask = await fetch(`${baseUrl}/__mock/permission`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ sessionID: child, action: "edit", resources: [".env"] }),
+    });
+    assert.equal(ask.status, 204);
+
+    const mark = posted.length;
+    await controller.receive({ type: "selectSession", id: parent });
+    const session = await waitFor(() => lastPosted("session", mark), "session post for the switched chat", 10_000);
+    assert.equal(session.session?.id, parent);
+    const snapshot = await waitFor(
+      () => posted.slice(mark).find((m): m is Extract<HostMessage, { type: "subagent" }> => m.type === "subagent" && m.snapshot.sessionId === child),
+      "running subagent rediscovered from the session list",
+      10_000,
+    );
+    assert.ok(snapshot.snapshot.permissions.some((p) => p.action === "edit"), "child's pending permission restored");
+    // The webview clears child state on a session switch, so the snapshot must come afterwards.
+    const sessionIndex = posted.findIndex((m, i) => i >= mark && m.type === "session" && m.session?.id === parent);
+    const snapshotIndex = posted.indexOf(snapshot);
+    assert.ok(sessionIndex >= 0 && snapshotIndex > sessionIndex, "session posted before child snapshots");
+
+    if (previous) {
+      await controller.receive({ type: "selectSession", id: previous });
+      await waitFor(() => lastPosted("session", mark + 1)?.session?.id === previous, "original session restored");
+    }
+  });
+
   it("stops the server cleanly and reconnects on the next prompt", async () => {
     const oldUrl = controller.debugState.baseUrl;
     const mark = posted.length;

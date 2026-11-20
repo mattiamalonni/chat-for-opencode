@@ -36,6 +36,69 @@ function assistants(state: ChatState): UiAssistantMessage[] {
   return state.messages.filter((m): m is UiAssistantMessage => m.kind === "assistant");
 }
 
+describe("linkSubagent", () => {
+  const runningSubagent = (id: string, description: string): SessionMessage => ({
+    id,
+    type: "assistant",
+    agent: "build",
+    model: { id: "m", providerID: "p" },
+    time: { created: 1 },
+    content: [{
+      type: "tool",
+      id: `tool-${id}`,
+      name: "subagent",
+      // Matches real persisted state of a running child: no metadata.sessionID yet.
+      state: { status: "running", input: { description }, metadata: {} },
+    }],
+  });
+
+  it("links a discovered child to the matching card, or the newest unlinked one", () => {
+    const state = open(S1, [runningSubagent("m1", "first"), runningSubagent("m2", "second")]);
+    const linked = chatReducer(state, { type: "linkSubagent", sessionId: "child-2", title: "second" });
+    const ids = assistants(linked)
+      .flatMap((m) => m.parts)
+      .flatMap((p) => (p.kind === "tool" ? [p.metadata?.sessionID] : []));
+    expect(ids).toEqual([undefined, "child-2"]);
+
+    const fallback = chatReducer(state, { type: "linkSubagent", sessionId: "child-2" });
+    const fallbackIds = assistants(fallback)
+      .flatMap((m) => m.parts)
+      .flatMap((p) => (p.kind === "tool" ? [p.metadata?.sessionID] : []));
+    expect(fallbackIds).toEqual([undefined, "child-2"]);
+  });
+
+  it("does not overwrite an id that is already known", () => {
+    const state = open(S1, [runningSubagent("m1", "first")]);
+    const linked = chatReducer(state, { type: "linkSubagent", sessionId: "child-1", title: "first" });
+    const again = chatReducer(linked, { type: "linkSubagent", sessionId: "child-2", title: "first" });
+    const ids = assistants(again)
+      .flatMap((m) => m.parts)
+      .flatMap((p) => (p.kind === "tool" ? [p.metadata?.sessionID] : []));
+    expect(ids).toEqual(["child-1"]);
+  });
+
+  it("survives a tail resync replacing the live card with its history version", () => {
+    const messages = [runningSubagent("m1", "first")];
+    const linked = chatReducer(open(S1, messages), { type: "linkSubagent", sessionId: "child-1", title: "first" });
+    const resynced = chatReducer(linked, { type: "append", delta: { sessionId: S1, messages, permissions: [], forms: [] } });
+    const ids = assistants(resynced)
+      .flatMap((m) => m.parts)
+      .flatMap((p) => (p.kind === "tool" ? [p.metadata?.sessionID] : []));
+    expect(ids).toEqual(["child-1"]);
+  });
+
+  it("survives a same-session history reload but not a switch to another session", () => {
+    const messages = [runningSubagent("m1", "first")];
+    const linked = chatReducer(open(S1, messages), { type: "linkSubagent", sessionId: "child-1", title: "first" });
+    const reload = (sessionId: string) => chatReducer(linked, { type: "load", sessionId, messages, permissions: [], forms: [] });
+    const ids = (state: ChatState) => assistants(state)
+      .flatMap((m) => m.parts)
+      .flatMap((p) => (p.kind === "tool" ? [p.metadata?.sessionID] : []));
+    expect(ids(reload(S1))).toEqual(["child-1"]);
+    expect(ids(reload(S2))).toEqual([undefined]);
+  });
+});
+
 describe("chatReducer with recorded opencode 2.2.7 streams", () => {
   it("folds a simple reply: reasoning + text, busy flag, usage, title", () => {
     const events = fixture("real-sse1.jsonl");

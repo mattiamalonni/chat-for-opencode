@@ -167,7 +167,7 @@ export function startMockServer(opts: MockOptions = {}): Promise<MockServer> {
   function newSession(body: Json | undefined): MockSession {
     const now = Date.now();
     const sid = id("ses");
-    const location = (body?.location as Json | undefined) ?? { directory };
+    const location = (body?.location as Json | undefined) ?? { directory: (body?.directory as string) ?? directory };
     const info: MockSession["info"] = {
       id: sid,
       projectID: "proj_mock",
@@ -178,6 +178,7 @@ export function startMockServer(opts: MockOptions = {}): Promise<MockServer> {
       time: { created: now, updated: now },
       location,
     };
+    if (body?.parentID) info.parentID = body.parentID;
     if (body?.permissions) info.permissions = body.permissions;
     const s: MockSession = { info, messages: [], permissions: [], forms: [], interrupted: false, waiters: new Map(), files: [] };
     sessions.set(sid, s);
@@ -412,6 +413,37 @@ export function startMockServer(opts: MockOptions = {}): Promise<MockServer> {
       persist();
       return send(res, 204);
     }
+    if (path === "/__mock/create" && req.method === "POST") {
+      return send(res, 200, { data: newSession((body ?? {}) as Json | undefined).info });
+    }
+    if (path === "/__mock/permission" && req.method === "POST") {
+      const b = (body ?? {}) as Json;
+      const s = sessions.get(String(b.sessionID ?? ""));
+      if (!s) return notFound(res);
+      const request = {
+        id: String(b.id ?? id("per")),
+        sessionID: s.info.id,
+        action: String(b.action ?? "edit"),
+        resources: Array.isArray(b.resources) ? (b.resources as string[]) : [".env"],
+      };
+      s.permissions.push(request);
+      s.info.time = { ...(s.info.time as Json), updated: Date.now() };
+      persist();
+      emit({ type: "permission.asked", data: request });
+      return send(res, 204);
+    }
+
+    // Test-only: seed a session with a crafted history (e.g. a past `subagent` tool call). The
+    // only way for the extension to notice is to re-read history, which is what a session switch does.
+    if (path === "/__mock/messages" && req.method === "POST") {
+      const b = (body ?? {}) as Json;
+      const s = sessions.get(String(b.sessionID ?? ""));
+      if (!s) return notFound(res);
+      s.messages = Array.isArray(b.messages) ? (b.messages as Json[]) : [];
+      s.info.time = { ...(s.info.time as Json), updated: Date.now() };
+      persist();
+      return send(res, 204);
+    }
 
     if (req.headers.authorization !== expected) {
       res.writeHead(401, { "content-type": "application/json", "www-authenticate": 'Basic realm="Secure Area"' });
@@ -441,9 +473,11 @@ export function startMockServer(opts: MockOptions = {}): Promise<MockServer> {
     }
     if (path === "/api/session" && req.method === "GET") {
       const dir = url.searchParams.get("directory");
+      const parent = url.searchParams.get("parentID");
       const list = [...sessions.values()]
         .map((s) => s.info)
         .filter((i) => !dir || (i.location as Json).directory === dir)
+        .filter((i) => parent === "null" ? !i.parentID : (!parent || i.parentID === parent))
         .sort((a, b) => ((b.time as Json).updated as number) - ((a.time as Json).updated as number));
       const pageSize = (opts.sessionPageSize ?? Number(url.searchParams.get("limit") ?? 50)) || 50;
       const start = Number(url.searchParams.get("cursor") ?? 0) || 0;

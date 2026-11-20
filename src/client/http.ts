@@ -126,6 +126,14 @@ export class OpenCodeClient {
     return (await this.listSessionsPage(directory, limit)).items;
   }
 
+  /** Child sessions of one session. The root list filters them out with `parentID=null`. */
+  async listChildSessions(parentID: string, directory?: string, limit = 100): Promise<SessionInfo[]> {
+    const res = await this.request<{ data: SessionInfo[] }>("GET", "api/session", {
+      query: { directory, limit, parentID, order: "desc" },
+    });
+    return res.data;
+  }
+
   async createSession(input: CreateSessionInput): Promise<SessionInfo> {
     const body: Record<string, unknown> = {};
     if (input.directory) body.location = { directory: input.directory };

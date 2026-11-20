@@ -838,6 +838,25 @@ export class ChatController implements vscode.Disposable {
     void this.loadSubagentSnapshot(childId, created);
   }
 
+  /**
+   * A running `subagent` tool has no child id in the persisted tool state: OpenCode writes that
+   * metadata only on success. The child still appears in the session list with a `parentID`, and it
+   * can be paused on an `ask` permission. Discovering it from the list too means returning to a
+   * session restores those pending requests instead of leaving them unreachable.
+   */
+  private async discoverChildren(): Promise<void> {
+    const client = this.client;
+    const sid = this.sessionId;
+    if (!client || !sid || !this.folder) return;
+    const generation = this.childGen.current();
+    const children = await client.listChildSessions(sid, this.folder.uri.fsPath).catch(() => [] as SessionInfo[]);
+    if (!this.childGen.is(generation) || sid !== this.sessionId) return;
+    for (const info of children) {
+      if (info.time.archived || this.childSessions.has(info.id)) continue;
+      this.trackSubagent(info.id, { parentId: sid, title: info.title, agent: info.agent });
+    }
+  }
+
   /** One history fetch on discovery makes the child view complete even after a reconnect. */
   private async loadSubagentSnapshot(
     childId: string,
@@ -1317,10 +1336,12 @@ export class ChatController implements vscode.Disposable {
     const info = normalizeSessionInfo(rawInfo) ?? rawInfo;
     const messages = normalizeList(rawMessages, normalizeSessionMessage);
     const forms = normalizeList(rawForms, normalizeForm);
-    if (this.sessionId !== info.id) this.resetSubagents();
-    // Past subagents have no live stream on a reload; load their history for the inline cards.
-    for (const id of subagentSessionsFromMessages(messages)) this.trackSubagent(id);
+    const changed = this.sessionId !== info.id;
+    // Publish the new session before touching children: `loadSubagentSnapshot` captures the parent
+    // synchronously and drops its result if that id no longer matches the open session. Setting it
+    // afterwards made every subagent of a freshly selected session fail its own staleness guard.
     this.sessionId = info.id;
+    if (changed) this.resetSubagents();
     const newest = messages.at(-1);
     this.lastKnownMessage = newest ? { sessionId: info.id, id: newest.id } : undefined;
     // Requests granted automatically must not linger as cards when the chat's toggle is on.
@@ -1348,6 +1369,13 @@ export class ChatController implements vscode.Disposable {
         usage: info.tokens ? { cost: info.cost ?? 0, tokens: info.tokens } : undefined,
       },
     });
+    // Past subagents have no live stream on a reload; load their history for the inline cards.
+    // Track only after the `session` post: the webview clears its child state on a session switch,
+    // so a snapshot posted first would be wiped by the very message that opens the new chat.
+    for (const id of subagentSessionsFromMessages(messages)) this.trackSubagent(id);
+    // A running child has no id in its tool metadata; find it via `parentID` so a pending `ask`
+    // permission is still answerable after the user switches back to this chat.
+    void this.discoverChildren();
     this.postAutoApprove();
     await this.refreshSessions();
     const diff = await this.refreshChanges();

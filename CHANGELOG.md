@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+- Fixed **a running subagent's permission request becoming unreachable after a session switch**.
+  OpenCode persists a running `subagent` tool without the child id, so the child was no longer
+  discovered on reload: its pending *ask* card never appeared and the turn could hang. Children are
+  now rediscovered via the API's `parentID` filter, their pending permissions are restored in the
+  attention overlay, and the child id is linked back to the tool card so *Open subagent conversation*
+  works while it is still running. The link also survives a manual Sync and live tail resyncs, which
+  rebuild the cards from history where the running tool has no id yet.
+- Fixed **past subagents disappearing after a session switch**, which left the *Open subagent
+  conversation* modal stuck on "Loading subagent…". The child history was fetched before the new
+  session was published, so every snapshot failed its own staleness check; snapshots are now loaded
+  after the session is posted, when the webview is ready to receive them.
 - Known `/command` and `/skill` tokens are now **highlighted like links** in the composer, so you can
   tell at a glance which ones OpenCode will actually interpret. A typo such as `/nope` stays plain
   text. The highlight is painted by a transparent overlay, so the caret, selection and IME input are

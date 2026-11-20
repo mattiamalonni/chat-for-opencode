@@ -187,6 +187,9 @@ export function App() {
           // A snapshot is authoritative for its child; drop any live events queued before it.
           childQueue.current = childQueue.current.filter((e) => e.sessionId !== msg.snapshot.sessionId);
           subagentDispatch({ type: "snapshot", snapshot: msg.snapshot });
+          // A running child has no id in the tool's persisted metadata, so link it now: without
+          // this the card offers neither the open action nor the on-demand history refresh.
+          dispatch({ type: "linkSubagent", sessionId: msg.snapshot.sessionId, title: msg.snapshot.title });
           break;
         case "subagentEvent":
           childQueue.current.push({ sessionId: msg.sessionId, event: msg.event });
