@@ -264,6 +264,46 @@ test("clicking an attachment chip opens its file", async ({ page }) => {
   await expect(page.locator(".chip").filter({ hasText: "shot.png" })).toHaveCount(0);
 });
 
+test("clicking an attachment chip in a sent prompt opens the project file", async ({ page }) => {
+  await boot(page);
+  const uri = "file:///work/src/app.ts?start=2&end=2";
+  await host(page, {
+    type: "session",
+    session: {
+      id: S1,
+      busy: false,
+      permissions: [],
+      forms: [],
+      messages: [
+        {
+          id: "msg_attached",
+          type: "user",
+          text: "check this file",
+          time: { created: 1000 },
+          // History carries URI attachments under `source`, plus inline ones with no path.
+          files: [
+            { source: { type: "uri", uri }, name: "app.ts" },
+            { source: { type: "inline" }, name: "clip.txt" },
+          ],
+        },
+      ],
+    },
+  });
+  const chips = page.locator(".msg.user .chip");
+  await expect(chips).toHaveCount(2);
+
+  const open = chips.first().locator(".chip-open[data-openable='true']");
+  await expect(open).toHaveAttribute("aria-label", `${STRINGS.openFile}: app.ts`);
+  await open.click();
+  expect(await lastPosted(page, "openAttachment")).toEqual({ type: "openAttachment", uri });
+
+  // An inline attachment from history has no on-disk copy: its chip stays plain text.
+  await expect(chips.nth(1).locator(".chip-open[data-openable='false']")).toHaveCount(1);
+  const before = (await posted(page)).filter((m) => m.type === "openAttachment").length;
+  await chips.nth(1).locator(".chip-open").click();
+  expect((await posted(page)).filter((m) => m.type === "openAttachment")).toHaveLength(before);
+});
+
 test("an inline attachment without a file on disk is not openable", async ({ page }) => {
   await boot(page);
   await host(page, { type: "addAttachment", item: { uri: "data:image/png;base64,iVBORw0KGgo=", name: "old.png", kind: "file" } });

@@ -291,6 +291,24 @@ describe("chat-for-opencode extension", () => {
     assert.equal(editor.document.getText(), "open me");
   });
 
+  it("opens a project file attachment from a sent prompt, jumping to the selected line", async () => {
+    const file = path.join(workspace, "src", "app.ts");
+    const uri = `${vscode.Uri.file(file).toString()}?start=2&end=2`;
+    await controller.receive({ type: "openAttachment", uri });
+    const editor = await waitFor(() => vscode.window.visibleTextEditors.find((e) => e.document.uri.fsPath === file), "project attachment editor");
+    assert.equal(editor.document.getText(), "export const one = 1;\nexport const two = 2;\n");
+    assert.equal(editor.selection.start.line, 1);
+    await vscode.commands.executeCommand("workbench.action.closeAllEditors");
+  });
+
+  it("refuses to open an attachment outside the workspace and the temp directory", async () => {
+    const external = path.join(path.dirname(workspace), "oc-it-blocked.txt");
+    writeFileSync(external, "not allowed");
+    await controller.receive({ type: "openAttachment", uri: vscode.Uri.file(external).toString() });
+    await new Promise((r) => setTimeout(r, 100));
+    assert.equal(vscode.window.visibleTextEditors.some((e) => e.document.uri.fsPath === external), false);
+  });
+
   it("adds the current file outside the workspace as an openable copy", async () => {
     const mark = posted.length;
     await vscode.commands.executeCommand("opencode.addFileToChat", vscode.Uri.file(path.join(workspace, "src", "app.ts")));

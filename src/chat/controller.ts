@@ -1965,28 +1965,52 @@ export class ChatController implements vscode.Disposable {
     }
     const doc = await vscode.workspace.openTextDocument(uri.with({ query: "" }));
     const editor = await vscode.window.showTextDocument(doc, { preview: true });
-    if (line !== undefined) {
-      const pos = new vscode.Position(line, 0);
-      editor.selection = new vscode.Selection(pos, pos);
-      editor.revealRange(new vscode.Range(pos, pos), vscode.TextEditorRevealType.InCenter);
-    }
+    if (line !== undefined) this.revealLine(editor, line);
   }
 
-  /** Opens a staged attachment's on-disk copy. Only files this controller created are allowed. */
+  private revealLine(editor: vscode.TextEditor, line: number): void {
+    const pos = new vscode.Position(line, 0);
+    editor.selection = new vscode.Selection(pos, pos);
+    editor.revealRange(new vscode.Range(pos, pos), vscode.TextEditorRevealType.InCenter);
+  }
+
+  /**
+   * Opens an attachment chip: a controller-owned temp copy (staged inline files) or a project file
+   * referenced by an already-sent message. Both are real paths; only the workspace/temp allowlist
+   * may be opened, since the URI arrives from the webview.
+   */
   private async openAttachment(uri: string): Promise<void> {
-    let target: vscode.Uri;
+    let parsed: vscode.Uri;
     try {
-      target = vscode.Uri.parse(uri);
+      parsed = vscode.Uri.parse(uri);
     } catch {
       return;
     }
-    if (target.scheme !== "file") return;
+    if (parsed.scheme !== "file") return;
+    const target = parsed.with({ query: "", fragment: "" });
     const file = normalizePathKey(target.fsPath);
-    if (!this.tempAttachments.has(file) || !isWithinDirectory(target.fsPath, this.tempAttachmentsDir)) {
-      this.output.warn(`[chat] blocked an attempt to open an attachment outside the temp directory: ${file}`);
+    const tempCopy = this.tempAttachments.has(file) && isWithinDirectory(target.fsPath, this.tempAttachmentsDir);
+    const projectFile = !!vscode.workspace.getWorkspaceFolder(target);
+    if (!tempCopy && !projectFile) {
+      this.output.warn(`[chat] blocked an attempt to open an attachment outside the workspace: ${file}`);
       return;
     }
-    await vscode.commands.executeCommand("vscode.open", target);
+    // @-mentions of a selection carry a 1-based `?start=&end=` range: jump to its first line.
+    let line: number | undefined;
+    try {
+      const start = Number(new URLSearchParams(parsed.query).get("start"));
+      if (Number.isInteger(start) && start > 0) line = start - 1;
+    } catch {
+      // A malformed range simply opens the file at the top.
+    }
+    if (line === undefined) {
+      // Preserve `vscode.open`: it is the only way to show images/PDFs, not just text documents.
+      await vscode.commands.executeCommand("vscode.open", target);
+      return;
+    }
+    const doc = await vscode.workspace.openTextDocument(target);
+    const editor = await vscode.window.showTextDocument(doc, { preview: true });
+    this.revealLine(editor, line);
   }
 
   private async openLink(href: string): Promise<void> {

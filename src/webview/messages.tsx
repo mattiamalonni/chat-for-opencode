@@ -137,10 +137,31 @@ export function MessageView({
                 // Older/foreign payloads may lack a location; render the chip instead of crashing.
                 const uri = f.uri ?? "";
                 const name = f.name ?? (uri ? fileNameOf(uri) : "");
+                // Only project files carry a `file:` location that the host can open; inline
+                // attachments from history have no on-disk copy and stay plain text.
+                const openable = uri.startsWith("file:");
+                const open = () => {
+                  if (openable) post({ type: "openAttachment", uri });
+                };
                 return (
                   <li class="chip readonly" key={uri || name} title={uri || name}>
-                    {uri.includes("?start=") ? <IconSelection /> : <FileTypeIcon path={name || uri} />}
-                    <span>{name}</span>
+                    <span
+                      class="chip-open"
+                      data-openable={openable ? "true" : "false"}
+                      role={openable ? "button" : undefined}
+                      tabIndex={openable ? 0 : undefined}
+                      aria-label={openable ? `${t("openFile")}: ${name}` : undefined}
+                      onClick={open}
+                      onKeyDown={(e) => {
+                        if (openable && e.key === "Enter") {
+                          e.preventDefault();
+                          open();
+                        }
+                      }}
+                    >
+                      {uri.includes("?start=") ? <IconSelection /> : <FileTypeIcon path={name || uri} />}
+                      <span>{name}</span>
+                    </span>
                   </li>
                 );
               })}

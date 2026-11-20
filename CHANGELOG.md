@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Attachment chips on **already-sent prompts** now open their project file with a single click (or
+  Enter), just like chips in the composer. The file must still exist in the workspace; selections
+  jump to the referenced line, and inline attachments with no path stay non-clickable.
 - Fixed **a running subagent's permission request becoming unreachable after a session switch**.
   OpenCode persists a running `subagent` tool without the child id, so the child was no longer
   discovered on reload: its pending *ask* card never appeared and the turn could hang. Children are
