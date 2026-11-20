@@ -66,6 +66,25 @@ async function boot(page: Page, theme: "dark" | "light" = "dark"): Promise<strin
   return cspErrors;
 }
 
+/** A step telling the webview which paths this session touched, as the host emits on `session.step.ended`. */
+async function ownFiles(page: Page, files: string[], created = 1): Promise<void> {
+  await host(page, {
+    type: "event",
+    event: {
+      type: "session.step.ended",
+      created,
+      data: { sessionID: S1, assistantMessageID: "msg_changes", finish: "stop", files },
+    },
+  });
+}
+
+/** Loads a session that actually owns `files`, as the host does before posting a real diff. */
+async function bootWithOwnedChanges(page: Page, files: string[]): Promise<void> {
+  await boot(page);
+  await host(page, { type: "session", session: { id: S1, busy: false, messages: [], permissions: [], forms: [] } });
+  await ownFiles(page, files);
+}
+
 test("file chips use the icon resolved by the host from the user's file icon theme", async ({ page }) => {
   const csp = await boot(page);
   // The webview asks for the paths it renders, in one batch.
@@ -100,7 +119,7 @@ test("file chips use the icon resolved by the host from the user's file icon the
 });
 
 test("changed-files rows use the themed file icon instead of the diff glyph", async ({ page }) => {
-  await boot(page);
+  await bootWithOwnedChanges(page, ["src/app.ts"]);
   await host(page, { type: "changedFiles", files: [{ file: "src/app.ts", patch: "@@", additions: 1, deletions: 1, status: "modified" }] });
   await page.locator(".panel.changes > summary").click();
   await expect
@@ -1494,7 +1513,7 @@ test("the composer keeps a separate draft for each session", async ({ page }) =>
 });
 
 test("loading another session clears staged attachments and changes, a resync does not", async ({ page }) => {
-  await boot(page);
+  await bootWithOwnedChanges(page, ["src/a.txt"]);
   const attachment = { uri: "file:///work/a.ts", name: "a.ts", kind: "file" as const };
   const session = (id: string) => ({ type: "session" as const, session: { id, busy: false, messages: [], permissions: [], forms: [] } });
   await host(page, { type: "addAttachment", item: attachment });
@@ -1595,8 +1614,22 @@ test("the changed-files panel falls back to patches from tool metadata", async (
   await expect(panel.locator(".file-path")).toHaveText("src/");
 });
 
+test("the changed-files panel ignores diffs for files another session edited", async ({ page }) => {
+  await bootWithOwnedChanges(page, ["mine.ts"]);
+  // OpenCode's /diff reaches HEAD, so it can carry another chat's commits: the webview must drop them.
+  await host(page, {
+    type: "changedFiles",
+    files: [
+      { file: "mine.ts", patch: "@@", additions: 1, deletions: 0, status: "modified" },
+      { file: "other-session.ts", patch: "@@", additions: 9, deletions: 2, status: "modified" },
+    ],
+  });
+  await expect(page.locator(".panel.changes")).toBeVisible();
+  await expect(page.locator(".panel.changes .file-base")).toHaveText("mine.ts");
+});
+
 test("the changed-files refresh button has an instant tooltip and still refreshes", async ({ page }) => {
-  await boot(page);
+  await bootWithOwnedChanges(page, ["src/a.txt"]);
   await host(page, { type: "changedFiles", files: [{ file: "src/a.txt", patch: "@@", additions: 1, deletions: 1, status: "modified" }] });
   const button = page.locator(".panel.changes > summary .refresh-changes");
   await expect(button).toBeVisible();
@@ -1616,7 +1649,7 @@ test("the changed-files refresh button has an instant tooltip and still refreshe
 });
 
 test("the changed-files header shows the count first with only the chevron icon", async ({ page }) => {
-  await boot(page);
+  await bootWithOwnedChanges(page, ["src/a.txt"]);
   const file = (name: string) => ({ file: name, patch: "@@", additions: 1, deletions: 1, status: "modified" as const });
   await host(page, { type: "changedFiles", files: [file("src/a.txt")] });
   const summary = page.locator(".panel.changes > summary");
@@ -1624,12 +1657,13 @@ test("the changed-files header shows the count first with only the chevron icon"
   // Only the disclosure chevron remains as a direct-child icon.
   expect(await summary.locator(":scope > svg").count()).toBe(1);
 
+  await ownFiles(page, ["src/b.txt"], 2);
   await host(page, { type: "changedFiles", files: [file("src/a.txt"), file("src/b.txt")] });
   await expect(summary).toContainText("2 Changed files");
 });
 
 test("the changed-files view-all button opens one diff with every session file", async ({ page }) => {
-  await boot(page);
+  await bootWithOwnedChanges(page, ["src/a.txt", "src/b.txt"]);
   const files = [
     { file: "src/a.txt", patch: "@@ -1 +1 @@\n-a\n+b\n", additions: 1, deletions: 1, status: "modified" as const },
     { file: "src/b.txt", patch: "@@ -1 +1 @@\n-c\n+d\n", additions: 1, deletions: 1, status: "modified" as const },
@@ -1649,7 +1683,7 @@ test("the changed-files view-all button opens one diff with every session file",
 });
 
 test("the changed-files check button hides the panel until the changes change", async ({ page }) => {
-  await boot(page);
+  await bootWithOwnedChanges(page, ["src/a.txt"]);
   const file = (name: string) => ({ file: name, patch: "@@", additions: 1, deletions: 1, status: "modified" as const });
   await host(page, { type: "changedFiles", files: [file("src/a.txt")] });
   const panel = page.locator(".panel.changes");
@@ -1665,14 +1699,15 @@ test("the changed-files check button hides the panel until the changes change", 
   await expect(panel).toHaveCount(0);
 
   // New changes bring it back.
+  await ownFiles(page, ["src/b.txt"], 2);
   await host(page, { type: "changedFiles", files: [file("src/b.txt")] });
   await expect(panel).toBeVisible();
-  await expect(panel.locator(".file-base")).toHaveText("b.txt");
-  await expect(panel.locator(".file-path")).toHaveText("src/");
+  await expect(panel.locator(".file-base").last()).toHaveText("b.txt");
+  await expect(panel.locator(".file-path").last()).toHaveText("src/");
 });
 
 test("the changed-files refresh and check buttons sit together on the right", async ({ page }) => {
-  await boot(page);
+  await bootWithOwnedChanges(page, ["src/a.txt"]);
   await host(page, { type: "changedFiles", files: [{ file: "src/a.txt", patch: "@@", additions: 1, deletions: 1, status: "modified" }] });
   const summary = page.locator(".panel.changes > summary");
   const refresh = summary.locator(".refresh-changes");

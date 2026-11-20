@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import type { AssistantMessage, ServerEvent, SessionInfo, SessionMessage } from "../../src/shared/api";
+import type { AssistantMessage, FileDiff, ServerEvent, SessionInfo, SessionMessage } from "../../src/shared/api";
 import {
   chatReducer,
   initialChatState,
@@ -619,6 +619,33 @@ describe("changed-file selectors", () => {
     const state = withToolFiles([file("a.ts", "modified", 1, 1)]);
     const authoritative = { ...file("a.ts", "added", 9, 0), status: "added" as const };
     expect(mergeChangedFiles([authoritative], state)).toEqual([authoritative]);
+  });
+
+  const serverFile = (f: string, status: FileDiff["status"], additions = 1, deletions = 1): FileDiff => ({ file: f, patch, status, additions, deletions });
+
+  it("drops server diff rows for files this session never touched", () => {
+    // OpenCode diffs from the session's start snapshot to HEAD, so a commit made by another
+    // session after this one started shows up in its /diff response too.
+    const state = withToolFiles([file("mine.ts", "modified", 2, 1)]);
+    const fromAnotherSession = serverFile("theirs.ts", "modified", 7, 3);
+    expect(mergeChangedFiles([serverFile("mine.ts", "modified", 4, 2), fromAnotherSession], state)).toEqual([
+      serverFile("mine.ts", "modified", 4, 2),
+    ]);
+  });
+
+  it("keeps the server patch for a path reported only by a step", () => {
+    const event: ServerEvent = {
+      type: "session.step.ended",
+      created: 10,
+      data: { sessionID: "s", assistantMessageID: "msg_1", finish: "stop", files: ["step.ts"] },
+    };
+    const state = chatReducer(open("s"), { type: "event", event });
+    const authoritative = serverFile("step.ts", "modified", 5, 0);
+    expect(mergeChangedFiles([serverFile("other.ts", "modified"), authoritative], state)).toEqual([authoritative]);
+  });
+
+  it("shows nothing when the session has no edits but the server diff is populated", () => {
+    expect(mergeChangedFiles([serverFile("theirs.ts", "modified", 9, 2)], open("s"))).toEqual([]);
   });
 
   it("sums insertions/deletions for a turn, counting each file once with its latest patch", () => {

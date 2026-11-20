@@ -1128,15 +1128,25 @@ function withTouchedFiles(state: ChatState, files: unknown): ChatState {
   return { ...state, touchedFiles: all.length > MAX_TOUCHED_FILES ? all.slice(-MAX_TOUCHED_FILES) : all };
 }
 
-/** `/diff` data (when available) is authoritative; tool metadata and step paths fill the gaps. */
+/**
+ * A session's `/diff` is computed from its start snapshot to the current working tree/HEAD, so it
+ * also contains files committed by *other* sessions after this one started (the classic symptom:
+ * an idle session lists the edits of the chat you used next). Admit a server row only when this
+ * session actually touched that path — step `files` and completed tools' `metadata.files` are
+ * session-scoped — while keeping the server's patch/counts for the rows we do show.
+ */
 export function mergeChangedFiles(fromDiff: FileDiff[], state: ChatState): FileDiff[] {
+  const fromTools = selectToolChangedFiles(state);
+  const owned = new Set<string>(state.touchedFiles ?? []);
+  for (const f of fromTools) owned.add(f.file);
+
   const merged = new Map<string, FileDiff>();
   // Lowest priority: a step tells us a file was touched, but not how (no patch, no counts).
-  for (const file of state.touchedFiles ?? []) {
+  for (const file of owned) {
     merged.set(file, { file, patch: "", additions: 0, deletions: 0, status: "modified" });
   }
-  for (const f of selectToolChangedFiles(state)) merged.set(f.file, f);
-  for (const f of fromDiff) merged.set(f.file, f);
+  for (const f of fromTools) merged.set(f.file, f);
+  for (const f of fromDiff) if (owned.has(f.file)) merged.set(f.file, f);
   return [...merged.values()].sort((a, b) => a.file.localeCompare(b.file));
 }
 

@@ -128,7 +128,11 @@ OpenCode uses to load a skill; unrelated slash commands remain unchanged.
 
 `changedFiles` normally comes from `GET /session/{id}/diff`, but that endpoint is empty outside git
 repositories. The webview therefore merges it with patches from completed tool calls
-(`metadata.files`, via `selectToolChangedFiles`); the server diff wins for the same path. The
+(`metadata.files`, via `selectToolChangedFiles`); the server diff wins for the same path. OpenCode
+diffs from a session's start snapshot to the **current** HEAD/working tree, so the response also
+contains files committed by other sessions after this one started. Only paths this session actually
+touched (step `files` or completed tools' `metadata.files`) are admitted from that response; the
+host also drops a diff that resolves after the active session changed. The
 `session.usage.updated` event's cost is kept in `ChatState.usage` and shown in the composer's
 context meter. Changing session (new/folder switch/select/delete) clears conversation-scoped webview
 state — drafts, staged attachments and the changed-files panel — while a same-session resync keeps it.

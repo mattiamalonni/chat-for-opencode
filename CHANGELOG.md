@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- The **Changed files** panel is now scoped to the open session. OpenCode's session diff reaches
+  the current HEAD, so a session that sat idle while another chat committed work used to list those
+  other files as its own; now only paths this session actually edited are shown, with the server's
+  patches still used for those files. A diff that arrives after switching session is also discarded.
 - **Attachments can now be opened in the editor with a single click** on their chip (or Enter when
   focused), on every platform. Files pasted from the clipboard or dropped without a path are saved to
   the OS temp folder (cleared on reboot) with the right extension, so there is a real file to open;
