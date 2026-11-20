@@ -380,7 +380,8 @@ test("keeps thoughts and tools in production order and groups adjacent calls", a
     { type: "session.execution.succeeded", data: { sessionID: sid } },
   ]);
 
-  // Details come before the prose they produced: step 1's fold, its text, then step 2's fold.
+  // Production order is preserved: the thought before the sentence folds above it, while the tool
+  // calls that came after it stay below. Step 2 has no prose, so its tool joins that trailing fold.
   const blocks = page.locator(".step-block");
   await expect(blocks).toHaveCount(2);
   for (const header of await blocks.locator(".step-fold-header").all()) await header.click();
@@ -390,18 +391,18 @@ test("keeps thoughts and tools in production order and groups adjacent calls", a
   await expect(group).toHaveCount(1);
   await group.locator(".tool-group-header").click();
   await expect(group.locator(".tool")).toHaveCount(2);
-  // ...but the next step's call stays in its own fold.
-  const standalone = blocks.nth(1).locator(".tool");
+  // ...and the next step's call stays a separate card in the trailing fold.
+  const standalone = blocks.nth(1).locator(".tool").filter({ hasText: "shell" });
   await expect(standalone).toHaveCount(1);
   await expect(standalone.locator(".tool-name")).toHaveText("shell");
 
   const firstThought = await page.locator(".reasoning").first().boundingBox();
-  const groupBox = await group.boundingBox();
   const narration = await page.locator(".md").filter({ hasText: "checking files" }).boundingBox();
+  const groupBox = await group.boundingBox();
   const standaloneBox = await standalone.boundingBox();
-  expect(firstThought!.y).toBeLessThan(groupBox!.y);
-  expect(groupBox!.y).toBeLessThan(narration!.y);
-  expect(narration!.y).toBeLessThan(standaloneBox!.y);
+  expect(firstThought!.y).toBeLessThan(narration!.y);
+  expect(narration!.y).toBeLessThan(groupBox!.y);
+  expect(groupBox!.y).toBeLessThan(standaloneBox!.y);
 });
 
 test("a finished turn folds its intermediate steps and can expand them", async ({ page }) => {
@@ -532,6 +533,34 @@ test("a queued prompt does not show the running turn's summary early", async ({ 
   // The queued prompt starts its own turn: the old summary stays, no premature second one.
   await host(page, { type: "event", event: { type: "session.execution.started", created: 1400, data: base } });
   await expect(stats).toHaveCount(1);
+});
+
+test("a thought emitted after a sentence stays below it, also once tools arrive", async ({ page }) => {
+  await boot(page);
+  const sid = "ses_late_thought";
+  const base = { sessionID: sid };
+  await openSession(page, sid, [
+    { type: "session.inbox.enqueued", created: 1000, data: { ...base, inboxID: "u1", item: { type: "user", payload: { text: "hi" } } } },
+    { type: "session.execution.started", created: 1010, data: base },
+    { type: "session.step.started", created: 1100, data: { ...base, assistantMessageID: "m1", agent: "build" } },
+    // A late reasoning part: the text of the answer is already in the message.
+    { type: "session.text.ended", created: 1120, data: { ...base, assistantMessageID: "m1", ordinal: 0, text: "ANSWER_ONE" } },
+    { type: "session.reasoning.ended", created: 1130, data: { ...base, assistantMessageID: "m1", ordinal: 0, text: "LATE_THOUGHT" } },
+  ]);
+  const order = async () =>
+    (await page.locator(".conversation").evaluate(
+      (el) => [...(el as HTMLElement).children].map((c) => (c.textContent ?? "").trim().replace(/\s+/g, " ")),
+    )) as string[];
+  let blocks = await order();
+  expect(blocks[1]).toContain("ANSWER_ONE");
+  expect(blocks[2]).toContain("LATE_THOUGHT");
+
+  // The tool joins the same step: the answer must stay above its thought/tool fold.
+  await host(page, { type: "event", event: { type: "session.tool.input.started", created: 1140, data: { ...base, assistantMessageID: "m1", id: "t1", name: "shell" } } });
+  await host(page, { type: "event", event: { type: "session.tool.success", created: 1150, data: { ...base, assistantMessageID: "m1", id: "t1", content: [], metadata: {} } } });
+  blocks = await order();
+  expect(blocks[1]).toContain("ANSWER_ONE");
+  expect(blocks[2]).toContain("LATE_THOUGHT");
 });
 
 test("folds past steps while streaming and keeps the accordion open as new steps arrive", async ({ page }) => {

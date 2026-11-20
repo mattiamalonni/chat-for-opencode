@@ -1081,40 +1081,64 @@ function statsForTurn(turns: TurnStats[], msgs: UiAssistantMessage[]): TurnStats
   };
 }
 
-/** Splits one step into always-visible prose and collapsible thoughts/tools. */
-function splitStep(items: ConversationItem[]): { prose: ConversationItem[]; details: ConversationItem[] } {
-  const prose: ConversationItem[] = [];
-  const details: ConversationItem[] = [];
+type StepPiece = { kind: "prose" | "details"; item: ConversationItem };
+
+/**
+ * Splits one step into always-visible prose and collapsible thoughts/tools, keeping their real
+ * order. The model usually thinks before it speaks, but a reasoning part can also arrive *after*
+ * a text part in the same assistant message; grouping all thoughts first used to move that late
+ * thought above the sentence it followed (visible until the next part re-rendered the step).
+ */
+function splitStep(items: ConversationItem[]): StepPiece[] {
+  const out: StepPiece[] = [];
   for (const it of items) {
     if (it.kind !== "assistant") {
-      details.push(it);
+      out.push({ kind: "details", item: it });
       continue;
     }
-    const text = it.parts.filter((p) => p.kind === "text");
-    const thoughts = it.parts.filter((p) => p.kind === "reasoning");
-    if (text.length > 0) prose.push({ ...it, key: `${it.key}:text`, parts: text });
-    if (thoughts.length > 0) details.push({ ...it, key: `${it.key}:thoughts`, parts: thoughts });
+    let run: TextPart[] = [];
+    let runKind: "text" | "reasoning" | undefined;
+    let seq = 0;
+    const flush = () => {
+      if (run.length === 0) return;
+      out.push({
+        kind: runKind === "text" ? "prose" : "details",
+        item: {
+          ...it,
+          key: `${it.key}:${runKind === "text" ? "text" : "thoughts"}:${seq++}`,
+          parts: run,
+        },
+      });
+      run = [];
+    };
+    for (const p of it.parts) {
+      if (runKind !== undefined && runKind !== p.kind) flush();
+      runKind = p.kind;
+      run.push(p);
+    }
+    flush();
   }
-  return { prose, details };
+  return out;
 }
 
 /**
- * The model thinks and acts before it speaks, so a step's details (thoughts + tools) go above its
- * prose, not below. Consecutive textless steps merge into one collapsible with the next prose
- * step, which closes the run. A trailing textless run (no following answer) closes at the end.
- * The live step's run stays expanded while the turn streams.
+ * Consecutive thoughts/tools collapse into one fold; prose breaks the run and stays where the
+ * model produced it. This keeps the common "think then speak" order (details above the answer)
+ * without reordering a thought that arrived after a sentence. The live step's fold stays expanded
+ * while the turn streams; finished ones collapse.
  */
 function stepBlocks(groups: ConversationItem[][], liveIndex: number): ConversationItem[] {
   const out: ConversationItem[] = [];
   let pending: ConversationItem[] = [];
   let pendingFrom = -1;
   let pendingTo = -1;
+  let foldSeq = 0;
 
   const flushPending = () => {
     if (pendingFrom < 0) return;
     out.push({
       kind: "step",
-      key: `steps:${pendingFrom}:${pendingTo}`,
+      key: `steps:${pendingFrom}:${pendingTo}:${foldSeq++}`,
       index: pendingFrom,
       lastIndex: pendingTo,
       details: pending,
@@ -1126,20 +1150,18 @@ function stepBlocks(groups: ConversationItem[][], liveIndex: number): Conversati
   };
 
   for (let s = 0; s < groups.length; s++) {
-    const { prose, details } = splitStep(groups[s]);
-    // Details from every step join the run — including this step's own thoughts and tools.
-    if (details.length > 0) {
-      if (pendingFrom < 0) pendingFrom = s;
-      pending.push(...details);
-      pendingTo = s;
-    }
-    if (prose.length > 0) {
-      // Close the run before the text it produced, so no thought is left after the answer.
-      flushPending();
-      out.push(...prose);
+    for (const piece of splitStep(groups[s])) {
+      if (piece.kind === "details") {
+        if (pendingFrom < 0) pendingFrom = s;
+        pending.push(piece.item);
+        pendingTo = s;
+      } else {
+        flushPending();
+        out.push(piece.item);
+      }
     }
   }
-  // Steps with no following prose (turn ended after tool calls) still need a fold.
+  // A trailing textless run (turn ended after tool calls) still needs a fold.
   flushPending();
   return out;
 }

@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- Fixed the **order of thoughts and tools relative to the answer**. A reasoning part emitted after
+  a sentence used to be pulled above it, because every detail of a step was grouped before all its
+  prose. Steps now keep the parts in the order the model produced them: thoughts before a sentence
+  still fold above it, while a late thought (or a tool call that follows the text) stays below it.
+  Tools and thoughts without prose in between still share one fold.
 - Fixed the **turn summary bar appearing before the reply was finished**. When a prompt was queued
   with Enter while a turn was still streaming, OpenCode emits `session.inbox.enqueued` immediately;
   the webview treated it as the start of a new turn and closed the running one, showing its cost
