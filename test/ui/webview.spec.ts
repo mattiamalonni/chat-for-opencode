@@ -1237,6 +1237,31 @@ test("slash suggestions include commands, which stay as /command when sent", asy
   expect(await lastPosted(page, "send")).toMatchObject({ type: "send", text: "/mock-init", attachments: [] });
 });
 
+test("known /commands and /skills are highlighted like links in the input", async ({ page }) => {
+  await boot(page);
+  await host(page, {
+    type: "catalog",
+    models: MODELS as never,
+    agents: AGENTS as never,
+    skills: [{ id: "mock-review", name: "Code review", description: "Review code changes." }],
+    commands: [{ name: "mock-init", description: "Set up the project." }],
+    selectedModel: { id: "hy4-flash-free", providerID: "opencode" },
+    selectedAgent: "build",
+  });
+  const input = page.getByRole("textbox", { name: STRINGS.inputLabel });
+  const highlight = page.locator(".input-highlight");
+
+  await input.fill("please /mock-review this");
+  await expect(highlight.locator(".command-token")).toHaveText("/mock-review");
+  await page.screenshot({ path: join(SHOTS, "16-command-highlight-dark.png") });
+
+  // A typo stays plain text even when it sits next to a valid command.
+  await input.fill("/mock-init /nope");
+  await expect(highlight.locator(".command-token")).toHaveCount(1);
+  await expect(highlight.locator(".command-token")).toHaveText("/mock-init");
+  await expect(highlight).toContainText("/mock-init /nope");
+});
+
 test("keyboard navigation keeps the active suggestion scrolled into view", async ({ page }) => {
   await boot(page);
   const many = Array.from({ length: 30 }, (_, i) => ({ id: `skill-${i}`, name: `Skill ${String(i).padStart(2, "0")}`, description: "A description long enough to fill the row." }));

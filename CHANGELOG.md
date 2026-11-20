@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Known `/command` and `/skill` tokens are now **highlighted like links** in the composer, so you can
+  tell at a glance which ones OpenCode will actually interpret. A typo such as `/nope` stays plain
+  text. The highlight is painted by a transparent overlay, so the caret, selection and IME input are
+  untouched.
 - Fixed **subagents hanging forever when they ask for permission or ask a question**. Children are
   headless, so their `permission.asked` / `form.created` events were stored in the child state but
   no actionable card was ever rendered: the turn stayed `running` until it was interrupted. Requests

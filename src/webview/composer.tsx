@@ -1,3 +1,4 @@
+import type { VNode } from "preact";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "preact/hooks";
 import type { AgentInfo, CommandSuggestion, ModelInfo, ModelRef, SkillSuggestion } from "../shared/api";
 import { composerAction } from "../shared/keys";
@@ -53,6 +54,20 @@ export interface ComposerProps {
 
 const FILE_MENTION_RE = /(^|\s)@([^\s@]*)$/;
 const SKILL_COMMAND_RE = /(^|\s)\/([^\s/]*)$/;
+const COMMAND_TOKEN_RE = /(^|\s)\/([^\s/]+)/g;
+
+type TokenRange = { start: number; end: number };
+
+/** Ranges of `/name` tokens that match an actual command or skill in the catalog. */
+function commandTokenRanges(text: string, names: Set<string>): TokenRange[] {
+  const ranges: TokenRange[] = [];
+  for (const match of text.matchAll(COMMAND_TOKEN_RE)) {
+    if (!names.has(match[2])) continue;
+    const slash = (match.index ?? 0) + match[1].length;
+    ranges.push({ start: slash, end: slash + match[2].length + 1 });
+  }
+  return ranges;
+}
 
 type MentionItem =
   | { kind: "file"; item: Attachment }
@@ -92,6 +107,7 @@ export function Composer(props: ComposerProps) {
   const [historyIndex, setHistoryIndex] = useState<number | null>(null);
   const historyDraft = useRef("");
   const ref = useRef<HTMLTextAreaElement>(null);
+  const highlightRef = useRef<HTMLDivElement>(null);
   const composing = useRef(false);
   const blurTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   useEffect(() => () => clearTimeout(blurTimer.current), []);
@@ -209,6 +225,13 @@ export function Composer(props: ComposerProps) {
   useEffect(() => setActive(0), [results.length, mention?.query]);
   // `active` is reset in an effect, so it can briefly point past a freshly shortened `results`.
   const activeIndex = results.length > 0 ? Math.min(active, results.length - 1) : 0;
+
+  // Only known tokens get the link-like highlight; a typo such as `/nope` stays plain text.
+  const commandNames = useMemo(
+    () => new Set([...props.commands.map((c) => c.name), ...props.skills.map((s) => s.id)]),
+    [props.commands, props.skills],
+  );
+  const tokenRanges = useMemo(() => commandTokenRanges(text, commandNames), [text, commandNames]);
 
   // Keep the highlighted row inside the scrollable popup when walking a long list with the keys.
   useLayoutEffect(() => {
@@ -369,6 +392,22 @@ export function Composer(props: ComposerProps) {
   const hasExtraAgents = props.agents.some((a) => a.id !== "build" && a.id !== "plan");
   const listId = "mention-list";
 
+  // The overlay mirrors the textarea's wrapping but paints only the command tokens, so the caret,
+  // text selection and IME composition of the real input are never touched.
+  const highlightNodes = (): VNode[] => {
+    const nodes: VNode[] = [];
+    let cursor = 0;
+    tokenRanges.forEach((r, i) => {
+      nodes.push(<span key={`before-${i}`}>{text.slice(cursor, r.start)}</span>);
+      nodes.push(<span class="command-token" key={`token-${i}`}>{text.slice(r.start, r.end)}</span>);
+      cursor = r.end;
+    });
+    nodes.push(<span key="rest">{text.slice(cursor)}</span>);
+    // A trailing newline keeps the last visual line wrapped exactly like the textarea does.
+    nodes.push(<span key="eol">{"\n"}</span>);
+    return nodes;
+  };
+
   return (
     <div class="composer">
       <div class="composer-box">
@@ -444,6 +483,7 @@ export function Composer(props: ComposerProps) {
         </ul>
       )}
       <div class="input-wrap">
+        <div class="input-highlight" ref={highlightRef} aria-hidden="true">{highlightNodes()}</div>
         {mention && (
           <ul class="mention-popup" role="listbox" id={listId} aria-label={t("suggestions")}>
             {results.length === 0 ? (
@@ -490,6 +530,10 @@ export function Composer(props: ComposerProps) {
           aria-activedescendant={mention && results.length > 0 ? `mention-${activeIndex}` : undefined}
           disabled={props.disabled}
           onFocus={cancelBlurClose}
+          onScroll={() => {
+            const hl = highlightRef.current;
+            if (hl && ref.current) hl.scrollTop = ref.current.scrollTop;
+          }}
           onInput={(e) => {
             cancelBlurClose();
             const el = e.currentTarget as HTMLTextAreaElement;

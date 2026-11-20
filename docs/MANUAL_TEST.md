@@ -59,8 +59,9 @@ screen readers and multi-window process management.
     In a repo with `node_modules` or `dist`, confirm those folders are **not** offered: the picker
     respects `search.exclude` and `files.exclude`.
 11. **Skills**: ensure OpenCode has discovered a skill from a supported [skill location](https://opencode.ai/docs/skills/#discovery),
-    type `/` and choose it. Expect `/skill-id` in the composer; send it with a request and confirm
-    OpenCode loads the skill. Other slash commands should remain unchanged.
+    type `/` and choose it. Expect `/skill-id` in the composer, **underlined like a link**; a typo
+    such as `/nope` stays plain text. Send it with a request and confirm OpenCode loads the skill.
+    Other slash commands should remain unchanged and be underlined too.
 12. **Sessions and drafts**: click the session title → list; create a new session with `+`; switch
     back. Before switching, type a half-finished message; come back and confirm the **draft for that
     session is still there**, while the other session kept its own (empty) draft. Sending clears it.

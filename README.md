@@ -41,7 +41,9 @@ sends **no telemetry**.
 - **Attach external files** by dragging them into the chat (**hold Shift**: VS Code otherwise opens the file in an editor), by pasting an image or other file into the prompt, or with the folder button, which opens a native file picker. Files outside the workspace are sent **inline** so the model receives their content instead of only a path to look for. The same applies to local files when you connect to an external `opencode.endpoint`: OpenCode reads `file:` paths from its own filesystem, which may not be yours, so their contents are embedded in the message instead.
 - **Clickable file references**: `src/app.ts:42` in a reply, a tool's input path, a permission resource or a changed-file row opens the file at that line in the editor.
 - **Skills**: type `/` to search skills discovered by OpenCode, including global skills; selecting one
-  inserts a slash command that loads its instructions with the prompt.
+  inserts a slash command that loads its instructions with the prompt. Known `/command` and `/skill`
+  tokens are underlined like links in the input, so you can spot at a glance what OpenCode will
+  interpret; an unknown `/nope` stays plain text.
 - **Native diffs**: open proposed changes (before you approve) and applied changes in VS Code's diff
   editor. The **Changed files** panel lists the session's files with per-file counts and shows the
   session totals (`+N / -N`) in its header (“1 Changed file” / “N Changed files”). Click the totals to

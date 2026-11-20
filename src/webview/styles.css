@@ -1971,6 +1971,26 @@ button:disabled {
   color: var(--vscode-input-placeholderForeground);
 }
 
+/* Painted above the textarea but transparent everywhere except command tokens. Selection, caret
+   and IME composition stay on the untouched input underneath. */
+.input-highlight {
+  position: absolute;
+  inset: 0;
+  padding: 4px 6px;
+  font: inherit;
+  line-height: 1.4;
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
+  color: transparent;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.input-highlight .command-token {
+  color: var(--vscode-textLink-foreground, #3794ff);
+  text-decoration: underline;
+}
+
 .mention-popup {
   position: absolute;
   bottom: calc(100% + 6px);

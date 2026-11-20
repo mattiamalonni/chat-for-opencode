@@ -117,7 +117,8 @@ The composer draft is persisted in the webview with `vscode.setState`; it is not
 When a file is picked from the `@` mention results, the composer removes the `@query` from the text
 and adds the file as a chip: the prompt carries the attachment through the `attachments` field, not
 through an `@name` in the text. `@skill` and `/command` selections instead keep their token in the
-text, which OpenCode resolves when the prompt is sent.
+text, which OpenCode resolves when the prompt is sent. Tokens matching a known command or skill are
+underlined like links by a transparent overlay above the textarea; unknown ones stay plain text.
 
 `UiError = { kind, message, detail?, actions: ActionId[], target?: { kind: "permission" \| "form", id } }`, kinds:
 `notInstalled`, `startFailed`, `unauthorized`, `noProvider`, `connectionLost`, `promptFailed`,
