@@ -160,6 +160,20 @@ const SUMMARY_KEYS = ["description", "filePath", "path", "file", "command", "pat
 
 export function toolInputSummary(part: ToolPart): string {
   const input = toolObject(part);
+  // The question tool keeps its labels inside `questions`, so none of the
+  // flat SUMMARY_KEYS above match it. Read the headers directly instead.
+  if (part.name === "question" && Array.isArray(input.questions)) {
+    const labels: string[] = [];
+    for (const raw of input.questions) {
+      if (!raw || typeof raw !== "object") continue;
+      const q = raw as Record<string, unknown>;
+      const header = typeof q.header === "string" ? q.header.trim() : "";
+      const question = typeof q.question === "string" ? q.question.trim() : "";
+      const label = header || question;
+      if (label) labels.push(label.split("\n")[0]);
+    }
+    if (labels.length) return labels.join(", ").slice(0, 120);
+  }
   for (const key of SUMMARY_KEYS) {
     const value = input[key];
     if (typeof value === "string" && value.trim()) return value.split("\n")[0].slice(0, 120);

@@ -22,7 +22,7 @@ import {
   isSubagentTool,
   subagentChildId,
   subagentView,
-  toolObject,
+  toolInputSummary,
   type SubagentActivity,
 } from "../shared/subagents";
 import { isolateKeys } from "./env";
@@ -335,16 +335,8 @@ function Reasoning({ part }: { part: TextPart }) {
   );
 }
 
-const SUMMARY_KEYS = ["description", "filePath", "path", "file", "command", "pattern", "query", "url", "name", "prompt"];
-
 export function toolSummary(part: ToolPart): string {
-  const input = toolObject(part);
-  for (const k of SUMMARY_KEYS) {
-    const v = input[k];
-    if (typeof v === "string" && v.trim()) return v.split("\n")[0].slice(0, 120);
-  }
-  if (Array.isArray(input.todos)) return `${input.todos.length} todos`;
-  return "";
+  return toolInputSummary(part);
 }
 
 /** The file a tool was called on, when the input carries one. */

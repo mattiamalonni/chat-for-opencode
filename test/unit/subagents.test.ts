@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import type { ServerEvent } from "../../src/shared/api";
-import { chatReducer, eventSessionId, initialChatState } from "../../src/shared/chatReducer";
+import { chatReducer, eventSessionId, initialChatState, type ToolPart } from "../../src/shared/chatReducer";
 import {
   initialSubagentState,
   isSubagentTool,
@@ -11,6 +11,7 @@ import {
   subagentChildId,
   subagentReducer,
   subagentView,
+  toolInputSummary,
   toolObject,
   truncateSubagentStack,
   type SubagentEvent,
@@ -33,6 +34,25 @@ function open(sessionId: string) {
 }
 
 describe("subagents", () => {
+  it("summarises a question tool from the headers of its bundled questions", () => {
+    const part: ToolPart = {
+      kind: "tool",
+      key: "q",
+      id: "q",
+      name: "question",
+      status: "completed",
+      inputText: "",
+      input: {
+        questions: [{ header: "Tipo di modifica", question: "Che piccola modifica vuoi che faccia?", options: [] }],
+      },
+      output: [],
+    };
+    expect(toolInputSummary(part)).toBe("Tipo di modifica");
+    expect(toolInputSummary({ ...part, input: { questions: [{ header: "Uno" }, { header: "Due" }] } })).toBe("Uno, Due");
+    // A question without a header still gets a useful label from its text.
+    expect(toolInputSummary({ ...part, input: { questions: [{ question: "Favorite color?" }] } })).toBe("Favorite color?");
+  });
+
   it("recognises the subagent tool and reads its child id from progress metadata", () => {
     const parent = chatReducer(open(parentId), { type: "events", events });
     const tool = parent.messages
