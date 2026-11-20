@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+- Fixed **`@name` left in the composer after attaching a file from the `@` picker**. The file was
+  already added as a chip and sent separately as an attachment, so selecting it now removes the
+  `@query` from the input instead of replacing it with `@name`. `@skill` and `/command` suggestions
+  are unchanged, and still insert their token in the text.
+
 ## 0.3.17 — 2026-11-20
 
 - Fixed **Stop Server leaving the chat unusable**. The command only disposed the server registry, so

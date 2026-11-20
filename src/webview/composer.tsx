@@ -242,11 +242,13 @@ export function Composer(props: ComposerProps) {
     if (!mention) return;
     const el = ref.current;
     const caret = el?.selectionStart ?? text.length;
+    // Skills and slash commands stay in the text as `@skill` / `/command`. Files are attached as
+    // chips and sent separately as `files`, so drop the `@query` instead of leaving it in the input.
     const label = item.kind === "command"
       ? `/${item.item.name} `
       : item.kind === "skill"
         ? `${mention.kind === "skill" ? "/" : "@"}${item.item.id} `
-        : `@${item.item.detail ?? item.item.name} `;
+        : "";
     const next = text.slice(0, mention.start) + label + text.slice(caret);
     setText(next);
     setMention(undefined);

@@ -1184,7 +1184,8 @@ test("@ mentions search files and attach the selection", async ({ page }) => {
   await page.screenshot({ path: join(SHOTS, "05-mention-dark.png") });
   await page.keyboard.press("ArrowDown");
   await page.keyboard.press("Enter");
-  await expect(input).toHaveValue("look at @src/apply.ts ");
+  // The file becomes a chip; its `@query` must disappear from the text.
+  await expect(input).toHaveValue("look at ");
   await expect(page.getByRole("listbox")).toHaveCount(0);
   await page.keyboard.type("please");
   await page.keyboard.press("Enter");

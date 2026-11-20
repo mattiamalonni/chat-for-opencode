@@ -54,9 +54,10 @@ screen readers and multi-window process management.
    remove one with ×; send `What does the selection contain?`. The user bubble lists the attachment.
    Right-click → *Add Selection to Chat* adds a chip, and *Add File to Chat* adds the whole file
    (outside the workspace it is inlined, like a drop or a file-picker pick).
-10. **@ mention and excludes**: type `@a.t`, choose `a.txt` with ↓/Enter. In a repo with
-    `node_modules` or `dist`, confirm those folders are **not** offered: the picker now respects
-    `search.exclude` and `files.exclude`.
+10. **@ mention and excludes**: type `@a.t`, choose `a.txt` with ↓/Enter. The file becomes a chip
+    and the `@a.t` text **disappears from the composer**; the chip alone is sent with the message.
+    In a repo with `node_modules` or `dist`, confirm those folders are **not** offered: the picker
+    respects `search.exclude` and `files.exclude`.
 11. **Skills**: ensure OpenCode has discovered a skill from a supported [skill location](https://opencode.ai/docs/skills/#discovery),
     type `/` and choose it. Expect `/skill-id` in the composer; send it with a request and confirm
     OpenCode loads the skill. Other slash commands should remain unchanged.
