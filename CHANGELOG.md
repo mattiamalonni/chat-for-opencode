@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.3.17 — 2026-11-20
 
 - Fixed **Stop Server leaving the chat unusable**. The command only disposed the server registry, so
   the controller kept a dead connection and its SSE stream reconnected forever to a closed port.
@@ -33,6 +33,12 @@
   the OS temp folder (cleared on reboot) with the right extension, so there is a real file to open;
   the prompt still sends their bytes inline to an external server. Clicking the chip does not select
   the file name. Chips whose content is only a `data:` URL are not clickable.
+- **Roll back to any turn**: every prompt now has a discreet *Roll back to this turn* button. Pick the
+  first, the last or any intermediate turn: OpenCode restores the files changed after it and removes
+  that prompt, its reply and all later turns, while the prompt returns to the composer so you can edit
+  and resend it. A confirmation lets you keep the current files (*Messages only*).
+- Tool cards for the **question** tool now show the question headers as their label (e.g.
+  *Tipo di modifica*) instead of falling back to an empty summary.
 - Subagent cards now have an **Open subagent conversation** action that shows the child session in
   a read-only modal, rendered with the same conversation view as the main chat (steps, thoughts,
   tools and report). Breadcrumbs let you navigate nested subagents and return to the parent chat;
