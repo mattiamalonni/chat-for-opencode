@@ -20,7 +20,7 @@ import { estimateDataUrlTokens } from "../shared/format";
 import { isNewSessionKey } from "../shared/keys";
 import { contractSignature, emptyContract, type ContractReport } from "../shared/contract";
 import type { Attachment, ConnectionStatus, ContextItem, FolderInfo, HostMessage, SessionSummary, UiError } from "../shared/protocol";
-import { initialSubagentState, pushSubagentSession, subagentReducer, truncateSubagentStack, type SubagentEvent } from "../shared/subagents";
+import { initialSubagentState, pushSubagentSession, subagentReducer, truncateSubagentStack, type SubagentEvent, type SubagentState } from "../shared/subagents";
 import { format, STRINGS, type Strings } from "../shared/strings";
 import { AttentionOverlay } from "./attentionOverlay";
 import { Composer } from "./composer";
@@ -511,7 +511,9 @@ export function App() {
         {changedFiles.length > 0 && !changesDismissed && (
           <ChangesPanel files={changedFiles} onDismiss={() => setDismissedChanges(changesSignature)} />
         )}
-        <AttentionOverlay key={chat.sessionId ?? "new"} state={chat} />
+        {/* When the subagent modal is open it renders its own overlay; passing the child requests
+            here too would duplicate the same cards (and the same DOM ids) behind the backdrop. */}
+        <AttentionOverlay key={chat.sessionId ?? "new"} state={chat} subagents={subagentStack.length === 0 ? subagents : undefined} />
         <Composer
           sessionId={chat.sessionId ?? undefined}
           draftToken={draftToken}
@@ -558,6 +560,7 @@ export function App() {
             stack={subagentStack}
             entries={subagentEntries}
             labels={subagentLabels}
+            subagents={subagents}
             parentTitle={title}
             onNavigate={(depth) => setSubagentStack((prev) => truncateSubagentStack(prev, depth))}
             onClose={() => setSubagentStack([])}
@@ -1532,6 +1535,7 @@ function SubagentModal({
   stack,
   entries,
   labels,
+  subagents,
   parentTitle,
   onNavigate,
   onClose,
@@ -1539,6 +1543,7 @@ function SubagentModal({
   stack: string[];
   entries: Record<string, SubagentEntry>;
   labels: Record<string, string>;
+  subagents: SubagentState;
   parentTitle: string;
   onNavigate: (depth: number) => void;
   onClose: () => void;
@@ -1613,7 +1618,12 @@ function SubagentModal({
         </header>
         <div class="subagent-modal-body">
           {entry ? (
-            <Conversation chat={entry.state} scrollToken={0} searchQuery="" label={t("subagentConversation")} />
+            <>
+              <Conversation chat={entry.state} scrollToken={0} searchQuery="" label={t("subagentConversation")} />
+              {/* The backdrop hides the chat's overlay, so a subagent waiting for approval needs its
+                  own card here. Replies still carry the child's session id. */}
+              <AttentionOverlay key={currentId} state={entry.state} subagents={subagents} />
+            </>
           ) : (
             <div class="empty">{t("loadingSubagent")}</div>
           )}

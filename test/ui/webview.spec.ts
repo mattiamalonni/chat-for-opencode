@@ -2118,6 +2118,109 @@ test("a subagent card opens a read-only conversation modal with breadcrumbs", as
   await expect(modal).toHaveCount(0);
 });
 
+test("a subagent's permission is answerable from the parent chat", async ({ page }) => {
+  await boot(page);
+  const child = "ses_child_permission";
+  await openSession(page, S2, []);
+  await host(page, {
+    type: "subagentEvent",
+    sessionId: child,
+    event: {
+      type: "permission.asked",
+      created: Date.now(),
+      data: { id: "per_child", sessionID: child, action: "shell", resources: ["git status"], save: ["*"], metadata: {} },
+    } as ServerEvent,
+  });
+
+  const overlay = page.locator(".attention-overlay");
+  await expect(overlay).toBeVisible();
+  await expect(overlay.locator(".attention-source")).toHaveText(STRINGS.subagent);
+  await expect(overlay.locator(".card.permission .card-title code")).toHaveText("shell");
+  // The card is shown in the parent chat, but the reply must go to the child session or the
+  // subagent keeps waiting forever.
+  await overlay.getByRole("button", { name: STRINGS.permissionAllowOnce }).click();
+  expect(await lastPosted(page, "permissionReply")).toMatchObject({
+    sessionId: child,
+    requestId: "per_child",
+    decision: "once",
+  });
+  await host(page, {
+    type: "subagentEvent",
+    sessionId: child,
+    event: { type: "permission.replied", created: Date.now(), data: { sessionID: child, requestID: "per_child" } } as ServerEvent,
+  });
+  await expect(overlay).toHaveCount(0);
+});
+
+test("a subagent's permission stays answerable inside its conversation modal", async ({ page }) => {
+  await boot(page);
+  const events = fixture("real-sse-subagent.jsonl");
+  const parent = "ses_e0d1a594affeRHT5ks6SqFzeKs";
+  const child = "ses_e0d1a3fbaffewFAJSNZEYUBF3e";
+  const mark = events.findIndex((e) => e.type === "session.tool.progress" && (e.data as { sessionID?: string }).sessionID === parent);
+  await openSession(page, parent, events.slice(0, mark + 1).filter((e) => (e.data as { sessionID?: string }).sessionID === parent));
+  await host(page, {
+    type: "subagentEvent",
+    sessionId: child,
+    event: {
+      type: "permission.asked",
+      created: Date.now(),
+      data: { id: "per_in_modal", sessionID: child, action: "edit", resources: ["a.txt"], save: ["*"], metadata: {} },
+    } as ServerEvent,
+  });
+
+  const card = page.locator(".tool.subagent").first();
+  await card.locator(".tool-open").click();
+  const modal = page.getByRole("dialog", { name: STRINGS.subagentConversation });
+  await expect(modal).toBeVisible();
+  // The backdrop hides the parent chat's overlay, so the modal needs its own actionable card.
+  const overlay = modal.locator(".attention-overlay");
+  await expect(overlay.locator(".card.permission .card-title code")).toHaveText("edit");
+  await overlay.getByRole("button", { name: STRINGS.permissionAllowOnce }).click();
+  expect(await lastPosted(page, "permissionReply")).toMatchObject({ sessionId: child, requestId: "per_in_modal" });
+});
+
+test("a subagent waiting for approval is marked as such in the parent thread", async ({ page }) => {
+  await boot(page);
+  const events = fixture("real-sse-subagent.jsonl");
+  const parent = "ses_e0d1a594affeRHT5ks6SqFzeKs";
+  const child = "ses_e0d1a3fbaffewFAJSNZEYUBF3e";
+  const mark = events.findIndex((e) => e.type === "session.tool.progress" && (e.data as { sessionID?: string }).sessionID === parent);
+  await openSession(page, parent, events.slice(0, mark + 1).filter((e) => (e.data as { sessionID?: string }).sessionID === parent));
+
+  const card = page.locator(".tool.subagent").first();
+  await expect(card).toHaveClass(/running/);
+  await expect(card.locator(".status-dot.running")).toHaveCount(1);
+  await expect(card.locator(".subagent-waiting")).toHaveCount(0);
+
+  await host(page, {
+    type: "subagentEvent",
+    sessionId: child,
+    event: {
+      type: "permission.asked",
+      created: Date.now(),
+      data: { id: "per_thread", sessionID: child, action: "shell", resources: ["git status"], save: ["*"], metadata: {} },
+    } as ServerEvent,
+  });
+
+  await expect(card).toHaveClass(/waiting/);
+  await expect(card).toHaveClass(/attention/);
+  await expect(card.locator(".subagent-waiting")).toHaveText(STRINGS.needsInput);
+  await expect(card.locator(".status-dot.waiting")).toHaveCount(1);
+  await expect(card.locator(".tool-summary")).toContainText(STRINGS.subagentWaitingForInput);
+  // The actionable card is still only in the overlay, never duplicated inside the thread.
+  await expect(card.locator(".card.permission")).toHaveCount(0);
+  await expect(page.locator(".attention-overlay .card.permission")).toHaveCount(1);
+
+  await host(page, {
+    type: "subagentEvent",
+    sessionId: child,
+    event: { type: "permission.replied", created: Date.now(), data: { sessionID: child, requestID: "per_thread" } } as ServerEvent,
+  });
+  await expect(card.locator(".subagent-waiting")).toHaveCount(0);
+  await expect(card.locator(".status-dot.running")).toHaveCount(1);
+});
+
 test("a background subagent's report shows up when it completes", async ({ page }) => {
   const csp = await boot(page);
   const events = fixture("real-sse-subagent-background.jsonl");

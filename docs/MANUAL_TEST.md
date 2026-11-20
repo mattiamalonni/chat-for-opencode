@@ -120,5 +120,13 @@ screen readers and multi-window process management.
     parent crumb (or press `Esc`, or click the backdrop) to return. Have that subagent spawn a
     nested one and confirm a third crumb appears and can be used to go back. Switch sessions with
     the modal open: it must close along with the child's state.
+19c. **Subagent needing approval**: ask the agent to use a subagent for a command that raises a
+     permission prompt (e.g. *Use the 'explore' subagent to run git status in this folder*, with the
+     default `ask` session rules). The inline card must switch from the running spinner to an amber
+     *Needs your input* badge, and an approval card labelled with the subagent's name must appear
+     above the composer. Click *Allow once*: the card disappears, the indicator returns to running
+     and the child finishes its report. Repeat with the subagent modal open: the approval panel must
+     be visible inside the modal and the reply must still unblock the child. With auto-approve on,
+     neither the card nor the indicator should appear at all.
 20. **Screen reader** (if available): with VoiceOver/NVDA, focus the composer and confirm its label,
     the session picker and the permission cards announce their role and state.

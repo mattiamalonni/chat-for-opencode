@@ -59,6 +59,7 @@ export const STRINGS = {
   subagents: "Subagents",
   openSubagent: "Open subagent conversation",
   subagentConversation: "Subagent conversation",
+  subagentWaitingForInput: "Waiting for your input to continue",
   mainChat: "Chat",
   loadingSubagent: "Loading subagent…",
   activity: "Activity",

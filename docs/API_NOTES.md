@@ -175,6 +175,19 @@ whose live state is missing (a past session, or a background child that finished
 was detached) is re-fetched on demand with `refreshSubagent`, using the same endpoint as the initial
 snapshot. No new host events are needed to open the modal.
 
+`permission.asked` and `form.created` for a child arrive on the same stream with the child's
+`sessionID` and are stored in its `ChatState` like the main chat's. A subagent has no composer, so
+the host collects pending requests from **all tracked children** into the parent chat's attention
+overlay, labelled with the child's title or agent. `PermissionCard` / `QuestionCard` reply with
+`request.sessionID` / `form.sessionID`, so `POST /api/session/{child}/permission/{id}/reply` (or the
+form equivalent) reaches the child and the turn resumes — the same protocol, addressed to another
+session. The modal docks a second overlay because its backdrop hides the chat's one; the main overlay
+drops child requests while the modal is open to avoid duplicate cards and DOM ids. With auto-approve
+on, requests for tracked children are granted on arrival with `replyPermission(..., "once")`, the
+already-pending ones are swept when the toggle is turned on, and stale requests in a fresh child
+snapshot are filtered the same way. The inline subagent card switches to an amber `waiting` dot plus
+a *Needs your input* badge while a child is blocked, but never renders a second actionable card.
+
 ### Message history shape (`GET …/message`)
 
 ```

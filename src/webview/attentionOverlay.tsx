@@ -1,15 +1,24 @@
 import { useEffect, useMemo, useRef, useState } from "preact/hooks";
 import type { FormField, FormRequest, FormValue, PermissionRequest } from "../shared/api";
 import type { ChatState } from "../shared/chatReducer";
+import type { SubagentState } from "../shared/subagents";
 import { useT } from "./i18n";
 import { IconChevron, IconWarning } from "./icons";
 import { buildFormAnswer, initialValue, PermissionCard, QuestionCard } from "./messages";
 import { clearReplyFailure } from "./replyFeedback";
 import { post } from "./vscode";
 
+interface AttentionBase {
+  id: string;
+  requestId: string;
+  index: number;
+  /** Set when the request came from a subagent, so the card says who is waiting. */
+  sourceLabel?: string;
+}
+
 type AttentionItem =
-  | { id: string; requestId: string; index: number; kind: "permission"; permission: PermissionRequest }
-  | { id: string; requestId: string; index: number; kind: "question"; form: FormRequest; field?: FormField; last: boolean };
+  | (AttentionBase & { kind: "permission"; permission: PermissionRequest })
+  | (AttentionBase & { kind: "question"; form: FormRequest; field?: FormField; last: boolean });
 
 type Answers = Record<string, FormValue | undefined>;
 
@@ -27,29 +36,55 @@ function initialAnswers(form: FormRequest): Answers {
  * form; each visible field becomes its own entry and the answers are collected before the one
  * `formReply` is posted. The cards themselves still own the reply protocol.
  */
-export function AttentionOverlay({ state }: { state: ChatState }) {
+export function AttentionOverlay({ state, subagents }: { state: ChatState; subagents?: SubagentState }) {
   const t = useT();
+  const subagentLabel = t("subagent");
   const items = useMemo<AttentionItem[]>(() => {
     const out: AttentionItem[] = [];
-    for (const p of state.permissions) {
-      out.push({ id: p.id, requestId: p.id, index: 0, kind: "permission", permission: p });
-    }
-    for (const f of state.forms) {
-      const visible = f.fields.filter((field) => !field.hidden);
-      // A form whose fields are all hidden still needs a card so it can be submitted or cancelled.
-      const fields = visible.length > 0 ? visible : [undefined];
-      fields.forEach((field, index) => out.push({
-        id: `${f.id}:${index}`,
-        requestId: f.id,
-        index,
-        kind: "question",
-        form: f,
-        field,
-        last: index === fields.length - 1,
-      }));
+    const seen = new Set<string>();
+    const collect = (chat: ChatState, sourceLabel?: string) => {
+      for (const p of chat.permissions) {
+        if (seen.has(p.id)) continue;
+        seen.add(p.id);
+        out.push({ id: p.id, requestId: p.id, index: 0, kind: "permission", permission: p, sourceLabel });
+      }
+      for (const f of chat.forms) {
+        if (seen.has(f.id)) continue;
+        seen.add(f.id);
+        const visible = f.fields.filter((field) => !field.hidden);
+        // A form whose fields are all hidden still needs a card so it can be submitted or cancelled.
+        const fields = visible.length > 0 ? visible : [undefined];
+        fields.forEach((field, index) => out.push({
+          id: `${f.id}:${index}`,
+          requestId: f.id,
+          index,
+          kind: "question",
+          form: f,
+          field,
+          last: index === fields.length - 1,
+          sourceLabel,
+        }));
+      }
+    };
+    collect(state);
+    // Subagents are headless: their `ask` requests would otherwise have no card to answer and the
+    // child turn would hang forever. The reply itself uses `request.sessionID`, so it reaches the
+    // child session even though the card is shown here, in the parent chat.
+    for (const id of subagents?.order ?? []) {
+      const child = subagents?.byId[id];
+      if (!child || (child.permissions.length === 0 && child.forms.length === 0)) continue;
+      const name = subagents?.meta[id]?.title || subagents?.meta[id]?.agent;
+      collect(child, name ? `${subagentLabel}: ${name}` : subagentLabel);
     }
     return out;
-  }, [state.permissions, state.forms]);
+  }, [state.permissions, state.forms, subagents, subagentLabel]);
+
+  // One entry per form, including the ones that came from subagents. Field cards share a form id.
+  const allForms = useMemo<FormRequest[]>(() => {
+    const byId = new Map<string, FormRequest>();
+    for (const item of items) if (item.kind === "question") byId.set(item.form.id, item.form);
+    return [...byId.values()];
+  }, [items]);
 
   // Live events append requests and a resync re-posts the same objects. Keep the arrival order by
   // request id so a new request becomes current even when another one is already pending.
@@ -90,17 +125,17 @@ export function AttentionOverlay({ state }: { state: ChatState }) {
   // Answers belong to the form, not to the field card: navigating between questions must not lose
   // them, and a single reply carries every field (including hidden ones with their defaults).
   const [answers, setAnswers] = useState<Record<string, Answers>>(() =>
-    Object.fromEntries(state.forms.map((f) => [f.id, initialAnswers(f)])),
+    Object.fromEntries(allForms.map((f) => [f.id, initialAnswers(f)])),
   );
   const [customs, setCustoms] = useState<Record<string, Record<string, string>>>({});
   const [busyForms, setBusyForms] = useState<Record<string, boolean>>({});
-  const seenForms = useRef(new Map(state.forms.map((f) => [f.id, f])));
+  const seenForms = useRef(new Map(allForms.map((f) => [f.id, f])));
   useEffect(() => {
-    const ids = new Set(state.forms.map((f) => f.id));
+    const ids = new Set(allForms.map((f) => f.id));
     setAnswers((prev) => {
       const next: typeof prev = {};
       let changed = false;
-      for (const f of state.forms) {
+      for (const f of allForms) {
         if (prev[f.id]) next[f.id] = prev[f.id];
         else { next[f.id] = initialAnswers(f); changed = true; }
       }
@@ -119,7 +154,7 @@ export function AttentionOverlay({ state }: { state: ChatState }) {
     });
     // A resync re-posts the same pending form as a fresh object: re-enable its buttons.
     const resets: string[] = [];
-    for (const f of state.forms) {
+    for (const f of allForms) {
       if (seenForms.current.get(f.id) !== f) resets.push(f.id);
       seenForms.current.set(f.id, f);
     }
@@ -127,7 +162,7 @@ export function AttentionOverlay({ state }: { state: ChatState }) {
     if (resets.length > 0) {
       setBusyForms((prev) => ({ ...prev, ...Object.fromEntries(resets.map((id) => [id, false])) }));
     }
-  }, [state.forms]);
+  }, [allForms]);
 
   const setAnswer = (formId: string, key: string, value: FormValue | undefined) =>
     setAnswers((prev) => ({ ...prev, [formId]: { ...(prev[formId] ?? {}), [key]: value } }));
@@ -157,6 +192,7 @@ export function AttentionOverlay({ state }: { state: ChatState }) {
       <div class="attention-head">
         <IconWarning />
         <span class="attention-title">{t("needsInput")}</span>
+        {current.sourceLabel && <span class="attention-source">{current.sourceLabel}</span>}
         <span class="attention-count" aria-live="polite">{t("attentionCount", currentIndex + 1, ordered.length)}</span>
         {ordered.length > 1 && (
           <span class="attention-nav">

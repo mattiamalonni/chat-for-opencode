@@ -1043,6 +1043,19 @@ details[open] > summary > .chevron,
   letter-spacing: 0.04em;
 }
 
+/* Same shape as the subagent badge, in amber: the child is blocked on user input. */
+.subagent-waiting {
+  flex: none;
+  padding: 0 4px;
+  border: 1px solid currentColor;
+  border-radius: 3px;
+  color: var(--vscode-charts-yellow, #cca700);
+  font-size: 0.82em;
+  line-height: 1.5;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
 /* Subagent calls get a subtle accent; all detail stays collapsed until clicked. */
 .tool-group.subagent,
 .tool.subagent {
@@ -1244,6 +1257,11 @@ details[open] > summary > .chevron,
 
 .status-dot.error {
   color: var(--vscode-errorForeground);
+}
+
+/* Amber = paused waiting for the user, in tool cards as well as in the session list. */
+.status-dot.waiting {
+  color: var(--vscode-charts-yellow, #cca700);
 }
 
 .status-dot.running,
@@ -1679,6 +1697,15 @@ button:disabled {
 
 .attention-title {
   font-weight: 600;
+}
+
+.attention-source {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--vscode-descriptionForeground);
+  font-size: 0.9em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .attention-count {

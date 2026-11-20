@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+- Fixed **subagents hanging forever when they ask for permission or ask a question**. Children are
+  headless, so their `permission.asked` / `form.created` events were stored in the child state but
+  no actionable card was ever rendered: the turn stayed `running` until it was interrupted. Requests
+  from all tracked children now appear in the attention overlay above the composer, labelled with
+  the subagent's name, and the reply is addressed to the child session so the subagent resumes. The
+  conversation modal docks its own overlay because its backdrop covers the chat's one. Auto-approve
+  now applies to children too — including requests already pending when the toggle is turned on —
+  and hidden-chat notifications cover them.
+- A subagent waiting for user input is now **marked in the parent thread** with an amber pulsing dot,
+  a *Needs your input* badge and a "waiting for your input" activity line, instead of the misleading
+  running spinner. The actionable card remains only in the overlay.
 - Fixed **`@name` left in the composer after attaching a file from the `@` picker**. The file was
   already added as a chip and sent separately as an attachment, so selecting it now removes the
   `@query` from the input instead of replacing it with `@name`. `@skill` and `/command` suggestions

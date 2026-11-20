@@ -204,6 +204,8 @@ export interface SubagentView {
   status: SubagentStatus;
   activity: SubagentActivity;
   tools: SubagentToolView[];
+  /** The child is blocked on a permission or question: show a waiting marker in the parent thread. */
+  needsInput: boolean;
   task?: string;
   report?: string;
   started?: number;
@@ -289,6 +291,7 @@ export function subagentView(
     status,
     activity,
     tools,
+    needsInput: (child?.permissions.length ?? 0) > 0 || (child?.forms.length ?? 0) > 0,
     task: firstUser && firstUser.kind === "user" ? firstUser.text : undefined,
     report,
     started,

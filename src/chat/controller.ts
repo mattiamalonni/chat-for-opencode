@@ -794,6 +794,30 @@ export class ChatController implements vscode.Disposable {
   }
 
   /**
+   * A child has no separate toggle of its own: it inherits the chat's auto-approve choice. Without
+   * this, a permission asked by a subagent would stay pending forever — the child session is not
+   * `this.sessionId`, so `PermissionService.enabled(childId)` would fall back to the global setting
+   * even when the user explicitly turned auto-approve on (or off) for this chat.
+   */
+  private autoApproveEnabled(): boolean {
+    return this.permissions.enabled(this.sessionId);
+  }
+
+  /** Post a live event to the session that owns it: the main chat, or a tracked subagent's view. */
+  private postSessionEvent(sid: string, event: ServerEvent): void {
+    if (sid === this.sessionId) {
+      this.post({ type: "event", event });
+      return;
+    }
+    const buffered = this.pendingChildEvents.get(sid);
+    if (buffered) {
+      if (buffered.length < 500) buffered.push(event);
+    } else if (this.childSessions.has(sid)) {
+      this.post({ type: "subagentEvent", sessionId: sid, event });
+    }
+  }
+
+  /**
    * `subagent` calls publish the child id in their progress/success metadata, and OpenCode also
    * emits `session.created` with `parentID`. Either signal is enough to start following a child:
    * its events then arrive on the same global stream with a different `sessionID`.
@@ -832,6 +856,12 @@ export class ChatController implements vscode.Disposable {
     if (!this.childGen.is(generation) || parent !== this.sessionId) return;
     const safe = normalizeSessionInfo(info) ?? info;
     const messages = normalizeList(rawMessages, normalizeSessionMessage);
+    // With auto-approve on, the live event is granted on arrival. A snapshot fetched around the same
+    // time can still contain the request, so grant those too instead of resurrecting a stale card.
+    const permissions = this.autoApproveEnabled()
+      ? await this.permissions.filterPending(client, childId, normalizeList(rawPermissions, normalizePermission))
+      : normalizeList(rawPermissions, normalizePermission);
+    if (!this.childGen.is(generation) || parent !== this.sessionId) return;
     this.post({
       type: "subagent",
       snapshot: {
@@ -840,7 +870,7 @@ export class ChatController implements vscode.Disposable {
         title: created?.title ?? safe?.title,
         agent: created?.agent ?? safe?.agent,
         messages,
-        permissions: normalizeList(rawPermissions, normalizePermission),
+        permissions,
         forms: normalizeList(rawForms, normalizeForm),
         busy: safe ? sessionIsBusy(safe.time, messages) : true,
       },
@@ -897,20 +927,13 @@ export class ChatController implements vscode.Disposable {
     }
     // Plugin skills/commands can be registered or removed while the chat is open.
     if (event.type === "skill.updated" || event.type === "command.updated") void this.refreshSlashItems();
-    // Bypass the inline card: grant each request on arrival instead of asking the user.
-    if (event.type === "permission.asked" && sid && sid === this.sessionId && this.permissions.enabled(sid)) {
+    // Bypass the inline card: grant each request on arrival instead of asking the user. Children
+    // are included — otherwise a subagent's `ask` permission would block with no card to act on.
+    if (event.type === "permission.asked" && sid && this.isTrackedSession(sid) && this.autoApproveEnabled()) {
       void this.autoApprove(event, sid);
       return;
     }
-    if (sid && sid === this.sessionId) this.post({ type: "event", event });
-    else if (sid && this.childSessions.has(sid)) {
-      const buffered = this.pendingChildEvents.get(sid);
-      if (buffered) {
-        if (buffered.length < 500) buffered.push(event);
-      } else {
-        this.post({ type: "subagentEvent", sessionId: sid, event });
-      }
-    }
+    if (sid) this.postSessionEvent(sid, event);
     // Any new turn invalidates a pending history reconcile from the previous one, and ends the
     // grace period in which a resync must not re-lock a locally cleared composer.
     if (sid === this.sessionId && (event.type === "session.inbox.enqueued" || event.type === "session.execution.started")) {
@@ -952,7 +975,7 @@ export class ChatController implements vscode.Disposable {
       const files = (event.data as { files?: string[] }).files;
       if (files && files.length > 0) this.scheduleChanges();
     }
-    if (sid === this.sessionId && (event.type === "permission.asked" || event.type === "form.created") && !this.isVisible) {
+    if (sid && this.isTrackedSession(sid) && (event.type === "permission.asked" || event.type === "form.created") && !this.isVisible) {
       const id = event.type === "permission.asked"
         ? (event.data as { id?: string }).id
         : (event.data as { form?: { id?: string } }).form?.id;
@@ -1015,22 +1038,25 @@ export class ChatController implements vscode.Disposable {
     const request = event.data as PermissionRequest;
     const client = this.client;
     if (!client || !(await this.permissions.approveOnce(client, sessionId, request.id))) {
-      if (sessionId === this.sessionId) this.post({ type: "event", event });
+      // The grant failed: show the card in the session that owns the request, main chat or child.
+      this.postSessionEvent(sessionId, event);
       return;
     }
     this.output.info(`[chat] auto-approved ${request.action} (${sessionId})`);
   }
 
-  /** Grants requests that were already pending when auto-approval was turned on. */
+  /** Grants requests that were already pending when auto-approval was turned on, in children too. */
   private async approvePending(): Promise<void> {
     const client = this.client;
     const sid = this.sessionId;
-    if (!client || !sid || !this.permissions.enabled(sid)) return;
-    const pending = await client.permissions(sid).catch(() => [] as PermissionRequest[]);
-    for (const request of pending) {
-      if (!(await this.permissions.approveOnce(client, sid, request.id))) {
-        // The grant failed: make sure a card is shown instead of silently leaving the agent blocked.
-        this.post({ type: "event", event: { type: "permission.asked", data: request } });
+    if (!client || !sid || !this.autoApproveEnabled()) return;
+    for (const id of [sid, ...this.childSessions]) {
+      const pending = await client.permissions(id).catch(() => [] as PermissionRequest[]);
+      for (const request of pending) {
+        if (!(await this.permissions.approveOnce(client, id, request.id))) {
+          // The grant failed: make sure a card is shown instead of silently leaving the agent blocked.
+          this.postSessionEvent(id, { type: "permission.asked", data: request });
+        }
       }
     }
   }

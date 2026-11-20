@@ -36,11 +36,11 @@ test or a manual probe actually ran.
 ## Behaviour limits
 
 - **Subagent conversations are read-only in the modal.** It renders the child's steps, thoughts,
-  tools and report, but there is no composer and no approval panel: you cannot send a new prompt to
-  the child, stop it, or answer a permission/question it raises from there. `send`/`abort` are
-  addressed to the currently open session, so steering a child would require a protocol change;
-  use the client that spawned it (or steer the parent) instead. The inline card stays the place to
-  follow live progress.
+  tools and report, but there is no composer: you cannot send a new prompt to the child, stop it or
+  steer it from there (`send`/`abort` are addressed to the currently open session, so that would need
+  a protocol change). Pending permissions and questions **can** be answered from the approval panel
+  docked in the modal, or from the main chat's overlay: the reply carries the child's session id.
+  The inline card stays the place to follow live progress.
 
 - **External live updates are polled, not pushed.** A turn started in the TUI (or any other client
   that only shares the on-disk session storage) shows up in the open chat within ~2 seconds, while
@@ -68,7 +68,8 @@ test or a manual probe actually ran.
 - **Auto-approval grants each request once.** With `opencode.autoApprovePermissions` enabled (or the
   composer's **Auto-approve** toggle for a single chat) the approval panel is skipped and every
   request is granted once on arrival; saved rules are untouched, so turning it off restores prompting
-  immediately. A per-chat choice overrides the setting and is remembered across reloads.
+  immediately. A per-chat choice overrides the setting and is remembered across reloads. Subagents
+  inherit the chat's choice, so their requests are granted the same way.
 - **Session rules override `opencode.json` rules** (verified with 2.2.7: a config rule
   `shell echo * allow` was still prompted with the default `shell * ask` session rule). Users with
   an allowlist in their OpenCode config must copy it into `opencode.sessionPermissions` or set that

@@ -104,10 +104,13 @@ wire types are generated from the checked-in OpenAPI snapshot (`npm run gen:type
 The two are deliberately separate: the adapter keeps the UI usable, the contract report keeps the
 version warning honest. Supporting a new server version should extend the adapter, not the reducer.
 
-## D9 — Permission requests are rendered inside the tool card that triggered them
+## D9 — Permission requests are rendered in the attention overlay, not in the tool card
 
-`permission.asked.source.id` equals the tool call id, so the request is attached to that tool card;
-requests without a source are shown at the end of the conversation.
+`permission.asked.source.id` equals the tool call id, so the request is attached to that tool card
+*as a marker*; requests without a source are shown at the end of the conversation. The actionable
+`PermissionCard` is rendered once in the attention overlay above the composer, where it cannot be
+hidden inside a folded step or duplicated across cards. The tool card keeps only the `attention`
+marker pointing to it.
 
 ## D14 — File icons are resolved from the user's icon theme, inlined as data URIs
 
@@ -128,3 +131,15 @@ assets are inlined as data URIs rather than exposed with `asWebviewUri`: that av
 `localResourceRoots` dynamically (the webview view can be recreated) and keeps the standalone UI
 harness — which has no `asWebviewUri` — working unchanged. The cost is a base64 payload (Seti's
 font is ~37 KB → ~50 KB), sent only with icon responses.
+
+## D15 — Subagent input is surfaced in the parent chat, with the child's session id
+
+A subagent has no composer and no approval UI of its own. Its `permission.asked` / `form.created`
+events are stored in the child's `ChatState`, then collected into the parent's attention overlay
+(labelled with the child's name). The cards reply with `request.sessionID` / `form.sessionID`, so the
+existing protocol reaches the child without any new host message. The modal docks its own overlay
+because its backdrop covers the chat's one; the main overlay drops child requests while the modal is
+open so the same request is never rendered twice. Auto-approve is a property of the chat, not of the
+session, so children inherit the parent's toggle. To keep the thread honest, the inline subagent card
+shows an amber waiting marker while its child is blocked — the actionable card still lives only in
+the overlay.

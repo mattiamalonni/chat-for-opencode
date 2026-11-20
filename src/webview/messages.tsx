@@ -394,18 +394,21 @@ export function ToolGroup({ parts, state, filteredOut = false }: { parts: ToolPa
   const subEntry = useSubagent(subagentPart ? subagentChildId(subagentPart) : undefined);
   const sub = subagentPart ? subagentView(subagentPart, subEntry?.state, subEntry?.meta, state.subagentReports) : undefined;
   const subSessionId = sub?.sessionId;
-  const expanded = open || needsUser;
+  const subWaiting = !!sub?.needsInput;
+  const expanded = open || needsUser || subWaiting;
   const running = parts.some((p) => p.status === "running" || p.status === "streaming");
   const failed = parts.some((p) => p.status === "error");
-  const status = sub ? subagentDot(sub.status) : running ? "running" : failed ? "error" : "completed";
+  const status = sub ? (subWaiting ? "waiting" : subagentDot(sub.status)) : running ? "running" : failed ? "error" : "completed";
   const statusLabel = sub
-    ? sub.status === "error"
-      ? t("failed")
-      : sub.status === "cancelled"
-        ? t("cancelled")
-        : sub.status === "completed"
-          ? t("completed")
-          : t("running")
+    ? subWaiting
+      ? t("needsInput")
+      : sub.status === "error"
+        ? t("failed")
+        : sub.status === "cancelled"
+          ? t("cancelled")
+          : sub.status === "completed"
+            ? t("completed")
+            : t("running")
     : running
       ? t("running")
       : failed
@@ -413,17 +416,20 @@ export function ToolGroup({ parts, state, filteredOut = false }: { parts: ToolPa
         : t("completed");
   const names = [...new Set(parts.map((p) => p.name))].join(", ");
   const headerName = sub ? sub.agent : t("toolCalls", parts.length);
-  const headerSummary = sub ? [sub.title, activityText(sub.activity, t)].filter(Boolean).join(" · ") : names;
+  const headerSummary = sub
+    ? [sub.title, subWaiting ? t("subagentWaitingForInput") : activityText(sub.activity, t)].filter(Boolean).join(" · ")
+    : names;
   const id = `tool-group-${parts[0].id}`;
   return (
-    <section class={`tool-group${sub ? " subagent" : ""}${needsUser ? " attention" : ""}${filteredOut ? " filtered-out" : ""}`}>
+    <section class={`tool-group${sub ? " subagent" : ""}${needsUser || subWaiting ? " attention" : ""}${filteredOut ? " filtered-out" : ""}`}>
       <div class="tool-header-row">
         <button type="button" class="tool-header tool-group-header" aria-expanded={expanded} aria-controls={id} onClick={() => setOpen(!open)}>
           <IconChevron class="chevron" />
           <span class={`status-dot ${status} tooltip-host`} role="img" aria-label={statusLabel} data-tooltip={statusLabel}>
-            {status === "completed" ? <IconCheck /> : status === "error" ? <IconError /> : <IconTool />}
+            {subWaiting ? <IconWarning /> : status === "completed" ? <IconCheck /> : status === "error" ? <IconError /> : <IconTool />}
           </span>
           {sub && <span class="subagent-badge">{t("subagent")}</span>}
+          {subWaiting && <span class="subagent-waiting">{t("needsInput")}</span>}
           <span class="tool-name">{headerName}</span>
           <span class="tool-summary" title={headerSummary}>{headerSummary}</span>
         </button>
@@ -472,20 +478,25 @@ function SubagentToolCard({ part, state, filteredOut = false }: { part: ToolPart
   const [open, setOpen] = useState(false);
   const running = view.status === "running" || view.status === "pending";
   const now = useNow(running);
-  const dot = subagentDot(view.status);
+  // A child blocked on a permission/question must not keep showing the generic "running" spinner:
+  // that is exactly the "si è fermato" impression. Mark it as waiting for the user instead.
+  const waiting = view.needsInput;
+  const dot = waiting ? "waiting" : subagentDot(view.status);
   const elapsed = view.started === undefined ? undefined : `${Math.max(0, Math.round(((view.ended ?? now) - view.started) / 1000))}s`;
-  const statusLabel =
-    view.status === "error"
+  const statusLabel = waiting
+    ? t("needsInput")
+    : view.status === "error"
       ? t("failed")
       : view.status === "cancelled"
         ? t("cancelled")
         : view.status === "completed"
           ? t("completed")
           : t("running");
-  const header = [view.agent || t("subagent"), view.title, activityText(view.activity, t), elapsed].filter(Boolean).join(" · ");
+  const activity = waiting ? t("subagentWaitingForInput") : activityText(view.activity, t);
+  const header = [view.agent || t("subagent"), view.title, activity, elapsed].filter(Boolean).join(" · ");
   const id = `subagent-${part.id}`;
   return (
-    <section class={`tool subagent ${dot}${filteredOut ? " filtered-out" : ""}`} aria-label={`${t("subagent")}: ${header}`}>
+    <section class={`tool subagent ${dot}${waiting ? " attention" : ""}${filteredOut ? " filtered-out" : ""}`} aria-label={`${t("subagent")}: ${header}`}>
       <div class="tool-header-row">
         <button
           type="button"
@@ -502,9 +513,10 @@ function SubagentToolCard({ part, state, filteredOut = false }: { part: ToolPart
         >
           <IconChevron class="chevron" />
           <span class={`status-dot ${dot} tooltip-host`} role="img" aria-label={statusLabel} data-tooltip={statusLabel}>
-            {dot === "completed" ? <IconCheck /> : dot === "error" ? <IconError /> : <IconTool />}
+            {waiting ? <IconWarning /> : dot === "completed" ? <IconCheck /> : dot === "error" ? <IconError /> : <IconTool />}
           </span>
           <span class="subagent-badge">{t("subagent")}</span>
+          {waiting && <span class="subagent-waiting">{t("needsInput")}</span>}
           <span class="tool-summary" title={header}>{header}</span>
         </button>
         {sessionId && (
@@ -523,7 +535,7 @@ function SubagentToolCard({ part, state, filteredOut = false }: { part: ToolPart
         <div class="tool-body subagent-body" id={id}>
           <div class="subagent-activity">
             <span class="tool-label">{t("activity")}</span>
-            <span>{activityText(view.activity, t)}{elapsed ? ` · ${elapsed}` : ""}</span>
+            <span>{activity}{elapsed ? ` · ${elapsed}` : ""}</span>
           </div>
           {view.task && (
             <details class="tool-section">
