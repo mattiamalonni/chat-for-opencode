@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { applyPatch, parseHunks, sidesFromPatch } from "../../src/shared/patch";
+import { applyPatch, hunksSides, parseHunks, sidesFromPatch } from "../../src/shared/patch";
 
 // Real patches recorded from opencode serve 2.2.7.
 const TOOL_PATCH = "Index: a.txt\n===================================================================\n--- a.txt\n+++ a.txt\n@@ -1,1 +1,1 @@\n-a\n+b\n";
@@ -9,6 +9,14 @@ describe("patch", () => {
   it("parses tool-style and git-style hunks", () => {
     expect(parseHunks(TOOL_PATCH)).toEqual([{ oldStart: 1, oldLines: 1, newStart: 1, newLines: 1, lines: ["-a", "+b"] }]);
     expect(parseHunks(GIT_PATCH)[0].lines).toEqual(["-a", "+b"]);
+  });
+
+  it("builds a changes-only view from hunks, with a header per file", () => {
+    const patch = "--- a\n+++ b\n@@ -1,3 +1,3 @@\n keep\n-old\n+new\n tail\n";
+    expect(hunksSides([{ file: "src/a.ts", patch }])).toEqual({
+      before: ["===== src/a.ts =====", "keep", "old", "tail"].join("\n"),
+      after: ["===== src/a.ts =====", "keep", "new", "tail"].join("\n"),
+    });
   });
 
   it("applies forward (proposed change) and reverse (reconstruct original)", () => {

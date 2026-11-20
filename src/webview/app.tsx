@@ -8,6 +8,7 @@ import {
   orphanCards,
   selectTodos,
   selectTurnFileChanges,
+  selectTurnFiles,
   type TextPart,
   type ToolPart,
   type TurnStats,
@@ -1066,12 +1067,16 @@ function statsForTurn(turns: TurnStats[], msgs: UiAssistantMessage[]): TurnStats
   // A reconcile can add a history turn covering the same window whose tool metadata omits the
   // file counts. Prefer the turn that kept the counts captured live; fall back to whatever the
   // current tool parts still report (e.g. a turn first seen mid-stream).
-  const kept = [...matches].reverse().find((t) => (t.additions ?? 0) > 0 || (t.deletions ?? 0) > 0) ?? matches[matches.length - 1];
+  const kept =
+    [...matches].reverse().find((t) => (t.additions ?? 0) > 0 || (t.deletions ?? 0) > 0 || (t.files?.length ?? 0) > 0) ??
+    matches[matches.length - 1];
   const derived = selectTurnFileChanges(msgs);
+  const files = selectTurnFiles(msgs);
   return {
     ...kept,
     additions: Math.max(kept.additions ?? 0, derived.additions),
     deletions: Math.max(kept.deletions ?? 0, derived.deletions),
+    files: kept.files?.length ? kept.files : files,
   };
 }
 

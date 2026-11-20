@@ -1575,6 +1575,9 @@ test("a finished turn shows insertions and deletions from its file edits", async
   await expect(stats.locator(".adds")).toHaveText("+7");
   await expect(stats.locator(".dels")).toHaveText("-2");
   await expect(stats).toHaveAttribute("data-tooltip", /Insertions: 7 · Deletions: 2/);
+  const openDiffs = { type: "openDiffs" as const, files: [{ file: "a.ts", patch: "@@" }, { file: "b.ts", patch: "@@" }] };
+  await stats.locator(".turn-stats-changes").click();
+  expect(await lastPosted(page, "openDiffs")).toEqual(openDiffs);
 
   // A reconcile replaces the live tool parts with server history, which may drop `metadata.files`.
   // The counts captured when the edits happened must survive that resync.
@@ -1599,6 +1602,8 @@ test("a finished turn shows insertions and deletions from its file edits", async
   await expect(stats).toHaveCount(1);
   await expect(stats.locator(".adds")).toHaveText("+7");
   await expect(stats.locator(".dels")).toHaveText("-2");
+  await stats.locator(".turn-stats-changes").click();
+  expect(await lastPosted(page, "openDiffs")).toEqual(openDiffs);
 });
 
 test("question options stack title above description in one column", async ({ page }) => {

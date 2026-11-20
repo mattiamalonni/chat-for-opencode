@@ -208,18 +208,39 @@ function StatsRow({ stats }: { stats: TurnStats }) {
     cost ?? t("turnStatsUnknown"),
     steps ?? t("turnStatsUnknown"),
   );
-  const tooltip = hasChanges ? `${baseTooltip} · ${t("turnStatsChanges", additions, deletions)}` : baseTooltip;
+  const openable = (stats.files ?? []).filter((f) => f.patch);
+  const tooltip = hasChanges
+    ? [baseTooltip, t("turnStatsChanges", additions, deletions), openable.length > 0 ? t("turnStatsOpenDiff") : undefined]
+        .filter(Boolean)
+        .join(" · ")
+    : baseTooltip;
+  const counts = (
+    <>
+      {additions > 0 && <span class="adds">+{additions}</span>}
+      {additions > 0 && deletions > 0 ? " " : ""}
+      {deletions > 0 && <span class="dels">-{deletions}</span>}
+    </>
+  );
   return (
-    <div class="turn-stats tooltip-host tooltip-above" role="img" aria-label={tooltip} data-tooltip={tooltip}>
+    <div class="turn-stats tooltip-host tooltip-above" role="group" aria-label={tooltip} data-tooltip={tooltip}>
       <span class="turn-stats-line" aria-hidden="true" />
       <span class="turn-stats-text">
         {shown.join(" · ")}
         {hasChanges && (
           <>
             {shown.length > 0 ? " · " : ""}
-            {additions > 0 && <span class="adds">+{additions}</span>}
-            {additions > 0 && deletions > 0 ? " " : ""}
-            {deletions > 0 && <span class="dels">-{deletions}</span>}
+            {openable.length > 0 ? (
+              <button
+                type="button"
+                class="turn-stats-changes"
+                aria-label={t("openDiff")}
+                onClick={() => post({ type: "openDiffs", files: openable.map((f) => ({ file: f.file, patch: f.patch })) })}
+              >
+                {counts}
+              </button>
+            ) : (
+              counts
+            )}
           </>
         )}
       </span>

@@ -1515,6 +1515,10 @@ export class ChatController implements vscode.Disposable {
       case "openDiff":
         if (this.folder) await this.diffs.open(this.folder.uri, msg.file, msg.patch, msg.applied);
         return;
+      case "openDiffs":
+        // Only the changed hunks, in one read-only VS Code diff view (no files involved).
+        await this.diffs.openCombined(msg.files);
+        return;
       case "openFile":
         return this.openFile(msg.path);
       case "openLink":

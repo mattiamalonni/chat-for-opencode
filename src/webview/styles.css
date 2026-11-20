@@ -678,6 +678,22 @@ details[open] > summary > .chevron,
   opacity: 0.7;
 }
 
+/* The insertion/deletion counts double as a button that opens the turn's diffs. */
+.turn-stats-changes {
+  background: none;
+  border: none;
+  padding: 0;
+  color: inherit;
+  font: inherit;
+  letter-spacing: inherit;
+  cursor: pointer;
+}
+
+.turn-stats-changes:hover,
+.turn-stats-changes:focus-visible {
+  text-decoration: underline;
+}
+
 .md {
   line-height: 1.5;
   word-wrap: break-word;

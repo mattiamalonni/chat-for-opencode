@@ -218,6 +218,8 @@ export type WebviewMessage =
   | { type: "dropFiles"; files: DroppedFile[] }
   | { type: "pickFiles" }
   | { type: "openDiff"; file: string; patch: string; applied: boolean }
+  /** Show all the patches of a turn in one read-only VS Code diff view (virtual documents only). */
+  | { type: "openDiffs"; files: Array<{ file: string; patch: string }> }
   | { type: "openFile"; path: string }
   | { type: "openLink"; href: string }
   | { type: "copy"; text: string }

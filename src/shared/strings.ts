@@ -138,6 +138,7 @@ export const STRINGS = {
   turnDurationMinutes: "{0}m {1}s",
   turnStatsTooltip: "From input to the last step: {0} · Tokens (all steps): {1} · Cost: {2} · Steps: {3}",
   turnStatsChanges: "Insertions: {0} · Deletions: {1}",
+  turnStatsOpenDiff: "Click to view all changes in a diff",
   turnStatsUnknown: "n/a",
   dismiss: "Dismiss",
   details: "Details",

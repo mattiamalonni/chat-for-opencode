@@ -1,7 +1,7 @@
 import * as path from "node:path";
 import * as vscode from "vscode";
 import { evictableKey } from "../shared/diffCache";
-import { applyPatch, sidesFromPatch } from "../shared/patch";
+import { applyPatch, hunksSides, sidesFromPatch } from "../shared/patch";
 
 export const DIFF_SCHEME = "opencode-diff";
 const MAX_VIRTUAL_DOCS = 200;
@@ -71,6 +71,20 @@ export class DiffService implements vscode.TextDocumentContentProvider {
       }
     }
     const title = vscode.l10n.t("{0} (OpenCode {1})", name, applied ? vscode.l10n.t("changes") : vscode.l10n.t("proposed"));
+    await vscode.commands.executeCommand("vscode.diff", left, right, title, { preview: true });
+  }
+
+  /**
+   * Shows all the edits of a turn in one native VS Code diff editor. Only the changed hunks (with
+   * their context) are used for the two sides, so the view contains the differences, not the whole
+   * files. Both sides are virtual documents: nothing is read from or written to disk.
+   */
+  async openCombined(files: Array<{ file: string; patch: string }>): Promise<void> {
+    const { before, after } = hunksSides(files);
+    if (!before && !after) return;
+    const left = this.virtual("changes", "before", before);
+    const right = this.virtual("changes", "after", after);
+    const title = vscode.l10n.t("OpenCode changes");
     await vscode.commands.executeCommand("vscode.diff", left, right, title, { preview: true });
   }
 }
