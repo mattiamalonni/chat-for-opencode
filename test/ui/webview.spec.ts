@@ -501,6 +501,39 @@ test("a running turn keeps following its steps after switching to another chat a
   await expect(headers.first()).toHaveAttribute("aria-expanded", "false");
 });
 
+test("a queued prompt does not show the running turn's summary early", async ({ page }) => {
+  await boot(page);
+  const sid = "ses_queued_summary";
+  const base = { sessionID: sid };
+  await openSession(page, sid, [
+    { type: "session.inbox.enqueued", created: 1000, data: { ...base, inboxID: "u1", item: { type: "user", payload: { text: "first" } } } },
+    { type: "session.execution.started", created: 1010, data: base },
+    { type: "session.step.started", created: 1100, data: { ...base, assistantMessageID: "m1", agent: "build" } },
+    { type: "session.text.ended", created: 1120, data: { ...base, assistantMessageID: "m1", ordinal: 0, text: "still working" } },
+    { type: "session.step.ended", created: 1130, data: { ...base, assistantMessageID: "m1", finish: "tool-calls" } },
+  ]);
+  const stats = page.locator(".turn-stats");
+  await expect(stats).toHaveCount(0);
+
+  await host(page, {
+    type: "event",
+    event: {
+      type: "session.inbox.enqueued",
+      created: 1200,
+      data: { ...base, inboxID: "u2", item: { type: "user", payload: { text: "queued next" }, delivery: "queue" } },
+    },
+  });
+  await expect(page.locator(".conversation")).toContainText("queued next");
+  await expect(stats).toHaveCount(0);
+
+  await host(page, { type: "event", event: { type: "session.execution.succeeded", created: 1300, data: base } });
+  await expect(stats).toHaveCount(1);
+
+  // The queued prompt starts its own turn: the old summary stays, no premature second one.
+  await host(page, { type: "event", event: { type: "session.execution.started", created: 1400, data: base } });
+  await expect(stats).toHaveCount(1);
+});
+
 test("folds past steps while streaming and keeps the accordion open as new steps arrive", async ({ page }) => {
   await boot(page);
   const sid = "ses_stream_fold";

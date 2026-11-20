@@ -476,6 +476,46 @@ describe("busy state after an interrupt", () => {
   });
 });
 
+describe("a prompt queued while a turn is running", () => {
+  const tokens = { input: 10, output: 5, reasoning: 0, cache: { read: 0, write: 0 } };
+
+  function running(): ChatState {
+    return chatReducer(open(S1), {
+      type: "events",
+      events: [
+        { type: "session.inbox.enqueued", created: 1000, data: { sessionID: S1, inboxID: "u1", item: { type: "user", payload: { text: "first" } } } },
+        { type: "session.execution.started", created: 1010, data: { sessionID: S1 } },
+        { type: "session.step.started", created: 1100, data: { sessionID: S1, assistantMessageID: "m1", agent: "build" } },
+        { type: "session.step.ended", created: 1200, data: { sessionID: S1, assistantMessageID: "m1", finish: "tool-calls", cost: 0.001, tokens } },
+      ],
+    });
+  }
+
+  it("does not close the running turn just because the next prompt was enqueued", () => {
+    const state = chatReducer(running(), {
+      type: "event",
+      event: {
+        type: "session.inbox.enqueued",
+        created: 1300,
+        data: { sessionID: S1, inboxID: "u2", item: { type: "user", payload: { text: "next" }, delivery: "queue" } },
+      },
+    });
+    expect(state.busy).toBe(true);
+    expect(state.messages.filter((m) => m.kind === "user")).toHaveLength(2);
+    // The running turn stays open: no premature summary, and no second turn until it really starts.
+    expect(state.turns).toHaveLength(1);
+    expect(state.turns[0].ended).toBeUndefined();
+
+    const started = chatReducer(state, {
+      type: "event",
+      event: { type: "session.execution.started", created: 2000, data: { sessionID: S1 } },
+    });
+    expect(started.turns).toHaveLength(2);
+    expect(started.turns[0]).toMatchObject({ id: "u1", ended: 2000 });
+    expect(started.turns[1]).toMatchObject({ id: "u2", started: 2000 });
+  });
+});
+
 describe("reloading a session that is still running", () => {
   const midTurn: SessionMessage[] = [
     { id: "u1", type: "user", text: "do it", time: { created: 1000 } },

@@ -110,6 +110,8 @@ export interface ChatState {
   touchedFiles?: string[];
   /** Final reports of background subagents, announced as synthetic messages keyed by child id. */
   subagentReports?: Record<string, string>;
+  /** Inbox id of a prompt queued while another turn runs; its turn starts at `execution.started`. */
+  queuedTurnId?: string;
   agent?: string;
   model?: ModelRef;
 }
@@ -443,14 +445,18 @@ function turnsFromHistory(messages: SessionMessage[], alreadySorted = false, ope
   return turns.filter((t) => (t.ended !== undefined || openLast) && t.tokens !== undefined);
 }
 
+function closeOpenTurns(turns: TurnStats[], ended: number): TurnStats[] {
+  let changed = false;
+  const out = turns.map((t) => {
+    if (t.ended !== undefined) return t;
+    changed = true;
+    return { ...t, ended };
+  });
+  return changed ? out : turns;
+}
+
 function openTurn(state: ChatState, id: string, started: number): TurnStats[] {
-  const turns = state.turns.slice();
-  // A queued message can arrive before the previous execution's terminal event.
-  for (let i = turns.length - 1; i >= 0; i--) {
-    if (turns[i].ended === undefined) turns[i] = { ...turns[i], ended: started };
-  }
-  turns.push({ id, started });
-  return turns;
+  return [...closeOpenTurns(state.turns, started), { id, started }];
 }
 
 function withOpenTurn(state: ChatState, update: (t: TurnStats) => TurnStats): TurnStats[] {
@@ -724,6 +730,7 @@ export function applyEvent(state: ChatState, event: ServerEvent): ChatState {
     case "session.inbox.enqueued": {
       const item = d.item as {
         type?: string;
+        delivery?: string;
         payload?: { text?: string; files?: { uri?: string; name?: string; source?: { uri?: string } }[] };
       };
       if (item?.type === "synthetic") {
@@ -746,13 +753,30 @@ export function applyEvent(state: ChatState, event: ServerEvent): ChatState {
           .map((f) => ({ uri: f.uri ?? f.source?.uri ?? "", name: f.name }))
           .filter((f) => f.uri || f.name),
       };
-      return { ...state, messages: insertSorted(state.messages, msg), turns: openTurn(state, id, created) };
+      // A queued prompt is only stored now: the current turn keeps running until its own terminal
+      // event. Opening a turn for it here would close the running one early, showing its summary
+      // (cost + duration) while the reply is still streaming. Its turn starts at `execution.started`.
+      const messages = insertSorted(state.messages, msg);
+      return item.delivery === "queue"
+        ? { ...state, messages, queuedTurnId: id }
+        : { ...state, messages, turns: openTurn(state, id, created) };
     }
     case "session.inbox.cancelled": {
       const id = str(d, "inboxID");
-      return { ...state, messages: state.messages.filter((m) => m.id !== id), turns: state.turns.filter((t) => t.id !== id) };
+      return {
+        ...state,
+        messages: state.messages.filter((m) => m.id !== id),
+        turns: state.turns.filter((t) => t.id !== id),
+        queuedTurnId: state.queuedTurnId === id ? undefined : state.queuedTurnId,
+      };
     }
     case "session.execution.started": {
+      if (state.queuedTurnId) {
+        // The queued prompt finally starts. Settle the previous turn (normally already closed by
+        // its terminal event) and open the new one under the queued message's id.
+        const turns = [...closeOpenTurns(state.turns, created), { id: state.queuedTurnId, started: created }];
+        return { ...state, busy: true, lastError: undefined, retry: undefined, queuedTurnId: undefined, turns };
+      }
       // Events can be missed when connecting mid-turn, so always have a turn to attach usage to.
       const turns = state.turns.some((t) => t.ended === undefined)
         ? state.turns

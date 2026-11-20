@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- Fixed the **turn summary bar appearing before the reply was finished**. When a prompt was queued
+  with Enter while a turn was still streaming, OpenCode emits `session.inbox.enqueued` immediately;
+  the webview treated it as the start of a new turn and closed the running one, showing its cost
+  and duration right away. A queued prompt now only adds its message to the conversation: its turn
+  starts when OpenCode actually starts executing it, so the summary still appears at the real end.
 - Fixed **steps collapsing when you return to a chat that is still running**. Reloading a session
   (switching chat, reconnecting or pressing Sync) rebuilt the turn summaries from history and closed
   the last turn as soon as its most recent step had a completion time — even between two steps of a
