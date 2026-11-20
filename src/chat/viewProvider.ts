@@ -33,7 +33,7 @@ export function renderHtml(opts: { cspSource: string; scriptUri: string; styleUr
     `style-src ${opts.cspSource}`,
     `script-src 'nonce-${nonce}'`,
     `img-src ${opts.cspSource} data:`,
-    `font-src ${opts.cspSource}`,
+    `font-src ${opts.cspSource} data:`,
   ].join("; ");
   return `<!DOCTYPE html>
 <html lang="${escapeAttr(opts.lang)}">

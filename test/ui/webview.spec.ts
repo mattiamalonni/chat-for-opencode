@@ -66,6 +66,54 @@ async function boot(page: Page, theme: "dark" | "light" = "dark"): Promise<strin
   return cspErrors;
 }
 
+test("file chips use the icon resolved by the host from the user's file icon theme", async ({ page }) => {
+  const csp = await boot(page);
+  // The webview asks for the paths it renders, in one batch.
+  await expect.poll(async () => (await posted(page)).filter((m) => m.type === "fileIcons").at(-1)).toEqual({
+    type: "fileIcons",
+    paths: ["app.ts"],
+  });
+
+  const svg = `data:image/svg+xml;base64,${Buffer.from('<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16"><rect width="16" height="16" fill="#f00"/></svg>').toString("base64")}`;
+  await host(page, {
+    type: "fileIcons",
+    icons: {
+      "app.ts": { kind: "svg", src: svg },
+      "notes.md": { kind: "font", fontFamily: "oc-file-icon-test", glyph: "", color: "#0f0", size: "150%" },
+    },
+    fonts: {},
+  });
+  await host(page, { type: "addAttachment", item: { uri: "file:///work/notes.md", name: "notes.md", kind: "file" } });
+
+  const themed = page.locator(".chip .file-icon.themed");
+  await expect(themed).toHaveCount(2);
+  await expect(page.locator('.chip img.file-icon.code')).toHaveAttribute("src", svg);
+  const font = page.locator('.chip span.file-icon.markdown');
+  await expect(font).toHaveText("");
+  expect(await font.evaluate((el) => getComputedStyle(el).color)).toBe("rgb(0, 255, 0)");
+
+  // A theme change invalidates the cache and the chips fall back to the built-in icons.
+  await host(page, { type: "fileIcons", icons: {}, fonts: {}, reset: true });
+  await expect(page.locator(".chip .file-icon.themed")).toHaveCount(0);
+  await expect(page.locator(".chip .file-icon.code")).toHaveCount(1);
+  expect(csp).toEqual([]);
+});
+
+test("changed-files rows use the themed file icon instead of the diff glyph", async ({ page }) => {
+  await boot(page);
+  await host(page, { type: "changedFiles", files: [{ file: "src/app.ts", patch: "@@", additions: 1, deletions: 1, status: "modified" }] });
+  await page.locator(".panel.changes > summary").click();
+  await expect
+    .poll(async () => (await posted(page)).some((m) => m.type === "fileIcons" && m.paths.includes("src/app.ts")))
+    .toBe(true);
+
+  const svg = `data:image/svg+xml;base64,${Buffer.from('<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16"/>').toString("base64")}`;
+  await host(page, { type: "fileIcons", icons: { "src/app.ts": { kind: "svg", src: svg } }, fonts: {} });
+  const icon = page.locator(".panel.changes .file-row img.file-icon");
+  await expect(icon).toHaveCount(1);
+  await expect(icon).toHaveAttribute("src", svg);
+});
+
 async function openSession(page: Page, id: string, events: ServerEvent[]): Promise<void> {
   await host(page, { type: "session", session: { id, busy: false, messages: [], permissions: [], forms: [] } });
   for (const event of events) await host(page, { type: "event", event });

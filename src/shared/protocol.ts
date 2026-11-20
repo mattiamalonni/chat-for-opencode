@@ -96,6 +96,21 @@ export interface FolderInfo {
   name: string;
 }
 
+/** A file icon resolved from the user's active VS Code file icon theme. */
+export type FileIconData =
+  | { kind: "svg"; src: string }
+  | { kind: "font"; fontFamily: string; glyph: string; color?: string; size?: string };
+
+/** A glyph font used by one or more resolved icons, ready to be registered in the webview. */
+export interface FileIconFont {
+  family: string;
+  /** `data:font/woff;base64,...` */
+  src: string;
+  format: string;
+  weight?: string;
+  style?: string;
+}
+
 export interface SessionPayload {
   id: string;
   title?: string;
@@ -182,6 +197,8 @@ export type HostMessage =
   /** Live event belonging to a subagent's child session (not the one shown in the chat). */
   | { type: "subagentEvent"; sessionId: string; event: ServerEvent }
   | { type: "context"; items: ContextItem[] }
+  /** Icons requested by the webview, keyed by the exact path it asked for. */
+  | { type: "fileIcons"; icons: Record<string, FileIconData | null>; fonts: Record<string, FileIconFont>; reset?: boolean }
   | { type: "fileResults"; query: string; items: Attachment[] }
   | { type: "addAttachment"; item: Attachment }
   | { type: "changedFiles"; files: FileDiff[] }
@@ -215,6 +232,8 @@ export type WebviewMessage =
   | { type: "formReply"; sessionId: string; formId: string; answer: Record<string, FormValue> }
   | { type: "formCancel"; sessionId: string; formId: string }
   | { type: "searchFiles"; query: string }
+  /** Lazily request theme icons for file paths the webview is about to render. */
+  | { type: "fileIcons"; paths: string[] }
   | { type: "dropFiles"; files: DroppedFile[] }
   | { type: "pickFiles" }
   | { type: "openDiff"; file: string; patch: string; applied: boolean }

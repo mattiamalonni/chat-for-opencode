@@ -4,6 +4,7 @@ import * as vscode from "vscode";
 import { ApiError, OpenCodeClient, type PermissionRule } from "../client/http";
 import { EventStream } from "../client/sse";
 import { CatalogService } from "./catalogService";
+import { FileIconThemeService, type LanguageContribution } from "./fileIconTheme";
 import { Generation } from "./generation";
 import { ExternalServer, ManagedServer, ServerError, type ServerHandle, type ServerState } from "../server/server";
 import type {
@@ -198,6 +199,8 @@ export class ChatController implements vscode.Disposable {
   private contract = emptyContract;
   /** Server-provided catalog and the user's model/agent selection. */
   private readonly catalog: CatalogService;
+  /** File icons come from the user's active icon theme, resolved on demand for the webview. */
+  private readonly fileIcons: FileIconThemeService;
   private fileIndex: FileIndex | undefined;
   private readonly context: ContextTracker;
   private readonly disposables: vscode.Disposable[] = [];
@@ -245,8 +248,39 @@ export class ChatController implements vscode.Disposable {
     this.context = new ContextTracker((items) => this.post({ type: "context", items }));
     this.permissions = new PermissionService(ctx, () => this.folder, (line) => output.info(line));
     this.catalog = new CatalogService(ctx, (msg) => this.post(msg), (line) => output.info(line), () => !!this.view);
+    this.fileIcons = new FileIconThemeService({
+      themeId: () => vscode.workspace.getConfiguration("workbench").get<string | null>("iconTheme") ?? undefined,
+      variant: () => {
+        const kind = vscode.window.activeColorTheme.kind;
+        if (kind === vscode.ColorThemeKind.HighContrast || kind === vscode.ColorThemeKind.HighContrastLight) return "highContrast";
+        return kind === vscode.ColorThemeKind.Light ? "light" : "dark";
+      },
+      associations: () => vscode.workspace.getConfiguration("files", this.folder?.uri).get<Record<string, string>>("associations", {}),
+      languages: () =>
+        vscode.extensions.all.flatMap((ext) => {
+          const contributed = ext.packageJSON?.contributes?.languages as LanguageContribution[] | undefined;
+          return contributed ?? [];
+        }),
+      locate: (id) => {
+        for (const ext of vscode.extensions.all) {
+          const themes = ext.packageJSON?.contributes?.iconThemes as Array<{ id: string; path: string }> | undefined;
+          const theme = themes?.find((t) => t.id === id);
+          if (!theme || ext.extensionUri.scheme !== "file") continue;
+          const jsonPath = path.join(ext.extensionUri.fsPath, theme.path.replace(/^\.\//, ""));
+          return { jsonPath, baseDir: path.dirname(jsonPath) };
+        }
+        return undefined;
+      },
+      readFile: (file) => vscode.workspace.fs.readFile(vscode.Uri.file(file)),
+    });
+    const refreshFileIcons = () => {
+      this.fileIcons.invalidate();
+      this.post({ type: "fileIcons", icons: {}, fonts: {}, reset: true });
+    };
     this.disposables.push(
       this.context,
+      vscode.window.onDidChangeActiveColorTheme(refreshFileIcons),
+      vscode.extensions.onDidChange(refreshFileIcons),
       vscode.workspace.onDidChangeWorkspaceFolders(() => {
         this.postInit();
         if (this.folder && !vscode.workspace.workspaceFolders?.some((f) => f.uri.toString() === this.folder?.uri.toString())) {
@@ -260,6 +294,9 @@ export class ChatController implements vscode.Disposable {
         }
         if (e.affectsConfiguration("opencode.dropzone")) {
           this.post({ type: "dropzone", enabled: this.dropzoneEnabled() });
+        }
+        if (e.affectsConfiguration("workbench.iconTheme") || e.affectsConfiguration("files.associations")) {
+          refreshFileIcons();
         }
       }),
     );
@@ -1506,6 +1543,16 @@ export class ChatController implements vscode.Disposable {
       case "searchFiles": {
         const items = (await this.fileIndex?.search(msg.query)) ?? [];
         this.post({ type: "fileResults", query: msg.query, items });
+        return;
+      }
+      case "fileIcons": {
+        try {
+          this.post({ type: "fileIcons", ...(await this.fileIcons.resolve(msg.paths)) });
+        } catch (err) {
+          this.output.warn(`[chat] file icon theme: ${String(err)}`);
+          // A broken theme must not make the webview retry forever: answer with explicit misses.
+          this.post({ type: "fileIcons", icons: Object.fromEntries(msg.paths.map((p) => [p, null])), fonts: {} });
+        }
         return;
       }
       case "dropFiles":

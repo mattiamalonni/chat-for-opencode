@@ -1,4 +1,6 @@
-import type { FunctionComponent, SVGAttributes } from "preact";
+import { type FunctionComponent, type SVGAttributes } from "preact";
+import { useEffect, useState } from "preact/hooks";
+import type { FileIconData, FileIconFont, HostMessage } from "../shared/protocol";
 import {
   IconFile,
   IconFileCode,
@@ -11,6 +13,7 @@ import {
   IconFileShell,
   IconFileStyle,
 } from "./icons";
+import { onHostMessage, post } from "./vscode";
 
 type Icon = FunctionComponent<SVGAttributes<SVGSVGElement>>;
 
@@ -33,6 +36,7 @@ function extensionOf(path: string | undefined): string {
   return dot > 0 ? file.slice(dot + 1).toLowerCase() : "";
 }
 
+/** Fallback used in standalone mode and whenever the theme has no icon for a path. */
 export function fileIcon(path: string | undefined): { Icon: Icon; className: string } {
   const ext = extensionOf(path);
   if (CODE.has(ext)) return { Icon: IconFileCode, className: "code" };
@@ -47,7 +51,103 @@ export function fileIcon(path: string | undefined): { Icon: Icon; className: str
   return { Icon: IconFile, className: "other" };
 }
 
+// --- icons from the user's VS Code file icon theme ------------------------------------------
+
+const store = {
+  icons: new Map<string, FileIconData | null>(),
+  fonts: new Map<string, FileIconFont>(),
+  /** Bumped on every host answer so rendered chips re-check their path. */
+  version: 0,
+};
+const listeners = new Set<() => void>();
+const addedFonts = new Map<string, FontFace>();
+let pending = new Set<string>();
+let scheduled = false;
+
+function notify(): void {
+  store.version++;
+  for (const listener of listeners) listener();
+}
+
+function registerFont(id: string, font: FileIconFont): void {
+  if (typeof FontFace === "undefined" || !document.fonts) return;
+  const previous = addedFonts.get(id);
+  const face = new FontFace(font.family, `url("${font.src}")`, {
+    weight: font.weight ?? "normal",
+    style: font.style ?? "normal",
+  });
+  if (previous) document.fonts.delete(previous);
+  void face.load().then(
+    () => {
+      document.fonts.add(face);
+      addedFonts.set(id, face);
+      notify();
+    },
+    () => undefined,
+  );
+}
+
+function applyIcons(msg: Extract<HostMessage, { type: "fileIcons" }>): void {
+  if (msg.reset) {
+    store.icons.clear();
+    store.fonts.clear();
+  }
+  for (const [id, font] of Object.entries(msg.fonts)) {
+    store.fonts.set(id, font);
+    registerFont(id, font);
+  }
+  for (const [path, icon] of Object.entries(msg.icons)) store.icons.set(path, icon);
+  notify();
+}
+
+onHostMessage((msg) => {
+  if (msg.type === "fileIcons") applyIcons(msg);
+});
+
+function requestIcon(path: string): void {
+  if (store.icons.has(path)) return;
+  pending.add(path);
+  if (scheduled) return;
+  scheduled = true;
+  // One postMessage for all chips mounted in the same frame, not one per chip.
+  queueMicrotask(() => {
+    scheduled = false;
+    if (!pending.size) return;
+    const paths = [...pending];
+    pending = new Set();
+    post({ type: "fileIcons", paths });
+  });
+}
+
+export function useFileIcon(path?: string): FileIconData | null | undefined {
+  const [, rerender] = useState(0);
+  useEffect(() => {
+    const listener = () => rerender((n) => n + 1);
+    listeners.add(listener);
+    return () => { listeners.delete(listener); };
+  }, []);
+  useEffect(() => {
+    if (path) requestIcon(path);
+  }, [path, store.version]);
+  return path ? store.icons.get(path) : undefined;
+}
+
 export function FileTypeIcon({ path }: { path?: string }) {
+  const icon = useFileIcon(path);
   const { Icon, className } = fileIcon(path);
+  if (icon?.kind === "svg") {
+    return <img class={`file-icon themed ${className}`} src={icon.src} alt="" aria-hidden="true" draggable={false} />;
+  }
+  if (icon?.kind === "font") {
+    return (
+      <span
+        class={`file-icon themed font ${className}`}
+        aria-hidden="true"
+        style={{ fontFamily: icon.fontFamily, color: icon.color, fontSize: icon.size }}
+      >
+        {icon.glyph}
+      </span>
+    );
+  }
   return <Icon class={`file-icon ${className}`} />;
 }

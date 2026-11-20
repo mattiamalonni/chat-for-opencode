@@ -28,7 +28,7 @@ import {
 import { isolateKeys } from "./env";
 import { FileTypeIcon } from "./fileIcons";
 import { useT } from "./i18n";
-import { IconCheck, IconChevron, IconDiff, IconError, IconFile, IconInfo, IconSelection, IconTool, IconWarning } from "./icons";
+import { IconCheck, IconChevron, IconError, IconFile, IconInfo, IconSelection, IconTool, IconWarning } from "./icons";
 import { renderMarkdown } from "./markdown";
 import { clearReplyFailure, useReplyFailed } from "./replyFeedback";
 import { useSubagent } from "./subagents";
@@ -636,14 +636,14 @@ export function FileList({ files, applied }: { files: ChangedFile[]; applied: bo
                 title={`${t("openDiff")}: ${f.file}`}
                 onClick={() => post({ type: "openDiff", file: f.file, patch: f.patch, applied })}
               >
-                <IconDiff />
+                <FileTypeIcon path={f.file} />
                 {label}
                 <span class="adds">+{f.additions}</span>
                 <span class="dels">-{f.deletions}</span>
               </button>
             ) : (
               <span class="file-row" title={t("noDiffAvailable")}>
-                <IconDiff />
+                <FileTypeIcon path={f.file} />
                 {label}
               </span>
             )}

@@ -1607,6 +1607,21 @@ button:disabled {
   flex: 0 0 auto;
 }
 
+/* Themed icons come from the user's VS Code file icon theme (SVG or glyph font). */
+.file-icon.themed {
+  width: 16px;
+  height: 16px;
+}
+
+.file-icon.font {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+  font-style: normal;
+  font-weight: normal;
+}
+
 .file-icon.code {
   color: var(--vscode-charts-blue, #3794ff);
 }
