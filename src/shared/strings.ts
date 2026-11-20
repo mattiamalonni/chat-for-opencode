@@ -1,6 +1,7 @@
 /**
  * English UI strings for the webview. The host translates each value with `vscode.l10n.t`
- * (see l10n/bundle.l10n.*.json, keyed by the English text) and sends the result in `init`.
+ * (keyed by the English source text; no translation bundles are shipped) and sends the result in
+ * `init`.
  */
 export const STRINGS = {
   appName: "OpenCode",
