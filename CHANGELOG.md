@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- Fixed **"Could not send the message — Unable to read attachment"** when attaching the current
+  file (or any local file) while using an external `opencode.endpoint`. OpenCode resolves `file:`
+  attachments against **its own** filesystem, so a server in a container, on another host or behind
+  a different mount cannot see our local paths. Those attachments are now sent **inline** instead,
+  and a file that cannot be read locally is reported with a clear notice rather than a failed send.
+  The **Add File to Chat** command now also goes through the same attachment path as drag & drop
+  and the file picker, so files outside the workspace are inlined there too.
 - Permission requests and questions now appear in a dedicated panel **docked above the composer**
   instead of inside tool cards. A request stays visible even when its step is folded, and when
   several are pending the newest is shown first with a counter and *Previous*/*Next* navigation.

@@ -44,6 +44,7 @@ import type {
   WebviewMessage,
 } from "../shared/protocol";
 import { STRINGS, type Strings } from "../shared/strings";
+import { MAX_ATTACHMENT_BYTES, resolveAttachment } from "./attachments";
 import { ContextTracker, FileIndex, selectionAttachment } from "./context";
 import { DiffService } from "./diff";
 import { DEFAULT_SESSION_PERMISSIONS } from "./permissions";
@@ -54,8 +55,6 @@ const SESSION_KEY = (folder: string) => `opencode.session:${folder}`;
 const COMPAT_DISMISSED_KEY = "opencode.compatibilityDismissedFor";
 const CONTRACT_DISMISSED_KEY = "opencode.contractDismissedFor";
 const DRAFTS_KEY = (folder: string) => `opencode.drafts:${folder}`;
-/** OpenCode rejects decoded attachments above this size. */
-const MAX_ATTACHMENT_BYTES = 20 * 1024 * 1024;
 
 const ATTACHMENT_MIME: Record<string, string> = {
   ".txt": "text/plain",
@@ -1303,6 +1302,25 @@ export class ChatController implements vscode.Disposable {
     this.post({ type: "notice", error: { kind: "requestFailed", message: s["error.attachmentTooLarge"], detail: name, actions: [] } });
   }
 
+  private noticeUnreadable(name: string, detail: string): void {
+    const s = translatedStrings();
+    this.post({ type: "notice", error: { kind: "requestFailed", message: s["error.attachmentUnreadable"], detail, actions: ["showLogs"] } });
+    this.output.warn(`[chat] skipped unreadable attachment ${name}: ${detail}`);
+  }
+
+  /**
+   * Adds a file to the chat. Goes through {@link attachUri} so files outside the workspace are
+   * inlined instead of sending OpenCode a path it may not be able to read.
+   */
+  async addFile(uri: vscode.Uri): Promise<void> {
+    if (uri.scheme !== "file") return;
+    try {
+      await this.attachUri(uri);
+    } catch (err) {
+      this.noticeUnreadable(path.basename(uri.fsPath), err instanceof Error ? err.message : String(err));
+    }
+  }
+
   private async attachUri(uri: vscode.Uri, name?: string): Promise<void> {
     if (uri.scheme !== "file") return;
     const label = name || path.basename(uri.fsPath);
@@ -1635,10 +1653,21 @@ export class ChatController implements vscode.Disposable {
     if (!client || !this.folder) throw new Error(translatedStrings()["error.connectionLost"]);
     const files: FileAttachment[] = [];
     const seen = new Set<string>();
+    // An external server cannot stat our local `file:` URIs, so those attachments are sent inline.
+    const externalServer = this.server instanceof ExternalServer;
     for (const item of [...context, ...attachments]) {
       if (seen.has(item.uri)) continue;
       seen.add(item.uri);
-      files.push({ uri: item.uri, name: "name" in item ? item.name : item.label });
+      const resolved = await resolveAttachment(item, externalServer, mimeFromName);
+      if (resolved.status === "tooLarge") {
+        this.noticeTooLarge(resolved.name);
+        continue;
+      }
+      if (resolved.status === "unreadable") {
+        this.noticeUnreadable(resolved.name, resolved.detail);
+        continue;
+      }
+      files.push(resolved.attachment);
     }
     try {
       if (!this.sessionId) {

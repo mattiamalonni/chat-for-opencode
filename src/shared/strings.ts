@@ -169,6 +169,7 @@ export const STRINGS = {
   "error.requestFailed": "Request to OpenCode failed.",
   "error.compactFailed": "Could not compact the conversation.",
   "error.attachmentTooLarge": "An attached file is larger than 20 MiB and was not included.",
+  "error.attachmentUnreadable": "Could not read an attached file. It was not included in the message.",
 } as const;
 
 export type StringKey = keyof typeof STRINGS;

@@ -123,7 +123,7 @@ export function activate(context: vscode.ExtensionContext): ExtensionApi {
       const target = uri ?? vscode.window.activeTextEditor?.document.uri;
       if (!target || target.scheme !== "file") return;
       await focusView();
-      chat.addAttachment({ uri: target.toString(), name: path.basename(target.fsPath), kind: "file", detail: vscode.workspace.asRelativePath(target) });
+      await chat.addFile(target);
     }),
     vscode.commands.registerCommand("opencode.moveView", async () => {
       // `workbench.action.moveFocusedView` reads VS Code's internal `focusedView` context key,

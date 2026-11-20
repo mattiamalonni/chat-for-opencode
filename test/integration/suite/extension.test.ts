@@ -256,6 +256,22 @@ describe("chat-for-opencode extension", () => {
     assert.equal(Buffer.from(adds[2].item.uri.split(",")[1], "base64").toString(), "hello from drop");
   });
 
+  it("adds the current file through the same path as picks and drops", async () => {
+    const mark = posted.length;
+    await vscode.commands.executeCommand("opencode.addFileToChat", vscode.Uri.file(path.join(workspace, "src", "app.ts")));
+    const inProject = await waitFor(() => lastPosted("addAttachment", mark), "addAttachment for a project file");
+    assert.match(inProject.item.uri, /^file:\/\//);
+    assert.equal(inProject.item.name, "app.ts");
+
+    const external = path.join(path.dirname(workspace), "oc-it-current-file.txt");
+    writeFileSync(external, "current file outside the workspace");
+    const mark2 = posted.length;
+    await vscode.commands.executeCommand("opencode.addFileToChat", vscode.Uri.file(external));
+    const outside = await waitFor(() => lastPosted("addAttachment", mark2), "addAttachment for an external file");
+    assert.ok(outside.item.uri.startsWith("data:text/plain;base64,"));
+    assert.equal(Buffer.from(outside.item.uri.split(",")[1], "base64").toString(), "current file outside the workspace");
+  });
+
   it("starts a new session and switches back to the previous one", async () => {
     const previous = controller.debugState.sessionId!;
     const mark = posted.length;

@@ -52,7 +52,8 @@ screen readers and multi-window process management.
    disable it again and confirm the cards return.
 9. **Context**: open `a.txt`, select the line. Chips `a.txt (Current file)` and `a.txt:1` appear;
    remove one with ×; send `What does the selection contain?`. The user bubble lists the attachment.
-   Right-click → *Add Selection to Chat* adds a chip.
+   Right-click → *Add Selection to Chat* adds a chip, and *Add File to Chat* adds the whole file
+   (outside the workspace it is inlined, like a drop or a file-picker pick).
 10. **@ mention and excludes**: type `@a.t`, choose `a.txt` with ↓/Enter. In a repo with
     `node_modules` or `dist`, confirm those folders are **not** offered: the picker now respects
     `search.exclude` and `files.exclude`.
@@ -91,6 +92,11 @@ screen readers and multi-window process management.
     If you can point `opencode.endpoint` at a **different** OpenCode version, confirm the contract
     banner names the features whose response shape changed (the adapter normalises fields, but the
     raw-shape warning must still appear) and that dismissing it persists for that signature.
+    With an `opencode.endpoint` on another host/container, attach the current file and a selection
+    and send: the prompt must succeed instead of failing with *Unable to read attachment*, because
+    local `file:` URIs are inlined for external servers. Point the endpoint at a server whose
+    filesystem cannot see a deleted local file to check the clear *Could not read an attached file*
+    notice instead of a failed send.
 16. **Keyboard**: in the input press `Ctrl+J` / `Ctrl+R` / `Ctrl+K`: the panel must **not** toggle and the
     recent-files picker must **not** open. `Cmd/Ctrl+Shift+P` still opens the command palette;
     copy/paste work. With the chat focused, `Cmd/Ctrl+N` must start a new session (no untitled file);

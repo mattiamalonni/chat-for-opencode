@@ -77,7 +77,10 @@ Omitted → the server's cwd. Sessions carry their own `location` (set at creati
 ## Attachments _(docs + prompt shape verified)_
 
 `files[].uri` is an absolute `file://` URL; text ranges via `?start=<1-based>&end=<1-based>`.
-`data:` URLs also allowed. HTTP(S) not supported.
+`data:` URLs also allowed. HTTP(S) not supported. The server resolves `file://` URIs against **its
+own** filesystem (`stat`/`readFile`; missing paths fail with `Unable to read attachment: <uri>`,
+20 MiB limit), so the client must send `data:` URLs for files the server cannot see — e.g. files
+outside the workspace, or any local file when the server runs elsewhere (`opencode.endpoint`).
 
 ## SSE `/api/event`
 
