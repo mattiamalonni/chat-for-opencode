@@ -1,11 +1,13 @@
 **
-!dist/**
+# vsce applies `!` patterns after all ignore patterns: a broad `!dist/**` would also re-include
+# source maps and any stale build artifact. List the three files esbuild actually produces.
+!dist/extension.js
+!dist/webview.js
+!dist/webview.css
 !media/**
-!l10n/**
 !package.json
 !package.nls*.json
 !README.md
 !CHANGELOG.md
 !LICENSE
-dist/**/*.map
 !THIRD_PARTY_NOTICES.md

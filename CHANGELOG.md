@@ -16,6 +16,9 @@
   stderr, and stopped a crafted reply from smuggling in a `data-action="copy-code"` button.
 - Smaller fixes: no unhandled rejection when posting to a disposed webview, no redundant reload of
   file-icon fonts on every icon reply, and localized strings used for the rollback announcement.
+- Packaging now ships only the three bundled files. The broad `!dist/**` whitelist used to re-include
+  every source map (and any stale build artifact) after vsce's ignore patterns had excluded them;
+  the dangling `l10n` manifest entry was removed since no translation bundles are shipped.
 - The **Changed files** panel is now scoped to the open session. OpenCode's session diff reaches
   the current HEAD, so a session that sat idle while another chat committed work used to list those
   other files as its own; now only paths this session actually edited are shown, with the server's

@@ -65,8 +65,7 @@ test/
   integration/            @vscode/test-electron suite (runs against the mock server)
   e2e/                    real `opencode serve` test (skipped when no provider)
   ui/                     Playwright test of the webview with a fake VS Code host
-l10n/                     runtime translation bundles (English source strings by default)
-package.nls.json          manifest strings (English)
+package.nls.json          manifest strings (English); `vscode.l10n.t` uses the source strings inline
 docs/                     API notes, decisions, known limits, manual test
 ```
 
