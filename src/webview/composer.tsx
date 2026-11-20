@@ -17,6 +17,8 @@ export interface ComposerProps {
   sessionId?: string;
   /** Bumped when the host restores drafts from workspaceState, so the input reloads them. */
   draftToken?: number;
+  /** Prompt returned by a rollback; unlike `draftToken` this replaces even non-empty input. */
+  restoredDraft?: { text: string; token: number };
   busy: boolean;
   disabled: boolean;
   models: ModelInfo[];
@@ -157,6 +159,19 @@ export function Composer(props: ComposerProps) {
     draftRef.current = next;
     setText(next);
   }, [props.draftToken]);
+
+  // A rollback returns the old prompt to the composer. The token is mandatory here: the user may
+  // already have typed something, which the workspace-state hydration above must never overwrite.
+  const restoredToken = useRef(props.restoredDraft?.token);
+  useEffect(() => {
+    const next = props.restoredDraft;
+    if (!next || restoredToken.current === next.token) return;
+    restoredToken.current = next.token;
+    draftRef.current = next.text;
+    setText(next.text);
+    setMention(undefined);
+    setHistoryIndex(null);
+  }, [props.restoredDraft]);
 
   useEffect(() => {
     const el = ref.current;

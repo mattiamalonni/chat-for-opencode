@@ -461,4 +461,31 @@ describe("chat-for-opencode extension", () => {
     );
     assert.equal(busyOf(reconciled), false);
   });
+
+  it("rolls back to any turn with a staged revert and returns its prompt", async () => {
+    await controller.receive({ type: "newSession" });
+    const mark = posted.length;
+    await controller.receive({ type: "send", text: "turn one", attachments: [], context: [] });
+    await controller.receive({ type: "send", text: "turn two", attachments: [], context: [] });
+    const withTwo = await waitFor<Extract<HostMessage, { type: "session" }>>(() => {
+      const s = lastPosted("session", mark);
+      return s?.session && s.session.messages.filter((m) => m.type === "user").length >= 2 ? s : undefined;
+    }, "two turns in history");
+    const firstUser = withTwo.session!.messages.find((m) => m.type === "user")!;
+    const sid = controller.debugState.sessionId!;
+    assert.ok(sid);
+
+    // The native confirmation cannot be clicked in tests, so call the rollback itself (the webview
+    // test covers the button and the message that leads here).
+    const before = posted.length;
+    await controller.revertToTurn(sid, firstUser.id, "turn one", true);
+    await waitFor(() => lastPosted("reverted", before), "prompt returned to the composer");
+    const reloaded = lastPosted("session", before);
+    assert.ok(reloaded?.session, "history rebuilt after the commit");
+    // Rolling back to the first turn drops that prompt and every later message.
+    assert.equal(reloaded.session!.messages.length, 0);
+    const reverted = lastPosted("reverted", before)!;
+    assert.equal(reverted.sessionId, sid);
+    assert.equal(reverted.text, "turn one");
+  });
 });

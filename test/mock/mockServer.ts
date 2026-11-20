@@ -455,6 +455,12 @@ export function startMockServer(opts: MockOptions = {}): Promise<MockServer> {
       return send(res, 200, { data: newSession(body as Json | undefined).info });
     }
 
+    const wait = /^\/api\/experimental\/session\/([^/]+)\/wait$/.exec(path);
+    if (wait && req.method === "POST") {
+      if (!sessions.has(decodeURIComponent(wait[1]))) return notFound(res, "SessionNotFoundError");
+      return send(res, 204);
+    }
+
     const m = /^\/api\/session\/([^/]+)(?:\/(.*))?$/.exec(path);
     if (m) {
       const s = sessions.get(decodeURIComponent(m[1]));
@@ -529,6 +535,37 @@ export function startMockServer(opts: MockOptions = {}): Promise<MockServer> {
         return send(res, 204);
       }
       if (rest === "diff") return send(res, 200, { data: s.files });
+
+      // Staged revert: stage records the boundary, commit drops it and every later message.
+      if (rest === "revert/stage" && req.method === "POST") {
+        if (typeof b.messageID !== "string" || !s.messages.some((x) => x.id === b.messageID))
+          return notFound(res, "MessageNotFoundError");
+        const revert: Json = { messageID: b.messageID };
+        if (typeof b.files === "boolean") revert.files = b.files;
+        s.info.revert = revert;
+        persist();
+        emit({ type: "session.revert.staged", data: { sessionID: s.info.id, revert } });
+        return send(res, 200, { data: revert });
+      }
+      if (rest === "revert" && req.method === "DELETE") {
+        if (s.info.revert) {
+          delete s.info.revert;
+          persist();
+          emit({ type: "session.revert.cleared", data: { sessionID: s.info.id } });
+        }
+        return send(res, 204);
+      }
+      if (rest === "revert/commit" && req.method === "POST") {
+        const revert = s.info.revert as Json | undefined;
+        if (revert && typeof revert.messageID === "string") {
+          const at = s.messages.findIndex((x) => x.id === revert.messageID);
+          if (at >= 0) s.messages.splice(at);
+          delete s.info.revert;
+          persist();
+          emit({ type: "session.revert.committed", data: { sessionID: s.info.id, to: revert.messageID } });
+        }
+        return send(res, 204);
+      }
     }
 
     if (path === "/__mock/drop") {

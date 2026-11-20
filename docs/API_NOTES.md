@@ -52,6 +52,10 @@ Omitted → the server's cwd. Sessions carry their own `location` (set at creati
 | Prompt | `POST /api/session/{id}/prompt` `{text, files?: [{uri,name?,description?}], delivery?: "steer"\|"queue"}` | `{data: {id: msg_…, type:"user", payload, delivery}}` — returns immediately, output arrives via SSE |
 | Interrupt | `POST /api/session/{id}/interrupt` | `{interrupted: true}` |
 | Compact | `POST /api/session/{id}/compact` `{id?, delivery?}` | `{data: Session.Inbox.Compaction}` — steered at the next step boundary (schema only, 2.2.7) |
+| Wait idle | `POST /api/experimental/session/{id}/wait` | 204; a staged revert is rejected while the agent loop runs |
+| Stage revert | `POST /api/session/{id}/revert/stage` `{messageID, files?}` | `{data: Session.Revert}` — restores files changed *after* that message unless `files:false`; 409 while busy |
+| Commit revert | `POST /api/session/{id}/revert/commit` | 204; deletes the boundary message **and every later one** (also triggered by the next prompt/compact) |
+| Clear revert | `DELETE /api/session/{id}/revert` | 204; discards the staged boundary and puts its files back |
 | Switch agent | `POST /api/session/{id}/agent` `{agent}` | |
 | Switch model | `POST /api/session/{id}/model` `{model:{id,providerID,variant?}}` | |
 | Pending permissions | `GET /api/session/{id}/permission` | `{data: PermissionRequest[]}` |

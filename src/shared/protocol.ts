@@ -208,6 +208,8 @@ export type HostMessage =
   /** Drafts restored from workspaceState on webview startup (vscode.setState alone dies on reload). */
   | { type: "drafts"; drafts: Record<string, string>; globalDraft?: string }
   | { type: "focusInput" }
+  /** A turn was rolled back; its prompt goes back into the composer so it can be edited and resent. */
+  | { type: "reverted"; sessionId: string; text: string }
   /** Sent after a manual sync completes, so the header button can leave its busy state. */
   | { type: "synced" }
   | { type: "notice"; error: UiError };
@@ -217,6 +219,8 @@ export type WebviewMessage =
   | { type: "send"; text: string; attachments: Attachment[]; context: ContextItem[]; delivery?: "steer" | "queue" }
   | { type: "abort" }
   | { type: "compact" }
+  /** Roll the conversation back to the turn opened by `messageID` and restore its prompt. */
+  | { type: "revertTo"; sessionId: string; messageID: string; text: string }
   | { type: "newSession" }
   | { type: "selectSession"; id: string }
   | { type: "deleteSession"; id: string }

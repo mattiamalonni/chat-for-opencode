@@ -75,6 +75,9 @@ export const STRINGS = {
   cancelled: "Cancelled",
   copy: "Copy",
   copied: "Copied",
+  revertTurn: "Roll back to this turn",
+  revertTurnBusy: "Wait for the current response to finish before rolling back",
+  revertDone: "Conversation rolled back. Your prompt is back in the composer.",
   openDiff: "Open diff",
   openFile: "Open file",
   changedFile: "{0} Changed file",
@@ -172,6 +175,7 @@ export const STRINGS = {
   "error.noWorkspace": "Open a folder to chat with OpenCode.",
   "error.requestFailed": "Request to OpenCode failed.",
   "error.compactFailed": "Could not compact the conversation.",
+  "error.revertFailed": "Could not roll back the conversation.",
   "error.attachmentTooLarge": "An attached file is larger than 20 MiB and was not included.",
   "error.attachmentUnreadable": "Could not read an attached file. It was not included in the message.",
 } as const;

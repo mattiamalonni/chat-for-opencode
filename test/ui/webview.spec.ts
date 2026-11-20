@@ -2116,3 +2116,43 @@ test("crafted data-file HTML in a reply is not a clickable file link", async ({ 
   await expect(links).toHaveCount(1);
   expect(await links.first().getAttribute("data-file")).toContain("src/app.ts:42");
 });
+
+test("every turn has a rollback button that targets its own prompt and restores it", async ({ page }) => {
+  await boot(page);
+  const messages: SessionMessage[] = [
+    { id: "u1", type: "user", text: "first prompt", time: { created: 1000 } },
+    { id: "u2", type: "user", text: "second prompt", time: { created: 2000 } },
+  ];
+  await host(page, { type: "session", session: { id: S1, busy: false, messages, permissions: [], forms: [] } });
+
+  const buttons = page.locator(".msg.user .revert-turn");
+  await expect(buttons).toHaveCount(2);
+  await expect(buttons.nth(0)).toHaveAttribute("aria-label", STRINGS.revertTurn);
+  await buttons.nth(0).click();
+  expect(await lastPosted(page, "revertTo")).toEqual({
+    type: "revertTo",
+    sessionId: S1,
+    messageID: "u1",
+    text: "first prompt",
+  });
+  await buttons.nth(1).click();
+  expect(await lastPosted(page, "revertTo")).toEqual({
+    type: "revertTo",
+    sessionId: S1,
+    messageID: "u2",
+    text: "second prompt",
+  });
+
+  // While the agent is working, rolling back is suspended so a stream cannot fight the commit.
+  await host(page, { type: "event", event: { type: "session.status", created: 3000, data: { sessionID: S1, status: { type: "busy" } } } });
+  await expect(buttons.first()).toBeDisabled();
+  await expect(buttons.first()).toHaveAttribute("data-tooltip", STRINGS.revertTurnBusy);
+
+  // The returned prompt replaces even text the user has already typed.
+  await host(page, { type: "event", event: { type: "session.status", created: 4000, data: { sessionID: S1, status: { type: "idle" } } } });
+  const input = page.getByRole("textbox", { name: STRINGS.inputLabel });
+  await input.fill("half-typed draft");
+  await host(page, { type: "reverted", sessionId: S1, text: "first prompt" });
+  await expect(input).toHaveValue("first prompt");
+  expect(await lastPosted(page, "saveDraft")).toEqual({ type: "saveDraft", sessionId: S1, text: "first prompt" });
+});

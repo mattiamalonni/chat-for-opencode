@@ -728,7 +728,24 @@ details[open] > summary > .chevron,
 
 .msg.user {
   display: flex;
+  align-items: center;
   justify-content: flex-end;
+  gap: 4px;
+}
+
+/* Per-turn rollback stays quiet until the user approaches the prompt it belongs to. */
+.revert-turn {
+  opacity: 0.4;
+}
+
+.msg.user:hover .revert-turn,
+.revert-turn:focus-visible {
+  opacity: 1;
+}
+
+.revert-turn:disabled {
+  opacity: 0.15;
+  cursor: default;
 }
 
 .msg.user .bubble {

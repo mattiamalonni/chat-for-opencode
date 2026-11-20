@@ -1237,6 +1237,41 @@ export class ChatController implements vscode.Disposable {
     }
   }
 
+  /**
+   * Roll a session back to the turn opened by `messageID`. OpenCode stages a boundary (optionally
+   * restoring files), then `commit` drops the boundary message and everything after it. Public so
+   * tests can exercise the flow without the native confirmation dialog.
+   */
+  async revertToTurn(sessionId: string, messageID: string, text: string, files: boolean): Promise<void> {
+    const client = this.client;
+    if (!client || sessionId !== this.sessionId) return;
+    this.executionGen.bump();
+    const generation = this.loadGen.bump();
+    try {
+      // Staging is rejected while the agent loop runs, and an interrupt can acknowledge before
+      // execution settles; wait for idle just like OpenCode's own rewind does.
+      await client.interrupt(sessionId).catch(() => false);
+      await client.waitIdle(sessionId).catch(() => undefined);
+      await client.revertStage(sessionId, messageID, files);
+      try {
+        await client.revertCommit(sessionId);
+      } catch (err) {
+        // `stage` already restored the files: undo that side effect if the commit did not land.
+        await client.revertClear(sessionId).catch(() => undefined);
+        throw err;
+      }
+      if (!this.loadGen.is(generation) || sessionId !== this.sessionId) return;
+      const info = await client.getSession(sessionId);
+      if (!this.loadGen.is(generation) || sessionId !== this.sessionId) return;
+      // A commit deletes messages, so a tail resync cannot detect it: rebuild from history.
+      await this.loadSession(info, () => !this.loadGen.is(generation) || sessionId !== this.sessionId);
+      this.post({ type: "reverted", sessionId, text });
+    } catch (err) {
+      const s = translatedStrings();
+      throw new Error(`${s["error.revertFailed"]} ${err instanceof Error ? err.message : String(err)}`, { cause: err });
+    }
+  }
+
   private async loadSession(rawInfo: SessionInfo, stale?: () => boolean, busyOverride?: boolean): Promise<void> {
     const client = this.client;
     if (!client || !this.folder) return;
@@ -1735,6 +1770,25 @@ export class ChatController implements vscode.Disposable {
         return void (await this.loadSubagentSnapshot(msg.sessionId));
       case "compact":
         return this.compact();
+      case "revertTo": {
+        if (!this.client || !this.sessionId || msg.sessionId !== this.sessionId) return;
+        const rollback = vscode.l10n.t("Roll back");
+        const messagesOnly = vscode.l10n.t("Messages only");
+        const choice = await vscode.window.showWarningMessage(
+          vscode.l10n.t("Roll back to this turn?"),
+          {
+            modal: true,
+            detail: vscode.l10n.t(
+              "The selected prompt, its reply and every later turn will be removed from the conversation. 'Roll back' also restores file changes made after that point; 'Messages only' keeps the current files. The prompt returns to the composer so you can edit and resend it.",
+            ),
+          },
+          rollback,
+          messagesOnly,
+          vscode.l10n.t("Cancel"),
+        );
+        if (choice !== rollback && choice !== messagesOnly) return;
+        return this.revertToTurn(msg.sessionId, msg.messageID, msg.text, choice === rollback);
+      }
       case "dismissCompatibility":
         await this.ctx.globalState.update(COMPAT_DISMISSED_KEY, msg.version);
         return;

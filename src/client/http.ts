@@ -205,6 +205,31 @@ export class OpenCodeClient {
     await this.request("POST", `api/session/${encodeURIComponent(id)}/compact`, { body: {} });
   }
 
+  /**
+   * Stage a reversible boundary at `messageID`. OpenCode restores the files changed after that
+   * message right away (unless `files` is false); the boundary is applied by `revertCommit`.
+   */
+  async revertStage(id: string, messageID: string, files?: boolean): Promise<void> {
+    await this.request("POST", `api/session/${encodeURIComponent(id)}/revert/stage`, {
+      body: files === undefined ? { messageID } : { messageID, files },
+    });
+  }
+
+  /** Apply the staged boundary: the target message and everything after it are dropped. */
+  async revertCommit(id: string): Promise<void> {
+    await this.request("POST", `api/session/${encodeURIComponent(id)}/revert/commit`, { body: {} });
+  }
+
+  /** Discard a staged boundary and restore the files it temporarily rolled back. */
+  async revertClear(id: string): Promise<void> {
+    await this.request("DELETE", `api/session/${encodeURIComponent(id)}/revert`);
+  }
+
+  /** Wait for the session's agent loop to become idle, so a revert can be staged. */
+  async waitIdle(id: string): Promise<void> {
+    await this.request("POST", `api/experimental/session/${encodeURIComponent(id)}/wait`);
+  }
+
   async interrupt(id: string): Promise<boolean> {
     const res = await this.request<{ interrupted: boolean }>(
       "POST",

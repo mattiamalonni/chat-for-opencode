@@ -148,6 +148,48 @@ describe("OpenCodeClient against the mock server", () => {
       tag: "SessionNotFoundError",
     });
   });
+
+  it("stages and commits a revert at any message, and can clear a staged one", async () => {
+    const s = await client.createSession({});
+    await client.prompt(s.id, "first");
+    await waitForIdle(client, s.id);
+    await client.prompt(s.id, "second");
+    for (let i = 0; i < 300; i++) {
+      if ((await client.messages(s.id)).filter((m) => m.type === "idle").length >= 2) break;
+      await new Promise((r) => setTimeout(r, 10));
+    }
+    const before = await client.messages(s.id);
+    const firstUser = before.find((m) => m.type === "user")!;
+    expect(before.filter((m) => m.type === "user")).toHaveLength(2);
+
+    await client.waitIdle(s.id);
+    expect(mock.requests.at(-1)?.path).toBe(`/api/experimental/session/${s.id}/wait`);
+
+    // An intermediate boundary drops that turn and everything after it, not just the last one.
+    await client.revertStage(s.id, firstUser.id, false);
+    expect(mock.requests.at(-1)).toMatchObject({
+      method: "POST",
+      path: `/api/session/${s.id}/revert/stage`,
+      body: { messageID: firstUser.id, files: false },
+    });
+    expect(mock.sessions.get(s.id)!.info.revert).toMatchObject({ messageID: firstUser.id });
+
+    await client.revertCommit(s.id);
+    expect(mock.requests.at(-1)?.path).toBe(`/api/session/${s.id}/revert/commit`);
+    expect(await client.messages(s.id)).toHaveLength(0);
+    expect(mock.sessions.get(s.id)!.info.revert).toBeUndefined();
+
+    // Without `files` the body only carries the message id; clearing keeps the history intact.
+    await client.prompt(s.id, "third");
+    await waitForIdle(client, s.id);
+    const third = (await client.messages(s.id)).find((m) => m.type === "user")!;
+    await client.revertStage(s.id, third.id);
+    expect(mock.requests.at(-1)?.body).toEqual({ messageID: third.id });
+    await client.revertClear(s.id);
+    expect(mock.requests.at(-1)).toMatchObject({ method: "DELETE", path: `/api/session/${s.id}/revert` });
+    expect(mock.sessions.get(s.id)!.info.revert).toBeUndefined();
+    expect((await client.messages(s.id)).some((m) => m.id === third.id)).toBe(true);
+  });
 });
 
 async function waitForIdle(client: OpenCodeClient, id: string): Promise<void> {

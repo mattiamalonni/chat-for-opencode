@@ -33,7 +33,7 @@ import { Picker } from "./picker";
 import { clearReplyFailures, markReplyFailed } from "./replyFeedback";
 import { SubagentNavContext, SubagentsContext, type SubagentEntry } from "./subagents";
 import { ActionButton, AssistantStatus, FileList, MessageView, messageSearchText, ToolCard, ToolGroup, TurnStatsRow } from "./messages";
-import { hydrateDrafts, onHostMessage, post } from "./vscode";
+import { hydrateDrafts, onHostMessage, post, setDraft } from "./vscode";
 
 interface Catalog {
   models: ModelInfo[];
@@ -70,6 +70,8 @@ export function App() {
   const [notice, setNotice] = useState<UiError | undefined>();
   const [focusToken, setFocusToken] = useState(0);
   const [draftToken, setDraftToken] = useState(0);
+  /** Prompt returned by a rollback; a new token forces the composer to adopt it even if it has text. */
+  const [restoredDraft, setRestoredDraft] = useState<{ text: string; token: number } | undefined>();
   const [scrollToken, setScrollToken] = useState(0);
   const [showSessions, setShowSessions] = useState(false);
   // Read-only drill-down into a child session. Nested children push a crumb; ancestors are kept so
@@ -214,6 +216,12 @@ export function App() {
         case "drafts":
           hydrateDrafts(msg.drafts, msg.globalDraft);
           setDraftToken((n) => n + 1);
+          break;
+        case "reverted":
+          setDraft(msg.text, msg.sessionId);
+          setRestoredDraft((prev) => ({ text: msg.text, token: (prev?.token ?? 0) + 1 }));
+          post({ type: "saveDraft", sessionId: msg.sessionId, text: msg.text });
+          announce(strings.revertDone);
           break;
         case "focusInput":
           setFocusToken((n) => n + 1);
@@ -503,6 +511,7 @@ export function App() {
         <Composer
           sessionId={chat.sessionId ?? undefined}
           draftToken={draftToken}
+          restoredDraft={restoredDraft}
           busy={chat.busy}
           contextTokens={chat.contextTokens === undefined ? undefined : chat.contextTokens + attachmentTokens}
           contextEstimated={attachmentTokens > 0}
