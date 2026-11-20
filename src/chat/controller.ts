@@ -231,8 +231,6 @@ export class ChatController implements vscode.Disposable {
   private readonly loadGen = new Generation();
   /** High-water mark for incremental resync: the newest history message id of the loaded session. */
   private lastKnownMessage: { sessionId: string; id: string } | undefined;
-  /** Last `time.updated` we folded in, so an unchanged session does not re-post a delta every tick. */
-  private lastSyncedSession: { sessionId: string; updated: number } | undefined;
   /** Periodic history poll that picks up changes made by other clients (TUI, CLI, …). */
   private livePollTimer: NodeJS.Timeout | undefined;
   /** Last live SSE event for the open session; a poll is redundant while the stream feeds us. */
@@ -635,10 +633,16 @@ export class ChatController implements vscode.Disposable {
    * Returns `false` when the overlap is unknown (history trimmed/compacted) so the caller falls
    * back to a full load. This is best-effort: a failed tail fetch must never lose a conversation.
    */
-  private async resyncTail(sid: string, rawInfo: SessionInfo, stale: () => boolean, busyOverride?: boolean): Promise<boolean> {
+  private async resyncTail(
+    sid: string,
+    rawInfo: SessionInfo,
+    stale: () => boolean,
+    busyOverride?: boolean,
+    prefetched?: SessionMessage[],
+  ): Promise<boolean> {
     const client = this.client;
     if (!client || this.lastKnownMessage?.sessionId !== sid) return false;
-    const rawNewer = await client.messagesNewerThan(sid, this.lastKnownMessage.id).catch(() => undefined);
+    const rawNewer = prefetched ?? (await client.messagesNewerThan(sid, this.lastKnownMessage.id).catch(() => undefined));
     if (rawNewer === undefined || stale()) return false;
     const [rawPermissions, rawForms] = await Promise.all([
       client.permissions(sid).catch(() => [] as PermissionRequest[]),
@@ -667,7 +671,6 @@ export class ChatController implements vscode.Disposable {
       },
     });
     void this.refreshChanges().catch(() => {});
-    this.lastSyncedSession = { sessionId: sid, updated: info.time.updated };
     return true;
   }
 
@@ -728,25 +731,28 @@ export class ChatController implements vscode.Disposable {
     this.livePollTimer = undefined;
   }
 
-  private async pollSessionTail(): Promise<void> {
+  private async pollSessionTail(force = false): Promise<void> {
     const client = this.client;
     const sid = this.sessionId;
-    if (!client || !sid || !this.isVisible || this.status !== "connected") return;
+    if (!client || !sid || this.status !== "connected" || (!force && !this.isVisible)) return;
     // Local turns are driven by live events; polling them would only re-post partial snapshots and
     // could pull a streaming card back to an older history state. Wait for the stream to go quiet.
-    if (Date.now() - this.lastSessionEventAt < LIVE_POLL_MS) return;
+    if (!force && Date.now() - this.lastSessionEventAt < LIVE_POLL_MS) return;
     const head = this.lastKnownMessage;
     if (!head || head.sessionId !== sid) return;
     try {
       const generation = this.loadGen.current();
       const stale = () => !this.loadGen.is(generation) || sid !== this.sessionId;
+      // The tail itself is authoritative. `time.updated` is not a reliable gate: it can stay equal
+      // on a coarse clock, or move for changes we do not render, which used to hide real messages.
+      const newer = await client.messagesNewerThan(sid, head.id).catch(() => undefined);
+      if (!newer || newer.length === 0 || stale()) return;
       const info = await client.getSession(sid);
       if (stale()) return;
-      if (this.lastSyncedSession?.sessionId === sid && info.time.updated <= this.lastSyncedSession.updated) return;
       const busyOverride = this.localIdle?.sid === sid && this.localIdle.generation === generation ? false : undefined;
       // A trimmed/compacted history has no overlap with our high-water mark: fall back to a full
       // load, the same way a reconnect does. It resets the mark, so this cannot repeat every tick.
-      if (!(await this.resyncTail(sid, info, stale, busyOverride))) {
+      if (!(await this.resyncTail(sid, info, stale, busyOverride, newer))) {
         await this.loadSession(info, stale, busyOverride);
       }
       void this.refreshSessions().catch(() => {});
@@ -754,6 +760,11 @@ export class ChatController implements vscode.Disposable {
       // A transient failure must not kill the poll: the next tick tries again.
       this.output.warn(`[chat] live poll failed: ${String(err)}`);
     }
+  }
+
+  /** Exposed for integration tests: run one poll now, independent of visibility and event quiet. */
+  pollNow(): Promise<void> {
+    return this.pollSessionTail(true);
   }
 
   // ---- subagents --------------------------------------------------------------------------
@@ -1230,7 +1241,6 @@ export class ChatController implements vscode.Disposable {
     this.sessionId = info.id;
     const newest = messages.at(-1);
     this.lastKnownMessage = newest ? { sessionId: info.id, id: newest.id } : undefined;
-    this.lastSyncedSession = { sessionId: info.id, updated: info.time.updated };
     // Requests granted automatically must not linger as cards when the chat's toggle is on.
     const pending = await this.permissions.filterPending(client, info.id, normalizeList(rawPermissions, normalizePermission));
     await this.ctx.workspaceState.update(SESSION_KEY(this.folder.uri.toString()), info.id);
@@ -1270,7 +1280,6 @@ export class ChatController implements vscode.Disposable {
     this.sessionId = undefined;
     this.resetSubagents();
     this.lastKnownMessage = undefined;
-    this.lastSyncedSession = undefined;
     this.permissions.setPending(undefined);
     if (this.folder) await this.ctx.workspaceState.update(SESSION_KEY(this.folder.uri.toString()), undefined);
     this.post({ type: "session", session: null });
@@ -1293,7 +1302,6 @@ export class ChatController implements vscode.Disposable {
     this.stream = undefined;
     this.client = undefined;
     this.lastKnownMessage = undefined;
-    this.lastSyncedSession = undefined;
     this.stopLivePoll();
     try {
       const conn = await this.server.restart();
@@ -1314,7 +1322,6 @@ export class ChatController implements vscode.Disposable {
     this.stream = undefined;
     this.client = undefined;
     this.lastKnownMessage = undefined;
-    this.lastSyncedSession = undefined;
     this.stopLivePoll();
     this.serverSub?.();
     this.serverSub = undefined;
@@ -1334,7 +1341,6 @@ export class ChatController implements vscode.Disposable {
     this.client = undefined;
     this.sessionId = undefined;
     this.lastKnownMessage = undefined;
-    this.lastSyncedSession = undefined;
     this.stopLivePoll();
     this.permissions.setPending(undefined);
     this.sessionsGen.bump();

@@ -140,6 +140,9 @@ describe("chat-for-opencode extension", () => {
       body: JSON.stringify({ sessionID: sid, text: "from the tui" }),
     });
     assert.equal(res.status, 204);
+    // Drive one poll explicitly: the 2s timer is timing-sensitive on slow CI runners. This still
+    // exercises the exact host path used by the timer (history tail -> sessionDelta).
+    await controller.pollNow();
     const delta = await waitFor(() => {
       const d = lastPosted("sessionDelta", mark);
       return d && d.delta.messages.some((m) => m.type === "user" && m.text === "from the tui") && d;
