@@ -45,6 +45,12 @@ The server returns unified patches (tool `metadata.files[]`, `permission.asked.m
 current file content (forward for proposed changes, reverse for applied ones) and opens
 `vscode.diff` with virtual documents. If the patch doesn't apply cleanly we show the raw patch.
 
+For a whole turn or session, `openDiffs` does **not** read the files: `hunksSides` builds the two
+sides from the patches' changed hunks (plus context) with a `===== file =====` header per file. The
+native diff editor then shows only the modified regions in a single read-only view, and no file is
+created on disk. The per-turn counts are stored on `TurnStats` when edits complete and recomputed
+from history on load, because the post-turn reconciling resync can replace the live tool metadata.
+
 ## D7 — Keyboard isolation
 
 The VS Code webview preload forwards every `keydown` that reaches `window` (bubble phase) to the

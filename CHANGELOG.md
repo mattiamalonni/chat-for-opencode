@@ -1,5 +1,18 @@
 # Changelog
 
+## Unreleased
+
+- Finished turns now show **insertions and deletions** in the summary bar, next to steps, duration,
+  tokens and cost. The counts are captured when edits complete and rebuilt from history on load, so
+  they survive the post-turn reconcile that replaces live messages with server history.
+- Clicking `+N` / `-N` in a turn summary opens a single, read-only VS Code diff with **all the changes
+  of that turn**. The two sides contain only the changed hunks (plus context) with a header per file:
+  no file is read from or written to disk.
+- The **Changed files** header now shows the session totals in the same `+N` / `-N` form and opens one
+  diff with all the session's changes. Its label is **“1 Changed file” / “N Changed files”** (number
+  first) and the old +/- icon was removed.
+- Removed the hover tooltip from the turn summary bar (the text stays as an accessible label).
+
 ## 0.3.15 — 2026-11-19
 
 - Removed the **OpenCode: Show Changed Files** command from the chat view title bar (the changed-files

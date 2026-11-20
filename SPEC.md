@@ -106,7 +106,7 @@ All messages are JSON objects with a `type` discriminator, defined in `src/share
 | `permissionReply {requestId, sessionId, decision: once\|always\|reject}` | |
 | `formReply {formId, sessionId, answer}`, `formCancel {formId, sessionId}` | |
 | `searchFiles {query}` | |
-| `openDiff {file, patch, applied}`, `openFile {path}`, `openLink {href}` | |
+| `openDiff {file, patch, applied}`, `openDiffs {files: [{file, patch}]}`, `openFile {path}`, `openLink {href}` | |
 | `copy {text}` | copy code block to clipboard |
 | `action {id}` | `reconnect`, `showLogs`, `openSettings`, `install`, `login`, `setPassword`, `openFolder`, `newSession` |
 | `selectFolder {uri}` | switch workspace folder |
@@ -132,6 +132,14 @@ repositories. The webview therefore merges it with patches from completed tool c
 `session.usage.updated` event's cost is kept in `ChatState.usage` and shown in the composer's
 context meter. Changing session (new/folder switch/select/delete) clears conversation-scoped webview
 state — drafts, staged attachments and the changed-files panel — while a same-session resync keeps it.
+
+Each `TurnStats` also keeps the files edited in that turn (path, patch, additions, deletions). The
+counts are captured when a tool completes and rebuilt from history on load, so the post-turn
+reconcile — which replaces live messages with server history that may omit `metadata.files` — cannot
+wipe them. Both the turn summary bar and the **Changed files** header show `+additions / -deletions`;
+clicking them posts `openDiffs`. `DiffService` then builds two virtual documents from the patches'
+hunks only (`hunksSides`, with a `===== file =====` header per file) and opens one read-only
+`vscode.diff`, so the view contains just the changed regions and nothing is written to disk.
 
 ## Security
 

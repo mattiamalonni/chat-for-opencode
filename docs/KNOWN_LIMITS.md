@@ -76,8 +76,10 @@ test or a manual probe actually ran.
 - **Session diff** (`GET /session/{id}/diff`) is empty outside git repositories. The webview now
   fills the changed-files panel from completed tools' patch metadata as a fallback, but the panel
   can miss a change whose tool did not record `metadata.files`.
-- **Diff reconstruction** applies the server's patch to the current file. If the file changed again
-  afterwards, the patch may not apply; the extension then shows the hunk-only before/after.
+- **Diff reconstruction** applies the server's patch to the current file for a single-file diff. If
+  the file changed again afterwards and the patch no longer applies, the fallback shows the hunk-only
+  before/after. The combined turn/session diff always uses that hunk-only form, so it shows only the
+  recorded changes and never the full file content.
 - **Auto context** shows the whole active file as a chip, but the file is attached only when you add
   it to the message. Selections are attached automatically. For very large files this costs tokens
   once added; disable `opencode.autoContext` to hide both chips.

@@ -24,9 +24,10 @@ sends **no telemetry**.
 - **Opens on the right** in the Secondary Side Bar, like Copilot Chat (VS Code 1.104+); movable anywhere with *OpenCode: Move Chat View…* or drag and drop.
 - **Context window at a glance**: each model in the picker shows its context size, and a meter
   next to the send button shows how much of it the conversation already uses.
-- **Turn stats**: when the agent finishes, one badge summarises the whole turn — time from your
-  input to the last step, tokens summed across every step, and cost when reported — with the
-  breakdown in the tooltip. The numbers come from OpenCode itself.
+- **Turn stats**: when the agent finishes, one badge summarises the whole turn — steps, time from
+  your input to the last step, tokens summed across every step, cost when reported, and the
+  insertions/deletions from its file edits. Click **+N / -N** to see all of that turn's changes in one
+  read-only diff. The numbers come from OpenCode itself.
 - **Model, reasoning-effort and agent pickers** (custom, searchable, grouped by provider) filled with what your server actually returns (e.g. *Build* / *Plan*).
 - **Stop** a running response (button or `Esc` in the input), and **compact** a long session from the composer toolbar or the command palette.
 - **Keep working while the agent runs**: plain `Enter` queues the next message (`delivery: queue`),
@@ -39,7 +40,11 @@ sends **no telemetry**.
 - **Clickable file references**: `src/app.ts:42` in a reply, a tool's input path, a permission resource or a changed-file row opens the file at that line in the editor.
 - **Skills**: type `/` to search skills discovered by OpenCode, including global skills; selecting one
   inserts a slash command that loads its instructions with the prompt.
-- **Native diffs**: open proposed changes (before you approve) and applied changes in VS Code's diff editor, plus a list of the files changed in the session.
+- **Native diffs**: open proposed changes (before you approve) and applied changes in VS Code's diff
+  editor. The **Changed files** panel lists the session's files with per-file counts and shows the
+  session totals (`+N / -N`) in its header (“1 Changed file” / “N Changed files”). Click the totals to
+  open **all** the session's changes in a single read-only diff, or a file row for that file alone.
+  These combined views are built from the changed hunks only and create no file on disk.
 - **Permissions and questions inline** in the conversation, never auto-approved by default. Focus a
   permission card and press `1`/`2`/`3` for Allow once / Always allow / Reject.
 - **Todo list** when the agent uses OpenCode's (experimental) `todowrite` tool.

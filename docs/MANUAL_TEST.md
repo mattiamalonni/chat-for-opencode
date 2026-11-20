@@ -41,8 +41,10 @@ screen readers and multi-window process management.
    Expect "Response interrupted." and the composer to become usable again.
 6. **Permission + diff**: send `Change a.txt so it contains b instead of a`. An `edit` tool card shows
    *Permission required* with `a.txt`. Click the file row → native diff `a` → `b` (proposed).
-   Click **Allow once**. The file changes; *Changed files (1)* appears above the input; clicking
-   the file opens the applied diff.
+   Click **Allow once**. The file changes; *1 Changed file* appears above the input with `+1 / -1`
+   totals. Clicking the totals opens a single read-only diff with all the session's changes; clicking
+   the file opens its applied diff. The turn summary bar also shows `+1 / -1` — click it to open that
+   turn's changes in one diff.
 7. **Reject**: ask for another edit and press **Reject**: the tool card turns red, file unchanged.
 8. **Auto-approve**: click **Auto-approve** in the composer, ask for another edit: no permission
    card appears and the file changes right away. Switch chats and confirm the toggle is per chat;
