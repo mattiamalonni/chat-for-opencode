@@ -226,6 +226,32 @@ test("pasting an image into the prompt attaches it", async ({ page }) => {
   expect(send && "attachments" in send && send.attachments.map((a) => a.name)).toContain("shot.png");
 });
 
+test("clicking an attachment chip opens its file", async ({ page }) => {
+  await boot(page);
+  await host(page, { type: "addAttachment", item: { uri: "file:///work/shot.png", name: "shot.png", kind: "file", detail: "shot.png" } });
+
+  const open = page.locator(".chip .chip-open[data-openable='true']");
+  await expect(open).toHaveCount(1);
+  await expect(open).toHaveAttribute("aria-label", `${STRINGS.openFile}: shot.png`);
+
+  await open.click();
+  expect(await lastPosted(page, "openAttachment")).toEqual({ type: "openAttachment", uri: "file:///work/shot.png" });
+  await expect(open).toHaveCSS("user-select", "none");
+
+  // The remove button is a sibling: clicking it must not open the file too.
+  const before = (await posted(page)).filter((m) => m.type === "openAttachment").length;
+  await page.locator(".chip").filter({ hasText: "shot.png" }).locator(".chip-remove").click();
+  expect((await posted(page)).filter((m) => m.type === "openAttachment")).toHaveLength(before);
+  await expect(page.locator(".chip").filter({ hasText: "shot.png" })).toHaveCount(0);
+});
+
+test("an inline attachment without a file on disk is not openable", async ({ page }) => {
+  await boot(page);
+  await host(page, { type: "addAttachment", item: { uri: "data:image/png;base64,iVBORw0KGgo=", name: "old.png", kind: "file" } });
+  await expect(page.locator(".chip .chip-open[data-openable='true']")).toHaveCount(0);
+  await expect(page.locator(".chip .chip-open[data-openable='false']")).toHaveCount(1);
+});
+
 test("pasting plain text is not treated as a file", async ({ page }) => {
   await boot(page);
   const input = page.getByRole("textbox", { name: STRINGS.inputLabel });

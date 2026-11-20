@@ -388,15 +388,42 @@ export function Composer(props: ComposerProps) {
               </li>
             );
           })}
-          {props.attachments.map((a) => (
-            <li class="chip" key={a.uri} title={a.detail ?? a.uri}>
-              {a.kind === "selection" ? <IconSelection /> : <FileTypeIcon path={a.name} />}
-              <span>{a.kind === "selection" ? (a.detail ?? a.name) : a.name}</span>
-              <button type="button" class="chip-remove tooltip-host" data-tooltip={`${t("removeContext")}: ${a.name}`} aria-label={`${t("removeContext")}: ${a.name}`} onClick={() => props.onRemoveAttachment(a.uri)}>
-                <IconClose />
-              </button>
-            </li>
-          ))}
+          {props.attachments.map((a) => {
+            const openable = a.uri.startsWith("file:");
+            const open = () => {
+              if (openable) post({ type: "openAttachment", uri: a.uri });
+            };
+            return (
+              <li class="chip" key={a.uri} title={a.detail ?? a.uri}>
+                <span
+                  class="chip-open"
+                  data-openable={openable ? "true" : "false"}
+                  role={openable ? "button" : undefined}
+                  tabIndex={openable ? 0 : undefined}
+                  aria-label={openable ? `${t("openFile")}: ${a.name}` : undefined}
+                  onClick={open}
+                  onKeyDown={(e) => {
+                    if (openable && e.key === "Enter") {
+                      e.preventDefault();
+                      open();
+                    }
+                  }}
+                >
+                  {a.kind === "selection" ? <IconSelection /> : <FileTypeIcon path={a.name} />}
+                  <span>{a.kind === "selection" ? (a.detail ?? a.name) : a.name}</span>
+                </span>
+                <button
+                  type="button"
+                  class="chip-remove tooltip-host"
+                  data-tooltip={`${t("removeContext")}: ${a.name}`}
+                  aria-label={`${t("removeContext")}: ${a.name}`}
+                  onClick={() => props.onRemoveAttachment(a.uri)}
+                >
+                  <IconClose />
+                </button>
+              </li>
+            );
+          })}
         </ul>
       )}
       <div class="input-wrap">

@@ -1,4 +1,6 @@
+import { randomUUID } from "node:crypto";
 import * as fs from "node:fs/promises";
+import * as os from "node:os";
 import * as path from "node:path";
 import * as vscode from "vscode";
 import { ApiError, OpenCodeClient, type PermissionRule } from "../client/http";
@@ -49,6 +51,7 @@ import { ContextTracker, FileIndex, selectionAttachment } from "./context";
 import { DiffService } from "./diff";
 import { DEFAULT_SESSION_PERMISSIONS } from "./permissions";
 import { PermissionService } from "./permissionService";
+import { attachmentFileName, isWithinDirectory } from "./tempAttachments";
 
 const PASSWORD_KEY = (endpoint: string) => `opencode.password:${endpoint}`;
 const SESSION_KEY = (folder: string) => `opencode.session:${folder}`;
@@ -248,6 +251,14 @@ export class ChatController implements vscode.Disposable {
   /** Live child events held until the history snapshot is posted, so nothing is overwritten. */
   private readonly pendingChildEvents = new Map<string, ServerEvent[]>();
   private static readonly MAX_CHILD_SESSIONS = 30;
+
+  /** Inline attachments copied to disk so their chips can be opened in the editor. */
+  private readonly tempAttachments = new Set<string>();
+
+  private get tempAttachmentsDir(): string {
+    // OS temp is cleared by the system on reboot, so staged copies never linger indefinitely.
+    return path.join(os.tmpdir(), "chat-for-opencode-attachments");
+  }
 
   constructor(
     private readonly ctx: vscode.ExtensionContext,
@@ -1361,15 +1372,26 @@ export class ChatController implements vscode.Disposable {
   }
 
   /**
-   * Inline attachment: OpenCode puts a `data:` URL's decoded content straight into the prompt. A
-   * `file:` URL outside the project only gives the agent a path, so it wastes turns looking for it.
+   * Persists inline bytes to an extension-owned temp file. The attachment carries a `file:` URI so
+   * its chip can be opened in the editor; `resolveAttachment` still inlines the bytes for an
+   * external server, while a managed server reads the local path directly.
    */
-  private attachInline(name: string, base64: string, mime: string | undefined, detail?: string): void {
-    if (Buffer.byteLength(base64, "base64") > MAX_ATTACHMENT_BYTES) {
+  private async attachInline(name: string, base64: string, mime: string | undefined, detail?: string): Promise<void> {
+    const bytes = Buffer.from(base64, "base64");
+    if (bytes.length > MAX_ATTACHMENT_BYTES) {
       this.noticeTooLarge(name);
       return;
     }
-    this.addAttachment({ uri: `data:${mime || mimeFromName(name)};base64,${base64}`, name, kind: "file", detail });
+    try {
+      const dir = this.tempAttachmentsDir;
+      await fs.mkdir(dir, { recursive: true });
+      const file = path.join(dir, `${randomUUID()}-${attachmentFileName(name, mime)}`);
+      await fs.writeFile(file, bytes);
+      this.tempAttachments.add(file);
+      this.addAttachment({ uri: vscode.Uri.file(file).toString(), name, kind: "file", detail });
+    } catch (err) {
+      this.noticeUnreadable(name, err instanceof Error ? err.message : String(err));
+    }
   }
 
   private noticeTooLarge(name: string): void {
@@ -1409,7 +1431,7 @@ export class ChatController implements vscode.Disposable {
     const stat = await fs.stat(uri.fsPath);
     if (stat.size > MAX_ATTACHMENT_BYTES) return this.noticeTooLarge(label);
     const bytes = await fs.readFile(uri.fsPath);
-    this.attachInline(label, bytes.toString("base64"), mimeFromName(label), detail);
+    await this.attachInline(label, bytes.toString("base64"), mimeFromName(label), detail);
   }
 
   /** Files dropped into the webview, which cannot expose a path for OS drags. */
@@ -1417,7 +1439,7 @@ export class ChatController implements vscode.Disposable {
     for (const file of files) {
       try {
         if (file.base64) {
-          this.attachInline(file.name, file.base64, file.mime, file.name);
+          await this.attachInline(file.name, file.base64, file.mime, file.name);
           continue;
         }
         const uri = file.uri
@@ -1688,6 +1710,8 @@ export class ChatController implements vscode.Disposable {
         return;
       case "openFile":
         return this.openFile(msg.path);
+      case "openAttachment":
+        return this.openAttachment(msg.uri);
       case "openLink":
         return this.openLink(msg.href);
       case "copy":
@@ -1811,6 +1835,23 @@ export class ChatController implements vscode.Disposable {
     }
   }
 
+  /** Opens a staged attachment's on-disk copy. Only files this controller created are allowed. */
+  private async openAttachment(uri: string): Promise<void> {
+    let target: vscode.Uri;
+    try {
+      target = vscode.Uri.parse(uri);
+    } catch {
+      return;
+    }
+    if (target.scheme !== "file") return;
+    const file = path.resolve(target.fsPath);
+    if (!this.tempAttachments.has(file) || !isWithinDirectory(file, this.tempAttachmentsDir)) {
+      this.output.warn(`[chat] blocked an attempt to open an attachment outside the temp directory: ${file}`);
+      return;
+    }
+    await vscode.commands.executeCommand("vscode.open", target);
+  }
+
   private async openLink(href: string): Promise<void> {
     if (/^https?:\/\//i.test(href) || href.startsWith("mailto:")) {
       await vscode.env.openExternal(vscode.Uri.parse(href));
@@ -1820,6 +1861,14 @@ export class ChatController implements vscode.Disposable {
   }
 
   async dispose(): Promise<void> {
+    for (const file of this.tempAttachments) {
+      try {
+        await fs.unlink(file);
+      } catch {
+        // Best effort: the OS may already have removed the temp file.
+      }
+    }
+    this.tempAttachments.clear();
     this.stream?.close();
     this.serverSub?.();
     this.fileIndex?.dispose();

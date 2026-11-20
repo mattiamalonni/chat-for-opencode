@@ -1854,6 +1854,36 @@ button:disabled {
   font-size: 0.9em;
 }
 
+/* Clicking an attachment's label opens its on-disk copy in the editor. */
+.chip-open {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  /* Opening the attachment must not select the file name. */
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.chip-open > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chip-open[data-openable="true"] {
+  cursor: pointer;
+}
+
+.chip-open[data-openable="true"]:hover {
+  background: var(--vscode-toolbar-hoverBackground);
+}
+
+.chip-open:focus-visible {
+  outline: 1px solid var(--vscode-focusBorder);
+  outline-offset: 1px;
+}
+
 .chip-remove,
 .chip-add {
   display: inline-flex;

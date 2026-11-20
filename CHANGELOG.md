@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- **Attachments can now be opened in the editor with a single click** on their chip (or Enter when
+  focused), on every platform. Files pasted from the clipboard or dropped without a path are saved to
+  the OS temp folder (cleared on reboot) with the right extension, so there is a real file to open;
+  the prompt still sends their bytes inline to an external server. Clicking the chip does not select
+  the file name. Chips whose content is only a `data:` URL are not clickable.
 - Subagent cards now have an **Open subagent conversation** action that shows the child session in
   a read-only modal, rendered with the same conversation view as the main chat (steps, thoughts,
   tools and report). Breadcrumbs let you navigate nested subagents and return to the parent chat;

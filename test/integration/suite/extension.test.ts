@@ -1,5 +1,5 @@
 import * as assert from "node:assert/strict";
-import { writeFileSync } from "node:fs";
+import { readFileSync, writeFileSync } from "node:fs";
 import * as path from "node:path";
 import * as vscode from "vscode";
 import type { ChatController } from "../../../src/chat/controller";
@@ -254,7 +254,7 @@ describe("chat-for-opencode extension", () => {
     assert.equal(res.items[0]?.detail, "src/app.ts");
   });
 
-  it("sends dropped files outside the workspace inline, so the model gets their content", async () => {
+  it("copies dropped files outside the workspace to disk, so the model gets their content", async () => {
     const mark = posted.length;
     const external = path.join(path.dirname(workspace), "oc-it-external.txt");
     writeFileSync(external, "outside the workspace");
@@ -268,15 +268,30 @@ describe("chat-for-opencode extension", () => {
     });
     const adds = posted.slice(mark).filter((m) => m.type === "addAttachment");
     assert.equal(adds.length, 3);
-    // Inside the project the server reads the file itself; outside it the content is inline.
+    // Project files keep their path; content-only files get an on-disk copy the chip can open.
     assert.match(adds[0].item.uri, /^file:\/\//);
-    assert.ok(adds[1].item.uri.startsWith("data:text/plain;base64,"));
-    assert.equal(Buffer.from(adds[1].item.uri.split(",")[1], "base64").toString(), "outside the workspace");
-    assert.ok(adds[2].item.uri.startsWith("data:text/plain;base64,"));
-    assert.equal(Buffer.from(adds[2].item.uri.split(",")[1], "base64").toString(), "hello from drop");
+    assert.match(adds[1].item.uri, /^file:\/\//);
+    assert.equal(readFileSync(vscode.Uri.parse(adds[1].item.uri).fsPath, "utf8"), "outside the workspace");
+    assert.match(adds[2].item.uri, /^file:\/\//);
+    assert.equal(readFileSync(vscode.Uri.parse(adds[2].item.uri).fsPath, "utf8"), "hello from drop");
   });
 
-  it("adds the current file through the same path as picks and drops", async () => {
+  it("opens a staged attachment's on-disk copy from the chip", async () => {
+    const mark = posted.length;
+    await controller.receive({
+      type: "dropFiles",
+      files: [{ name: "open-me.txt", base64: Buffer.from("open me").toString("base64"), mime: "text/plain" }],
+    });
+    const add = await waitFor(() => lastPosted("addAttachment", mark), "staged attachment");
+    assert.match(add.item.uri, /^file:\/\//);
+
+    await controller.receive({ type: "openAttachment", uri: add.item.uri });
+    const file = vscode.Uri.parse(add.item.uri).fsPath;
+    const editor = await waitFor(() => vscode.window.visibleTextEditors.find((e) => e.document.uri.fsPath === file), "attachment editor");
+    assert.equal(editor.document.getText(), "open me");
+  });
+
+  it("adds the current file outside the workspace as an openable copy", async () => {
     const mark = posted.length;
     await vscode.commands.executeCommand("opencode.addFileToChat", vscode.Uri.file(path.join(workspace, "src", "app.ts")));
     const inProject = await waitFor(() => lastPosted("addAttachment", mark), "addAttachment for a project file");
@@ -288,8 +303,8 @@ describe("chat-for-opencode extension", () => {
     const mark2 = posted.length;
     await vscode.commands.executeCommand("opencode.addFileToChat", vscode.Uri.file(external));
     const outside = await waitFor(() => lastPosted("addAttachment", mark2), "addAttachment for an external file");
-    assert.ok(outside.item.uri.startsWith("data:text/plain;base64,"));
-    assert.equal(Buffer.from(outside.item.uri.split(",")[1], "base64").toString(), "current file outside the workspace");
+    assert.match(outside.item.uri, /^file:\/\//);
+    assert.equal(readFileSync(vscode.Uri.parse(outside.item.uri).fsPath, "utf8"), "current file outside the workspace");
   });
 
   it("starts a new session and switches back to the previous one", async () => {

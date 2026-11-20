@@ -240,6 +240,8 @@ export type WebviewMessage =
   /** Show all the patches of a turn in one read-only VS Code diff view (virtual documents only). */
   | { type: "openDiffs"; files: Array<{ file: string; patch: string }> }
   | { type: "openFile"; path: string }
+  /** Opens an inline attachment's on-disk copy; the host only accepts files it created itself. */
+  | { type: "openAttachment"; uri: string }
   | { type: "openLink"; href: string }
   | { type: "copy"; text: string }
   | { type: "action"; id: ActionId }
