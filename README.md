@@ -44,6 +44,8 @@ sends **no telemetry**.
   editor. The **Changed files** panel lists the session's files with per-file counts and shows the
   session totals (`+N / -N`) in its header (“1 Changed file” / “N Changed files”). Click the totals to
   open **all** the session's changes in a single read-only diff, or a file row for that file alone.
+  Each row leads with the file name, followed by its parent folder in smaller text
+  (`Button.tsx` `src/components/`); hover for the full path. Files at the root show only their name.
   These combined views are built from the changed hunks only and create no file on disk.
 - **Permissions and questions inline** in the conversation, never auto-approved by default. Focus a
   permission card and press `1`/`2`/`3` for Allow once / Always allow / Reject.

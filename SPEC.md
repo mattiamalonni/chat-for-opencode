@@ -132,6 +132,8 @@ repositories. The webview therefore merges it with patches from completed tool c
 `session.usage.updated` event's cost is kept in `ChatState.usage` and shown in the composer's
 context meter. Changing session (new/folder switch/select/delete) clears conversation-scoped webview
 state — drafts, staged attachments and the changed-files panel — while a same-session resync keeps it.
+Changed-file rows render only the path's basename, followed by the parent directory (with its trailing
+separator) in smaller, muted text; the full path stays in the row's hover tooltip.
 
 Each `TurnStats` also keeps the files edited in that turn (path, patch, additions, deletions). The
 counts are captured when a tool completes and rebuilt from history on load, so the post-turn

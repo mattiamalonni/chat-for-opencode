@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Changed-file rows (in the **Changed files** panel and in tool cards) now lead with the file **name**;
+  its parent folder follows in smaller, muted text (e.g. `Button.tsx  src/components/`). Files at the
+  root show only their name, and the row tooltip still carries the full path.
 - Finished turns now show **insertions and deletions** in the summary bar, next to steps, duration,
   tokens and cost. The counts are captured when edits complete and rebuilt from history on load, so
   they survive the post-turn reconcile that replaces live messages with server history.
