@@ -254,7 +254,7 @@ function loadHistory(action: Extract<ChatAction, { type: "load" }>): ChatState {
     model: action.model,
     messages,
     subagentReports,
-    turns: turnsFromHistory(sorted, true),
+    turns: turnsFromHistory(sorted, true, busy),
     permissions: action.permissions,
     forms: action.forms,
     busy,
@@ -294,7 +294,7 @@ function appendDelta(state: ChatState, delta: SessionDelta): ChatState {
   return {
     ...state,
     messages,
-    turns: mergeTurns(state.turns, turnsFromHistory(sorted, true)),
+    turns: mergeTurns(state.turns, turnsFromHistory(sorted, true, delta.busy ?? state.busy)),
     subagentReports: reports ? { ...(state.subagentReports ?? {}), ...reports } : state.subagentReports,
     permissions: delta.permissions ?? state.permissions,
     forms: delta.forms ?? state.forms,
@@ -403,7 +403,7 @@ function setTurnFiles(turn: TurnStats | undefined, acc: Map<string, ChangedFile>
  * Rebuilds one summary per turn from history. A user message opens a turn, the assistant
  * messages that follow are its steps, and an idle (or the next user message) closes it.
  */
-function turnsFromHistory(messages: SessionMessage[], alreadySorted = false): TurnStats[] {
+function turnsFromHistory(messages: SessionMessage[], alreadySorted = false, openLast = false): TurnStats[] {
   // Both callers pass an array they just sorted with the same comparator. Re-sorting would copy
   // and run O(n log n) comparisons a second time on every load and every resync.
   const sorted = alreadySorted ? messages : [...messages].sort((a, b) => a.time.created - b.time.created || cmp(a.id, b.id));
@@ -434,9 +434,13 @@ function turnsFromHistory(messages: SessionMessage[], alreadySorted = false): Tu
     }
   }
   // The last turn may have no idle entry yet; the assistant's completion time is the next best end.
-  if (current && current.ended === undefined && lastCompleted !== undefined) current.ended = lastCompleted;
+  // Not when the server still reports the session busy, though: between two steps every assistant
+  // message is complete while the turn is very much running. Closing it here (which happens on a
+  // session switch, a resync or a manual Sync) makes the webview treat the turn as finished: the
+  // summary replaces the live step and every collapsible folds shut, even though the reply goes on.
+  if (!openLast && current && current.ended === undefined && lastCompleted !== undefined) current.ended = lastCompleted;
   setTurnFiles(current, currentFiles);
-  return turns.filter((t) => t.ended !== undefined && t.tokens !== undefined);
+  return turns.filter((t) => (t.ended !== undefined || openLast) && t.tokens !== undefined);
 }
 
 function openTurn(state: ChatState, id: string, started: number): TurnStats[] {

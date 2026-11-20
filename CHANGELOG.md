@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- Fixed **steps collapsing when you return to a chat that is still running**. Reloading a session
+  (switching chat, reconnecting or pressing Sync) rebuilt the turn summaries from history and closed
+  the last turn as soon as its most recent step had a completion time — even between two steps of a
+  still-running reply. The webview then treated the turn as finished: no more live step, the summary
+  replaced it and every collapsible folded shut. While the server reports the session busy, the last
+  turn now stays open, so switching chats behaves exactly like staying in the same one.
 - The open conversation now **follows prompts launched from other clients**. The SSE stream only
   carries events from the server this extension connected to, so a prompt typed in the TUI (or
   another process sharing the on-disk session storage) used to appear only after pressing **Sync**

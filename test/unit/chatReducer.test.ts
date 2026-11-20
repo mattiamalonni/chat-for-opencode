@@ -476,6 +476,48 @@ describe("busy state after an interrupt", () => {
   });
 });
 
+describe("reloading a session that is still running", () => {
+  const midTurn: SessionMessage[] = [
+    { id: "u1", type: "user", text: "do it", time: { created: 1000 } },
+    {
+      id: "m1",
+      type: "assistant",
+      agent: "build",
+      model: { id: "m", providerID: "p" },
+      time: { created: 1100, completed: 1200 },
+      content: [{ type: "text", text: "first step" }],
+      tokens: { input: 10, output: 5, reasoning: 0, cache: { read: 0, write: 0 } },
+    },
+  ];
+
+  it("keeps the last turn open when the server reports the session busy", () => {
+    const state = chatReducer(initialChatState, {
+      type: "load",
+      sessionId: "s",
+      busy: true,
+      messages: midTurn,
+      permissions: [],
+      forms: [],
+    });
+    expect(state.busy).toBe(true);
+    expect(state.turns).toHaveLength(1);
+    // A completed last step does not mean the turn ended: the next step may be about to start.
+    expect(state.turns[0].ended).toBeUndefined();
+  });
+
+  it("closes the turn when the session is idle", () => {
+    const state = chatReducer(initialChatState, {
+      type: "load",
+      sessionId: "s",
+      busy: false,
+      messages: midTurn,
+      permissions: [],
+      forms: [],
+    });
+    expect(state.turns[0].ended).toBe(1200);
+  });
+});
+
 describe("session usage on load", () => {
   it("keeps cost and tokens when history is loaded or resynced", () => {
     const usage = { cost: 0.42, tokens: { input: 1, output: 2, reasoning: 0, cache: { read: 0, write: 0 } } };

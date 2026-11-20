@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { expect, test, type Page } from "@playwright/test";
-import type { ServerEvent } from "../../src/shared/api";
+import type { ServerEvent, SessionMessage } from "../../src/shared/api";
 import type { HostMessage, WebviewMessage } from "../../src/shared/protocol";
 import { STRINGS } from "../../src/shared/strings";
 
@@ -447,6 +447,58 @@ test("a finished turn folds its intermediate steps and can expand them", async (
   await expect(headers.first()).toHaveAttribute("aria-expanded", "true");
   await expect(blocks.first().locator(".step-fold-body")).toContainText("thinking hard");
   await expect(blocks.nth(1).locator(".step-fold-body")).toHaveCount(0);
+});
+
+test("a running turn keeps following its steps after switching to another chat and back", async ({ page }) => {
+  await boot(page);
+  const sid = "ses_switch_back";
+  const base = { sessionID: sid };
+  await openSession(page, sid, [
+    { type: "session.inbox.enqueued", created: 1000, data: { ...base, inboxID: "u1", item: { type: "user", payload: { text: "go" } } } },
+    { type: "session.execution.started", created: 1010, data: base },
+    { type: "session.step.started", created: 1100, data: { ...base, assistantMessageID: "m1", agent: "build" } },
+    { type: "session.reasoning.ended", created: 1110, data: { ...base, assistantMessageID: "m1", ordinal: 0, text: "thinking one" } },
+    { type: "session.text.ended", created: 1120, data: { ...base, assistantMessageID: "m1", ordinal: 0, text: "first step" } },
+    { type: "session.step.ended", created: 1130, data: { ...base, assistantMessageID: "m1", finish: "tool-calls" } },
+  ]);
+  // Between two steps the last assistant message is complete, but the turn is still running.
+  const history: SessionMessage[] = [
+    { id: "u1", type: "user", text: "go", time: { created: 1000 } },
+    {
+      id: "m1",
+      type: "assistant",
+      agent: "build",
+      model: { id: "m", providerID: "p" },
+      content: [
+        { type: "reasoning", text: "thinking one", time: { created: 1110 } },
+        { type: "text", text: "first step" },
+      ],
+      time: { created: 1100, completed: 1130 },
+      tokens: { input: 10, output: 5, reasoning: 0, cache: { read: 0, write: 0 } },
+    },
+  ];
+  const headers = page.locator(".step-block .step-fold-header");
+  await expect(headers).toHaveAttribute("aria-expanded", "true");
+
+  await host(page, { type: "session", session: { id: S2, busy: false, messages: [], permissions: [], forms: [] } });
+  await expect(headers).toHaveCount(0);
+  // Returning to the chat reloads it from server history: the still-running turn must stay live.
+  await host(page, { type: "session", session: { id: sid, busy: true, messages: history, permissions: [], forms: [] } });
+  await expect(headers).toHaveCount(1);
+  await expect(headers).toHaveAttribute("aria-expanded", "true");
+  await expect(page.locator(".turn-stats")).toHaveCount(0);
+
+  // New steps keep expanding too, instead of folding as if the turn had ended.
+  await host(page, { type: "event", event: { type: "session.step.started", created: 1200, data: { ...base, assistantMessageID: "m2", agent: "build" } } });
+  await host(page, { type: "event", event: { type: "session.reasoning.ended", created: 1210, data: { ...base, assistantMessageID: "m2", ordinal: 0, text: "thinking two" } } });
+  await host(page, { type: "event", event: { type: "session.text.ended", created: 1220, data: { ...base, assistantMessageID: "m2", ordinal: 0, text: "second step" } } });
+  await host(page, { type: "event", event: { type: "session.step.ended", created: 1230, data: { ...base, assistantMessageID: "m2", finish: "tool-calls" } } });
+  await expect(headers).toHaveCount(2);
+  await expect(headers.nth(1)).toHaveAttribute("aria-expanded", "true");
+
+  // Only the terminal event closes the folds, exactly as if we had never left the chat.
+  await host(page, { type: "event", event: { type: "session.execution.succeeded", created: 1300, data: base } });
+  await expect(headers.first()).toHaveAttribute("aria-expanded", "false");
 });
 
 test("folds past steps while streaming and keeps the accordion open as new steps arrive", async ({ page }) => {
