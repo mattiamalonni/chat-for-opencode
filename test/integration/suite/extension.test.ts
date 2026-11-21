@@ -511,6 +511,21 @@ describe("chat-for-opencode extension", () => {
     );
   });
 
+  it("ignores a late state notification from a server that is no longer attached", async () => {
+    // A folder switch detaches the previous server; a queued "running" notification from it must not
+    // rebind the chat to its endpoint (the old check compared only client URLs, not server identity).
+    const baseUrl = controller.debugState.baseUrl!;
+    const mark = posted.length;
+    const hook = controller as unknown as { onServerState(state: unknown, server?: unknown): void };
+    hook.onServerState(
+      { status: "running", conn: { baseUrl: "http://127.0.0.1:1", password: "stale" }, version: "2.2.7" },
+      { folder: "detached" },
+    );
+    await new Promise((r) => setTimeout(r, 100));
+    assert.equal(controller.debugState.baseUrl, baseUrl);
+    assert.ok(!posted.slice(mark).some((m) => m.type === "connection" && m.status === "error"));
+  });
+
   it("keeps the composer usable after cancelling a question", async () => {
     const mark = posted.length;
     await controller.receive({ type: "send", text: "[question] pick a color", attachments: [], context: [] });

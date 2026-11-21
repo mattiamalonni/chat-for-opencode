@@ -506,7 +506,7 @@ export class ChatController implements vscode.Disposable {
     if (server !== this.server) {
       this.serverSub?.();
       this.server = server;
-      this.serverSub = server.onDidChange((s) => this.onServerState(s));
+      this.serverSub = server.onDidChange((s) => this.onServerState(s, server));
     }
     this.setStatus("starting");
     try {
@@ -638,7 +638,12 @@ export class ChatController implements vscode.Disposable {
     if (this.client) await this.catalog.refresh(this.client);
   }
 
-  private onServerState(state: ServerState): void {
+  private onServerState(state: ServerState, server?: ServerHandle): void {
+    // A folder switch or reset can leave an in-flight notification from the previous server. Never
+    // let it rebind the chat to an endpoint we no longer own.
+    if (server && server !== this.server) return;
+    const generation = this.connectGen.current();
+    const stale = () => !this.connectGen.is(generation);
     if (state.status === "starting" && this.status === "connected") {
       this.setStatus("reconnecting");
     } else if (
@@ -648,9 +653,13 @@ export class ChatController implements vscode.Disposable {
     ) {
       // The managed process was restarted: the port *and* the random password can change.
       // Comparing only the URL would leave a stale client on a reused port (endless 401s).
-      void this.useConnection(state.conn, state.version).then(
-        () => this.output.info("[chat] reconnected to restarted server"),
-        (err: unknown) => this.setStatus("error", toUiError(err)),
+      void this.useConnection(state.conn, state.version, stale).then(
+        () => {
+          if (!stale()) this.output.info("[chat] reconnected to restarted server");
+        },
+        (err: unknown) => {
+          if (!stale()) this.setStatus("error", toUiError(err));
+        },
       );
     } else if (state.status === "failed") {
       this.stream?.close();
@@ -1623,6 +1632,11 @@ export class ChatController implements vscode.Disposable {
     this.sessionId = undefined;
     this.lastKnownMessage = undefined;
     this.stopLivePoll();
+    // Detach the old server before connecting to the new folder: its late state notifications must
+    // not race the new connection (doConnect still re-checks ownership when it installs the server).
+    this.serverSub?.();
+    this.serverSub = undefined;
+    this.server = undefined;
     this.permissions.setPending(undefined);
     this.sessionsGen.bump();
     this.sessionItems = [];

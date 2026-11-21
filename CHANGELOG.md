@@ -12,6 +12,9 @@
   absolute path or a `../` escape; blocked attempts are logged. Icon-theme asset paths are resolved
   (so `../` cannot escape the theme directory) and remote `https:` assets are deliberately not
   fetched, matching the "no network calls" promise and the webview CSP.
+- **Robustness:** a managed server that restarts while the user is switching folders can no longer
+  rebind the chat to its old endpoint. Server state notifications are now tagged with the server that
+  emitted them and ignored once detached, and the async reconnect carries a staleness token.
 - **Robustness:** a transient failure while loading the model catalog is no longer reported as
   *"No model provider is configured"*. It now shows a request error with a **Reconnect** action and
   retries automatically a couple of times; only a successful but empty catalog shows the provider
