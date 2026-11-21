@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- **Architecture:** view bookkeeping moved out of the controller into `ChatViews` (one owner for the
+  sidebar/editor handles, their listeners and `post()` fan-out), and the five generation counters plus
+  six timers into `ChatLifecycle` (named tokens, named reschedulable timers, one `clearAll()`).
+  Both units have dedicated unit tests; the controller keeps thin delegating methods, so commands,
+  serializer and integration-test hooks are unchanged. This is the first step of splitting the
+  remaining 2,300-line controller into cohesive services.
 - **Notifications:** the status-bar item now mirrors the current turn (spinner while running,
   check/alert/stop when it settles), and a hidden chat can announce finished or failed turns with an
   *Open chat* action. Failures notify by default; successes are opt-in via `opencode.notifyOnComplete`

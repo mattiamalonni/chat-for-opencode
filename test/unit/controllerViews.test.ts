@@ -18,28 +18,7 @@ vi.mock("vscode", () => ({
 }));
 
 import { ChatController } from "../../src/chat/controller";
-
-// Bracket access through an untyped record: prototype methods are private by declaration, but the
-// lifecycle under test is reachable at runtime and should not force the production API wide open.
-const proto = ChatController.prototype as unknown as Record<string, (...args: unknown[]) => unknown>;
-const attachView = proto["attachView"] as unknown as (this: ReturnType<typeof fakeController>, view: FakeView) => void;
-const attachPanel = proto["attachPanel"] as unknown as (this: ReturnType<typeof fakeController>, panel: FakeView) => void;
-const detachView = proto["detachView"] as unknown as (this: ReturnType<typeof fakeController>, view: FakeView) => void;
-
-/** Only the fields `attachView`/`attachPanel`/`detachView` touch — no VS Code host needed. */
-function fakeController() {
-  return {
-    views: new Set<unknown>(),
-    viewSubscriptions: new Map<unknown, { dispose(): void }>(),
-    sidebarView: undefined as unknown,
-    panel: undefined as unknown,
-    view: undefined as unknown,
-    ctx: { extensionUri: {} },
-    attachView,
-    attachPanel,
-    detachView,
-  };
-}
+import { ChatViews } from "../../src/chat/views";
 
 function fakeView(kind: "sidebar" | "panel") {
   const listeners = new Map<string, Array<() => void>>();
@@ -58,39 +37,60 @@ function fakeView(kind: "sidebar" | "panel") {
     },
     onDidDispose: on("dispose"),
     ...(kind === "sidebar" ? { onDidChangeVisibility: on("shown") } : { onDidChangeViewState: on("shown") }),
+    visible: true,
     fire(name: string): void {
       for (const cb of listeners.get(name) ?? []) cb();
     },
   };
 }
 
-type FakeView = ReturnType<typeof fakeView>;
+function makeViews(onShown: (view: unknown) => void = () => {}) {
+  return new ChatViews({} as never, () => {}, onShown as never);
+}
 
 describe("chat view handle lifecycle", () => {
   it("drops a disposed sidebar view so the recreated one can become the focus target", () => {
-    const ctrl = fakeController();
+    const views = makeViews();
     const old = fakeView("sidebar");
-    attachView.call(ctrl, old);
-    expect(ctrl.sidebarView).toBe(old);
+    views.attachView(old as never);
+    expect(views.size).toBe(1);
 
     old.fire("dispose");
+    expect(views.size).toBe(0);
 
-    expect(ctrl.sidebarView).toBeUndefined();
     const fresh = fakeView("sidebar");
-    attachView.call(ctrl, fresh);
-    expect(ctrl.sidebarView).toBe(fresh);
-    expect(ctrl.view).toBe(fresh);
+    views.attachView(fresh as never);
+    expect(views.size).toBe(1);
+    expect(views.hasPrimary).toBe(true);
+    expect(views.has(fresh as never)).toBe(true);
   });
 
   it("clears the panel handle when a restored editor tab is disposed", () => {
-    const ctrl = fakeController();
+    const views = makeViews();
     const panel = fakeView("panel");
-    attachPanel.call(ctrl, panel);
-    expect(ctrl.panel).toBe(panel);
+    views.attachPanel(panel as never);
+    expect(views.hasPanel).toBe(true);
 
     panel.fire("dispose");
+    expect(views.hasPanel).toBe(false);
 
-    expect(ctrl.panel).toBeUndefined();
+    // A second attach must not find a stale panel to reveal; it simply registers the fresh one.
+    const fresh = fakeView("panel");
+    views.attachPanel(fresh as never);
+    expect(views.has(fresh as never)).toBe(true);
+    expect(views.hasPanel).toBe(true);
+  });
+
+  it("only calls the shown callback while the view is still attached and visible", () => {
+    let calls = 0;
+    const views = makeViews(() => { calls++; });
+    const view = fakeView("sidebar");
+    views.attachView(view as never);
+    view.fire("shown");
+    expect(calls).toBe(1);
+    view.visible = false;
+    view.fire("shown");
+    expect(calls).toBe(1);
   });
 });
 
@@ -126,13 +126,14 @@ describe("loadSession staleness", () => {
       refreshChanges: vi.fn().mockResolvedValue([]),
       startLivePoll: vi.fn(),
     };
-    const loadSession = proto["loadSession"] as unknown as (
+    const proto = ChatController.prototype as unknown as Record<string, (...args: unknown[]) => unknown>;
+    const fn = proto["loadSession"] as unknown as (
       this: typeof c,
       info: unknown,
       stale: () => boolean,
     ) => Promise<void>;
 
-    await loadSession.call(c, { id: "new", time: {} }, () => stale);
+    await fn.call(c, { id: "new", time: {} }, () => stale);
 
     expect(c.ctx.workspaceState.update).not.toHaveBeenCalled();
     expect(c.post).not.toHaveBeenCalled();

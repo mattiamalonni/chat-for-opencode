@@ -27,7 +27,7 @@ function fakeController(notifyComplete = false) {
     isVisible: false,
     lastSessionEventAt: 0,
     announcedHiddenAttention: new Set<string>(),
-    executionGen: { current: () => 7, bump: vi.fn() },
+    lifecycle: { generations: { execution: { current: () => 7, bump: vi.fn() } } },
     postSessionEvent: vi.fn(),
     isTrackedSession: vi.fn(() => false),
     scheduleSessions: vi.fn(),
