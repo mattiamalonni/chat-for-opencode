@@ -28,7 +28,7 @@ import {
   normalizeSessionInfo,
   normalizeSessionMessage,
 } from "../shared/adapter";
-import { eventSessionId, sessionIsBusy, sessionLooksBusy, toSessionSummary } from "../shared/chatReducer";
+import { eventSessionId, sessionIsBusy } from "../shared/chatReducer";
 import { parseSubagentReport } from "../shared/subagentReport";
 import { checkCompatibility } from "../shared/compatibility";
 import { DEFAULT_STARTUP_TIMEOUT_MS, jitteredDelay } from "../shared/constants";
@@ -40,7 +40,6 @@ import type {
   ContextItem,
   DroppedFile,
   HostMessage,
-  SessionSummary,
   UiError,
   UiErrorKind,
   WebviewMessage,
@@ -48,6 +47,7 @@ import type {
 import { STRINGS, type Strings } from "../shared/strings";
 import { resolveAttachment } from "./attachments";
 import { AttachmentService, mimeFromName } from "./attachmentService";
+import { SessionListService, type SessionSearchResult } from "./sessionListService";
 import { SubagentTracker } from "./subagentTracker";
 import { ContextTracker, FileIndex, selectionAttachment } from "./context";
 import { ChatViews, type ChatWebview } from "./views";
@@ -84,27 +84,7 @@ function subagentSessionsFromMessages(messages: SessionMessage[]): string[] {
   return [...ids];
 }
 
-/** Collect all readable text out of an unknown wire value, for cross-session search snippets. */
-function searchableText(value: unknown): string {
-  if (typeof value === "string") return value;
-  if (Array.isArray(value)) return value.map(searchableText).join(" ");
-  if (value && typeof value === "object") {
-    return Object.entries(value as Record<string, unknown>)
-      .filter(([key]) => key !== "id" && key !== "sessionID")
-      .map(([, v]) => searchableText(v))
-      .join(" ");
-  }
-  return "";
-}
-
-/** A hit in a session title or in one of its messages, opened from the palette search. */
-export interface SessionSearchResult {
-  sessionId: string;
-  title: string;
-  snippet: string;
-  messageId?: string;
-  updated: number;
-}
+export type { SessionSearchResult } from "./sessionListService";
 
 let cachedStrings: Strings | undefined;
 /** Locale and the string table are static for a session: translate once, not on every error/reconnect. */
@@ -219,19 +199,8 @@ export class ChatController implements vscode.Disposable {
   private readonly permissions: PermissionService;
   /** All in-flight tokens and timers live in one place; see lifecycle.ts. */
   private readonly lifecycle = new ChatLifecycle();
-  private sessionsCursor: string | undefined;
-  private sessionsHasMore = false;
-  /** Forks are child sessions, so the normal `parentID=null` page hides them; keep them listed. */
-  private readonly forkedSessionIds = new Set<string>();
-  private sessionsLoadingMore = false;
-  private sessionItems: SessionSummary[] = [];
-  /**
-   * Deep session state (busy/needsInput) needs three HTTP calls per busy session. Event bursts
-   * refresh the list many times per second, so reuse a short-lived result while `time.updated`
-   * is unchanged. The open session is always fetched: it is the one the user is looking at.
-   */
-  private readonly summaryCache = new Map<string, { updated: number; expires: number; busy: boolean; needsInput: boolean }>();
-  private readonly forkInfoCache = new Map<string, { info: SessionInfo; expires: number }>();
+  /** Picker paging, summaries, fork visibility and bounded search; see sessionListService.ts. */
+  private readonly sessionList: SessionListService;
   /**
    * Last locally-posted idle status. A resync before the next turn must not re-lock the composer
    * with stale server timestamps (e.g. a dismissed question leaves `busy` newer than `idle`).
@@ -285,6 +254,18 @@ export class ChatController implements vscode.Disposable {
       (line) => output.warn(line),
       (client, childId, requests, autoApprove) => this.permissions.filterPending(client, childId, requests, autoApprove),
       () => this.autoApproveEnabled(),
+    );
+    this.sessionList = new SessionListService(
+      () => this.client,
+      () => this.folder?.uri.fsPath,
+      () => this.sessionId,
+      this.lifecycle.generations.sessions,
+      (msg) => this.post(msg),
+      (line) => output.warn(line),
+      () => {
+        const configured = vscode.workspace.getConfiguration("opencode", this.folder?.uri).get<number>("sessionPageSize", 10);
+        return Math.min(100, Math.max(1, Math.floor(configured) || 10));
+      },
     );
     this.context = new ContextTracker((items) => this.post({ type: "context", items }));
     this.permissions = new PermissionService(ctx, () => this.folder, (line) => output.info(line));
@@ -357,44 +338,9 @@ export class ChatController implements vscode.Disposable {
     this.chatViews.openChatInEditor();
   }
 
-  /**
-   * Search session titles and message bodies across the workspace. Explicit user action, so a
-   * bounded full scan is acceptable here (the periodic list refresh stays cached and cheap).
-   */
+  /** Search session titles and message bodies across the workspace (delegated to the picker service). */
   async searchSessions(query: string, maxSessions = 200): Promise<SessionSearchResult[]> {
-    const client = this.client;
-    const folder = this.folder;
-    const needle = query.trim().toLowerCase();
-    if (!client || !folder || !needle) return [];
-    const results: SessionSearchResult[] = [];
-    const seen = new Set<string>();
-    const cursors = new Set<string>();
-    let cursor: string | undefined;
-    while (seen.size < maxSessions) {
-      if (cursor && cursors.has(cursor)) break;
-      if (cursor) cursors.add(cursor);
-      const page = await client.listSessionsPage(folder.uri.fsPath, 100, cursor).catch(() => ({ items: [] as SessionInfo[], next: undefined as string | undefined }));
-      for (const raw of page.items) {
-        const info = normalizeSessionInfo(raw) ?? raw;
-        if (info.parentID || info.time.archived || seen.has(info.id)) continue;
-        seen.add(info.id);
-        const title = info.title ?? "";
-        if (title.toLowerCase().includes(needle)) {
-          results.push({ sessionId: info.id, title: title || vscode.l10n.t("Untitled session"), snippet: vscode.l10n.t("Title match"), updated: info.time.updated });
-          continue;
-        }
-        const messages = await client.messages(info.id, 200).catch(() => [] as SessionMessage[]);
-        const match = messages.find((m) => searchableText(m).toLowerCase().includes(needle));
-        if (!match) continue;
-        const text = searchableText(match);
-        const at = text.toLowerCase().indexOf(needle);
-        const snippet = text.slice(Math.max(0, at - 40), at + needle.length + 60).trim();
-        results.push({ sessionId: info.id, title: title || vscode.l10n.t("Untitled session"), snippet, messageId: match.id, updated: info.time.updated });
-      }
-      if (!page.next || page.items.length === 0) break;
-      cursor = page.next;
-    }
-    return results.sort((a, b) => b.updated - a.updated);
+    return this.sessionList.search(query, maxSessions);
   }
 
   /** Opens the session a search hit came from and asks the webview to scroll to its message. */
@@ -1273,105 +1219,12 @@ export class ChatController implements vscode.Disposable {
     }
   }
 
-  private postSessions(): void {
-    this.post({ type: "sessions", items: this.sessionItems, currentId: this.sessionId, hasMore: this.sessionsHasMore });
-  }
-
-  /**
-   * The cheap session list only carries timestamps. Only entries that look busy need their history
-   * and pending requests fetched: a terminal `idle` message can prove the busy flag stale after an
-   * interrupt, and the list should agree with the chat that already uses `sessionIsBusy`.
-   */
-  private async toSummaries(sessions: SessionInfo[]): Promise<SessionSummary[]> {
-    const client = this.client;
-    const now = Date.now();
-    return Promise.all(
-      sessions.map(async (info) => {
-        const safe = normalizeSessionInfo(info) ?? info;
-        if (!client || !sessionLooksBusy(safe.time)) return toSessionSummary(safe);
-        const cached = this.summaryCache.get(info.id);
-        if (cached && cached.updated === safe.time.updated && cached.expires > now && info.id !== this.sessionId) {
-          return { ...toSessionSummary(safe), busy: cached.busy, needsInput: cached.needsInput };
-        }
-        // Only a session whose turn is still running can be paused on a question or a permission
-        // request, so fetch the pending-input state together with the history we already need.
-        const [messages, permissions, forms] = await Promise.all([
-          client.messages(info.id).catch(() => undefined),
-          client.permissions(info.id).catch(() => []),
-          client.forms(info.id).catch(() => []),
-        ]);
-        const summary = toSessionSummary(safe, messages && normalizeList(messages, normalizeSessionMessage), permissions.length > 0 || forms.length > 0);
-        if (this.summaryCache.size > 200) this.summaryCache.delete(this.summaryCache.keys().next().value as string);
-        this.summaryCache.set(info.id, { updated: safe.time.updated, expires: Date.now() + 3000, busy: summary.busy, needsInput: summary.needsInput });
-        return summary;
-      }),
-    );
-  }
-
-  /** Page size for the session list; kept small so the picker stays scannable. */
-  private sessionPageSize(): number {
-    const configured = vscode.workspace.getConfiguration("opencode", this.folder?.uri).get<number>("sessionPageSize", 10);
-    return Math.min(100, Math.max(1, Math.floor(configured) || 10));
-  }
-
   async refreshSessions(): Promise<void> {
-    if (!this.client || !this.folder) return;
-    const generation = this.lifecycle.generations.sessions.bump();
-    const { items, next } = await this.client.listSessionsPage(this.folder.uri.fsPath, this.sessionPageSize());
-    // Normalize before dereferencing: a server that omits `time` would otherwise throw here and
-    // abort the whole refresh (the caller only sees a rejected promise and an empty picker).
-    const sessions = items.map((s) => normalizeSessionInfo(s) ?? s).filter((s) => !s.parentID && !s.time.archived);
-    // A fork is a child session, so it never appears in the parent-only page. Keep the ones this
-    // window created visible at the top of the picker instead of losing them after a refresh.
-    const forks: SessionInfo[] = [];
-    const now = Date.now();
-    for (const id of this.forkedSessionIds) {
-      if (sessions.some((s) => s.id === id)) continue;
-      const cached = this.forkInfoCache.get(id);
-      const info = cached && cached.expires > now
-        ? cached.info
-        : await this.client.getSession(id).then((s) => normalizeSessionInfo(s) ?? s).catch(() => undefined);
-      if (info && !info.time.archived) {
-        forks.push(info);
-        if (info !== cached?.info) this.forkInfoCache.set(id, { info, expires: now + 30_000 });
-      } else {
-        this.forkInfoCache.delete(id);
-      }
-    }
-    const summaries = await this.toSummaries([...forks, ...sessions]);
-    if (!this.lifecycle.generations.sessions.is(generation)) return;
-    this.sessionItems = summaries;
-    this.sessionsCursor = next;
-    this.sessionsHasMore = !!next;
-    this.postSessions();
+    await this.sessionList.refresh();
   }
 
-  /** Appends the next page of sessions without discarding the ones already loaded. */
   async loadMoreSessions(): Promise<void> {
-    if (!this.client || !this.folder || !this.sessionsCursor || this.sessionsLoadingMore) return;
-    this.sessionsLoadingMore = true;
-    const generation = this.lifecycle.generations.sessions.current();
-    try {
-      const { items, next } = await this.client.listSessionsPage(this.folder.uri.fsPath, this.sessionPageSize(), this.sessionsCursor);
-      const known = new Set(this.sessionItems.map((s) => s.id));
-      const fresh: SessionInfo[] = [];
-      for (const raw of items) {
-        const s = normalizeSessionInfo(raw) ?? raw;
-        if (s.parentID || s.time.archived || known.has(s.id)) continue;
-        known.add(s.id);
-        fresh.push(s);
-      }
-      const summaries = await this.toSummaries(fresh);
-      if (!this.lifecycle.generations.sessions.is(generation)) return;
-      this.sessionItems.push(...summaries);
-      this.sessionsCursor = next;
-      this.sessionsHasMore = !!next;
-      this.postSessions();
-    } catch (err) {
-      this.output.warn(`[chat] failed to load more sessions: ${String(err)}`);
-    } finally {
-      this.sessionsLoadingMore = false;
-    }
+    await this.sessionList.loadMore();
   }
 
   /**
@@ -1408,11 +1261,7 @@ export class ChatController implements vscode.Disposable {
       }
     }
 
-    for (const id of deleted) {
-      this.forkedSessionIds.delete(id);
-      this.summaryCache.delete(id);
-      this.forkInfoCache.delete(id);
-    }
+    this.sessionList.forget(deleted);
     if (deleted.length > 0) {
       const key = DRAFTS_KEY(folder.uri.toString());
       const saved = this.ctx.workspaceState.get<{ drafts?: Record<string, string> }>(key) ?? {};
@@ -1528,7 +1377,7 @@ export class ChatController implements vscode.Disposable {
     try {
       const info = await client.forkSession(sessionId, messageID);
       if (!this.lifecycle.generations.load.is(generation) || client !== this.client) return;
-      this.forkedSessionIds.add(info.id);
+      this.sessionList.addFork(info.id);
       await this.loadSession(info, () => !this.lifecycle.generations.load.is(generation) || client !== this.client);
       if (client !== this.client) return;
       this.post({ type: "forked", sessionId: info.id, title: info.title });
@@ -1751,15 +1600,11 @@ export class ChatController implements vscode.Disposable {
     this.server = undefined;
     this.permissions.setPending(undefined);
     this.lifecycle.generations.sessions.bump();
-    this.sessionItems = [];
-    this.sessionsCursor = undefined;
-    this.sessionsHasMore = false;
-    this.forkedSessionIds.clear();
+    this.sessionList.reset();
     this.folder = folder;
     this.postInit();
     this.post({ type: "session", session: null });
     this.post({ type: "changedFiles", files: [] });
-    this.postSessions();
     this.postAutoApprove();
     await this.connect();
   }
@@ -1917,7 +1762,7 @@ export class ChatController implements vscode.Disposable {
       case "deleteSession":
         if (!this.client) return;
         await this.client.deleteSession(msg.id);
-        this.forkedSessionIds.delete(msg.id);
+        this.sessionList.forget([msg.id]);
         await this.permissions.write(msg.id, undefined);
         if (this.folder) {
           const key = DRAFTS_KEY(this.folder.uri.toString());
@@ -1949,11 +1794,7 @@ export class ChatController implements vscode.Disposable {
         if (!title) return;
         await this.client.renameSession(msg.id, title);
         // Update optimistically so the header/list react even if the live event is missed.
-        const item = this.sessionItems.find((s) => s.id === msg.id);
-        if (item) {
-          item.title = title;
-          this.postSessions();
-        }
+        this.sessionList.rename(msg.id, title);
         if (msg.id === this.sessionId) {
           this.post({ type: "event", event: { type: "session.renamed", data: { sessionID: msg.id, title } } });
         }

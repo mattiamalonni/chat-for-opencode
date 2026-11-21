@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- **Architecture:** the session picker moved into `SessionListService` (paging, busy summaries and
+  their cache, fork visibility, rename/delete bookkeeping and the bounded cross-session index).
+  The controller keeps `loadSession` and delegates list work; the cache and search tests now target
+  the service directly.
 - **Architecture:** subagent bookkeeping (discovery, nested parent chain, event buffering and history
   snapshots) moved into `SubagentTracker`, with unit tests for routing and cleanup. The controller's
   event handler no longer owns child-session state.
