@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- **Robustness:** the webview's live-event queues are now bounded (500 events each). With the chat
+  hidden, `requestAnimationFrame` is suspended while the SSE stream keeps delivering events; instead
+  of growing forever, the queue keeps the newest events and asks the host once for a fresh snapshot.
 - **Performance:** long conversations now skip layout and paint for off-screen cards via
   `content-visibility: auto` with a remembered intrinsic size, instead of paying for every turn on
   each streamed frame. `KNOWN_LIMITS.md` no longer claims DOM windowing, which the renderer never

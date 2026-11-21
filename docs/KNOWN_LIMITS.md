@@ -34,8 +34,8 @@ test or a manual probe actually ran.
   off-screen turns skip layout and paint. This is **not true DOM windowing**: every message is still
   built as a node and `conversationItems()` is recomputed on each update, so the cost still grows
   with the length of the history. The remote caches (auto-approved ids, virtual diffs, subagents and
-  their metadata, touched files) are bounded to prevent unbounded growth, but a single conversation
-  with very large messages or patches is still not profiled.
+  their metadata, touched files) and the webview's live-event queues are bounded to prevent unbounded
+  growth, but a single conversation with very large messages or patches is still not profiled.
 - **External server mode with a real remote server** — tested only against the mock server (unit).
 
 ## Behaviour limits

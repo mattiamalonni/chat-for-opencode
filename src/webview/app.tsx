@@ -35,6 +35,9 @@ import { SubagentNavContext, SubagentsContext, type SubagentEntry } from "./suba
 import { ActionButton, AssistantStatus, FileList, MessageView, messageSearchText, ToolCard, ToolGroup, TurnStatsRow } from "./messages";
 import { hydrateDrafts, onHostMessage, post, setDraft } from "./vscode";
 
+/** Bounded queue: a hidden webview gets no requestAnimationFrame, so SSE events cannot drain. */
+const MAX_QUEUED_EVENTS = 500;
+
 interface Catalog {
   models: ModelInfo[];
   agents: AgentInfo[];
@@ -101,6 +104,10 @@ export function App() {
   const dragDepth = useRef(0);
   const queue = useRef<ServerEvent[]>([]);
   const childQueue = useRef<SubagentEvent[]>([]);
+  // A hidden webview gets no animation frames, so the SSE queues cannot drain. Cap them and ask the
+  // host for a fresh snapshot instead of accumulating events forever.
+  const resyncPending = useRef(false);
+  const childResyncPending = useRef(new Set<string>());
   const frame = useRef<number | undefined>(undefined);
   const tooltipFrame = useRef<number | undefined>(undefined);
   // Conversation-scoped state must be dropped when the loaded session changes (new session,
@@ -108,6 +115,17 @@ export function App() {
   const lastSessionId = useRef<string | null | undefined>(undefined);
 
   useEffect(() => {
+    const requestResync = () => {
+      if (resyncPending.current) return;
+      resyncPending.current = true;
+      // The `session` message replaces the truncated history and clears both queues.
+      post({ type: "sync" });
+    };
+    const requestChildResync = (sid: string) => {
+      if (childResyncPending.current.has(sid)) return;
+      childResyncPending.current.add(sid);
+      post({ type: "refreshSubagent", sessionId: sid });
+    };
     const flush = () => {
       frame.current = undefined;
       const events = queue.current;
@@ -142,6 +160,8 @@ export function App() {
         case "session": {
           queue.current = [];
           childQueue.current = [];
+          resyncPending.current = false;
+          childResyncPending.current.clear();
           const id = msg.session?.id ?? null;
           if (lastSessionId.current !== id) {
             lastSessionId.current = id;
@@ -188,10 +208,15 @@ export function App() {
           break;
         case "event":
           queue.current.push(msg.event);
+          if (queue.current.length > MAX_QUEUED_EVENTS) {
+            queue.current = queue.current.slice(-MAX_QUEUED_EVENTS);
+            requestResync();
+          }
           frame.current ??= requestAnimationFrame(flush);
           break;
         case "subagent":
           // A snapshot is authoritative for its child; drop any live events queued before it.
+          childResyncPending.current.delete(msg.snapshot.sessionId);
           childQueue.current = childQueue.current.filter((e) => e.sessionId !== msg.snapshot.sessionId);
           subagentDispatch({ type: "snapshot", snapshot: msg.snapshot });
           // A running child has no id in the tool's persisted metadata, so link it now: without
@@ -200,6 +225,10 @@ export function App() {
           break;
         case "subagentEvent":
           childQueue.current.push({ sessionId: msg.sessionId, event: msg.event });
+          if (childQueue.current.length > MAX_QUEUED_EVENTS) {
+            childQueue.current = childQueue.current.slice(-MAX_QUEUED_EVENTS);
+            requestChildResync(msg.sessionId);
+          }
           frame.current ??= requestAnimationFrame(flush);
           break;
         case "context":

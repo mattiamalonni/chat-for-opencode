@@ -2523,6 +2523,21 @@ test("every turn has a rollback button that targets its own prompt and restores 
   expect(await lastPosted(page, "saveDraft")).toEqual({ type: "saveDraft", sessionId: S1, text: "first prompt" });
 });
 
+test("a flood of live events is bounded and requests a single resync", async ({ page }) => {
+  await boot(page);
+  await host(page, { type: "session", session: { id: S1, busy: false, messages: [], permissions: [], forms: [] } });
+  // Dispatch synchronously so no animation frame can drain the queue between events, like a hidden
+  // webview whose rAF is suspended.
+  await page.evaluate((sid) => {
+    for (let i = 0; i < 700; i++) {
+      window.dispatchEvent(new MessageEvent("message", {
+        data: { type: "event", event: { type: "session.status", created: i, data: { sessionID: sid, status: { type: "idle" } } } },
+      }));
+    }
+  }, S1);
+  expect((await posted(page)).filter((m) => m.type === "sync")).toHaveLength(1);
+});
+
 test("off-screen conversation cards are skipped with content-visibility", async ({ page }) => {
   await boot(page);
   await host(page, {
