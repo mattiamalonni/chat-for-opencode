@@ -388,6 +388,21 @@ describe("chat-for-opencode extension", () => {
     assert.ok(s.session!.messages.some((m) => m.type === "user" && m.text === "hello there"));
   });
 
+  it("still sends the prompt when the first history fetch fails", async () => {
+    // A transient 500 on the history endpoint used to reject loadSession() before `prompt()`,
+    // silently swallowing the user's message. The fetch now degrades to an empty history.
+    // Placed after the "resumes the stored session" test so it does not change that session.
+    await controller.receive({ type: "newSession" });
+    const baseUrl = controller.debugState.baseUrl!;
+    const armed = await fetch(`${baseUrl}/__mock/failHistoryOnce`, { method: "POST" });
+    assert.equal(armed.status, 204);
+    const mark = posted.length;
+    await controller.receive({ type: "send", text: "after history failure", attachments: [], context: [] });
+    await waitFor(() => eventPosted("session.execution.succeeded", mark), "execution succeeded despite history failure");
+    assert.ok(eventPosted("session.text.delta", mark), "reply streamed after history failure");
+    assert.ok(controller.debugState.sessionId?.startsWith("ses_"), "a session was created");
+  });
+
   it("restarts the server automatically after a crash", async () => {
     const oldUrl = controller.debugState.baseUrl;
     const mark = posted.length;

@@ -113,6 +113,7 @@ export function startMockServer(opts: MockOptions = {}): Promise<MockServer> {
   let catalogEverReady = false;
   const stepMs = opts.stepMs ?? 10;
   let noModels = opts.noModels ?? false;
+  let failHistoryOnce = false;
   const sessions = new Map<string, MockSession>();
   const clients = new Set<http.ServerResponse>();
   const requests: MockServer["requests"] = [];
@@ -446,6 +447,12 @@ export function startMockServer(opts: MockOptions = {}): Promise<MockServer> {
       return send(res, 204);
     }
 
+    // Test-only: make the next history fetch fail, to exercise the host's degraded path.
+    if (path === "/__mock/failHistoryOnce" && req.method === "POST") {
+      failHistoryOnce = true;
+      return send(res, 204);
+    }
+
     // Test-only: seed pending inbox items without going through a running turn.
     if (path === "/__mock/inbox" && req.method === "POST") {
       const b = (body ?? {}) as Json;
@@ -526,6 +533,10 @@ export function startMockServer(opts: MockOptions = {}): Promise<MockServer> {
         return send(res, 200, { data: s.info });
       }
       if (rest === "message") {
+        if (failHistoryOnce) {
+          failHistoryOnce = false;
+          return send(res, 500, { _tag: "HistoryUnavailable", message: "injected history failure" });
+        }
         if (url.searchParams.has("cursor") && url.searchParams.has("order")) {
           return send(res, 400, { _tag: "InvalidCursorError", message: "Cursor cannot be combined with order" });
         }

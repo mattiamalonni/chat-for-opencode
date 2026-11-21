@@ -1,8 +1,11 @@
+import { OPENAPI_SNAPSHOT_VERSION } from "./openapi.generated";
+
 /**
- * Version of OpenCode whose API contract this extension was built against (types from
- * docs/openapi-2.2.7.json and the recorded SSE fixtures). Keep in sync with that snapshot.
+ * Version of OpenCode whose API contract this extension was built against. The generated module
+ * derives it from the OpenAPI snapshot file name, so this is the single source of truth: upgrading
+ * the snapshot is the one place that needs to change.
  */
-export const SUPPORTED_SERVER_VERSION = "2.2.7";
+export const SUPPORTED_SERVER_VERSION = OPENAPI_SNAPSHOT_VERSION;
 
 export type Compatibility = "ok" | "untested" | "unsupported" | "unknown";
 

@@ -200,8 +200,10 @@ Auto-approval is off by default; only enable it when you trust unattended edits 
 ## Privacy & security
 
 - No telemetry, no analytics, no network calls other than to the local/configured OpenCode server.
+  Icon themes that reference remote images or fonts are not fetched.
 - Provider authentication stays in OpenCode; the extension never sees API keys.
 - The webview has a strict CSP (nonce scripts, no remote code) and sanitises Markdown with DOMPurify.
+  Paths from model output are confined to the workspace, including in native diffs.
 
 ## Development
 

@@ -671,6 +671,13 @@ function str(d: Data, k: string): string {
   return typeof v === "string" ? v : "";
 }
 
+/** Accept only a well-formed model ref from a live event; drift must not poison `chat.model`. */
+function asModelRef(value: unknown): ModelRef | undefined {
+  const model = value as ModelRef | undefined;
+  if (!model || typeof model.id !== "string" || typeof model.providerID !== "string") return undefined;
+  return model;
+}
+
 /**
  * Live `permission.asked`/`form.created` events come straight off the wire (the resync path, by
  * contrast, normalises them in the host). Guarantee the fields the cards dereference so one
@@ -909,7 +916,7 @@ export function applyEvent(state: ChatState, event: ServerEvent): ChatState {
       return updateAssistant(
         counted,
         msgId,
-        (m) => ({ ...m, agent: str(d, "agent") || m.agent, model: (d.model as ModelRef) ?? m.model, done: false }),
+        (m) => ({ ...m, agent: str(d, "agent") || m.agent, model: asModelRef(d.model) ?? m.model, done: false }),
         () => ({ kind: "assistant", id: msgId, created, agent: str(d, "agent"), parts: [], done: false }),
       );
     }
@@ -1080,8 +1087,8 @@ export function applyEvent(state: ChatState, event: ServerEvent): ChatState {
       return { ...state, agent: str(d, "agent") };
     case "session.model.selected": {
       // Ignore shape drift instead of overwriting a valid selection with `undefined`.
-      const model = d.model as ModelRef | undefined;
-      if (!model || typeof model.id !== "string" || typeof model.providerID !== "string") return state;
+      const model = asModelRef(d.model);
+      if (!model) return state;
       return { ...state, model };
     }
     case "session.compaction.ended":

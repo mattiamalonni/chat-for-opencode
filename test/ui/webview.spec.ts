@@ -821,6 +821,34 @@ test("renders markdown with highlighted code and copies code via the host", asyn
   expect(await lastPosted(page, "openLink")).toEqual({ type: "openLink", href: "https://opencode.ai" });
 });
 
+test("sanitises crafted HTML without smuggling fake actions or file links", async ({ page }) => {
+  await boot(page);
+  const sid = "ses_xss";
+  const md = [
+    '<a data-file="/etc/passwd" href="/etc/passwd">fake file</a>',
+    '<button data-action="copy-code">fake copy</button>',
+    '<a href="javascript:alert(1)">js link</a>',
+    "<svg><script>alert(1)</script></svg>",
+    "<form><input type=\"text\"></form>",
+    '<img src=x onerror="alert(1)">',
+    "legit.ts:12",
+  ].join("\n\n");
+  await openSession(page, sid, [
+    { type: "session.step.started", data: { sessionID: sid, assistantMessageID: "m1", agent: "build", model: { id: "x", providerID: "y" } } },
+    { type: "session.text.started", data: { sessionID: sid, assistantMessageID: "m1", ordinal: 0 } },
+    { type: "session.text.delta", data: { sessionID: sid, assistantMessageID: "m1", ordinal: 0, delta: md } },
+    { type: "session.step.ended", data: { sessionID: sid, assistantMessageID: "m1", finish: "stop" } },
+  ]);
+  await expect(page.locator(".md a[data-file='/etc/passwd']")).toHaveCount(0);
+  await expect(page.locator('.md button[data-action="copy-code"]')).toHaveCount(0);
+  await expect(page.locator('.md a[href^="javascript:"]')).toHaveCount(0);
+  await expect(page.locator(".md svg script")).toHaveCount(0);
+  await expect(page.locator(".md form, .md input")).toHaveCount(0);
+  await expect(page.locator(".md img[onerror]")).toHaveCount(0);
+  // A genuine prose file reference is still linkified after sanitisation.
+  await expect(page.locator(".md a[data-file='legit.ts:12']")).toHaveCount(1);
+});
+
 test("plain-text file references open at the exact line", async ({ page }) => {
   await boot(page);
   const sid = "ses_refs";

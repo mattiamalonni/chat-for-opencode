@@ -55,7 +55,7 @@ export function activate(context: vscode.ExtensionContext): ExtensionApi {
   // before starting any new one, but leave servers owned by other live VS Code windows alone.
   void cleanupOrphanServers(recordsDir, log);
   registry = new ServerRegistry(context.secrets, log, recordsDir);
-  const diffs = new DiffService();
+  const diffs = new DiffService((line) => output.warn(line));
   controller = new ChatController(context, registry, diffs, output);
   const chat = controller;
 

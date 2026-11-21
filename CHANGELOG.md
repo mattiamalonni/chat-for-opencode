@@ -2,6 +2,26 @@
 
 ## Unreleased
 
+- **Security:** the native diff flow now applies the same workspace-containment rule as file links.
+  A path from tool metadata can no longer make the host read a file outside the folder through an
+  absolute path or a `../` escape; blocked attempts are logged. Icon-theme asset paths are resolved
+  (so `../` cannot escape the theme directory) and remote `https:` assets are deliberately not
+  fetched, matching the "no network calls" promise and the webview CSP.
+- **Robustness:** a transient failure fetching a new session's history no longer swallows the first
+  prompt — `send()` proceeds with an empty history and the live stream fills it in. Session lists are
+  normalized before their timestamps are read, so a server that omits `time` cannot abort a refresh.
+  Malformed model refs in live events are ignored instead of overwriting a valid selection, and
+  oversized error bodies are capped before they reach the notice UI.
+- **Memory:** listeners tied to the webview are now disposed as a group when the view is rebuilt;
+  auto-approved permission ids and tracked subagents are capped (FIFO), including the previously
+  unbounded subagent metadata.
+- **Tests:** added unit coverage for orphan-server reaping (the code that kills OS processes), the
+  diff containment guard, the contract smoke test, the bounded caches and the configuration-snapshot
+  parity. Added a real-browser regression for crafted HTML in replies and an integration test that a
+  prompt still ships when history loading fails. The supported server version now comes from the
+  generated OpenAPI snapshot, and the startup/HTTP timeouts are shared constants checked against
+  `package.json`.
+
 - Fixed the composer being re-locked on **Stop** after an abort, a rejected permission or a cancelled
   question: the local-idle guard used for reconnect/visibility resyncs compared the load counter
   instead of the execution counter, so stale server timestamps could restore the busy state.

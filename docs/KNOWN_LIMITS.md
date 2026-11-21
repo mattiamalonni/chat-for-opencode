@@ -30,7 +30,9 @@ test or a manual probe actually ran.
 - **Long sessions / performance.** History pagination is capped at 2000 messages; markdown is
   re-rendered per streaming frame (cached, batched with `requestAnimationFrame`). Reconnects fetch
   only the tail and merge it via `sessionDelta`, and conversations over 40 messages are windowed
-  when rendering. Not profiled with very large sessions.
+  when rendering. The remote caches (auto-approved ids, virtual diffs, subagents and their metadata,
+  touched files) are bounded to prevent unbounded growth, but a single conversation with very large
+  messages or patches is still not profiled.
 - **External server mode with a real remote server** — tested only against the mock server (unit).
 
 ## Behaviour limits
@@ -85,11 +87,14 @@ test or a manual probe actually ran.
   read/parsed, chips keep the extension's built-in fallback icons. The language id is inferred from
   file names/extensions in `contributes.languages` (plus `files.associations`); a language selected
   by its first line only, or an unusual theme structure, can resolve to the theme's default icon.
+  Themes that reference remote `https:` assets are not supported: the extension never fetches them
+  and the webview CSP does not allow remote images or fonts, so those icons stay empty.
 - **File references open only inside the workspace.** Model output is untrusted: `data-file`
   attributes from raw HTML are stripped before prose is linkified, and the host refuses to open a
-  reference that resolves outside the folder (including `../` escapes and absolute paths).
-  Permission resources for files genuinely outside the workspace therefore cannot be opened by
-  clicking them; open those from the explorer instead.
+  reference that resolves outside the folder (including `../` escapes and absolute paths). The same
+  containment rule applies to native diffs opened from tool metadata. Permission resources for files
+  genuinely outside the workspace therefore cannot be opened by clicking them; open those from the
+  explorer instead.
 
 - **Inline attachment copies** (clipboard images, files pasted or dropped without a path) are written
   to the OS temp folder so their chips can be opened in the editor. The host keeps at most 50 of them,

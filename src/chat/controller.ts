@@ -34,6 +34,7 @@ import {
 import { eventSessionId, sessionIsBusy, sessionLooksBusy, toSessionSummary } from "../shared/chatReducer";
 import { parseSubagentReport } from "../shared/subagentReport";
 import { checkCompatibility } from "../shared/compatibility";
+import { DEFAULT_STARTUP_TIMEOUT_MS } from "../shared/constants";
 import { checkContract, contractSignature, emptyContract, type ContractObservations } from "../shared/contract";
 import type {
   ActionId,
@@ -138,7 +139,7 @@ export class ServerRegistry implements vscode.Disposable {
         : new ManagedServer({
             folder: folder.uri.fsPath,
             executable: cfg.get<string>("executablePath", "opencode").trim() || "opencode",
-            startupTimeoutMs: cfg.get<number>("startupTimeout", 30_000),
+            startupTimeoutMs: cfg.get<number>("startupTimeout", DEFAULT_STARTUP_TIMEOUT_MS),
             autoRestart: cfg.get<boolean>("autoRestart", true),
             log: this.log,
             recordsDir: this.recordsDir,
@@ -182,6 +183,8 @@ function toUiError(err: unknown, fallback: UiErrorKind = "requestFailed"): UiErr
 
 export class ChatController implements vscode.Disposable {
   private view: vscode.WebviewView | undefined;
+  /** Listeners tied to the current webview; replaced as a group when the view is rebuilt. */
+  private viewSubscriptions: vscode.Disposable | undefined;
   private folder: vscode.WorkspaceFolder | undefined;
   private server: ServerHandle | undefined;
   private serverSub: (() => void) | undefined;
@@ -320,24 +323,31 @@ export class ChatController implements vscode.Disposable {
   // ---- view wiring ------------------------------------------------------------------------
 
   attachView(view: vscode.WebviewView): void {
+    // A view can be recreated (sidebar toggle, reload). Drop the previous view's listeners instead
+    // of accumulating them in `disposables`: disposed entries stayed referenced until the whole
+    // controller was disposed, so repeated rebuilds leaked a little memory each time.
+    this.viewSubscriptions?.dispose();
     this.view = view;
     const sub = view.webview.onDidReceiveMessage((msg: WebviewMessage) => void this.receive(msg));
-    // Register the subscription both here and on view disposal: if the controller is disposed
-    // while the view lives on, the old listener would otherwise keep it reachable forever.
-    this.disposables.push(sub);
-    this.disposables.push(view.onDidDispose(() => {
-      sub.dispose();
-      if (this.view === view) this.view = undefined;
-    }));
+    // The view's onDidDispose also tears down the message listener: if the controller is disposed
+    // while the view lives on, that listener would otherwise keep it reachable forever.
+    const onDispose = view.onDidDispose(() => {
+      if (this.view === view) {
+        this.view = undefined;
+        this.viewSubscriptions?.dispose();
+        this.viewSubscriptions = undefined;
+      }
+    });
     // The live stream has no replay: top up incrementally when the panel is shown again so a
     // chat left open in the background cannot drift from the server while it was hidden.
-    this.disposables.push(view.onDidChangeVisibility(() => {
+    const onVisibility = view.onDidChangeVisibility(() => {
       if (this.view !== view || !view.visible) return;
       // Back in view: the user can see the cards, so a later resync must not announce them again.
       this.announcedHiddenAttention.clear();
       // `resync()` also publishes a "connected" status, so never run it while still connecting.
       if (this.status === "connected" && this.client) void this.resync();
-    }));
+    });
+    this.viewSubscriptions = vscode.Disposable.from(sub, onDispose, onVisibility);
   }
 
   /** Serializes webview messages: a late `ready`/loadAll must not race a prompt and drop its events. */
@@ -1223,13 +1233,15 @@ export class ChatController implements vscode.Disposable {
     if (!this.client || !this.folder) return;
     const generation = this.sessionsGen.bump();
     const { items, next } = await this.client.listSessionsPage(this.folder.uri.fsPath, this.sessionPageSize());
-    const sessions = items.filter((s) => !s.parentID && !s.time.archived);
+    // Normalize before dereferencing: a server that omits `time` would otherwise throw here and
+    // abort the whole refresh (the caller only sees a rejected promise and an empty picker).
+    const sessions = items.map((s) => normalizeSessionInfo(s) ?? s).filter((s) => !s.parentID && !s.time.archived);
     // A fork is a child session, so it never appears in the parent-only page. Keep the ones this
     // window created visible at the top of the picker instead of losing them after a refresh.
     const forks: SessionInfo[] = [];
     for (const id of this.forkedSessionIds) {
       if (sessions.some((s) => s.id === id)) continue;
-      const info = await this.client.getSession(id).catch(() => undefined);
+      const info = await this.client.getSession(id).then((s) => normalizeSessionInfo(s) ?? s).catch(() => undefined);
       if (info && !info.time.archived) forks.push(info);
     }
     const summaries = await this.toSummaries([...forks, ...sessions]);
@@ -1249,7 +1261,8 @@ export class ChatController implements vscode.Disposable {
       const { items, next } = await this.client.listSessionsPage(this.folder.uri.fsPath, this.sessionPageSize(), this.sessionsCursor);
       const known = new Set(this.sessionItems.map((s) => s.id));
       const fresh: SessionInfo[] = [];
-      for (const s of items) {
+      for (const raw of items) {
+        const s = normalizeSessionInfo(raw) ?? raw;
         if (s.parentID || s.time.archived || known.has(s.id)) continue;
         known.add(s.id);
         fresh.push(s);
@@ -1425,7 +1438,12 @@ export class ChatController implements vscode.Disposable {
     const client = this.client;
     if (!client || !this.folder) return;
     const [rawMessages, rawPermissions, rawForms, rawInbox] = await Promise.all([
-      client.messages(rawInfo.id),
+      // The other fetches degrade to empty lists; history must too. `send()` awaits loadSession
+      // before posting, so a transient history error must not silently swallow the user's prompt.
+      client.messages(rawInfo.id).catch((err) => {
+        this.output.warn(`[chat] could not load session history: ${String(err)}`);
+        return [];
+      }),
       client.permissions(rawInfo.id).catch(() => []),
       client.forms(rawInfo.id).catch(() => []),
       client.inbox(rawInfo.id).catch(() => [] as InboxItem[]),
@@ -2112,12 +2130,8 @@ export class ChatController implements vscode.Disposable {
         : vscode.Uri.joinPath(this.folder.uri, file);
     // Rendered chat content is untrusted model output. Never open a path outside the workspace,
     // even if a crafted link or `../` sequence makes it through the webview's sanitizer.
-    const root = path.resolve(this.folder.uri.fsPath);
-    const target = path.resolve(uri.fsPath);
-    const lowerRoot = process.platform === "win32" ? root.toLowerCase() : root;
-    const lowerTarget = process.platform === "win32" ? target.toLowerCase() : target;
-    if (lowerTarget !== lowerRoot && !lowerTarget.startsWith(lowerRoot + path.sep)) {
-      this.output.warn(`[chat] blocked an attempt to open a file outside the workspace: ${target}`);
+    if (!isWithinDirectory(uri.fsPath, this.folder.uri.fsPath)) {
+      this.output.warn(`[chat] blocked an attempt to open a file outside the workspace: ${uri.fsPath}`);
       return;
     }
     const doc = await vscode.workspace.openTextDocument(uri.with({ query: "" }));
@@ -2192,6 +2206,8 @@ export class ChatController implements vscode.Disposable {
     this.fileIndex?.dispose();
     this.stopLivePoll();
     this.clearTimers();
+    this.viewSubscriptions?.dispose();
+    this.viewSubscriptions = undefined;
     for (const d of this.disposables) d.dispose();
   }
 

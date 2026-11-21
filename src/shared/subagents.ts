@@ -43,6 +43,23 @@ function emptyChild(sessionId: string): ChatState {
 }
 
 /**
+ * Evict the oldest children from every index together. Doing this on both the snapshot and the
+ * events path keeps `byId`, `meta` and `order` the same length: leaving stale `meta` entries (or
+ * skipping the cap for snapshots entirely) made the state grow without bound in a long session.
+ */
+function evictOldChildren(state: SubagentState): SubagentState {
+  if (state.order.length <= MAX_SUBAGENTS) return state;
+  const drop = state.order.slice(0, state.order.length - MAX_SUBAGENTS);
+  const byId = { ...state.byId };
+  const meta = { ...state.meta };
+  for (const id of drop) {
+    delete byId[id];
+    delete meta[id];
+  }
+  return { byId, meta, order: state.order.slice(drop.length) };
+}
+
+/**
  * Child sessions are independent reducers: every event type the main chat already understands
  * (tools, text, reasoning, steps, usage) is reused to build the subagent's compact timeline.
  */
@@ -68,14 +85,14 @@ export function subagentReducer(state: SubagentState, action: SubagentAction): S
         forms,
       });
       const order = state.order.includes(sessionId) ? state.order : [...state.order, sessionId];
-      return {
+      return evictOldChildren({
         byId: { ...state.byId, [sessionId]: child },
         meta: {
           ...state.meta,
           [sessionId]: { parentId: parentId ?? previous.parentId, title: nextTitle, agent: nextAgent },
         },
         order,
-      };
+      });
     }
     case "events": {
       if (action.events.length === 0) return state;
@@ -90,21 +107,12 @@ export function subagentReducer(state: SubagentState, action: SubagentAction): S
       // stale, so the webview would never re-render after the first batch of child events.
       const byId = { ...state.byId };
       let order = state.order;
-      let added = false;
       for (const [sessionId, events] of grouped) {
         const existing = byId[sessionId];
         byId[sessionId] = chatReducer(existing ?? emptyChild(sessionId), { type: "events", events });
-        if (!existing && !order.includes(sessionId)) {
-          order = [...order, sessionId];
-          added = true;
-        }
+        if (!existing && !order.includes(sessionId)) order = [...order, sessionId];
       }
-      if (added && order.length > MAX_SUBAGENTS) {
-        const drop = order.slice(0, order.length - MAX_SUBAGENTS);
-        for (const id of drop) delete byId[id];
-        order = order.slice(drop.length);
-      }
-      return { ...state, byId, order };
+      return evictOldChildren({ ...state, byId, order });
     }
   }
 }

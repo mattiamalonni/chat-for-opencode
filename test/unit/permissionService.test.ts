@@ -53,6 +53,19 @@ describe("PermissionService.approveOnce", () => {
     await expect(third).resolves.toBe(true);
   });
 
+  it("caps the remembered grant set so ids cannot accumulate without bound", async () => {
+    const permissions = service();
+    const replyPermission = vi.fn(async () => {});
+    const client = { replyPermission } as unknown as OpenCodeClient;
+    for (let i = 0; i < 500; i++) await permissions.approveOnce(client, "s", `p${i}`);
+    expect(replyPermission).toHaveBeenCalledTimes(500);
+    // The next grant evicts the oldest id (p0); a recent one must still be remembered.
+    await permissions.approveOnce(client, "s", "p500");
+    await permissions.approveOnce(client, "s", "p0");
+    await permissions.approveOnce(client, "s", "p499");
+    expect(replyPermission).toHaveBeenCalledTimes(502);
+  });
+
   it("remembers a successful grant so later callers skip the reply", async () => {
     const permissions = service();
     const { client, calls, resolve } = deferredClient();

@@ -2,6 +2,7 @@ import * as path from "node:path";
 import * as vscode from "vscode";
 import { evictableKey } from "../shared/diffCache";
 import { applyPatch, hunksSides, sidesFromPatch } from "../shared/patch";
+import { isWithinDirectory } from "./tempAttachments";
 
 export const DIFF_SCHEME = "opencode-diff";
 const MAX_VIRTUAL_DOCS = 200;
@@ -10,6 +11,8 @@ const MAX_VIRTUAL_DOCS = 200;
 export class DiffService implements vscode.TextDocumentContentProvider {
   private readonly contents = new Map<string, string>();
   private counter = 0;
+
+  constructor(private readonly warn: (message: string) => void = () => undefined) {}
 
   provideTextDocumentContent(uri: vscode.Uri): string {
     return this.contents.get(uri.toString()) ?? "";
@@ -40,6 +43,13 @@ export class DiffService implements vscode.TextDocumentContentProvider {
    */
   async open(root: vscode.Uri, file: string, patch: string, applied: boolean): Promise<void> {
     const target = path.isAbsolute(file) ? vscode.Uri.file(file) : vscode.Uri.joinPath(root, file);
+    // `file` comes from tool metadata produced by the model, i.e. untrusted chat content. Apply the
+    // same workspace containment rule as the host's openFile(): no absolute path, `..` escape or
+    // crafted tool output may make us read a file outside the folder and show it in a diff.
+    if (!isWithinDirectory(target.fsPath, root.fsPath)) {
+      this.warn(`[chat] blocked a diff for a file outside the workspace: ${target.fsPath}`);
+      return;
+    }
     let current: string | undefined;
     try {
       current = new TextDecoder().decode(await vscode.workspace.fs.readFile(target));

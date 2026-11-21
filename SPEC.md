@@ -170,8 +170,16 @@ hunks only (`hunksSides`, with a `===== file =====` header per file) and opens o
 * Webview CSP: `default-src 'none'; script-src 'nonce-…'; style-src ${cspSource};
   img-src ${cspSource} data:; font-src ${cspSource}`. No remote scripts, no `connect-src`
   (the webview never talks to the server directly).
-* Markdown HTML is sanitised with DOMPurify.
-* Managed server password: random 32 bytes per spawn, kept in memory only.
+* Markdown HTML is sanitised with DOMPurify *before* prose is linkified, so a crafted
+  `<a data-file>`/`data-action` in a reply cannot become a clickable file link or a fake code-copy
+  button. Regression-tested in a real browser.
+* File references from model output are confined to the workspace folder. `openFile`, attachment
+  chips and `DiffService.open` all resolve the target and reject paths that escape it (including
+  `../` sequences), so untrusted tool metadata cannot make the host read an arbitrary local file.
+* File-icon theme assets are read from the installed theme only; paths are resolved (no `..` escape)
+  and remote `https:` assets are not fetched — the extension makes no network calls beyond the
+  configured server and the webview CSP allows no remote images or fonts.
+* Managed server password: random 24 bytes per spawn, kept in memory only.
   External server password: `SecretStorage`.
 * Server is bound to `127.0.0.1`.
 * Permissions and questions are only auto-answered when the user explicitly opts in

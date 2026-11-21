@@ -4,6 +4,9 @@ import type { PermissionRequest } from "../shared/api";
 
 const AUTO_APPROVE_KEY = (folder: string) => `opencode.autoApprove:${folder}`;
 
+/** A reply event can be missed on a reconnect, so granted ids may linger; keep the set bounded. */
+const MAX_AUTO_APPROVED = 500;
+
 interface StoredOverrides {
   [sessionId: string]: boolean;
 }
@@ -80,6 +83,11 @@ export class PermissionService {
       try {
         await client.replyPermission(sessionId, requestId, "once");
         this.autoApproved.add(requestId);
+        // FIFO eviction: the oldest grant is the least likely to still be re-synced as a card.
+        if (this.autoApproved.size > MAX_AUTO_APPROVED) {
+          const oldest = this.autoApproved.values().next().value;
+          if (oldest !== undefined) this.autoApproved.delete(oldest);
+        }
         return true;
       } catch (err) {
         this.autoApproved.delete(requestId);

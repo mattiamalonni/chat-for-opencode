@@ -122,6 +122,22 @@ describe("subagents", () => {
     expect(second.order).toEqual([childId]);
   });
 
+  it("caps children from snapshots in byId, meta and order alike", () => {
+    let state = initialSubagentState;
+    for (let i = 0; i < 31; i++) {
+      state = subagentReducer(state, {
+        type: "snapshot",
+        snapshot: { sessionId: `child-${i}`, messages: [], permissions: [], forms: [], busy: false },
+      });
+    }
+    expect(state.order).toHaveLength(30);
+    expect(Object.keys(state.byId)).toHaveLength(30);
+    expect(Object.keys(state.meta)).toHaveLength(30);
+    expect(state.order).not.toContain("child-0");
+    expect(state.order).toContain("child-30");
+    expect(state.meta["child-0"]).toBeUndefined();
+  });
+
   it("returns a fresh state for every batch so the webview re-renders", () => {
     const childEvents = events.filter((e) => eventSessionId(e) === childId);
     const half = Math.floor(childEvents.length / 2);

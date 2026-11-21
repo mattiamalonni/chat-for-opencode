@@ -17,6 +17,7 @@ import type {
   SessionInfo,
   SessionMessage,
 } from "../shared/api";
+import { DEFAULT_HTTP_TIMEOUT_MS } from "../shared/constants";
 
 export interface Connection {
   baseUrl: string;
@@ -49,6 +50,9 @@ export interface CreateSessionInput {
 
 type Query = Record<string, string | number | boolean | undefined>;
 
+/** A server error body is untrusted: never let a huge one flood the chat's notice UI. */
+const MAX_ERROR_BODY = 4000;
+
 export function authHeaders(conn: Connection): Record<string, string> {
   if (!conn.password) return {};
   const token = Buffer.from(`opencode:${conn.password}`, "utf8").toString("base64");
@@ -60,7 +64,7 @@ export class OpenCodeClient {
   constructor(
     readonly conn: Connection,
     private readonly fetchImpl: typeof fetch = fetch,
-    private readonly timeoutMs = 30_000,
+    private readonly timeoutMs = DEFAULT_HTTP_TIMEOUT_MS,
   ) {}
 
   url(path: string, query?: Query): string {
@@ -91,16 +95,17 @@ export class OpenCodeClient {
     const res = await this.fetchImpl(this.url(path, options.query), { method, headers, body, signal });
     const text = await res.text();
     if (!res.ok) {
-      let message = text || res.statusText || `HTTP ${res.status}`;
+      const body = text.slice(0, MAX_ERROR_BODY);
+      let message = body || res.statusText || `HTTP ${res.status}`;
       let tag: string | undefined;
       try {
-        const parsed = JSON.parse(text) as { _tag?: string; message?: string };
+        const parsed = JSON.parse(body) as { _tag?: string; message?: string };
         tag = parsed._tag;
         if (parsed.message) message = parsed.message;
       } catch {
-        // non-JSON error body
+        // non-JSON or truncated error body: keep the bounded raw text.
       }
-      throw new ApiError(message, res.status, tag);
+      throw new ApiError(message.slice(0, MAX_ERROR_BODY), res.status, tag);
     }
     if (!text) return undefined as T;
     return JSON.parse(text) as T;

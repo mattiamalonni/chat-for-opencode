@@ -6,6 +6,7 @@
  * the user selected, apply the same association rules documented for `contributes.iconThemes`,
  * and ship the resulting SVG/font glyph to the webview as a data URI.
  */
+import * as path from "node:path";
 import type { FileIconData, FileIconFont } from "../shared/protocol";
 
 export type ThemeVariant = "dark" | "light" | "highContrast";
@@ -427,9 +428,13 @@ export class FileIconThemeService {
     return { ...definition, iconPath: await inline(definition.iconPath) };
   }
 
-  private async dataUri(path: string, baseDir: string): Promise<string> {
-    if (/^(data:|https?:)/.test(path)) return path;
-    const absolute = resolveRelative(baseDir, path);
+  private async dataUri(asset: string, baseDir: string): Promise<string> {
+    if (asset.startsWith("data:")) return asset;
+    // Remote assets are deliberately not fetched: this extension makes no network calls beyond the
+    // configured OpenCode server, and the webview CSP blocks https images/fonts anyway. Returning an
+    // empty value (instead of a URL the webview cannot load) makes the miss explicit.
+    if (/^https?:/i.test(asset)) return "";
+    const absolute = resolveRelative(baseDir, asset);
     const mime = /\.png$/i.test(absolute)
       ? "image/png"
       : /\.jpe?g$/i.test(absolute)
@@ -464,7 +469,8 @@ function mergeThemeFiles(theme: ThemeFile, base: ThemeFile): ThemeFile {
   };
 }
 
-function resolveRelative(baseDir: string, path: string): string {
-  if (path.startsWith("/") || /^[a-zA-Z]:/.test(path)) return path;
-  return `${baseDir}/${path.replace(/^\.\//, "")}`;
+function resolveRelative(baseDir: string, asset: string): string {
+  if (asset.startsWith("/") || /^[a-zA-Z]:/.test(asset)) return asset;
+  // Resolve so `./` and `../` segments cannot escape the theme directory as raw string fragments.
+  return path.resolve(baseDir, asset);
 }

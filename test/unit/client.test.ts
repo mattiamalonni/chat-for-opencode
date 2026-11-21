@@ -149,6 +149,21 @@ describe("OpenCodeClient against the mock server", () => {
     });
   });
 
+  it("caps an oversized error body before it can reach the chat UI", async () => {
+    const huge = "x".repeat(50_000);
+    const fetchImpl = (async () =>
+      new Response(JSON.stringify({ message: huge }), { status: 500 })) as typeof fetch;
+    const bounded = new OpenCodeClient({ baseUrl: "http://localhost:1", password: "secret" }, fetchImpl);
+    let error: ApiError | undefined;
+    try {
+      await bounded.info();
+    } catch (err) {
+      error = err as ApiError;
+    }
+    expect(error).toBeInstanceOf(ApiError);
+    expect(error?.message.length).toBeLessThanOrEqual(4000);
+  });
+
   it("stages and commits a revert at any message, and can clear a staged one", async () => {
     const s = await client.createSession({});
     await client.prompt(s.id, "first");

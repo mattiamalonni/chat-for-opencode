@@ -254,6 +254,19 @@ describe("malformed live events degrade gracefully", () => {
     expect(state.model).toEqual(model);
   });
 
+  it("keeps the assistant's model when a step-started event carries a malformed model", () => {
+    const model = { id: "m", providerID: "p" };
+    const base = chatReducer(open("s"), {
+      type: "event",
+      event: { type: "session.step.started", data: { sessionID: "s", assistantMessageID: "a1", agent: "build", model } },
+    });
+    const state = chatReducer(base, {
+      type: "event",
+      event: { type: "session.step.started", data: { sessionID: "s", assistantMessageID: "a1", model: { id: 123 } } },
+    });
+    expect(assistants(state)[0]?.model).toEqual(model);
+  });
+
   it("ignores assistant part events without a message id", () => {
     const state = chatReducer(open("s"), {
       type: "event",
