@@ -5,6 +5,9 @@
 - **Robustness:** starting a new session now stops the 2-second external-tail poll instead of leaving
   an interval that can only no-op; loading the next session (including the first prompt of a new
   chat) starts it again, so turns from other clients are still followed.
+- **Performance:** the active file icon theme is no longer fully read and base64-encoded before the
+  first chip renders. Assets are inlined only for definitions and fonts actually resolved, then
+  cached per theme, which removes the first-attachment jank with large themes such as Seti.
 - **Performance:** syntax highlighting is skipped for code blocks over 20 KB (they are escaped
   instead), and the rendered-markdown cache is now bounded by size as well as entry count, so a
   stream of large blocks cannot grow it without limit.

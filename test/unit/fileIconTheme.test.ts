@@ -127,6 +127,30 @@ describe("file icon theme resolver", () => {
     expect(result.icons).toEqual({ "src/app.ts": null });
   });
 
+  it("inlines only the definitions a path actually resolves to", async () => {
+    // The unused entries point at files that do not exist. Eagerly inlining the whole theme used to
+    // reject the first icon request because of them, delaying (and sometimes breaking) every chip.
+    const theme = JSON.stringify({
+      fonts: [{ id: "unused", src: [{ path: "./missing.woff" }] }],
+      iconDefinitions: {
+        used: { iconPath: "./used.svg" },
+        unused: { iconPath: "./missing.svg" },
+        unusedGlyph: { fontCharacter: "\\E001", fontId: "unused" },
+      },
+      file: "used",
+    });
+    const { env } = envOf({
+      themeId: "svg",
+      variant: "dark",
+      associations: {},
+      languages: [],
+      files: { "/theme/theme.json": theme, "/theme/used.svg": "<svg/>" },
+    });
+    const result = await new FileIconThemeService(env).resolve(["src/a.ts"]);
+    expect(result.icons["src/a.ts"]).toEqual({ kind: "svg", src: `data:image/svg+xml;base64,${Buffer.from("<svg/>").toString("base64")}` });
+    expect(Object.keys(result.fonts)).toHaveLength(0);
+  });
+
   it("caches resolved themes and signals when the theme changes", async () => {
     const { env, reads } = envOf({
       themeId: "svg",

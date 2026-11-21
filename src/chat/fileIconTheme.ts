@@ -70,10 +70,16 @@ export interface FileIconThemeEnv {
 
 interface LoadedTheme {
   id: string;
+  /** Root theme directory, used to resolve relative asset paths of inlined definitions. */
+  baseDir: string;
+  /** Raw definitions: assets are read and inlined only when a path actually resolves to them. */
   definitions: Record<string, IconDefinition>;
   fonts: FontDefinition[];
   variants: Partial<Record<ThemeVariant, Associations>>;
   associations: Associations;
+  /** Inlined definitions, keyed by variant + definition id (variant styles can change the asset). */
+  inlined: Map<string, IconDefinition>;
+  inlinedFonts: Map<string, FontDefinition>;
 }
 
 interface ResolvedDefinition {
@@ -285,26 +291,23 @@ export class FileIconThemeService {
       this.invalidate();
     }
 
-    const icons: Record<string, FileIconData | null> = {};
-    for (const path of paths) {
+    const resolved = await Promise.all(paths.map(async (path) => {
       const cacheKey = `${variant}\0${path}`;
-      let icon: FileIconData | null | undefined;
-      if (this.cache.has(cacheKey)) {
-        icon = this.cache.get(cacheKey);
-      } else {
-        icon = theme ? this.resolveOne(theme, path, variant) : undefined;
-        this.cache.set(cacheKey, icon ?? null);
-      }
-      icons[path] = icon ?? null;
-    }
+      if (this.cache.has(cacheKey)) return [path, this.cache.get(cacheKey) ?? null] as const;
+      const icon = theme ? await this.resolveOne(theme, path, variant) : undefined;
+      const value = icon ?? null;
+      this.cache.set(cacheKey, value);
+      return [path, value] as const;
+    }));
+    const icons = Object.fromEntries(resolved);
     return { icons, fonts: Object.fromEntries(this.fonts), reset };
   }
 
-  private resolveOne(theme: LoadedTheme, path: string, variant: ThemeVariant): FileIconData | undefined {
+  private async resolveOne(theme: LoadedTheme, path: string, variant: ThemeVariant): Promise<FileIconData | undefined> {
     const languageId = languageIdForPath(path, this.env.associations(), this.env.languages());
     const definitionId = resolveDefinitionId(theme, path, languageId, variant);
     if (!definitionId) return undefined;
-    const resolved = this.definitionFor(theme, definitionId, variant);
+    const resolved = await this.definitionFor(theme, definitionId, variant);
     if (!resolved) return undefined;
 
     const { definition } = resolved;
@@ -316,7 +319,7 @@ export class FileIconThemeService {
       return { kind: "svg", src };
     }
 
-    const font = resolved.font ?? fontFor(definition, theme.fonts);
+    const font = resolved.font;
     const glyph = definition.fontCharacter ? glyphOf(definition.fontCharacter) : undefined;
     if (!font || !glyph) return undefined;
     const family = fontFamily(font);
@@ -333,7 +336,7 @@ export class FileIconThemeService {
     };
   }
 
-  private definitionFor(theme: LoadedTheme, id: string, variant: ThemeVariant): ResolvedDefinition | undefined {
+  private async definitionFor(theme: LoadedTheme, id: string, variant: ThemeVariant): Promise<ResolvedDefinition | undefined> {
     const override = theme.variants[variant]?.iconDefinitions?.[id];
     const definition = override ?? theme.definitions[id];
     if (!definition) return undefined;
@@ -346,7 +349,30 @@ export class FileIconThemeService {
       fontSize: definition.fontSize ?? base?.fontSize,
       fontId: definition.fontId ?? base?.fontId,
     };
-    return { id, definition: merged, font: fontFor(merged, theme.fonts) };
+    const key = `${variant}\0${id}`;
+    let inlined = theme.inlined.get(key);
+    if (!inlined) {
+      inlined = await this.inlineDefinition(merged, theme.baseDir);
+      theme.inlined.set(key, inlined);
+    }
+    return { id, definition: inlined, font: await this.inlinedFontFor(theme, inlined) };
+  }
+
+  /** Reads/inlines a font only when a resolved glyph actually needs it. */
+  private async inlinedFontFor(theme: LoadedTheme, definition: IconDefinition): Promise<FontDefinition | undefined> {
+    if (!definition.fontCharacter) return undefined;
+    const raw = fontFor(definition, theme.fonts);
+    if (!raw) return undefined;
+    const key = raw.id ?? "";
+    let inlined = theme.inlinedFonts.get(key);
+    if (!inlined) {
+      inlined = {
+        ...raw,
+        src: await Promise.all((raw.src ?? []).map(async (source) => ({ ...source, path: await this.dataUri(source.path, theme.baseDir) }))),
+      };
+      theme.inlinedFonts.set(key, inlined);
+    }
+    return inlined;
   }
 
   private registerFont(family: string, font: FontDefinition): void {
@@ -379,37 +405,23 @@ export class FileIconThemeService {
       file = { jsonPath: basePath, baseDir: basePath.slice(0, basePath.lastIndexOf("/")) };
     }
 
-    // Inline everything once, at load time: icon requests then need no disk I/O at all.
-    const baseDir = location.baseDir;
-    const definitions: Record<string, IconDefinition> = {};
-    for (const [key, definition] of Object.entries(combined.iconDefinitions ?? {})) {
-      definitions[key] = await this.inlineDefinition(definition, baseDir);
-    }
-    const fonts: FontDefinition[] = [];
-    for (const font of combined.fonts ?? []) {
-      const src: FontDefinition["src"] = [];
-      for (const source of font.src ?? []) src.push({ ...source, path: await this.dataUri(source.path, baseDir) });
-      fonts.push({ ...font, src });
-    }
-    const inlineVariant = async (associations: Associations | undefined): Promise<Associations | undefined> => {
-      if (!associations?.iconDefinitions) return associations;
-      const defs: Record<string, IconDefinition> = {};
-      for (const [key, definition] of Object.entries(associations.iconDefinitions)) {
-        defs[key] = await this.inlineDefinition(definition, baseDir);
-      }
-      return { ...associations, iconDefinitions: defs };
-    };
+    // Keep assets as paths. A Seti-style theme ships hundreds of SVGs plus a font; reading and
+    // base64-encoding all of them before the first chip can render made the first attachment janky.
+    // Each definition and font is inlined on first use and cached on the loaded theme instead.
     return {
       id,
-      definitions,
-      fonts,
-      variants: { light: await inlineVariant(combined.light), highContrast: await inlineVariant(combined.highContrast) },
+      baseDir: location.baseDir,
+      definitions: combined.iconDefinitions ?? {},
+      fonts: combined.fonts ?? [],
+      variants: { light: combined.light, highContrast: combined.highContrast },
       associations: {
         file: combined.file,
         fileExtensions: combined.fileExtensions,
         fileNames: combined.fileNames,
         languageIds: combined.languageIds,
       },
+      inlined: new Map(),
+      inlinedFonts: new Map(),
     };
   }
 
