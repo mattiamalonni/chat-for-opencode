@@ -7,15 +7,23 @@ function escapeHtml(s: string): string {
   return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 }
 
+/** Beyond this a code block is escaped, not highlighted: hljs tokenises the whole string on every
+ * streaming frame, so a huge paste can dominate render time. Tool output already has a similar cap. */
+const MAX_HIGHLIGHT_CHARS = 20_000;
+/** Bound the render cache by both entries and rough size; streamed deltas are all distinct keys. */
+const MAX_CACHE_ENTRIES = 300;
+const MAX_CACHE_CHARS = 2_000_000;
+
 let copyLabel = "Copy";
 export function setCopyLabel(label: string): void {
   copyLabel = label;
   cache.clear();
+  cacheChars = 0;
 }
 
 export function highlight(code: string, lang?: string): string {
   const language = lang && hljs.getLanguage(lang) ? lang : undefined;
-  if (!language) return escapeHtml(code);
+  if (!language || code.length > MAX_HIGHLIGHT_CHARS) return escapeHtml(code);
   try {
     return hljs.highlight(code, { language, ignoreIllegals: true }).value;
   } catch {
@@ -45,6 +53,7 @@ const marked = new Marked({
 });
 
 const cache = new Map<string, string>();
+let cacheChars = 0;
 
 /** Code and existing links keep their text: only prose gets clickable file references. */
 const LINKIFY_SKIP = "pre, code, a, script, style, textarea";
@@ -113,6 +122,12 @@ export function renderMarkdown(source: string): string {
   linkifyFileRefs(dom.body);
   const html = dom.body.innerHTML;
   cache.set(source, html);
-  if (cache.size > 300) cache.delete(cache.keys().next().value as string);
+  cacheChars += source.length + html.length;
+  while (cache.size > MAX_CACHE_ENTRIES || cacheChars > MAX_CACHE_CHARS) {
+    const oldest = cache.keys().next().value as string | undefined;
+    if (oldest === undefined) break;
+    cacheChars -= oldest.length + (cache.get(oldest)?.length ?? 0);
+    cache.delete(oldest);
+  }
   return html;
 }

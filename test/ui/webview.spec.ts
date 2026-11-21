@@ -2538,6 +2538,19 @@ test("a flood of live events is bounded and requests a single resync", async ({ 
   expect((await posted(page)).filter((m) => m.type === "sync")).toHaveLength(1);
 });
 
+test("very large code blocks are escaped instead of highlighted", async ({ page }) => {
+  await boot(page);
+  const sid = "ses_big_code";
+  const big = "const answer = 42;\n".repeat(1200); // ~21 KB, above the highlighter cap
+  await openSession(page, sid, [
+    { type: "session.step.started", data: { sessionID: sid, assistantMessageID: "m1" } },
+    { type: "session.text.ended", data: { sessionID: sid, assistantMessageID: "m1", ordinal: 0, text: `\`\`\`ts\n${big}\`\`\`` } },
+  ]);
+  await expect(page.locator(".conversation pre code").first()).toBeVisible();
+  await expect(page.locator(".conversation .hljs-keyword")).toHaveCount(0);
+  expect((await page.locator(".conversation pre code").first().textContent())?.length).toBeGreaterThan(20_000);
+});
+
 test("off-screen conversation cards are skipped with content-visibility", async ({ page }) => {
   await boot(page);
   await host(page, {
