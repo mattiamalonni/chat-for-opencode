@@ -4,6 +4,7 @@ import { promisify } from "node:util";
 import * as vscode from "vscode";
 import { ChatController, ServerRegistry, type ExecutionStatus } from "./chat/controller";
 import { DIFF_SCHEME, DiffService } from "./chat/diff";
+import { selectionAttachment } from "./chat/context";
 import { ChatViewProvider } from "./chat/viewProvider";
 import { cleanupOrphanServers } from "./server/orphans";
 
@@ -156,6 +157,23 @@ export function activate(context: vscode.ExtensionContext): ExtensionApi {
         void vscode.window.showInformationMessage(vscode.l10n.t("Select some text in a file first."));
       }
     }),
+    ...[
+      ["opencode.explainSelection", "Explain this code"],
+      ["opencode.findBugsSelection", "Find bugs in this code"],
+      ["opencode.writeTestsSelection", "Write tests for this code"],
+      ["opencode.optimizeSelection", "Optimize this code"],
+    ].map(([id, prompt]) =>
+      vscode.commands.registerCommand(id, async () => {
+        const editor = vscode.window.activeTextEditor;
+        if (!editor || editor.selection.isEmpty || editor.document.uri.scheme !== "file") {
+          void vscode.window.showInformationMessage(vscode.l10n.t("Select some text in a file first."));
+          return;
+        }
+        const attachment = selectionAttachment(editor);
+        await focusView();
+        chat.prefillDraft(vscode.l10n.t(prompt), attachment ? [attachment] : []);
+      }),
+    ),
     vscode.commands.registerCommand("opencode.addFileToChat", async (uri?: vscode.Uri) => {
       const target = uri ?? vscode.window.activeTextEditor?.document.uri;
       if (!target || target.scheme !== "file") return;

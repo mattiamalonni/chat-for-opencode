@@ -347,6 +347,11 @@ export class ChatController implements vscode.Disposable {
     this.chatViews.openChatInEditor();
   }
 
+  /** Fills the composer from an editor context action, attaching the selection it came from. */
+  prefillDraft(text: string, attachments: Attachment[]): void {
+    this.post({ type: "prefillDraft", sessionId: this.sessionId ?? undefined, text, attachments });
+  }
+
   /** Serializes webview messages: a late `ready`/loadAll must not race a prompt and drop its events. */
   private messageQueue: Promise<unknown> = Promise.resolve();
 

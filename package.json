@@ -106,6 +106,26 @@
         "category": "OpenCode"
       },
       {
+        "command": "opencode.explainSelection",
+        "title": "%command.explainSelection%",
+        "category": "OpenCode"
+      },
+      {
+        "command": "opencode.findBugsSelection",
+        "title": "%command.findBugsSelection%",
+        "category": "OpenCode"
+      },
+      {
+        "command": "opencode.writeTestsSelection",
+        "title": "%command.writeTestsSelection%",
+        "category": "OpenCode"
+      },
+      {
+        "command": "opencode.optimizeSelection",
+        "title": "%command.optimizeSelection%",
+        "category": "OpenCode"
+      },
+      {
         "command": "opencode.addFileToChat",
         "title": "%command.addFileToChat%",
         "category": "OpenCode"
@@ -203,6 +223,26 @@
           "command": "opencode.addFileToChat",
           "when": "resourceScheme == file",
           "group": "opencode@2"
+        },
+        {
+          "command": "opencode.explainSelection",
+          "when": "editorHasSelection",
+          "group": "opencode@3"
+        },
+        {
+          "command": "opencode.findBugsSelection",
+          "when": "editorHasSelection",
+          "group": "opencode@4"
+        },
+        {
+          "command": "opencode.writeTestsSelection",
+          "when": "editorHasSelection",
+          "group": "opencode@5"
+        },
+        {
+          "command": "opencode.optimizeSelection",
+          "when": "editorHasSelection",
+          "group": "opencode@6"
         }
       ],
       "explorer/context": [
@@ -215,6 +255,22 @@
       "commandPalette": [
         {
           "command": "opencode.addSelectionToChat",
+          "when": "editorHasSelection"
+        },
+        {
+          "command": "opencode.explainSelection",
+          "when": "editorHasSelection"
+        },
+        {
+          "command": "opencode.findBugsSelection",
+          "when": "editorHasSelection"
+        },
+        {
+          "command": "opencode.writeTestsSelection",
+          "when": "editorHasSelection"
+        },
+        {
+          "command": "opencode.optimizeSelection",
           "when": "editorHasSelection"
         },
         {

@@ -282,6 +282,17 @@ export function App() {
         case "focusInput":
           setFocusToken((n) => n + 1);
           break;
+        case "prefillDraft":
+          setDraft(msg.text, msg.sessionId);
+          post({ type: "saveDraft", sessionId: msg.sessionId, text: msg.text });
+          setDraftToken((n) => n + 1);
+          setAttachments((prev) => {
+            const next = [...prev];
+            for (const item of msg.attachments) if (!next.some((a) => a.uri === item.uri)) next.push(item);
+            return next;
+          });
+          setFocusToken((n) => n + 1);
+          break;
         case "synced":
           setSyncing(false);
           // A no-op sync (e.g. no client/session yet) posts no `session` message. Without clearing
@@ -594,7 +605,17 @@ export function App() {
           <ContractBanner failures={contract.report.failures} issuesUrl={issuesUrl} />
         )}
         {notice && <NoticeBanner error={notice} onDismiss={() => setNotice(undefined)} />}
-        <Conversation chat={chat} scrollToken={scrollToken} searchQuery={searchQuery} />
+        <Conversation
+          chat={chat}
+          scrollToken={scrollToken}
+          searchQuery={searchQuery}
+          onSuggestedPrompt={(text) => {
+            setDraft(text, chat.sessionId ?? undefined);
+            setDraftToken((n) => n + 1);
+            setFocusToken((n) => n + 1);
+            post({ type: "saveDraft", sessionId: chat.sessionId ?? undefined, text });
+          }}
+        />
         <div class="sr-only" role="status" aria-live="polite">
           {announcement.text + "\u200b".repeat(announcement.seq % 2)}
         </div>
@@ -1469,11 +1490,13 @@ function Conversation({
   scrollToken,
   searchQuery,
   label,
+  onSuggestedPrompt,
 }: {
   chat: ReturnType<typeof chatReducer>;
   scrollToken: number;
   searchQuery: string;
   label?: string;
+  onSuggestedPrompt?: (text: string) => void;
 }) {
   const t = useT();
   const ref = useRef<HTMLDivElement>(null);
@@ -1616,6 +1639,19 @@ function Conversation({
         <div class="welcome">
           <h2>{t("welcomeTitle")}</h2>
           <p>{t("welcomeBody")}</p>
+          {onSuggestedPrompt && (
+            <>
+              <p class="welcome-hint">{t("welcomeHint")}</p>
+              <div class="welcome-starters" aria-label={t("welcomeStarters")}>
+                <span class="welcome-starters-label">{t("welcomeStarters")}</span>
+                {[t("starterExplain"), t("starterBugs"), t("starterTests"), t("starterPlan")].map((text) => (
+                  <button type="button" class="welcome-starter" key={text} onClick={() => onSuggestedPrompt(text)}>
+                    {text}
+                  </button>
+                ))}
+              </div>
+            </>
+          )}
         </div>
       )}
       {items.map((item) => renderItem(item, query))}

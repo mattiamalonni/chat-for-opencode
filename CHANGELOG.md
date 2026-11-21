@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- **Onboarding:** the empty chat now shows a short keyboard hint and four clickable starter prompts
+  (explain, find bugs, write tests, plan a refactor) that fill the composer and focus it.
+- **Editor integration:** *Explain / Find bugs / Write tests / Optimize Selection* commands in the
+  editor context menu and palette prefill the chat with the intent and attach the current selection,
+  so a one-click action no longer requires typing the instruction yourself.
 - **Turn actions:** a finished response now has a *Copy this response* button (plain text, including
   tool text) and every prompt has a *Try again* button that drops the old reply without touching
   files and resends the original prompt with its files. Both reuse the existing revert boundary and

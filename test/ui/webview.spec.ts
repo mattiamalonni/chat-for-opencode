@@ -2674,6 +2674,27 @@ test("the queued-messages panel can promote, edit and remove pending prompts", a
   await expect(panel).toHaveCount(0);
 });
 
+test("the welcome screen offers suggested prompts that fill the composer", async ({ page }) => {
+  await boot(page);
+  await expect(page.getByRole("heading", { name: STRINGS.welcomeTitle })).toBeVisible();
+  const starter = page.getByRole("button", { name: STRINGS.starterBugs });
+  await expect(starter).toBeVisible();
+  await starter.click();
+  await expect(page.getByRole("textbox", { name: STRINGS.inputLabel })).toHaveValue(STRINGS.starterBugs);
+  expect(await lastPosted(page, "saveDraft")).toEqual({ type: "saveDraft", text: STRINGS.starterBugs });
+});
+
+test("an editor context action prefills the prompt and attaches the selection", async ({ page }) => {
+  await boot(page);
+  await host(page, {
+    type: "prefillDraft",
+    text: "Explain this code",
+    attachments: [{ uri: "file:///work/src/app.ts?start=3&end=9", name: "app.ts", kind: "selection" }],
+  });
+  await expect(page.getByRole("textbox", { name: STRINGS.inputLabel })).toHaveValue("Explain this code");
+  await expect(page.locator(".chip .file-icon").first()).toBeVisible();
+});
+
 test("a finished response can be copied as plain text", async ({ page }) => {
   await boot(page);
   const messages: SessionMessage[] = [
