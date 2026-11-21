@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- **Security:** a reply can no longer smuggle in a fake *Copy* button on a code block. DOMPurify
+  already strips `data-action` from model HTML, but kept `class`, so crafted
+  `.code-block .code-header .code-copy` markup regained the handler and could put attacker-chosen
+  text on the clipboard. Renderer-generated buttons now carry a random per-page marker that forged
+  markdown cannot reproduce; the click delegate only sees marked buttons.
 - **Security:** the native diff flow now applies the same workspace-containment rule as file links.
   A path from tool metadata can no longer make the host read a file outside the folder through an
   absolute path or a `../` escape; blocked attempts are logged. Icon-theme asset paths are resolved

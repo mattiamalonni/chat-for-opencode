@@ -2465,10 +2465,22 @@ test("crafted copy-code HTML in a reply is not a clickable copy button", async (
     { type: "session.step.started", data: base },
     {
       type: "session.text.ended",
-      data: { ...base, ordinal: 0, text: '<div><button type="button" data-action="copy-code">Fake copy</button><code>secret</code></div>' },
+      data: {
+        ...base,
+        ordinal: 0,
+        // Both the raw attribute and the renderer's full class structure must stay inert: a reply
+        // can forge `class`, so a fixed selector would hand it a working copy button.
+        text:
+          '<div><button type="button" data-action="copy-code">Fake copy</button><code>secret</code></div>' +
+          '<div class="code-block"><div class="code-header">' +
+          '<button type="button" class="code-copy">Forged copy</button></div>' +
+          '<pre><code>attacker-controlled</code></pre></div>',
+      },
     },
   ]);
   await expect(page.locator(".conversation [data-action='copy-code']")).toHaveCount(0);
+  await page.locator(".conversation .code-copy").click();
+  expect((await posted(page)).some((m) => m.type === "copy")).toBe(false);
 });
 
 test("every turn has a rollback button that targets its own prompt and restores it", async ({ page }) => {

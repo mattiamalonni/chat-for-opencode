@@ -23,6 +23,12 @@ export function highlight(code: string, lang?: string): string {
   }
 }
 
+// DOMPurify keeps `class`, so a reply could forge the renderer's `.code-block .code-header
+// .code-copy` structure and regain the copy handler with attacker-chosen text. Mark our own buttons
+// with a class generated per page load: untrusted markdown cannot guess it, and it never appears in
+// a stored message or in the protocol.
+const copyMarker = `code-copy-${Math.random().toString(36).slice(2)}`;
+
 const marked = new Marked({
   gfm: true,
   breaks: false,
@@ -31,7 +37,7 @@ const marked = new Marked({
       const language = (lang ?? "").trim().split(/\s+/)[0] ?? "";
       return (
         `<div class="code-block"><div class="code-header"><span class="code-lang">${escapeHtml(language)}</span>` +
-        `<button type="button" class="code-copy" data-action="copy-code">${escapeHtml(copyLabel)}</button></div>` +
+        `<button type="button" class="code-copy ${copyMarker}" data-action="copy-code">${escapeHtml(copyLabel)}</button></div>` +
         `<pre><code class="hljs${language ? ` language-${escapeHtml(language)}` : ""}">${highlight(text, language)}</code></pre></div>`
       );
     },
@@ -99,7 +105,9 @@ export function renderMarkdown(source: string): string {
     FORBID_ATTR: ["style", "data-file", "data-action"],
   });
   const dom = new DOMParser().parseFromString(clean, "text/html");
-  for (const button of dom.body.querySelectorAll<HTMLElement>(".code-block .code-header .code-copy")) {
+  // Restore `data-action` only on buttons the renderer marked. A reply with the same static classes
+  // but no marker stays inert (and the delegate in app.tsx never copies anything from it).
+  for (const button of dom.body.querySelectorAll<HTMLElement>(`.code-block .code-header .code-copy.${copyMarker}`)) {
     button.dataset.action = "copy-code";
   }
   linkifyFileRefs(dom.body);
