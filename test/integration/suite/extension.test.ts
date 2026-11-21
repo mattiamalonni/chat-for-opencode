@@ -490,6 +490,27 @@ describe("chat-for-opencode extension", () => {
     assert.equal(cleared.text, "");
   });
 
+  it("reports a transient catalog failure as a request error and recovers automatically", async () => {
+    const mark = posted.length;
+    const armed = await fetch(`${controller.debugState.baseUrl}/__mock/failModelsOnce`, { method: "POST" });
+    assert.equal(armed.status, 204);
+
+    await controller.receive({ type: "ready" });
+    const failed = await waitFor(
+      () => posted.slice(mark).find((m): m is Extract<HostMessage, { type: "connection" }> => m.type === "connection" && m.status === "error"),
+      "catalog request error",
+    );
+    assert.equal(failed.error?.kind, "requestFailed");
+    assert.ok(failed.error?.actions.includes("reconnect"));
+    assert.ok(!failed.error?.actions.includes("login"), "a failed request is not a missing provider");
+
+    const from = posted.indexOf(failed) + 1;
+    await waitFor(
+      () => posted.slice(from).find((m): m is Extract<HostMessage, { type: "connection" }> => m.type === "connection" && m.status === "connected"),
+      "automatic catalog retry",
+    );
+  });
+
   it("keeps the composer usable after cancelling a question", async () => {
     const mark = posted.length;
     await controller.receive({ type: "send", text: "[question] pick a color", attachments: [], context: [] });

@@ -229,6 +229,9 @@ export class ChatController implements vscode.Disposable {
   private lastKnownMessage: { sessionId: string; id: string } | undefined;
   /** Periodic history poll that picks up changes made by other clients (TUI, CLI, …). */
   private livePollTimer: NodeJS.Timeout | undefined;
+  /** A failed catalog fetch is retried a couple of times before the banner asks the user to reconnect. */
+  private catalogRetryTimer: NodeJS.Timeout | undefined;
+  private catalogRetries = 0;
   /** Last live SSE event for the open session; a poll is redundant while the stream feeds us. */
   private lastSessionEventAt = 0;
   private connecting: Promise<void> | undefined;
@@ -552,8 +555,13 @@ export class ChatController implements vscode.Disposable {
     const stale = () => !this.loadGen.is(generation);
     this.contractObservations = {};
     this.contract = emptyContract;
+    let catalogError: string | undefined;
     const [models, defaultModel, agents] = await Promise.all([
-      client.models().catch(() => [] as ModelInfo[]),
+      client.models().catch((err: unknown) => {
+        catalogError = err instanceof Error ? err.message : String(err);
+        this.output.warn(`[chat] failed to load models: ${catalogError}`);
+        return [] as ModelInfo[];
+      }),
       client.defaultModel().catch(() => null),
       client.agents().catch((err: unknown) => {
         this.output.warn(`[chat] failed to load agents: ${String(err)}`);
@@ -601,11 +609,26 @@ export class ChatController implements vscode.Disposable {
       this.post({ type: "session", session: null });
       this.postAutoApprove();
     }
-    if (this.catalog.models.length === 0) {
+    if (catalogError !== undefined) {
+      // An empty array from a *failed* request is not evidence that the user has no provider.
       const s = translatedStrings();
-      this.setStatus("error", { kind: "noProvider", message: s["error.noProvider"], actions: ["login", "reconnect", "showLogs"] });
+      this.setStatus("error", { kind: "requestFailed", message: s["error.requestFailed"], detail: catalogError, actions: ["reconnect", "showLogs"] });
+      if (this.catalogRetries < 2 && !stale()) {
+        this.catalogRetries++;
+        const wait = 500 * this.catalogRetries;
+        this.catalogRetryTimer = setTimeout(() => {
+          this.catalogRetryTimer = undefined;
+          if (!stale()) void this.loadAll();
+        }, wait);
+      }
     } else {
-      this.setStatus("connected");
+      this.catalogRetries = 0;
+      if (this.catalog.models.length === 0) {
+        const s = translatedStrings();
+        this.setStatus("error", { kind: "noProvider", message: s["error.noProvider"], actions: ["login", "reconnect", "showLogs"] });
+      } else {
+        this.setStatus("connected");
+      }
     }
     this.post({ type: "context", items: this.context.current() });
   }
@@ -1077,6 +1100,9 @@ export class ChatController implements vscode.Disposable {
     this.inboxTimer = undefined;
     if (this.reconcileTimer) clearTimeout(this.reconcileTimer);
     this.reconcileTimer = undefined;
+    if (this.catalogRetryTimer) clearTimeout(this.catalogRetryTimer);
+    this.catalogRetryTimer = undefined;
+    this.catalogRetries = 0;
   }
 
   private postAutoApprove(): void {

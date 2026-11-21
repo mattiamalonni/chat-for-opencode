@@ -12,6 +12,10 @@
   absolute path or a `../` escape; blocked attempts are logged. Icon-theme asset paths are resolved
   (so `../` cannot escape the theme directory) and remote `https:` assets are deliberately not
   fetched, matching the "no network calls" promise and the webview CSP.
+- **Robustness:** a transient failure while loading the model catalog is no longer reported as
+  *"No model provider is configured"*. It now shows a request error with a **Reconnect** action and
+  retries automatically a couple of times; only a successful but empty catalog shows the provider
+  banner (with the sign-in action).
 - **Robustness:** a prompt the server refuses is no longer lost. Its text goes back into the composer
   (without overwriting anything typed since) and the error banner offers **Retry**, which resends the
   exact original prompt, attachments and context; the restored text is cleared only once that retry

@@ -116,6 +116,7 @@ export function startMockServer(opts: MockOptions = {}): Promise<MockServer> {
   let failHistoryOnce = false;
   let failInterruptOnce = false;
   let failPromptOnce = false;
+  let failModelsOnce = false;
   const sessions = new Map<string, MockSession>();
   const clients = new Set<http.ServerResponse>();
   const requests: MockServer["requests"] = [];
@@ -468,6 +469,12 @@ export function startMockServer(opts: MockOptions = {}): Promise<MockServer> {
       return send(res, 204);
     }
 
+    // Test-only: make the next catalog fetch fail, to exercise the host's transient-error path.
+    if (path === "/__mock/failModelsOnce" && req.method === "POST") {
+      failModelsOnce = true;
+      return send(res, 204);
+    }
+
     // Test-only: seed pending inbox items without going through a running turn.
     if (path === "/__mock/inbox" && req.method === "POST") {
       const b = (body ?? {}) as Json;
@@ -488,7 +495,13 @@ export function startMockServer(opts: MockOptions = {}): Promise<MockServer> {
     if (path === "/api/config") {
       return send(res, 200, [{ type: "document", path: `${directory}/opencode.json`, info: { shell: "/bin/sh" } }]);
     }
-    if (path === "/api/model") return send(res, 200, { location: { directory }, data: noModels ? [] : MODELS });
+    if (path === "/api/model") {
+      if (failModelsOnce) {
+        failModelsOnce = false;
+        return send(res, 500, { _tag: "CatalogUnavailable", message: "injected catalog failure" });
+      }
+      return send(res, 200, { location: { directory }, data: noModels ? [] : MODELS });
+    }
     if (path === "/api/model/default") return send(res, 200, { location: { directory }, data: noModels ? null : MODELS[0] });
     if (path === "/api/agent") return send(res, 200, { location: { directory }, data: AGENTS });
     if (sessions.size > 0) catalogEverReady = true;
