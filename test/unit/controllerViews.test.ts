@@ -19,9 +19,12 @@ vi.mock("vscode", () => ({
 
 import { ChatController } from "../../src/chat/controller";
 
-const attachView = ChatController.prototype.attachView as unknown as (this: ReturnType<typeof fakeController>, view: FakeView) => void;
-const attachPanel = ChatController.prototype.attachPanel as unknown as (this: ReturnType<typeof fakeController>, panel: FakeView) => void;
-const detachView = ChatController.prototype.detachView as unknown as (this: ReturnType<typeof fakeController>, view: FakeView) => void;
+// Bracket access through an untyped record: prototype methods are private by declaration, but the
+// lifecycle under test is reachable at runtime and should not force the production API wide open.
+const proto = ChatController.prototype as unknown as Record<string, (...args: unknown[]) => unknown>;
+const attachView = proto["attachView"] as unknown as (this: ReturnType<typeof fakeController>, view: FakeView) => void;
+const attachPanel = proto["attachPanel"] as unknown as (this: ReturnType<typeof fakeController>, panel: FakeView) => void;
+const detachView = proto["detachView"] as unknown as (this: ReturnType<typeof fakeController>, view: FakeView) => void;
 
 /** Only the fields `attachView`/`attachPanel`/`detachView` touch — no VS Code host needed. */
 function fakeController() {
@@ -123,7 +126,7 @@ describe("loadSession staleness", () => {
       refreshChanges: vi.fn().mockResolvedValue([]),
       startLivePoll: vi.fn(),
     };
-    const loadSession = ChatController.prototype.loadSession as unknown as (
+    const loadSession = proto["loadSession"] as unknown as (
       this: typeof c,
       info: unknown,
       stale: () => boolean,
