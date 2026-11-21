@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- **Architecture:** server process, HTTP client and SSE stream ownership moved into
+  `ConnectionSupervisor` (connect dedup, restart/reconnect, stream-status transitions, teardown).
+  The controller keeps the chat-state side of connecting (`useConnection`, load, resync) and reads
+  `client`/`server` through getters, so all existing commands and integration hooks are unchanged.
+  Unit tests cover dedup, reconnect-resync and detach.
 - **CI:** the contract now has a deterministic, blocking gate: every push/PR verifies that all 989
   recorded 2.2.7 SSE events still normalize and that the OpenAPI snapshot still contains every
   endpoint the client calls. The live provider-backed job stays opt-in and advisory.

@@ -76,21 +76,6 @@ describe("ChatController state machine", () => {
     });
   });
 
-  it("resyncs once when the event stream comes back after a disconnect", () => {
-    const c = base({ wasDisconnected: true });
-    const resync = vi.fn().mockResolvedValue(undefined);
-    (c as Record<string, unknown>).resync = resync;
-    call("onStreamStatus", c, "connected");
-    expect(resync).toHaveBeenCalledOnce();
-    expect(c.wasDisconnected).toBe(false);
-
-    const fresh = base({ wasDisconnected: false });
-    (fresh as Record<string, unknown>).resync = resync;
-    resync.mockClear();
-    call("onStreamStatus", fresh, "connected");
-    expect(resync).not.toHaveBeenCalled();
-  });
-
   it("stops servers and posts an untrusted notice when trust is revoked", async () => {
     const c = base();
     const detach = vi.fn().mockResolvedValue(undefined);
@@ -111,17 +96,4 @@ describe("ChatController state machine", () => {
     expect(c.post).toHaveBeenCalledWith({ type: "synced" });
   });
 
-  it("deduplicates concurrent connect() calls", async () => {
-    let resolve!: () => void;
-    const pending = new Promise<void>((r) => { resolve = r; });
-    const doConnect = vi.fn(() => pending as never);
-    const c = base({ connecting: undefined });
-    (c as Record<string, unknown>).doConnect = doConnect;
-    const first = call("connect", c);
-    const second = call("connect", c);
-    expect(doConnect).toHaveBeenCalledOnce();
-    expect(second).toBe(first);
-    resolve();
-    await first;
-  });
 });

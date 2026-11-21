@@ -1,11 +1,11 @@
 import * as path from "node:path";
 import * as vscode from "vscode";
-import { ApiError, OpenCodeClient, type PermissionRule } from "../client/http";
-import { EventStream } from "../client/sse";
+import { ApiError, OpenCodeClient, type Connection, type PermissionRule } from "../client/http";
 import { CatalogService } from "./catalogService";
+import { ConnectionSupervisor } from "./connectionSupervisor";
 import { FileIconThemeService, type LanguageContribution } from "./fileIconTheme";
 import { ChatLifecycle } from "./lifecycle";
-import { describeServerError, ExternalServer, ManagedServer, ServerError, type ServerHandle, type ServerState } from "../server/server";
+import { describeServerError, ExternalServer, ManagedServer, ServerError, type ServerHandle } from "../server/server";
 import type {
   AgentInfo,
   ConfigEntry,
@@ -172,16 +172,8 @@ export class ChatController implements vscode.Disposable {
   /** All live chats and their listeners; see views.ts. */
   private readonly chatViews: ChatViews;
   private folder: vscode.WorkspaceFolder | undefined;
-  private server: ServerHandle | undefined;
-  private serverSub: (() => void) | undefined;
-  private client: OpenCodeClient | undefined;
-  private stream: EventStream | undefined;
-  /**
-   * Connection whose `loadAll()` completed. `useConnection()` must not treat an installed client as
-   * ready when a previous load failed: an external server has a stable URL/password, so the guard
-   * would otherwise turn every later reconnect into a no-op and leave the chat stuck on the error.
-   */
-  private loadedConnection: { baseUrl: string; password?: string } | undefined;
+  /** Server process, HTTP client and SSE stream ownership; see connectionSupervisor.ts. */
+  private readonly supervisor: ConnectionSupervisor;
   private sessionId: string | undefined;
   private status: ConnectionStatus = "idle";
   private lastError: UiError | undefined;
@@ -212,9 +204,6 @@ export class ChatController implements vscode.Disposable {
   private catalogRetries = 0;
   /** Last live SSE event for the open session; a poll is redundant while the stream feeds us. */
   private lastSessionEventAt = 0;
-  private connecting: Promise<void> | undefined;
-  /** Invalidation tokens for connect/load/execution/sessions/children live in `lifecycle`. */
-  private wasDisconnected = false;
   /** Child discovery, event routing and snapshots; see subagentTracker.ts. */
   private readonly subagents: SubagentTracker;
 
@@ -223,9 +212,18 @@ export class ChatController implements vscode.Disposable {
   /** Attention requests already announced while the chat was hidden (avoids notification spam). */
   private readonly announcedHiddenAttention = new Set<string>();
 
+  // The supervisor owns these; the controller reads them through the same names it always used.
+  private get client(): OpenCodeClient | undefined {
+    return this.supervisor.currentClient;
+  }
+
+  private get server(): ServerHandle | undefined {
+    return this.supervisor.currentServer;
+  }
+
   constructor(
     private readonly ctx: vscode.ExtensionContext,
-    private readonly registry: ServerRegistry,
+    registry: ServerRegistry,
     private readonly diffs: DiffService,
     private readonly output: vscode.LogOutputChannel,
   ) {
@@ -239,6 +237,29 @@ export class ChatController implements vscode.Disposable {
         if (this.status === "connected" && this.client) void this.resync();
       },
     );
+    this.supervisor = new ConnectionSupervisor({
+      registry,
+      log: (line) => output.info(line),
+      getFolder: () => this.folder,
+      setFolder: (folder) => { this.folder = folder; },
+      pickFolder: () => this.pickFolder() as vscode.WorkspaceFolder,
+      trustBlocked: () => this.trustBlocked(),
+      postUntrusted: () => this.postUntrusted(),
+      setStatus: (status, error) => this.setStatus(status, error),
+      getStatus: () => this.status,
+      generation: this.lifecycle.generations.connect,
+      onReady: (conn, version, stale) => {
+        this.version = version;
+        return this.useConnection(conn, stale);
+      },
+      onStreamReconnect: () => { void this.resync(); },
+      onDetached: () => {
+        this.lastKnownMessage = undefined;
+        this.stopLivePoll();
+        this.clearTimers();
+      },
+      toUiError: (err, fallback) => toUiError(err, fallback),
+    });
     this.attachments = new AttachmentService(
       (item) => this.addAttachment(item),
       (kind, name, detail) => (kind === "tooLarge" ? this.noticeTooLarge(name) : this.noticeUnreadable(name, detail)),
@@ -534,91 +555,32 @@ export class ChatController implements vscode.Disposable {
 
   /** Starts (or reuses) the server for the current folder and loads everything. */
   connect(): Promise<void> {
-    if (!this.connecting) {
-      const pending = this.doConnect();
-      this.connecting = pending;
-      // Only clear our own entry: a newer connect started after an invalidation must survive the
-      // completion of the one it replaced.
-      const done = () => {
-        if (this.connecting === pending) this.connecting = undefined;
-      };
-      void pending.then(done, done);
-    }
-    return this.connecting;
+    return this.supervisor.connect();
   }
 
-  private async doConnect(): Promise<void> {
-    const generation = this.lifecycle.generations.connect.current();
-    const stale = () => !this.lifecycle.generations.connect.is(generation);
-    if (this.trustBlocked()) {
-      this.postUntrusted();
-      return;
-    }
-    this.folder ??= this.pickFolder();
-    if (!this.folder) {
-      const s = translatedStrings();
-      this.setStatus("error", { kind: "noWorkspace", message: s["error.noWorkspace"], actions: ["openFolder"] });
-      return;
-    }
-    const server = this.registry.get(this.folder);
-    if (server !== this.server) {
-      this.serverSub?.();
-      this.server = server;
-      this.serverSub = server.onDidChange((s) => this.onServerState(s, server));
-    }
-    this.setStatus("starting");
-    try {
-      const conn = await server.ensure();
-      // A folder switch / reset / reconnect may have happened while `ensure()` was starting the
-      // server. Installing that connection would bind the chat to the wrong (or disposed) server.
-      if (stale()) return;
-      await this.useConnection(conn, server.state.status === "running" ? server.state.version : undefined, stale);
-    } catch (err) {
-      if (stale()) return;
-      this.output.error(`[chat] connect failed: ${String(err)}`);
-      this.setStatus("error", toUiError(err, "startFailed"));
-    }
-  }
-
-  private async useConnection(
-    conn: { baseUrl: string; password?: string },
-    version?: string,
-    isStale: () => boolean = () => false,
-  ): Promise<void> {
+  /**
+   * Installs a connection owned by the supervisor, then loads chat state from it. A failed load
+   * leaves the client installed but *not* marked loaded, so the next reconnect retries instead of
+   * hitting the "same connection" no-op guard.
+   */
+  private async useConnection(conn: Connection, isStale: () => boolean = () => false): Promise<void> {
     if (isStale()) return;
     if (this.trustBlocked()) {
       this.postUntrusted();
       return;
     }
-    const loaded = this.loadedConnection;
-    if (
-      this.client?.conn.baseUrl === conn.baseUrl &&
-      this.client.conn.password === conn.password &&
-      this.stream &&
-      loaded?.baseUrl === conn.baseUrl &&
-      loaded.password === conn.password
-    ) {
-      return;
-    }
-    this.stream?.close();
-    this.client = new OpenCodeClient(conn);
-    // Invalidate the previous successful load before starting a new one. If `loadAll()` rejects,
-    // `doConnect()` reports the error but leaves the client installed; the next reconnect must still
-    // retry the load instead of hitting the "same connection" guard above.
-    this.loadedConnection = undefined;
-    this.version = version;
+    if (this.supervisor.matches(conn)) return;
+    this.supervisor.clearLoaded();
     this.catalog.resetWarmUp();
     this.fileIndex?.dispose();
     this.fileIndex = this.folder ? new FileIndex(this.folder, this.ctx.workspaceState) : undefined;
-    this.stream = new EventStream({
-      url: this.client.eventUrl(),
-      headers: this.client.headers(),
-      onEvent: (e) => this.onEvent(e),
-      onStatus: (status, error) => this.onStreamStatus(status, error),
-    });
-    this.stream.start();
+    this.supervisor.openStream(
+      conn,
+      (event) => this.onEvent(event as ServerEvent),
+      (status, error) => this.supervisor.onStreamStatus(status, error),
+    );
     await this.loadAll();
-    this.loadedConnection = { baseUrl: conn.baseUrl, password: conn.password };
+    this.supervisor.markLoaded(conn);
     this.startLivePoll();
   }
 
@@ -709,61 +671,6 @@ export class ChatController implements vscode.Disposable {
   /** OpenCode registers plugin catalog items only once a session exists; keep the picker fresh. */
   private async refreshSlashItems(): Promise<void> {
     if (this.client) await this.catalog.refresh(this.client);
-  }
-
-  private onServerState(state: ServerState, server?: ServerHandle): void {
-    // A folder switch or reset can leave an in-flight notification from the previous server. Never
-    // let it rebind the chat to an endpoint we no longer own.
-    if (server && server !== this.server) return;
-    const generation = this.lifecycle.generations.connect.current();
-    const stale = () => !this.lifecycle.generations.connect.is(generation);
-    if (state.status === "starting" && this.status === "connected") {
-      this.setStatus("reconnecting");
-    } else if (
-      state.status === "running" &&
-      this.client &&
-      (this.client.conn.baseUrl !== state.conn.baseUrl || this.client.conn.password !== state.conn.password)
-    ) {
-      // The managed process was restarted: the port *and* the random password can change.
-      // Comparing only the URL would leave a stale client on a reused port (endless 401s).
-      void this.useConnection(state.conn, state.version, stale).then(
-        () => {
-          if (!stale()) this.output.info("[chat] reconnected to restarted server");
-        },
-        (err: unknown) => {
-          if (!stale()) this.setStatus("error", toUiError(err));
-        },
-      );
-    } else if (state.status === "failed") {
-      this.stream?.close();
-      this.stream = undefined;
-      this.setStatus("error", toUiError(state.error, "startFailed"));
-    }
-  }
-
-  private onStreamStatus(status: string, error?: unknown): void {
-    if (status === "reconnecting") {
-      this.output.warn(`[events] disconnected: ${String(error ?? "stream ended")}`);
-      if (this.status === "connected") this.setStatus("reconnecting");
-      this.wasDisconnected = true;
-      if (this.server instanceof ExternalServer) {
-        void this.client?.info().catch((err: unknown) => {
-          if (this.status !== "error") {
-            const s = translatedStrings();
-            this.setStatus("reconnecting", {
-              kind: "connectionLost",
-              message: s["error.connectionLost"],
-              detail: String(err),
-              actions: ["reconnect", "showLogs"],
-            });
-          }
-        });
-      }
-    } else if (status === "connected" && this.wasDisconnected) {
-      this.wasDisconnected = false;
-      this.output.info("[events] reconnected, resyncing");
-      void this.resync();
-    }
   }
 
   /**
@@ -1525,46 +1432,18 @@ export class ChatController implements vscode.Disposable {
       this.postUntrusted();
       return;
     }
-    const generation = this.lifecycle.generations.connect.bump();
-    const stale = () => !this.lifecycle.generations.connect.is(generation);
-    this.connecting = undefined;
     this.lifecycle.generations.load.bump();
     this.clearTimers();
-    if (!this.server) return this.connect();
-    this.setStatus("starting");
-    this.stream?.close();
-    this.stream = undefined;
-    this.client = undefined;
-    this.loadedConnection = undefined;
     this.lastKnownMessage = undefined;
     this.stopLivePoll();
-    try {
-      const conn = await this.server.restart();
-      if (stale()) return;
-      await this.useConnection(conn, this.server.state.status === "running" ? this.server.state.version : undefined, stale);
-    } catch (err) {
-      if (stale()) return;
-      this.setStatus("error", toUiError(err, "startFailed"));
-    }
+    await this.supervisor.reconnect();
   }
 
   /** Tears down the server/stream/client without binding a new connection. */
   private async detachServers(): Promise<void> {
     this.announcedHiddenAttention.clear();
-    this.lifecycle.generations.connect.bump();
-    this.connecting = undefined;
     this.lifecycle.generations.load.bump();
-    this.clearTimers();
-    this.stream?.close();
-    this.stream = undefined;
-    this.client = undefined;
-    this.loadedConnection = undefined;
-    this.lastKnownMessage = undefined;
-    this.stopLivePoll();
-    this.serverSub?.();
-    this.serverSub = undefined;
-    this.server = undefined;
-    await this.registry.reset();
+    await this.supervisor.detach();
   }
 
   async resetServers(): Promise<void> {
@@ -1583,21 +1462,14 @@ export class ChatController implements vscode.Disposable {
     this.announcedHiddenAttention.clear();
     this.failedPrompt = undefined;
     this.lifecycle.generations.connect.bump();
-    this.connecting = undefined;
     this.lifecycle.generations.load.bump();
     this.clearTimers();
-    this.stream?.close();
-    this.stream = undefined;
-    this.client = undefined;
-    this.loadedConnection = undefined;
     this.sessionId = undefined;
     this.lastKnownMessage = undefined;
     this.stopLivePoll();
     // Detach the old server before connecting to the new folder: its late state notifications must
-    // not race the new connection (doConnect still re-checks ownership when it installs the server).
-    this.serverSub?.();
-    this.serverSub = undefined;
-    this.server = undefined;
+    // not race the new connection (the supervisor still re-checks ownership when it installs one).
+    this.supervisor.detachServerOnly();
     this.permissions.setPending(undefined);
     this.lifecycle.generations.sessions.bump();
     this.sessionList.reset();
@@ -2139,8 +2011,7 @@ export class ChatController implements vscode.Disposable {
 
   async dispose(): Promise<void> {
     await this.attachments.dispose();
-    this.stream?.close();
-    this.serverSub?.();
+    this.supervisor.detachServerOnly();
     this.fileIndex?.dispose();
     this.stopLivePoll();
     this.clearTimers();
