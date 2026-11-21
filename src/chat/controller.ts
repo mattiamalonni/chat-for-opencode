@@ -786,6 +786,11 @@ export class ChatController implements vscode.Disposable {
     return this.pollSessionTail(true);
   }
 
+  /** Exposed for integration tests: force the reconnect-style resync without touching VS Code UI. */
+  resyncNow(): Promise<void> {
+    return this.resync();
+  }
+
   // ---- subagents --------------------------------------------------------------------------
 
   /** Whether an id is the current session or one of its (possibly nested) child sessions. */
