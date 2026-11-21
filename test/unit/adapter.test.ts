@@ -55,6 +55,8 @@ describe("OpenCode wire adapter", () => {
     expect(normalizeFileDiff({ file: "a.ts", patch: "", status: "weird" })).toMatchObject({ status: "modified", additions: 0 });
     expect(normalizeServerEvent({ type: "session.status", data: { sessionID: "s1" } })).toMatchObject({ type: "session.status", data: { sessionID: "s1" } });
     expect(normalizeServerEvent({ data: {} })).toBeUndefined();
+    expect(normalizeServerEvent({ type: "session.status" })?.data).toEqual({});
+    expect(normalizeServerEvent({ type: "session.status", data: null })?.data).toEqual({});
     expect(normalizeModel({ modelID: "m1", enabled: false, variants: [{ id: "high" }, {}] })).toMatchObject({ id: "m1", enabled: false, variants: [{ id: "high" }] });
   });
 });

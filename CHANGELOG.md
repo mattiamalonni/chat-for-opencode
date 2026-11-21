@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- **Contract safety:** a 200 response with non-JSON content or a missing/mistyped `data` envelope is
+  now reported as a classified `ApiError` (`malformedResponse`) instead of throwing a raw
+  `SyntaxError`/`TypeError` and triggering pointless reconnect loops. SSE events whose `data` is a
+  primitive or array are dropped at the parser, and the wire adapter guarantees every event carries
+  an object payload. Added unit tests at each boundary.
 - **Robustness:** a recreated sidebar view is no longer blocked by a stale `sidebarView` handle, and
   editor tabs restored by VS Code now clear `panel` on dispose like freshly opened ones. The
   overflow resync flag is also re-armed on a no-op `synced` reply, so a hidden chat cannot stay

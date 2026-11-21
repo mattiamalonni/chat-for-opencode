@@ -87,6 +87,11 @@ export function parseServerEvent(msg: SseMessage): ServerEvent | undefined {
   try {
     const parsed: unknown = JSON.parse(msg.data);
     if (parsed && typeof parsed === "object" && typeof (parsed as { type?: unknown }).type === "string") {
+      // Downstream handlers dereference `event.data`. A string/null/array payload is a contract
+      // break, not something to coerce: drop it here so it cannot throw inside `onEvent` and force
+      // a spurious stream reconnect.
+      const data = (parsed as { data?: unknown }).data;
+      if (data !== undefined && (!data || typeof data !== "object" || Array.isArray(data))) return undefined;
       return parsed as ServerEvent;
     }
   } catch {

@@ -243,7 +243,9 @@ export function normalizeServerEvent(raw: unknown): ServerEvent | undefined {
     created: num(o.created),
     type,
     location: str(location.directory) ? { directory: str(location.directory) as string } : undefined,
-    data: o.data,
+    // Event handlers dereference `data` directly; guarantee an object even for a malformed/legacy
+    // event so a missing field degrades to "no fields" instead of a TypeError in the host.
+    data: obj(o.data) ?? {},
   };
 }
 

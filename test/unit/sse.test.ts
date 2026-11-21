@@ -47,6 +47,9 @@ describe("SseParser", () => {
     expect(parseServerEvent({ data: "{nope" })).toBeUndefined();
     expect(parseServerEvent({ data: '{"no":"type"}' })).toBeUndefined();
     expect(parseServerEvent({ data: '{"type":"a","data":{}}' })?.type).toBe("a");
+    expect(parseServerEvent({ data: '{"type":"a","data":null}' })).toBeUndefined();
+    expect(parseServerEvent({ data: '{"type":"a","data":"oops"}' })).toBeUndefined();
+    expect(parseServerEvent({ data: '{"type":"a","data":[1]}' })).toBeUndefined();
   });
 });
 

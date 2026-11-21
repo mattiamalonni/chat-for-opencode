@@ -108,11 +108,36 @@ export class OpenCodeClient {
       throw new ApiError(message.slice(0, MAX_ERROR_BODY), res.status, tag);
     }
     if (!text) return undefined as T;
-    return JSON.parse(text) as T;
+    // A proxy can answer 200 with HTML or a truncated body. A raw SyntaxError here would escape as
+    // an unclassified failure and (on the SSE side) look like a reason to reconnect forever.
+    try {
+      return JSON.parse(text) as T;
+    } catch {
+      throw new ApiError("Malformed JSON response from server", res.status, "malformedResponse");
+    }
   }
 
-  info(signal?: AbortSignal): Promise<ServerInfo> {
-    return this.request("GET", "api/info", { signal, timeoutMs: 5_000 });
+  /** Unwrap `{ data: … }` envelopes: a missing/wrong field is a contract break, not `undefined`. */
+  private data<T>(res: unknown, label: string): T {
+    if (!res || typeof res !== "object" || !("data" in res)) {
+      throw new ApiError(`Malformed ${label} response from server`, 200, "malformedResponse");
+    }
+    return (res as { data: T }).data;
+  }
+
+  /** Like `data()`, but also guards the array shape that callers spread/map directly. */
+  private dataArray<T>(res: unknown, label: string): T[] {
+    const data = this.data<unknown>(res, label);
+    if (!Array.isArray(data)) throw new ApiError(`Malformed ${label} response from server`, 200, "malformedResponse");
+    return data as T[];
+  }
+
+  async info(signal?: AbortSignal): Promise<ServerInfo> {
+    const res = await this.request<{ version?: unknown }>("GET", "api/info", { signal, timeoutMs: 5_000 });
+    if (!res || typeof res.version !== "string") {
+      throw new ApiError("Malformed server info response", 200, "malformedResponse");
+    }
+    return res as ServerInfo;
   }
 
   /** Config documents and discovery sources, from lowest to highest priority. */
@@ -135,7 +160,7 @@ export class OpenCodeClient {
         ? { directory, limit, parentID: "null", cursor }
         : { directory, limit, order: "desc", parentID: "null" },
     });
-    return { items: res.data, next: res.cursor?.next ?? undefined };
+    return { items: this.dataArray<SessionInfo>(res, "session list"), next: res.cursor?.next ?? undefined };
   }
 
   async listSessions(directory?: string, limit = 50): Promise<SessionInfo[]> {
@@ -144,10 +169,10 @@ export class OpenCodeClient {
 
   /** Child sessions of one session. The root list filters them out with `parentID=null`. */
   async listChildSessions(parentID: string, directory?: string, limit = 100): Promise<SessionInfo[]> {
-    const res = await this.request<{ data: SessionInfo[] }>("GET", "api/session", {
+    const res = await this.request<unknown>("GET", "api/session", {
       query: { directory, limit, parentID, order: "desc" },
     });
-    return res.data;
+    return this.dataArray<SessionInfo>(res, "child session list");
   }
 
   async createSession(input: CreateSessionInput): Promise<SessionInfo> {
@@ -156,13 +181,13 @@ export class OpenCodeClient {
     if (input.agent) body.agent = input.agent;
     if (input.model) body.model = input.model;
     if (input.permissions && input.permissions.length > 0) body.permissions = input.permissions;
-    const res = await this.request<{ data: SessionInfo }>("POST", "api/session", { body });
-    return res.data;
+    const res = await this.request<unknown>("POST", "api/session", { body });
+    return this.data<SessionInfo>(res, "session");
   }
 
   async getSession(id: string): Promise<SessionInfo> {
-    const res = await this.request<{ data: SessionInfo }>("GET", `api/session/${encodeURIComponent(id)}`);
-    return res.data;
+    const res = await this.request<unknown>("GET", `api/session/${encodeURIComponent(id)}`);
+    return this.data<SessionInfo>(res, "session");
   }
 
   async deleteSession(id: string): Promise<void> {
@@ -178,14 +203,15 @@ export class OpenCodeClient {
     const out: SessionMessage[] = [];
     let cursor: string | undefined;
     do {
-      const res = await this.request<{ data: SessionMessage[]; cursor?: { next?: string | null } }>(
+      const res = await this.request<{ data?: unknown; cursor?: { next?: string | null } }>(
         "GET",
         `api/session/${encodeURIComponent(id)}/message`,
         // The server rejects `order` together with `cursor` ("Cursor cannot be combined with order").
         { query: cursor ? { limit: 200, cursor } : { order: "asc", limit: 200 } },
       );
-      out.push(...res.data);
-      cursor = res.data.length > 0 ? (res.cursor?.next ?? undefined) : undefined;
+      const page = this.dataArray<SessionMessage>(res, "session history");
+      out.push(...page);
+      cursor = page.length > 0 ? (res.cursor?.next ?? undefined) : undefined;
     } while (cursor && out.length < max);
     return out;
   }
@@ -197,23 +223,24 @@ export class OpenCodeClient {
    * was trimmed or compacted — so callers must fall back to a full `messages()` fetch.
    */
   async messagesNewerThan(id: string, lastId: string, limit = 200): Promise<SessionMessage[] | undefined> {
-    const res = await this.request<{ data: SessionMessage[] }>(
+    const res = await this.request<unknown>(
       "GET",
       `api/session/${encodeURIComponent(id)}/message`,
       { query: { order: "desc", limit } },
     );
-    const index = res.data.findIndex((m) => m.id === lastId);
-    return index < 0 ? undefined : res.data.slice(0, index).reverse();
+    const page = this.dataArray<SessionMessage>(res, "session history");
+    const index = page.findIndex((m) => !!m && typeof m === "object" && m.id === lastId);
+    return index < 0 ? undefined : page.slice(0, index).reverse();
   }
 
   async prompt(id: string, text: string, files: FileAttachment[] = [], delivery?: "steer" | "queue"): Promise<{ id: string }> {
     const body: Record<string, unknown> = { text };
     if (files.length > 0) body.files = files;
     if (delivery) body.delivery = delivery;
-    const res = await this.request<{ data: { id: string } }>("POST", `api/session/${encodeURIComponent(id)}/prompt`, {
+    const res = await this.request<unknown>("POST", `api/session/${encodeURIComponent(id)}/prompt`, {
       body,
     });
-    return res.data;
+    return this.data<{ id: string }>(res, "prompt");
   }
 
   /** Runs the command's prompt template with `text` as its argument string. */
@@ -226,16 +253,16 @@ export class OpenCodeClient {
 
   /** Copy the session's history up to (but not including) `before` into a new session. */
   async forkSession(id: string, before: string): Promise<SessionInfo> {
-    const res = await this.request<{ data: SessionInfo }>("POST", `api/session/${encodeURIComponent(id)}/fork`, {
+    const res = await this.request<unknown>("POST", `api/session/${encodeURIComponent(id)}/fork`, {
       body: { before },
     });
-    return res.data;
+    return this.data<SessionInfo>(res, "fork");
   }
 
   /** Prompts still waiting in the inbox, oldest first (the server keeps insertion order). */
   async inbox(id: string): Promise<InboxItem[]> {
-    const res = await this.request<{ data: InboxItem[] }>("GET", `api/session/${encodeURIComponent(id)}/inbox`);
-    return res.data ?? [];
+    const res = await this.request<unknown>("GET", `api/session/${encodeURIComponent(id)}/inbox`);
+    return this.dataArray<InboxItem>(res, "inbox");
   }
 
   /** Change how a queued item is delivered. `steer` makes it interrupt the current turn. */
@@ -296,11 +323,11 @@ export class OpenCodeClient {
   }
 
   async permissions(id: string): Promise<PermissionRequest[]> {
-    const res = await this.request<{ data: PermissionRequest[] }>(
+    const res = await this.request<unknown>(
       "GET",
       `api/session/${encodeURIComponent(id)}/permission`,
     );
-    return res.data;
+    return this.dataArray<PermissionRequest>(res, "permission list");
   }
 
   async replyPermission(sessionId: string, requestId: string, decision: PermissionDecision): Promise<void> {
@@ -312,8 +339,8 @@ export class OpenCodeClient {
   }
 
   async forms(id: string): Promise<FormRequest[]> {
-    const res = await this.request<{ data: FormRequest[] }>("GET", `api/session/${encodeURIComponent(id)}/form`);
-    return res.data;
+    const res = await this.request<unknown>("GET", `api/session/${encodeURIComponent(id)}/form`);
+    return this.dataArray<FormRequest>(res, "form list");
   }
 
   async replyForm(sessionId: string, formId: string, answer: Record<string, FormValue>): Promise<void> {
@@ -332,33 +359,33 @@ export class OpenCodeClient {
   }
 
   async diff(id: string): Promise<FileDiff[]> {
-    const res = await this.request<{ data: FileDiff[] }>("GET", `api/session/${encodeURIComponent(id)}/diff`);
-    return res.data;
+    const res = await this.request<unknown>("GET", `api/session/${encodeURIComponent(id)}/diff`);
+    return this.dataArray<FileDiff>(res, "diff");
   }
 
   async models(): Promise<ModelInfo[]> {
-    const res = await this.request<{ data: ModelInfo[] }>("GET", "api/model", { query: { types: "chat" } });
-    return res.data;
+    const res = await this.request<unknown>("GET", "api/model", { query: { types: "chat" } });
+    return this.dataArray<ModelInfo>(res, "model list");
   }
 
   async defaultModel(): Promise<ModelInfo | null> {
-    const res = await this.request<{ data: ModelInfo | null }>("GET", "api/model/default");
-    return res.data;
+    const res = await this.request<unknown>("GET", "api/model/default");
+    return this.data<ModelInfo | null>(res, "default model");
   }
 
   async agents(): Promise<AgentInfo[]> {
-    const res = await this.request<{ data: AgentInfo[] }>("GET", "api/agent");
-    return res.data;
+    const res = await this.request<unknown>("GET", "api/agent");
+    return this.dataArray<AgentInfo>(res, "agent list");
   }
 
   async skills(): Promise<SkillInfo[]> {
-    const res = await this.request<{ data: SkillInfo[] }>("GET", "api/skill");
-    return res.data;
+    const res = await this.request<unknown>("GET", "api/skill");
+    return this.dataArray<SkillInfo>(res, "skill list");
   }
 
   async commands(): Promise<CommandInfo[]> {
-    const res = await this.request<{ data: CommandInfo[] }>("GET", "api/command");
-    return res.data;
+    const res = await this.request<unknown>("GET", "api/command");
+    return this.dataArray<CommandInfo>(res, "command list");
   }
 
   eventUrl(): string {

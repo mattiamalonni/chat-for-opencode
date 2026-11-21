@@ -255,6 +255,27 @@ describe("OpenCodeClient against the mock server", () => {
   });
 });
 
+describe("OpenCodeClient at the trust boundary", () => {
+  const fetchText = (text: string, status = 200): typeof fetch => async () => new Response(text, { status });
+
+  it("turns a malformed 200 body into an ApiError instead of a SyntaxError", async () => {
+    const client = new OpenCodeClient({ baseUrl: "http://localhost/" }, fetchText("<html>proxy error</html>"));
+    await expect(client.info()).rejects.toMatchObject({ status: 200, tag: "malformedResponse" });
+  });
+
+  it("rejects a missing data envelope and a wrong list shape", async () => {
+    const missing = new OpenCodeClient({ baseUrl: "http://localhost/" }, fetchText('{"version":"2.2.7"}'));
+    await expect(missing.listSessions()).rejects.toMatchObject({ status: 200, tag: "malformedResponse" });
+    const wrong = new OpenCodeClient({ baseUrl: "http://localhost/" }, fetchText('{"data":"not-an-array"}'));
+    await expect(wrong.inbox("s1")).rejects.toMatchObject({ status: 200, tag: "malformedResponse" });
+  });
+
+  it("still accepts an empty body for void endpoints", async () => {
+    const client = new OpenCodeClient({ baseUrl: "http://localhost/" }, fetchText(""));
+    await expect(client.compact("s1")).resolves.toBeUndefined();
+  });
+});
+
 async function waitForIdle(client: OpenCodeClient, id: string): Promise<void> {
   for (let i = 0; i < 300; i++) {
     const msgs = await client.messages(id);
