@@ -2,11 +2,16 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<!-- Same CSP shape as the real webview (see src/chat/viewProvider.ts). -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'self' file:; script-src 'self' file: 'unsafe-inline'; img-src data:; font-src data:;">
+<!--
+  Same CSP shape as the real webview (see src/chat/viewProvider.ts): scripts are allowed only via a
+  nonce, never 'unsafe-inline'. `file:`/`self` are the harness equivalents of the host's
+  `vscode-resource:` source, needed to load the local stylesheet and bundle. The nonce is fixed here
+  because the harness is a static file; the XSS test injects a script WITHOUT it and must be blocked.
+-->
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'self' file:; script-src 'nonce-oc-harness-nonce'; img-src 'self' file: data:; font-src 'self' file: data:;">
 <link id="theme" rel="stylesheet" href="theme-dark.css">
 <link rel="stylesheet" href="../../dist/webview.css">
-<script>
+<script nonce="oc-harness-nonce">
   // Fake VS Code host bridge: records posted messages; tests reply with window.postMessage.
   window.__posted = [];
   window.__windowKeys = [];
@@ -33,6 +38,6 @@
 </head>
 <body>
 <div id="root"></div>
-<script src="../../dist/webview.js"></script>
+<script nonce="oc-harness-nonce" src="../../dist/webview.js"></script>
 </body>
 </html>

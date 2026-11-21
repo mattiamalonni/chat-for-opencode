@@ -13,15 +13,14 @@ export default defineConfig({
         "src/**/*.d.ts", // type-only declarations, no executable statements
         "src/**/*.generated.ts", // produced by `npm run gen:types`, not hand-written logic
       ],
-      // Deliberately low floor, not a quality target: ~241 unit tests cover the shared helpers
-      // well, but some modules (notably controller.ts) have no dedicated suite, extension.ts
-      // needs the VS Code host, and the webview is measured by Playwright. An 80% global gate
-      // would fail CI from day one — ratchet these numbers up as suites are added.
+      // Enforced on one CI runner (`npm run test:coverage`). Floors track the ~53% actual and are
+      // ratcheted as suites are added; controller.ts and extension.ts still need the VS Code host,
+      // while the webview is measured by Playwright. Raise these together with new tests.
       thresholds: {
-        lines: 25,
-        statements: 25,
-        functions: 20,
-        branches: 10,
+        lines: 50,
+        statements: 50,
+        functions: 50,
+        branches: 45,
       },
     },
   },

@@ -2673,3 +2673,21 @@ test("the queued-messages panel can promote, edit and remove pending prompts", a
   await host(page, { type: "inbox", items: [] });
   await expect(panel).toHaveCount(0);
 });
+
+test("the webview CSP refuses an inline script that has no nonce", async ({ page }) => {
+  const cspErrors: string[] = [];
+  page.on("console", (m) => {
+    if (/Content Security Policy|Refused to/i.test(m.text())) cspErrors.push(m.text());
+  });
+  await boot(page);
+  // The fake host bridge and the bundle carry the harness nonce. A fresh inline script does not,
+  // so the production-style `script-src 'nonce-…'` must refuse it in a real browser.
+  await page.evaluate(() => {
+    const s = document.createElement("script");
+    s.textContent = "window.__inlineRan = true";
+    document.body.appendChild(s);
+  });
+  expect(await page.evaluate(() => (window as unknown as { __inlineRan?: boolean }).__inlineRan)).toBeUndefined();
+  await expect.poll(() => cspErrors.length).toBeGreaterThan(0);
+  expect(cspErrors.join("\n")).toMatch(/Content Security Policy|Refused to execute/);
+});

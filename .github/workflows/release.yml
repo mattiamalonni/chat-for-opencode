@@ -10,6 +10,10 @@ on:
         description: Build and package only (no Marketplace publish, no GitHub release)
         type: boolean
         default: true
+      version:
+        description: Exact package.json version to publish (required when dry-run is false)
+        type: string
+        required: false
 
 permissions:
   contents: write
@@ -34,12 +38,27 @@ jobs:
           cache: npm
       - run: npm ci
 
-      - name: Check tag matches package.json version
-        if: github.ref_type == 'tag'
+      - name: Verify the version to publish
+        # Applies to every path: a tag must match package.json, and a manual publish must confirm
+        # the exact version through the input instead of silently shipping whatever is on main.
+        env:
+          REQUESTED_VERSION: ${{ inputs.version }}
+          DRY_RUN: ${{ inputs.dry-run }}
         run: |
           version=$(node -p "require('./package.json').version")
-          if [ "v$version" != "${GITHUB_REF_NAME}" ]; then
-            echo "::error::Tag ${GITHUB_REF_NAME} does not match package.json version $version"
+          if [ "$GITHUB_REF_TYPE" = "tag" ]; then
+            expected="${GITHUB_REF_NAME#v}"
+            publish=true
+          else
+            expected="$REQUESTED_VERSION"
+            if [ "$DRY_RUN" = "false" ] && [ -n "$expected" ]; then publish=true; else publish=false; fi
+          fi
+          if [ -n "$expected" ] && [ "$expected" != "$version" ]; then
+            echo "::error::Requested version $expected does not match package.json version $version"
+            exit 1
+          fi
+          if [ "$publish" = "true" ] && [ -z "$expected" ]; then
+            echo "::error::A manual publish requires the 'version' input to confirm $version"
             exit 1
           fi
 
@@ -68,7 +87,7 @@ jobs:
           cat release-notes.md
 
       - name: Publish to Visual Studio Marketplace
-        if: github.ref_type == 'tag' || !inputs.dry-run
+        if: github.ref_type == 'tag' || (!inputs.dry-run && inputs.version != '')
         run: npx vsce publish --packagePath "${{ steps.package.outputs.file }}"
         env:
           VSCE_PAT: ${{ secrets.VSCE_PAT }}

@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- **CI:** coverage floors are now enforced (`npm run test:coverage` on Linux) and the production
+  `npm audit` gate can no longer be silently skipped; a waived CVE needs an explicit `overrides`
+  entry. The UI harness uses the same nonce-based CSP shape as the real webview and a browser test
+  verifies an un-nonced inline script is refused. Releases verify the exact version on every publish
+  path — manual publishes must confirm it through the new workflow input.
 - **Contract safety:** a 200 response with non-JSON content or a missing/mistyped `data` envelope is
   now reported as a classified `ApiError` (`malformedResponse`) instead of throwing a raw
   `SyntaxError`/`TypeError` and triggering pointless reconnect loops. SSE events whose `data` is a

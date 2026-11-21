@@ -32,7 +32,10 @@ git push origin v0.3.18
 ```
 
 `Actions → Release → Run workflow` with *dry-run* checked builds and uploads the `.vsix` artifact
-without publishing.
+without publishing. To publish manually (without a tag), uncheck *dry-run* and set **version** to the
+exact `package.json` version: the workflow refuses to publish when it is missing or mismatched.
+Every publish path is verified, and the `ci` job now blocks on lint, build, unit tests, coverage
+thresholds, a high-severity production `npm audit`, VS Code integration and `.vsix` packaging.
 
 ## Notes
 

@@ -34,10 +34,9 @@ jobs:
           cache: npm
       - run: npm ci
       - name: npm audit (production dependencies)
+        # A blocking gate now: to waive a transitive CVE, pin a patched version via an explicit
+        # `overrides` entry in package.json (with a comment) instead of disabling this step.
         run: npm audit --omit=dev --audit-level=high
-        # Transitive CVEs in the runtime tree are reported, but cannot always be fixed
-        # without breaking the extension — keep this visible without blocking releases.
-        continue-on-error: true
       - run: npm run lint
       - name: Generated OpenAPI types are up to date
         run: |
@@ -45,6 +44,10 @@ jobs:
           git diff --exit-code -- src/shared/openapi.generated.ts
       - run: npm run compile
       - run: npm run test:unit
+      - name: Coverage thresholds
+        # Enforce the configured floors on one runner; the other two keep the faster unit-only run.
+        if: runner.os == 'Linux'
+        run: npm run test:coverage
 
       # The Chromium binary is ~150 MB. Reuse it across runs; `playwright install`
       # then only checks the (cheap) system dependencies. Both are Linux-only here
