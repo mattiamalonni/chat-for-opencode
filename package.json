@@ -151,7 +151,7 @@
         "command": "opencode.openChatInEditor",
         "title": "%command.openChatInEditor%",
         "category": "OpenCode",
-        "icon": "$(open-in-new-window)"
+        "icon": "$(link-external)"
       },
       {
         "command": "opencode.account",
