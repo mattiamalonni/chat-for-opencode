@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- **Architecture:** attachment handling (drops, native picker, inline staging, temp-file eviction and
+  the `file:` URI allowlist) moved into `AttachmentService`, with unit tests for the path allowlist.
+  The controller now delegates those commands; prompt building still uses `resolveAttachment`.
 - **Search:** *OpenCode: Search All Session Conversations* (Cmd/Ctrl+Alt+F) searches titles and
   message bodies across the workspace, shows hits with snippets in a Quick Pick, opens the chosen
   session and scrolls to — and briefly highlights — the matching message.

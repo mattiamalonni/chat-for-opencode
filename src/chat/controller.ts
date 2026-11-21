@@ -1,6 +1,3 @@
-import { randomUUID } from "node:crypto";
-import * as fs from "node:fs/promises";
-import * as os from "node:os";
 import * as path from "node:path";
 import * as vscode from "vscode";
 import { ApiError, OpenCodeClient, type PermissionRule } from "../client/http";
@@ -49,14 +46,15 @@ import type {
   WebviewMessage,
 } from "../shared/protocol";
 import { STRINGS, type Strings } from "../shared/strings";
-import { MAX_ATTACHMENT_BYTES, resolveAttachment } from "./attachments";
+import { resolveAttachment } from "./attachments";
+import { AttachmentService, mimeFromName } from "./attachmentService";
 import { ContextTracker, FileIndex, selectionAttachment } from "./context";
 import { ChatViews, type ChatWebview } from "./views";
 import { DiffService } from "./diff";
 import { DEFAULT_SESSION_PERMISSIONS } from "./permissions";
 import { PermissionService } from "./permissionService";
 import { quoteForShell } from "./shell";
-import { attachmentFileName, evictOldestAttachments, isWithinDirectory, normalizePathKey } from "./tempAttachments";
+import { isWithinDirectory } from "./tempAttachments";
 
 const PASSWORD_KEY = (endpoint: string) => `opencode.password:${endpoint}`;
 const SESSION_KEY = (folder: string) => `opencode.session:${folder}`;
@@ -70,27 +68,6 @@ const DRAFTS_KEY = (folder: string) => `opencode.drafts:${folder}`;
  * on-disk session storage) never reaches it, so history is the only way to see it live.
  */
 const LIVE_POLL_MS = 2000;
-
-const ATTACHMENT_MIME: Record<string, string> = {
-  ".txt": "text/plain",
-  ".md": "text/markdown",
-  ".json": "application/json",
-  ".jsonc": "application/json",
-  ".yaml": "text/plain",
-  ".yml": "text/plain",
-  ".csv": "text/csv",
-  ".svg": "image/svg+xml",
-  ".png": "image/png",
-  ".jpg": "image/jpeg",
-  ".jpeg": "image/jpeg",
-  ".gif": "image/gif",
-  ".webp": "image/webp",
-  ".pdf": "application/pdf",
-};
-
-function mimeFromName(name: string): string {
-  return ATTACHMENT_MIME[path.extname(name).toLowerCase()] ?? "application/octet-stream";
-}
 
 /** Child ids recorded in the tool state of a loaded session's history. */
 function subagentSessionsFromMessages(messages: SessionMessage[]): string[] {
@@ -277,17 +254,10 @@ export class ChatController implements vscode.Disposable {
   private readonly pendingChildEvents = new Map<string, ServerEvent[]>();
   private static readonly MAX_CHILD_SESSIONS = 30;
 
-  /** Inline attachments copied to disk so their chips can be opened in the editor. */
-  private readonly tempAttachments = new Set<string>();
-  /** Each copy can be 20 MB; cap the count so a long session cannot fill the temp folder. */
-  private static readonly MAX_TEMP_ATTACHMENTS = 50;
+  /** Drops, picker, inline staging and the attachment path allowlist; see attachmentService.ts. */
+  private readonly attachments: AttachmentService;
   /** Attention requests already announced while the chat was hidden (avoids notification spam). */
   private readonly announcedHiddenAttention = new Set<string>();
-
-  private get tempAttachmentsDir(): string {
-    // OS temp is cleared by the system on reboot, so staged copies never linger indefinitely.
-    return path.join(os.tmpdir(), "chat-for-opencode-attachments");
-  }
 
   constructor(
     private readonly ctx: vscode.ExtensionContext,
@@ -304,6 +274,12 @@ export class ChatController implements vscode.Disposable {
         // `resync()` also publishes a "connected" status, so never run it while still connecting.
         if (this.status === "connected" && this.client) void this.resync();
       },
+    );
+    this.attachments = new AttachmentService(
+      (item) => this.addAttachment(item),
+      (kind, name, detail) => (kind === "tooLarge" ? this.noticeTooLarge(name) : this.noticeUnreadable(name, detail)),
+      (line) => output.warn(line),
+      (editor, line) => this.revealLine(editor, line),
     );
     this.context = new ContextTracker((items) => this.post({ type: "context", items }));
     this.permissions = new PermissionService(ctx, () => this.folder, (line) => output.info(line));
@@ -1905,33 +1881,6 @@ export class ChatController implements vscode.Disposable {
     this.post({ type: "addAttachment", item });
   }
 
-  /**
-   * Persists inline bytes to an extension-owned temp file. The attachment carries a `file:` URI so
-   * its chip can be opened in the editor; `resolveAttachment` still inlines the bytes for an
-   * external server, while a managed server reads the local path directly.
-   */
-  private async attachInline(name: string, base64: string, mime: string | undefined, detail?: string): Promise<void> {
-    const bytes = Buffer.from(base64, "base64");
-    if (bytes.length > MAX_ATTACHMENT_BYTES) {
-      this.noticeTooLarge(name);
-      return;
-    }
-    try {
-      const dir = this.tempAttachmentsDir;
-      await fs.mkdir(dir, { recursive: true });
-      const file = path.join(dir, `${randomUUID()}-${attachmentFileName(name, mime)}`);
-      await fs.writeFile(file, bytes);
-      this.tempAttachments.add(normalizePathKey(file));
-      // Evict after a successful write, so a failed write cannot drop a still-usable old copy.
-      evictOldestAttachments(this.tempAttachments, ChatController.MAX_TEMP_ATTACHMENTS, (oldest) => {
-        void fs.unlink(oldest).catch(() => undefined);
-      });
-      this.addAttachment({ uri: vscode.Uri.file(file).toString(), name, kind: "file", detail });
-    } catch (err) {
-      this.noticeUnreadable(name, err instanceof Error ? err.message : String(err));
-    }
-  }
-
   private noticeTooLarge(name: string): void {
     const s = translatedStrings();
     this.post({ type: "notice", error: { kind: "requestFailed", message: s["error.attachmentTooLarge"], detail: name, actions: [] } });
@@ -1943,73 +1892,16 @@ export class ChatController implements vscode.Disposable {
     this.output.warn(`[chat] skipped unreadable attachment ${name}: ${detail}`);
   }
 
-  /**
-   * Adds a file to the chat. Goes through {@link attachUri} so files outside the workspace are
-   * inlined instead of sending OpenCode a path it may not be able to read.
-   */
   async addFile(uri: vscode.Uri): Promise<void> {
-    if (uri.scheme !== "file") return;
-    try {
-      await this.attachUri(uri);
-    } catch (err) {
-      this.noticeUnreadable(path.basename(uri.fsPath), err instanceof Error ? err.message : String(err));
-    }
+    await this.attachments.addFile(uri);
   }
 
-  private async attachUri(uri: vscode.Uri, name?: string): Promise<void> {
-    if (uri.scheme !== "file") return;
-    const label = name || path.basename(uri.fsPath);
-    const detail = vscode.workspace.asRelativePath(uri, false);
-    if (vscode.workspace.getWorkspaceFolder(uri)) {
-      // The server can read project files itself, preserving line ranges on @-mentions.
-      this.addAttachment({ uri: uri.toString(), name: label, kind: "file", detail });
-      return;
-    }
-    // Outside the workspace: send the content inline so the model actually receives it.
-    const stat = await fs.stat(uri.fsPath);
-    if (stat.size > MAX_ATTACHMENT_BYTES) return this.noticeTooLarge(label);
-    const bytes = await fs.readFile(uri.fsPath);
-    await this.attachInline(label, bytes.toString("base64"), mimeFromName(label), detail);
-  }
-
-  /** Files dropped into the webview, which cannot expose a path for OS drags. */
   private async dropFiles(files: DroppedFile[]): Promise<void> {
-    for (const file of files) {
-      try {
-        if (file.base64) {
-          await this.attachInline(file.name, file.base64, file.mime, file.name);
-          continue;
-        }
-        const uri = file.uri
-          ? (() => {
-              const parsed = vscode.Uri.parse(file.uri);
-              return parsed.scheme === "file" ? parsed : undefined;
-            })()
-          : file.path
-            ? vscode.Uri.file(file.path)
-            : undefined;
-        if (uri) await this.attachUri(uri, file.name);
-      } catch (err) {
-        this.output.warn(`[chat] failed to attach dropped file ${file.name}: ${String(err)}`);
-      }
-    }
+    await this.attachments.dropFiles(files);
   }
 
-  /** Native file picker: a reliable alternative to drag & drop, which VS Code gates behind Shift. */
   async pickFiles(): Promise<void> {
-    const uris = await vscode.window.showOpenDialog({
-      canSelectMany: true,
-      title: vscode.l10n.t("Attach files to the chat"),
-      openLabel: vscode.l10n.t("Attach"),
-    });
-    if (!uris) return;
-    for (const uri of uris) {
-      try {
-        await this.attachUri(uri);
-      } catch (err) {
-        this.output.warn(`[chat] failed to attach picked file ${uri.fsPath}: ${String(err)}`);
-      }
-    }
+    await this.attachments.pickFiles();
   }
 
   addSelection(editor: vscode.TextEditor | undefined): boolean {
@@ -2505,43 +2397,8 @@ export class ChatController implements vscode.Disposable {
     editor.revealRange(new vscode.Range(pos, pos), vscode.TextEditorRevealType.InCenter);
   }
 
-  /**
-   * Opens an attachment chip: a controller-owned temp copy (staged inline files) or a project file
-   * referenced by an already-sent message. Both are real paths; only the workspace/temp allowlist
-   * may be opened, since the URI arrives from the webview.
-   */
   private async openAttachment(uri: string): Promise<void> {
-    let parsed: vscode.Uri;
-    try {
-      parsed = vscode.Uri.parse(uri);
-    } catch {
-      return;
-    }
-    if (parsed.scheme !== "file") return;
-    const target = parsed.with({ query: "", fragment: "" });
-    const file = normalizePathKey(target.fsPath);
-    const tempCopy = this.tempAttachments.has(file) && isWithinDirectory(target.fsPath, this.tempAttachmentsDir);
-    const projectFile = !!vscode.workspace.getWorkspaceFolder(target);
-    if (!tempCopy && !projectFile) {
-      this.output.warn(`[chat] blocked an attempt to open an attachment outside the workspace: ${file}`);
-      return;
-    }
-    // @-mentions of a selection carry a 1-based `?start=&end=` range: jump to its first line.
-    let line: number | undefined;
-    try {
-      const start = Number(new URLSearchParams(parsed.query).get("start"));
-      if (Number.isInteger(start) && start > 0) line = start - 1;
-    } catch {
-      // A malformed range simply opens the file at the top.
-    }
-    if (line === undefined) {
-      // Preserve `vscode.open`: it is the only way to show images/PDFs, not just text documents.
-      await vscode.commands.executeCommand("vscode.open", target);
-      return;
-    }
-    const doc = await vscode.workspace.openTextDocument(target);
-    const editor = await vscode.window.showTextDocument(doc, { preview: true });
-    this.revealLine(editor, line);
+    await this.attachments.open(uri);
   }
 
   private async openLink(href: string): Promise<void> {
@@ -2553,14 +2410,7 @@ export class ChatController implements vscode.Disposable {
   }
 
   async dispose(): Promise<void> {
-    for (const file of this.tempAttachments) {
-      try {
-        await fs.unlink(file);
-      } catch {
-        // Best effort: the OS may already have removed the temp file.
-      }
-    }
-    this.tempAttachments.clear();
+    await this.attachments.dispose();
     this.stream?.close();
     this.serverSub?.();
     this.fileIndex?.dispose();
