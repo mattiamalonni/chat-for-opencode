@@ -29,6 +29,7 @@ export type UiErrorKind =
   | "connectionLost"
   | "promptFailed"
   | "noWorkspace"
+  | "untrustedWorkspace"
   | "requestFailed";
 
 export type ActionId =
@@ -39,6 +40,7 @@ export type ActionId =
   | "login"
   | "setPassword"
   | "openFolder"
+  | "trustWorkspace"
   | "newSession"
   | "retry";
 

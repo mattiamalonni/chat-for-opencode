@@ -1,11 +1,68 @@
-import { describe, expect, it, vi } from "vitest";
-import { deserializeFileCache, excludeGlobs, serializeFileCache } from "../../src/chat/context";
+import * as vscode from "vscode";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { deserializeFileCache, excludeGlobs, FileIndex, serializeFileCache } from "../../src/chat/context";
 import type { SessionMessage } from "../../src/shared/api";
 import { chatReducer, contextTokensOf, initialChatState } from "../../src/shared/chatReducer";
 import { formatTokens } from "../../src/shared/format";
 
-// `context.ts` imports `vscode` at load time; the exclude helper itself is pure.
-vi.mock("vscode", () => ({ workspace: {} }));
+// Minimal in-memory VS Code host so `FileIndex` can be exercised in plain Node. `findFiles` is a
+// deferred promise, letting a test invalidate while a scan is still in flight.
+vi.mock("vscode", () => {
+  const callbacks: Record<string, (uri: { fsPath: string }) => void> = {};
+  const watcher = {
+    onDidCreate: (cb: (uri: { fsPath: string }) => void) => {
+      callbacks.create = cb;
+    },
+    onDidDelete: (cb: (uri: { fsPath: string }) => void) => {
+      callbacks.delete = cb;
+    },
+    dispose: vi.fn(),
+  };
+  let resolveFind: ((files: unknown[]) => void) | undefined;
+  const state = {
+    callbacks,
+    watcher,
+    findFiles: vi.fn(
+      () =>
+        new Promise<unknown[]>((resolve) => {
+          resolveFind = resolve;
+        }),
+    ),
+    resolveFind: (files: unknown[]) => resolveFind?.(files),
+    config: {} as Record<string, unknown>,
+    storageValues: {} as Record<string, unknown>,
+    updates: vi.fn(async (_key: string, _value: unknown) => {}),
+  };
+  return {
+    __state: state,
+    workspace: {
+      getConfiguration: () => ({ get: (key: string) => state.config[key] }),
+      createFileSystemWatcher: () => watcher,
+      findFiles: state.findFiles,
+    },
+    RelativePattern: class {
+      constructor(..._args: unknown[]) {}
+    },
+    Uri: {
+      parse: (value: string) => ({
+        toString: () => value,
+        fsPath: value.replace(/^file:\/\//, ""),
+        with: () => ({ toString: () => value }),
+      }),
+    },
+  };
+});
+
+interface MockState {
+  callbacks: Record<string, (uri: { fsPath: string }) => void>;
+  findFiles: ((...args: unknown[]) => Promise<unknown[]>) & { mock: { calls: unknown[][] } };
+  resolveFind: (files: unknown[]) => void;
+  config: Record<string, unknown>;
+  storageValues: Record<string, unknown>;
+  updates: ((key: string, value: unknown) => Promise<void>) & { mock: { calls: unknown[][] } };
+  watcher: { dispose: object };
+}
+const mock = (vscode as unknown as { __state: MockState }).__state;
 
 describe("excludeGlobs", () => {
   it("includes configured excludes and keeps their glob form", () => {
@@ -68,6 +125,75 @@ describe("file index cache serialization", () => {
     expect(deserializeFileCache({ version: 1, exclude: "nope", files: [] }, [])).toBeUndefined();
     expect(deserializeFileCache({ version: 1, exclude: [42], files: [] }, [])).toBeUndefined();
     expect(deserializeFileCache({ version: 1, exclude: [], files: ["file:///a.ts", 42, null] }, [])).toEqual(["file:///a.ts"]);
+  });
+});
+
+describe("FileIndex invalidation", () => {
+  const folder = {
+    uri: { toString: () => "file:///workspace", fsPath: "/workspace" },
+  } as unknown as vscode.WorkspaceFolder;
+  const file = (name: string) => ({ fsPath: `/workspace/${name}`, toString: () => `file:///workspace/${name}` });
+
+  function storage(): vscode.Memento {
+    return {
+      get: (key: string) => mock.storageValues[key],
+      update: (key: string, value: unknown) => {
+        mock.updates(key, value);
+        if (value === undefined) delete mock.storageValues[key];
+        else mock.storageValues[key] = value;
+        return Promise.resolve();
+      },
+    } as unknown as vscode.Memento;
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    for (const key of Object.keys(mock.callbacks)) delete mock.callbacks[key];
+    for (const key of Object.keys(mock.config)) delete mock.config[key];
+    for (const key of Object.keys(mock.storageValues)) delete mock.storageValues[key];
+  });
+
+  it("does not restore or persist a scan that finishes after an invalidation", async () => {
+    const index = new FileIndex(folder, storage());
+
+    const stale = index.search("a");
+    expect(mock.findFiles.mock.calls.length).toBe(1);
+
+    // A watched file event invalidates the index while the scan is still in flight.
+    mock.callbacks.create({ fsPath: "/workspace/deleted.ts" });
+
+    mock.resolveFind([file("a.ts")]);
+    await stale;
+
+    // The snapshot was cleared on invalidation and never re-written with the stale result.
+    expect(mock.updates.mock.calls).toEqual([[expect.stringContaining("opencode.fileIndex:"), undefined]]);
+
+    // The stale result was not committed: the next search rescans and persists fresh data.
+    const fresh = index.search("b");
+    expect(mock.findFiles.mock.calls.length).toBe(2);
+    mock.resolveFind([file("b.ts")]);
+    expect(await fresh).toEqual([expect.objectContaining({ name: "b.ts" })]);
+    expect(mock.updates.mock.calls.at(-1)).toEqual([expect.any(String), expect.objectContaining({ files: ["file:///workspace/b.ts"] })]);
+  });
+
+  it("does not commit a scan that finishes after dispose", async () => {
+    const index = new FileIndex(folder, storage());
+
+    const pending = index.search("a");
+    expect(mock.findFiles.mock.calls.length).toBe(1);
+
+    index.dispose();
+    expect(mock.watcher.dispose).toHaveBeenCalledTimes(1);
+
+    mock.resolveFind([file("a.ts")]);
+    await pending;
+    expect(mock.updates.mock.calls).toEqual([]);
+
+    // The post-dispose result was not cached, so a later search starts a new scan.
+    const later = index.search("c");
+    expect(mock.findFiles.mock.calls.length).toBe(2);
+    mock.resolveFind([file("c.ts")]);
+    expect(await later).toEqual([expect.objectContaining({ name: "c.ts" })]);
   });
 });
 

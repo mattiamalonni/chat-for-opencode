@@ -5,6 +5,7 @@ out/
 .vscode-test/
 test-results/
 playwright-report/
+coverage/
 test/ui/screenshots/*.png
 !test/ui/screenshots/.gitkeep
 src/**/*.js

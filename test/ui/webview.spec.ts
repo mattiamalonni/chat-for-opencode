@@ -944,6 +944,41 @@ test("permission requests appear in the attention overlay and are never auto-app
   await expect(card).toHaveCount(0);
 });
 
+test("a new permission takes focus and 1/2/3 answer it without tabbing through the chat", async ({ page }) => {
+  await boot(page);
+  await host(page, {
+    type: "session",
+    session: {
+      id: S2,
+      busy: true,
+      messages: [],
+      permissions: [{ id: "per_k", sessionID: S2, action: "edit", resources: ["a.txt"], save: ["*"], metadata: {} }],
+      forms: [],
+    },
+  });
+  const overlay = page.locator(".attention-overlay");
+  await expect(overlay).toBeVisible();
+  await expect(overlay).toBeFocused();
+  await page.keyboard.press("1");
+  expect(await lastPosted(page, "permissionReply")).toMatchObject({ sessionId: S2, requestId: "per_k", decision: "once" });
+
+  // A second request re-focuses the overlay; "2" maps to "always" only when a rule can be saved.
+  await host(page, {
+    type: "session",
+    session: {
+      id: S2,
+      busy: true,
+      messages: [],
+      permissions: [{ id: "per_k2", sessionID: S2, action: "shell", resources: ["ls"], save: ["*"], metadata: {} }],
+      forms: [],
+    },
+  });
+  await expect(overlay.locator(".card.permission .card-title code")).toHaveText("shell");
+  await expect(overlay).toBeFocused();
+  await page.keyboard.press("2");
+  expect(await lastPosted(page, "permissionReply")).toMatchObject({ sessionId: S2, requestId: "per_k2", decision: "always" });
+});
+
 test("pending requests are shown one at a time with a counter and navigation", async ({ page }) => {
   await boot(page);
   await host(page, {
@@ -1241,7 +1276,7 @@ test("Cmd/Ctrl+F opens and focuses the chat message search without reaching the 
   await page.evaluate(() => ((window as unknown as { __windowKeys: string[] }).__windowKeys.length = 0));
   await page.keyboard.press("Control+f");
   await expect(search).toBeFocused();
-  expect(await search.evaluate((el) => [el.selectionStart, el.selectionEnd])).toEqual([0, 5]);
+  expect(await search.evaluate((el) => [(el as HTMLInputElement).selectionStart, (el as HTMLInputElement).selectionEnd])).toEqual([0, 5]);
   expect(await windowKeys()).not.toContain("Ctrl+f");
 
   await page.keyboard.press("Escape");
@@ -2243,7 +2278,7 @@ test("long chip tooltips do not create horizontal scroll", async ({ page }) => {
   // rightwards past the viewport, leaving an empty horizontal scrollbar (issue reported on 0.3.8).
   const items = Array.from({ length: 6 }, (_, i) => ({
     id: `file:///work/src/a/very/long/path/to/component-${i}.tsx`,
-    kind: "file",
+    kind: "file" as const,
     uri: `file:///work/src/a/very/long/path/to/component-${i}.tsx`,
     label: `component-with-a-very-long-name-${i}.tsx`,
     detail: "src/a/very/long/path",

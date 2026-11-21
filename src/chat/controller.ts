@@ -51,6 +51,7 @@ import type {
 import { STRINGS, type Strings } from "../shared/strings";
 import { MAX_ATTACHMENT_BYTES, resolveAttachment } from "./attachments";
 import { ContextTracker, FileIndex, selectionAttachment } from "./context";
+import { renderHtml } from "./viewProvider";
 import { DiffService } from "./diff";
 import { DEFAULT_SESSION_PERMISSIONS } from "./permissions";
 import { PermissionService } from "./permissionService";
@@ -181,15 +182,27 @@ function toUiError(err: unknown, fallback: UiErrorKind = "requestFailed"): UiErr
   return { kind: fallback, message: s[`error.${fallback}`], detail: message, actions: ["reconnect", "showLogs"] };
 }
 
+type ChatWebview = vscode.WebviewView | vscode.WebviewPanel;
+
 export class ChatController implements vscode.Disposable {
-  private view: vscode.WebviewView | undefined;
-  /** Listeners tied to the current webview; replaced as a group when the view is rebuilt. */
-  private viewSubscriptions: vscode.Disposable | undefined;
+  /** All live chats: the sidebar view plus any editor tabs. `post()` fans out to every one. */
+  private readonly views = new Set<ChatWebview>();
+  /** Listeners tied to each webview, disposed with the view instead of leaking in `disposables`. */
+  private readonly viewSubscriptions = new Map<ChatWebview, vscode.Disposable>();
+  private sidebarView: vscode.WebviewView | undefined;
+  private panel: vscode.WebviewPanel | undefined;
+  private view: ChatWebview | undefined;
   private folder: vscode.WorkspaceFolder | undefined;
   private server: ServerHandle | undefined;
   private serverSub: (() => void) | undefined;
   private client: OpenCodeClient | undefined;
   private stream: EventStream | undefined;
+  /**
+   * Connection whose `loadAll()` completed. `useConnection()` must not treat an installed client as
+   * ready when a previous load failed: an external server has a stable URL/password, so the guard
+   * would otherwise turn every later reconnect into a no-op and leave the chat stuck on the error.
+   */
+  private loadedConnection: { baseUrl: string; password?: string } | undefined;
   private sessionId: string | undefined;
   private status: ConnectionStatus = "idle";
   private lastError: UiError | undefined;
@@ -268,7 +281,7 @@ export class ChatController implements vscode.Disposable {
   ) {
     this.context = new ContextTracker((items) => this.post({ type: "context", items }));
     this.permissions = new PermissionService(ctx, () => this.folder, (line) => output.info(line));
-    this.catalog = new CatalogService(ctx, (msg) => this.post(msg), (line) => output.info(line), () => !!this.view);
+    this.catalog = new CatalogService(ctx, (msg) => this.post(msg), (line) => output.info(line), () => this.views.size > 0);
     this.fileIcons = new FileIconThemeService({
       themeId: () => vscode.workspace.getConfiguration("workbench").get<string | null>("iconTheme") ?? undefined,
       variant: () => {
@@ -325,32 +338,73 @@ export class ChatController implements vscode.Disposable {
 
   // ---- view wiring ------------------------------------------------------------------------
 
-  attachView(view: vscode.WebviewView): void {
-    // A view can be recreated (sidebar toggle, reload). Drop the previous view's listeners instead
-    // of accumulating them in `disposables`: disposed entries stayed referenced until the whole
-    // controller was disposed, so repeated rebuilds leaked a little memory each time.
-    this.viewSubscriptions?.dispose();
-    this.view = view;
+  attachView(view: ChatWebview): void {
+    // Each view owns its listeners. A second view (editor tab) must not tear down the sidebar
+    // view's subscription; disposing a view removes only its own entries.
+    this.detachView(view);
+    this.views.add(view);
     const sub = view.webview.onDidReceiveMessage((msg: WebviewMessage) => void this.receive(msg));
     // The view's onDidDispose also tears down the message listener: if the controller is disposed
     // while the view lives on, that listener would otherwise keep it reachable forever.
-    const onDispose = view.onDidDispose(() => {
-      if (this.view === view) {
-        this.view = undefined;
-        this.viewSubscriptions?.dispose();
-        this.viewSubscriptions = undefined;
-      }
-    });
-    // The live stream has no replay: top up incrementally when the panel is shown again so a
-    // chat left open in the background cannot drift from the server while it was hidden.
-    const onVisibility = view.onDidChangeVisibility(() => {
-      if (this.view !== view || !view.visible) return;
+    const onDispose = view.onDidDispose(() => this.detachView(view));
+    // The live stream has no replay: top up incrementally when a view is shown again so a chat left
+    // open in the background cannot drift from the server while it was hidden.
+    const onShown = () => {
+      if (!this.views.has(view) || !view.visible) return;
       // Back in view: the user can see the cards, so a later resync must not announce them again.
       this.announcedHiddenAttention.clear();
       // `resync()` also publishes a "connected" status, so never run it while still connecting.
       if (this.status === "connected" && this.client) void this.resync();
+    };
+    // WebviewView has visibility events; editor panels expose the same state via view-state changes.
+    const onVisibility = "onDidChangeVisibility" in view ? view.onDidChangeVisibility(onShown) : view.onDidChangeViewState(onShown);
+    this.viewSubscriptions.set(view, vscode.Disposable.from(sub, onDispose, onVisibility));
+    // The first sidebar view is the focus target. Editor panels opt in explicitly via `attachPanel`.
+    if (view === this.sidebarView || (!this.sidebarView && "onDidChangeVisibility" in view)) {
+      this.sidebarView = view;
+      this.view = view;
+    }
+  }
+
+  private detachView(view: ChatWebview): void {
+    this.viewSubscriptions.get(view)?.dispose();
+    this.viewSubscriptions.delete(view);
+    this.views.delete(view);
+    if (this.view === view) this.view = this.sidebarView && this.views.has(this.sidebarView) ? this.sidebarView : undefined;
+  }
+
+  /** Opens (or reveals) the chat in an editor tab so long transcripts and diffs have room. */
+  openChatInEditor(): void {
+    if (this.panel) {
+      this.panel.reveal();
+      return;
+    }
+    const panel = vscode.window.createWebviewPanel(
+      "opencode.chat",
+      vscode.l10n.t("OpenCode chat"),
+      vscode.ViewColumn.Beside,
+      { enableScripts: true, localResourceRoots: [vscode.Uri.joinPath(this.ctx.extensionUri, "dist")] },
+    );
+    this.attachPanel(panel);
+    panel.onDidDispose(() => {
+      if (this.panel === panel) this.panel = undefined;
     });
-    this.viewSubscriptions = vscode.Disposable.from(sub, onDispose, onVisibility);
+  }
+
+  /** Used by the serializer when VS Code restores an editor tab after a reload. */
+  attachPanel(panel: vscode.WebviewPanel): void {
+    this.panel = panel;
+    const dist = vscode.Uri.joinPath(this.ctx.extensionUri, "dist");
+    panel.webview.options = { enableScripts: true, localResourceRoots: [dist] };
+    panel.webview.html = renderHtml({
+      cspSource: panel.webview.cspSource,
+      scriptUri: panel.webview.asWebviewUri(vscode.Uri.joinPath(dist, "webview.js")).toString(),
+      styleUri: panel.webview.asWebviewUri(vscode.Uri.joinPath(dist, "webview.css")).toString(),
+      lang: vscode.env.language,
+      title: vscode.l10n.t("OpenCode chat"),
+      e2e: process.env.OC_IT_E2E === "1",
+    });
+    this.attachView(panel);
   }
 
   /** Serializes webview messages: a late `ready`/loadAll must not race a prompt and drop its events. */
@@ -384,14 +438,15 @@ export class ChatController implements vscode.Disposable {
   }
 
   get isVisible(): boolean {
-    return this.view?.visible ?? false;
+    for (const view of this.views) if (view.visible) return true;
+    return false;
   }
 
   private readonly postListeners = new Set<(msg: HostMessage) => void>();
 
   post(msg: HostMessage): void {
-    // A long-running load/resync can outlive the view; postMessage rejects on a disposed webview.
-    void this.view?.webview.postMessage(msg).then(undefined, () => undefined);
+    // A long-running load/resync can outlive a view; postMessage rejects on a disposed webview.
+    for (const view of this.views) void view.webview.postMessage(msg).then(undefined, () => undefined);
     for (const l of this.postListeners) l(msg);
   }
 
@@ -488,6 +543,34 @@ export class ChatController implements vscode.Disposable {
 
   // ---- connection -------------------------------------------------------------------------
 
+  /**
+   * An untrusted workspace must never start a configurable executable or read stored credentials.
+   * VS Code returns restricted configuration defaults there, but `ensure()` would still spawn the
+   * default `opencode` binary, so the gate belongs before any server/secret access.
+   */
+  private trustBlocked(): boolean {
+    return !vscode.workspace.isTrusted;
+  }
+
+  private postUntrusted(): void {
+    const s = translatedStrings();
+    this.setStatus("error", {
+      kind: "untrustedWorkspace",
+      message: s["error.untrustedWorkspace"],
+      actions: ["trustWorkspace"],
+    });
+  }
+
+  /** Reacts to the user trusting (or untrusting) the current window without requiring a reload. */
+  async onWorkspaceTrustChanged(trusted: boolean): Promise<void> {
+    if (trusted) {
+      if (this.view) await this.connect();
+      return;
+    }
+    await this.detachServers();
+    this.postUntrusted();
+  }
+
   /** Starts (or reuses) the server for the current folder and loads everything. */
   connect(): Promise<void> {
     if (!this.connecting) {
@@ -506,6 +589,10 @@ export class ChatController implements vscode.Disposable {
   private async doConnect(): Promise<void> {
     const generation = this.connectGen.current();
     const stale = () => !this.connectGen.is(generation);
+    if (this.trustBlocked()) {
+      this.postUntrusted();
+      return;
+    }
     this.folder ??= this.pickFolder();
     if (!this.folder) {
       const s = translatedStrings();
@@ -538,11 +625,26 @@ export class ChatController implements vscode.Disposable {
     isStale: () => boolean = () => false,
   ): Promise<void> {
     if (isStale()) return;
-    if (this.client?.conn.baseUrl === conn.baseUrl && this.client.conn.password === conn.password && this.stream) {
+    if (this.trustBlocked()) {
+      this.postUntrusted();
+      return;
+    }
+    const loaded = this.loadedConnection;
+    if (
+      this.client?.conn.baseUrl === conn.baseUrl &&
+      this.client.conn.password === conn.password &&
+      this.stream &&
+      loaded?.baseUrl === conn.baseUrl &&
+      loaded.password === conn.password
+    ) {
       return;
     }
     this.stream?.close();
     this.client = new OpenCodeClient(conn);
+    // Invalidate the previous successful load before starting a new one. If `loadAll()` rejects,
+    // `doConnect()` reports the error but leaves the client installed; the next reconnect must still
+    // retry the load instead of hitting the "same connection" guard above.
+    this.loadedConnection = undefined;
     this.version = version;
     this.catalog.resetWarmUp();
     this.fileIndex?.dispose();
@@ -555,6 +657,7 @@ export class ChatController implements vscode.Disposable {
     });
     this.stream.start();
     await this.loadAll();
+    this.loadedConnection = { baseUrl: conn.baseUrl, password: conn.password };
     this.startLivePoll();
   }
 
@@ -758,17 +861,23 @@ export class ChatController implements vscode.Disposable {
   private async resync(): Promise<void> {
     try {
       const generation = this.loadGen.current();
+      // `resync()` is fire-and-forget from the stream status and view visibility handlers. Capture
+      // the connection too: a folder switch or a new connect during the awaits below must not let an
+      // old resync publish "connected" for a client we no longer own.
+      const connectGeneration = this.connectGen.current();
+      const client = this.client;
       const sid = this.sessionId;
       await this.refreshSessions();
-      if (sid && sid === this.sessionId && this.client) {
-        const info = await this.client.getSession(sid);
-        if (!this.loadGen.is(generation) || sid !== this.sessionId) return;
+      if (sid && sid === this.sessionId && client && client === this.client) {
+        const info = await client.getSession(sid);
+        if (!this.loadGen.is(generation) || sid !== this.sessionId || client !== this.client) return;
         const busyOverride = this.isLocallyIdle(sid) ? false : undefined;
-        const stale = () => !this.loadGen.is(generation) || sid !== this.sessionId;
+        const stale = () => !this.loadGen.is(generation) || sid !== this.sessionId || client !== this.client;
         if (!(await this.resyncTail(sid, info, stale, busyOverride))) {
           await this.loadSession(info, stale, busyOverride);
         }
       }
+      if (!this.connectGen.is(connectGeneration) || client !== this.client) return;
       if (this.status !== "error" || this.lastError?.kind === "connectionLost") this.setStatus("connected");
     } catch (err) {
       this.output.error(`[chat] resync failed: ${String(err)}`);
@@ -826,12 +935,22 @@ export class ChatController implements vscode.Disposable {
       // The tail itself is authoritative. `time.updated` is not a reliable gate: it can stay equal
       // on a coarse clock, or move for changes we do not render, which used to hide real messages.
       const newer = await client.messagesNewerThan(sid, head.id).catch(() => undefined);
-      if (!newer || newer.length === 0 || stale()) return;
+      if (stale()) return;
+      if (newer === undefined) {
+        // `messagesNewerThan` looks at the newest page only. A burst of >200 messages from another
+        // client (or a compacted history) has no overlap with our mark: fall back to a full load.
+        // `getSession()` also gates transient tail failures — if the server is really down it throws
+        // and the catch below logs, so a broken poll cannot rebuild the chat every two seconds.
+        const info = await client.getSession(sid);
+        if (stale()) return;
+        await this.loadSession(info, stale, this.isLocallyIdle(sid) ? false : undefined);
+        void this.refreshSessions().catch(() => {});
+        return;
+      }
+      if (newer.length === 0) return;
       const info = await client.getSession(sid);
       if (stale()) return;
       const busyOverride = this.isLocallyIdle(sid) ? false : undefined;
-      // A trimmed/compacted history has no overlap with our high-water mark: fall back to a full
-      // load, the same way a reconnect does. It resets the mark, so this cannot repeat every tick.
       if (!(await this.resyncTail(sid, info, stale, busyOverride, newer))) {
         await this.loadSession(info, stale, busyOverride);
       }
@@ -1488,7 +1607,12 @@ export class ChatController implements vscode.Disposable {
     }
   }
 
-  private async loadSession(rawInfo: SessionInfo, stale?: () => boolean, busyOverride?: boolean): Promise<void> {
+  /**
+   * `fast` is used by the first prompt: the user's text must reach the server without waiting for
+   * catalog/session-list/diff round-trips. Those still run, but fire-and-forget with a generation
+   * guard, so the webview is published as soon as history is available.
+   */
+  private async loadSession(rawInfo: SessionInfo, stale?: () => boolean, busyOverride?: boolean, fast = false): Promise<void> {
     const client = this.client;
     if (!client || !this.folder) return;
     const [rawMessages, rawPermissions, rawForms, rawInbox] = await Promise.all([
@@ -1523,8 +1647,10 @@ export class ChatController implements vscode.Disposable {
       this.catalog.selectedModel = info.model;
     }
     if (info.agent && this.catalog.agents.some((a) => a.id === info.agent)) this.catalog.selectedAgent = info.agent;
-    await this.refreshSlashItems();
-    if (stale?.()) return;
+    if (!fast) {
+      await this.refreshSlashItems();
+      if (stale?.()) return;
+    }
     this.catalog.publish();
     this.post({
       type: "session",
@@ -1550,15 +1676,36 @@ export class ChatController implements vscode.Disposable {
     void this.discoverChildren();
     this.postAutoApprove();
     this.publishInbox(rawInbox);
-    await this.refreshSessions();
-    const diff = await this.refreshChanges();
-    this.observeContract({ diff });
+    if (fast) {
+      // Not on the critical path of the first prompt. The generation guard keeps a late response
+      // from overwriting state after a folder/session switch.
+      const guard = stale;
+      void this.refreshSlashItems().catch(() => {});
+      void this.refreshSessions().catch(() => {});
+      void this.refreshChanges()
+        .then((diff) => {
+          if (!guard?.()) this.observeContract({ diff });
+        })
+        .catch(() => {});
+    } else {
+      await this.refreshSessions();
+      if (stale?.()) return;
+      const diff = await this.refreshChanges();
+      this.observeContract({ diff });
+    }
     // Idempotent: a session opened without a connection change (e.g. after New Session + prompt)
     // still needs to follow turns started by other clients sharing the same on-disk storage.
     this.startLivePoll();
   }
 
   // ---- commands ---------------------------------------------------------------------------
+
+  /** Entry point for the palette/status-bar "Ask" command: reuse the normal send pipeline. */
+  async ask(text: string): Promise<void> {
+    const trimmed = text.trim();
+    if (!trimmed) return;
+    await this.receive({ type: "send", text: trimmed, attachments: [], context: [] });
+  }
 
   async newSession(): Promise<void> {
     this.announcedHiddenAttention.clear();
@@ -1583,6 +1730,10 @@ export class ChatController implements vscode.Disposable {
   }
 
   async reconnect(): Promise<void> {
+    if (this.trustBlocked()) {
+      this.postUntrusted();
+      return;
+    }
     const generation = this.connectGen.bump();
     const stale = () => !this.connectGen.is(generation);
     this.connecting = undefined;
@@ -1593,6 +1744,7 @@ export class ChatController implements vscode.Disposable {
     this.stream?.close();
     this.stream = undefined;
     this.client = undefined;
+    this.loadedConnection = undefined;
     this.lastKnownMessage = undefined;
     this.stopLivePoll();
     try {
@@ -1615,6 +1767,7 @@ export class ChatController implements vscode.Disposable {
     this.stream?.close();
     this.stream = undefined;
     this.client = undefined;
+    this.loadedConnection = undefined;
     this.lastKnownMessage = undefined;
     this.stopLivePoll();
     this.serverSub?.();
@@ -1645,6 +1798,7 @@ export class ChatController implements vscode.Disposable {
     this.stream?.close();
     this.stream = undefined;
     this.client = undefined;
+    this.loadedConnection = undefined;
     this.sessionId = undefined;
     this.lastKnownMessage = undefined;
     this.stopLivePoll();
@@ -1839,6 +1993,11 @@ export class ChatController implements vscode.Disposable {
         return this.setPassword();
       case "openFolder":
         await vscode.commands.executeCommand("vscode.openFolder");
+        return;
+      case "trustWorkspace":
+        // `workspace.requestWorkspaceTrust()` is not in the 1.99 API; the built-in command opens
+        // the same Workspace Trust editor with the current folder selected.
+        await vscode.commands.executeCommand("workbench.trust.manage");
         return;
       case "newSession":
         return this.newSession();
@@ -2158,7 +2317,7 @@ export class ChatController implements vscode.Disposable {
         if (autoApprove !== undefined) {
           await this.permissions.write(info.id, autoApprove);
         }
-        await this.loadSession(info, () => !this.loadGen.is(generation));
+        await this.loadSession(info, () => !this.loadGen.is(generation), undefined, true);
         if (!this.loadGen.is(generation)) return false;
       }
       const sid = this.sessionId;
@@ -2311,8 +2470,11 @@ export class ChatController implements vscode.Disposable {
     this.fileIndex?.dispose();
     this.stopLivePoll();
     this.clearTimers();
-    this.viewSubscriptions?.dispose();
-    this.viewSubscriptions = undefined;
+    for (const sub of this.viewSubscriptions.values()) sub.dispose();
+    this.viewSubscriptions.clear();
+    this.views.clear();
+    this.view = undefined;
+    this.panel = undefined;
     for (const d of this.disposables) d.dispose();
   }
 

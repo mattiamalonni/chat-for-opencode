@@ -182,6 +182,8 @@ export function deserializeFileCache(raw: unknown, expectedExclude: string[]): s
 export class FileIndex implements vscode.Disposable {
   private files: vscode.Uri[] | undefined;
   private loading: Promise<vscode.Uri[]> | undefined;
+  /** Bumped on every invalidation/dispose so a stale in-flight scan cannot commit its result. */
+  private generation = 0;
   private readonly watcher: vscode.FileSystemWatcher;
   private readonly exclude: string[];
   private readonly storage: vscode.Memento | undefined;
@@ -198,8 +200,11 @@ export class FileIndex implements vscode.Disposable {
     const invalidate = (uri: vscode.Uri): void => {
       if (isExcluded(path.relative(this.folder.uri.fsPath, uri.fsPath), this.exclude)) return;
       this.files = undefined;
+      // Bumping the generation disqualifies any scan already in flight: even if it resolves later,
+      // it will neither restore `files` nor persist its outdated snapshot.
+      this.generation++;
       // Drop the persisted snapshot too so a fresh window cannot restore a stale list. Best-effort:
-      // a failed write is ignored, and an in-flight scan may briefly re-add an outdated snapshot.
+      // a failed write is ignored.
       if (this.storage && this.cacheKey) {
         void Promise.resolve(this.storage.update(this.cacheKey, undefined)).catch(() => {});
       }
@@ -211,20 +216,24 @@ export class FileIndex implements vscode.Disposable {
   private async list(): Promise<vscode.Uri[]> {
     if (this.files) return this.files;
     if (!this.loading) {
+      const generation = this.generation;
       this.loading = (async (): Promise<vscode.Uri[]> => {
         if (this.storage && this.cacheKey) {
           const cached = deserializeFileCache(this.storage.get(this.cacheKey), this.exclude);
           if (cached) return cached.map((value) => vscode.Uri.parse(value));
         }
         const files = await vscode.workspace.findFiles(new vscode.RelativePattern(this.folder, "**/*"), asGlobPattern(this.exclude), 20_000);
-        if (this.storage && this.cacheKey) {
+        // An invalidation may have happened while `findFiles` was in flight: never persist a
+        // snapshot that is already known to be stale.
+        if (generation === this.generation && this.storage && this.cacheKey) {
           // Best-effort persistence: a storage failure must never break file search.
           void Promise.resolve(this.storage.update(this.cacheKey, serializeFileCache(files, this.exclude))).catch(() => {});
         }
         return files;
       })().then((files) => {
-        this.files = files;
         this.loading = undefined;
+        // Only commit if nothing invalidated the index while the scan was running.
+        if (generation === this.generation) this.files = files;
         return files;
       });
     }
@@ -249,6 +258,9 @@ export class FileIndex implements vscode.Disposable {
   }
 
   dispose(): void {
+    // Invalidate so a scan resolving after disposal cannot commit files or persist a snapshot.
+    this.generation++;
+    this.files = undefined;
     this.watcher.dispose();
   }
 }

@@ -178,6 +178,7 @@ export const STRINGS = {
   "action.login": "Configure a provider",
   "action.setPassword": "Enter password",
   "action.openFolder": "Open folder",
+  "action.trustWorkspace": "Trust workspace",
   "action.newSession": "New session",
   "action.retry": "Retry",
   // errors
@@ -188,6 +189,7 @@ export const STRINGS = {
   "error.connectionLost": "Lost connection to the OpenCode server.",
   "error.promptFailed": "Could not send the message.",
   "error.noWorkspace": "Open a folder to chat with OpenCode.",
+  "error.untrustedWorkspace": "Trust this workspace to start OpenCode. Workspace settings such as the executable path are ignored until you trust it.",
   "error.requestFailed": "Request to OpenCode failed.",
   "error.compactFailed": "Could not compact the conversation.",
   "error.revertFailed": "Could not roll back the conversation.",

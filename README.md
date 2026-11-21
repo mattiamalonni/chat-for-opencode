@@ -57,8 +57,10 @@ sends **no telemetry**.
   These combined views are built from the changed hunks only and create no file on disk.
 - **Permissions and questions in a dedicated panel** docked above the message box, never
   auto-approved by default — a request is always visible even if its step is folded. When several
-  are pending, the newest is shown first and `Previous` / `Next` cycle through the queue. Focus a
-  permission card and press `1`/`2`/`3` for Allow once / Always allow / Reject. Reject (like
+  are pending, the newest is shown first and `Previous` / `Next` cycle through the queue. The card
+  takes focus when a new request arrives; press `1`/`2`/`3` for Allow once / Always allow / Reject
+  (also on a permission card you focus manually). `2` is available only when the rule can be saved.
+  Reject (like
   Cancel on a question) stops the current reply; the two allow options let it continue. If the
   agent asks several questions at once, they appear one at a time with **Next question** and a
   single reply collects all the answers.
@@ -70,6 +72,8 @@ sends **no telemetry**.
 ## Requirements
 
 - VS Code **1.99** or newer.
+- A **trusted workspace**: the extension will not start `opencode serve`, read saved logins or use
+  workspace-specific settings (`opencode.executablePath`, `opencode.endpoint`) until you trust the folder.
 - **OpenCode v2** installed and on your `PATH` (tested with 2.2.7):
   `curl -fsSL https://opencode.ai/v2/install | bash` (see https://opencode.ai/docs/). The chat shows
   a dismissible warning if your server's minor or major version differs from the tested one.
@@ -103,7 +107,8 @@ Press **F5** in this repository to launch an Extension Development Host.
    OpenCode icon in the Secondary Side Bar on the right.
    On VS Code 1.99–1.103, which cannot contribute to the Secondary Side Bar, the chat appears in the Explorer;
    use *OpenCode: Move Chat View…* to move it to the right.
-2. The extension starts `opencode serve` for the folder in the background (status shown at the top).
+2. In a trusted folder the extension starts `opencode serve` in the background (status shown at the top).
+   In an untrusted one it shows a *Trust workspace* action instead and starts nothing.
 3. Type a message. `Enter` sends, `Shift+Enter` adds a new line, `@` suggests files, `/` suggests
    skills, and `Esc` stops a running response. Selecting a skill adds `/skill-id`; the extension
    translates it to OpenCode's `@skill-id` syntax when sending so OpenCode loads its instructions
@@ -131,6 +136,8 @@ loads the skill content.
 | Command | Default key |
 | --- | --- |
 | OpenCode: Focus Chat | `Cmd/Ctrl+Alt+O` |
+| OpenCode: Ask OpenCode… | `Cmd/Ctrl+Alt+Shift+O` (send a prompt from anywhere) |
+| OpenCode: Open Chat in Editor | – (toolbar, opens a second, wider chat view) |
 | OpenCode: Add Selection to Chat | `Cmd/Ctrl+Alt+L` (editor with selection) |
 | OpenCode: Add File to Chat | – (editor / explorer context menu) |
 | OpenCode: New Session | `Cmd/Ctrl+N` (chat focused) |
@@ -202,6 +209,8 @@ Auto-approval is off by default; only enable it when you trust unattended edits 
 - No telemetry, no analytics, no network calls other than to the local/configured OpenCode server.
   Icon themes that reference remote images or fonts are not fetched.
 - Provider authentication stays in OpenCode; the extension never sees API keys.
+- Workspace Trust is enforced before any server/secret access: in an untrusted folder the extension
+  starts no process, reads no stored password and ignores `opencode.executablePath`/`opencode.endpoint`.
 - The webview has a strict CSP (nonce scripts, no remote code) and sanitises Markdown with DOMPurify.
   Paths from model output are confined to the workspace, including in native diffs.
 
@@ -211,6 +220,7 @@ Auto-approval is off by default; only enable it when you trust unattended edits 
 npm run compile          # type-check + bundle (esbuild)
 npm run lint             # eslint
 npm test                 # unit (vitest) + UI (Playwright) + integration (@vscode/test-electron)
+npm run test:coverage    # unit tests with a V8 coverage report and minimum thresholds
 npm run test:e2e         # client/reducer against a real `opencode serve` (skips when unavailable)
 npm run test:integration:real  # extension in VS Code + real `opencode serve` (uses your configured default model)
 npm run test:integration:e2e   # clicks the real webview inside VS Code via CDP (mock server)

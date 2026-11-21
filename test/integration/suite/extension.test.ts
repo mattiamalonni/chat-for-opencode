@@ -57,6 +57,8 @@ describe("chat-for-opencode extension", () => {
       "opencode.addSelectionToChat",
       "opencode.addFileToChat",
       "opencode.focus",
+      "opencode.ask",
+      "opencode.openChatInEditor",
       "opencode.account",
       "opencode.showLogs",
       "opencode.setServerPassword",

@@ -5,6 +5,11 @@ on:
     branches: [main]
   pull_request:
   workflow_call:
+  # Contract tests need a real `opencode` binary and a provider, so they are opt-in
+  # (manual) and also run nightly instead of on every push/PR.
+  workflow_dispatch:
+  schedule:
+    - cron: "0 6 * * *"
 
 permissions:
   contents: read
@@ -28,6 +33,11 @@ jobs:
           node-version-file: .nvmrc
           cache: npm
       - run: npm ci
+      - name: npm audit (production dependencies)
+        run: npm audit --omit=dev --audit-level=high
+        # Transitive CVEs in the runtime tree are reported, but cannot always be fixed
+        # without breaking the extension — keep this visible without blocking releases.
+        continue-on-error: true
       - run: npm run lint
       - name: Generated OpenAPI types are up to date
         run: |
@@ -56,6 +66,15 @@ jobs:
         with:
           name: ui-screenshots
           path: test/ui/screenshots/*.png
+          if-no-files-found: ignore
+      - name: Upload Playwright artifacts
+        if: always() && runner.os == 'Linux'
+        uses: actions/upload-artifact@v7
+        with:
+          name: playwright-artifacts
+          path: |
+            test-results/**
+            playwright-report/**
           if-no-files-found: ignore
 
   integration:
@@ -114,3 +133,22 @@ jobs:
         with:
           name: vsix
           path: chat-for-opencode.vsix
+
+  contract:
+    name: Contract (opencode@2.2.7)
+    # Only on manual/scheduled runs: these tests hit a real `opencode serve` and a provider.
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      - name: Install opencode 2.2.7
+        run: npm install -g opencode@2.2.7
+      - name: Contract e2e tests
+        run: npm run test:e2e
+        # A missing provider/network or an upstream API drift must not block releases.
+        continue-on-error: true

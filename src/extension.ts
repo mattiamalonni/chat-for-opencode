@@ -61,6 +61,7 @@ export function activate(context: vscode.ExtensionContext): ExtensionApi {
 
   const focusView = () => vscode.commands.executeCommand(`${ChatViewProvider.viewId}.focus`);
   const readAuthLogins = async () => {
+    if (!vscode.workspace.isTrusted) throw new Error("Workspace is not trusted");
     const executable = vscode.workspace.getConfiguration("opencode").get<string>("executablePath", "opencode").trim() || "opencode";
     const { stdout } = await execFileAsync(executable, ["auth", "list", "--format", "json"], { timeout: 10_000 });
     return parseAuthLogins(stdout);
@@ -70,6 +71,14 @@ export function activate(context: vscode.ExtensionContext): ExtensionApi {
     output,
     vscode.workspace.registerTextDocumentContentProvider(DIFF_SCHEME, diffs),
     vscode.window.registerWebviewViewProvider(ChatViewProvider.viewId, new ChatViewProvider(context.extensionUri, chat)),
+    vscode.window.registerWebviewPanelSerializer("opencode.chat", {
+      async deserializeWebviewPanel(panel: vscode.WebviewPanel): Promise<void> {
+        chat.attachPanel(panel);
+      },
+    }),
+    // 1.99 exposes only the "granted" event: untrusting a workspace requires a window reload, so
+    // there is nothing to react to there. Reconnect/prompt paths re-check `isTrusted` themselves.
+    vscode.workspace.onDidGrantWorkspaceTrust(() => void chat.onWorkspaceTrustChanged(true)),
     vscode.commands.registerCommand("opencode.newSession", async () => {
       await focusView();
       await chat.newSession();
@@ -96,6 +105,17 @@ export function activate(context: vscode.ExtensionContext): ExtensionApi {
     vscode.commands.registerCommand("opencode.focus", async () => {
       await focusView();
       chat.post({ type: "focusInput" });
+    }),
+    vscode.commands.registerCommand("opencode.openChatInEditor", () => chat.openChatInEditor()),
+    vscode.commands.registerCommand("opencode.ask", async () => {
+      const text = await vscode.window.showInputBox({
+        title: vscode.l10n.t("Ask OpenCode"),
+        prompt: vscode.l10n.t("Send a prompt without leaving your editor"),
+        placeHolder: vscode.l10n.t("Describe what you want OpenCode to do…"),
+      });
+      if (!text?.trim()) return;
+      await focusView();
+      await chat.ask(text);
     }),
     vscode.commands.registerCommand("opencode.account", async () => {
       let logins: vscode.QuickPickItem[];
@@ -175,6 +195,10 @@ export function activate(context: vscode.ExtensionContext): ExtensionApi {
   status.text = "$(comment-discussion)";
   let authLogins: vscode.QuickPickItem[] | undefined;
   const updateStatusTooltip = () => {
+    if (!vscode.workspace.isTrusted) {
+      status.tooltip = vscode.l10n.t("Trust this workspace to use OpenCode");
+      return;
+    }
     status.tooltip = authLogins === undefined
       ? vscode.l10n.t("Click to view OpenCode login information")
       : authLogins.length
@@ -188,7 +212,7 @@ export function activate(context: vscode.ExtensionContext): ExtensionApi {
   status.command = "opencode.account";
   status.show();
   context.subscriptions.push(status);
-  void readAuthLogins().then(
+  if (vscode.workspace.isTrusted) void readAuthLogins().then(
     (logins) => {
       authLogins = logins;
       updateStatusTooltip();

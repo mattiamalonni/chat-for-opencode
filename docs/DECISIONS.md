@@ -146,3 +146,22 @@ open so the same request is never rendered twice. Auto-approve is a property of 
 session, so children inherit the parent's toggle. To keep the thread honest, the inline subagent card
 shows an amber waiting marker while its child is blocked — the actionable card still lives only in
 the overlay.
+
+## D16 — Workspace Trust blocks process and secret access, not just configuration
+
+`untrustedWorkspaces.supported: "limited"` restricts `opencode.executablePath` and `opencode.endpoint`,
+but VS Code would still let the extension spawn the default `opencode` binary and read `SecretStorage`.
+The `isTrusted` check therefore sits before `server.ensure()` / `server.restart()` and before
+`readAuthLogins()`, and publishes an error card with a *Trust workspace* action. VS Code 1.99 only
+exposes `onDidGrantWorkspaceTrust`, so gaining trust reconnects without a reload while losing trust
+takes effect on the next reload (all entry points re-check `isTrusted` in the meantime).
+
+## D17 — One chat, several views; generation guards for async state
+
+Host messages fan out to a `Set` of live webviews (sidebar + editor tabs) instead of a single view,
+with per-view subscriptions and a `WebviewPanelSerializer` for restore. All views show the same
+session; the composer state stays in each webview. Async work is invalidated by generation tokens
+per concern (`connectGen`, `loadGen`, `childGen`, `executionGen`) plus client identity in `resync`;
+`loadedConnection` records that `loadAll()` actually completed, so a failed first load on an external
+server cannot make later reconnects no-ops. The first prompt uses a `fast` load path that skips the
+catalog/session-list/diff round-trips on the critical path and runs them fire-and-forget instead.

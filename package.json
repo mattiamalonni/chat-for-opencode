@@ -37,6 +37,16 @@
     "assistant"
   ],
   "main": "./dist/extension.js",
+  "capabilities": {
+    "untrustedWorkspaces": {
+      "supported": "limited",
+      "description": "%workspaceTrust.description%",
+      "restrictedConfigurations": [
+        "opencode.executablePath",
+        "opencode.endpoint"
+      ]
+    }
+  },
   "activationEvents": [
     "onStartupFinished"
   ],
@@ -106,6 +116,18 @@
         "category": "OpenCode"
       },
       {
+        "command": "opencode.ask",
+        "title": "%command.ask%",
+        "category": "OpenCode",
+        "icon": "$(edit)"
+      },
+      {
+        "command": "opencode.openChatInEditor",
+        "title": "%command.openChatInEditor%",
+        "category": "OpenCode",
+        "icon": "$(open-in-new-window)"
+      },
+      {
         "command": "opencode.account",
         "title": "%command.account%",
         "category": "OpenCode"
@@ -161,6 +183,11 @@
           "group": "overflow"
         },
         {
+          "command": "opencode.openChatInEditor",
+          "when": "view == opencode.chatView",
+          "group": "navigation@4"
+        },
+        {
           "command": "opencode.moveView",
           "when": "view == opencode.chatView",
           "group": "overflow"
@@ -189,6 +216,12 @@
         {
           "command": "opencode.addSelectionToChat",
           "when": "editorHasSelection"
+        },
+        {
+          "command": "opencode.ask"
+        },
+        {
+          "command": "opencode.openChatInEditor"
         }
       ]
     },
@@ -197,6 +230,11 @@
         "command": "opencode.focus",
         "key": "ctrl+alt+o",
         "mac": "cmd+alt+o"
+      },
+      {
+        "command": "opencode.ask",
+        "key": "ctrl+alt+shift+o",
+        "mac": "cmd+alt+shift+o"
       },
       {
         "command": "opencode.addSelectionToChat",
@@ -305,12 +343,13 @@
     "vscode:prepublish": "npm run compile:prod",
     "compile": "npm run typecheck && node esbuild.mjs",
     "compile:prod": "npm run typecheck && node esbuild.mjs --production",
-    "typecheck": "tsc -p . --noEmit && tsc -p src/webview --noEmit",
+    "typecheck": "tsc -p . --noEmit && tsc -p src/webview --noEmit && tsc -p test/ui --noEmit",
     "gen:types": "node scripts/gen-openapi-types.mjs",
     "watch": "node esbuild.mjs --watch",
     "lint": "eslint .",
     "test": "npm run test:unit && npm run test:ui && npm run test:integration",
     "test:unit": "vitest run",
+    "test:coverage": "vitest run --coverage",
     "test:ui": "node esbuild.mjs && playwright test",
     "test:integration": "node esbuild.mjs && tsc -p test/integration && node out/test/integration/runTest.js",
     "test:e2e": "vitest run --config vitest.e2e.config.mts",
@@ -331,6 +370,7 @@
     "@types/mocha": "^10.0.10",
     "@types/node": "^22.20.5",
     "@types/vscode": "1.99.0",
+    "@vitest/coverage-v8": "5.1.0",
     "@vscode/test-electron": "^3.1.0",
     "@vscode/vsce": "^4.1.1",
     "esbuild": "^0.28.2",

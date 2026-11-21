@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "preact/hooks";
 import type { FormField, FormRequest, FormValue, PermissionRequest } from "../shared/api";
 import type { ChatState } from "../shared/chatReducer";
 import type { SubagentState } from "../shared/subagents";
+import { isImeKey } from "../shared/keys";
 import { useT } from "./i18n";
 import { IconChevron, IconWarning } from "./icons";
 import { buildFormAnswer, initialValue, PermissionCard, QuestionCard } from "./messages";
@@ -112,6 +113,7 @@ export function AttentionOverlay({ state, subagents }: { state: ChatState; subag
     return [...order].reverse().flatMap((id) => (groups.get(id) ?? []).sort((a, b) => a.index - b.index));
   }, [items, order]);
 
+  const sectionRef = useRef<HTMLElement | null>(null);
   const [index, setIndex] = useState(0);
   const shownRequests = useRef<string[]>([]);
   useEffect(() => {
@@ -121,6 +123,39 @@ export function AttentionOverlay({ state, subagents }: { state: ChatState; subag
     // A new request takes the spotlight; answering one just shifts the queue.
     setIndex((prev) => (added ? 0 : Math.min(prev, Math.max(0, ordered.length - 1))));
   }, [ordered]);
+
+  // Keyboard users should land on the request instead of tabbing through the whole transcript while
+  // the turn is blocked. Focus moves only when a *new* card takes the spotlight (or after answering
+  // one), never on every streamed token that re-renders the same card.
+  const activeIndex = ordered.length > 0 ? Math.min(index, ordered.length - 1) : -1;
+  const active = ordered[activeIndex];
+  useEffect(() => {
+    if (active?.id) sectionRef.current?.focus();
+  }, [active?.id]);
+
+  // 1/2/3 also work when focus is on the overlay container (not on the card itself). The card's own
+  // handler stops propagation for its shortcuts, so this listener cannot double-reply.
+  const activePermission = active?.kind === "permission" ? active.permission : undefined;
+  useEffect(() => {
+    if (!activePermission) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.defaultPrevented || e.isComposing || isImeKey(e) || e.ctrlKey || e.metaKey || e.altKey || e.shiftKey || e.repeat) return;
+      const target = e.target as HTMLElement | null;
+      if (target?.closest("button, input, a, textarea, select")) return;
+      const hasAlways = (activePermission.save?.length ?? 0) > 0;
+      const decision = e.key === "1" ? "once" : e.key === "2" && hasAlways ? "always" : e.key === "3" ? "reject" : undefined;
+      if (!decision) return;
+      e.preventDefault();
+      post({
+        type: "permissionReply",
+        sessionId: activePermission.sessionID,
+        requestId: activePermission.id,
+        decision,
+      });
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [activePermission]);
 
   // Answers belong to the form, not to the field card: navigating between questions must not lose
   // them, and a single reply carries every field (including hidden ones with their defaults).
@@ -185,10 +220,10 @@ export function AttentionOverlay({ state, subagents }: { state: ChatState; subag
   };
 
   if (ordered.length === 0) return null;
-  const currentIndex = Math.min(index, ordered.length - 1);
-  const current = ordered[currentIndex];
+  const currentIndex = activeIndex;
+  const current = active!;
   return (
-    <section class="attention-overlay" role="group" aria-label={t("needsInput")}>
+    <section ref={sectionRef} tabIndex={-1} class="attention-overlay" role="group" aria-label={t("needsInput")}>
       <div class="attention-head">
         <IconWarning />
         <span class="attention-title">{t("needsInput")}</span>

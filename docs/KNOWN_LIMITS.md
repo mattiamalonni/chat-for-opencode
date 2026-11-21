@@ -37,6 +37,12 @@ test or a manual probe actually ran.
   their metadata, touched files) and the webview's live-event queues are bounded to prevent unbounded
   growth, but a single conversation with very large messages or patches is still not profiled.
 - **External server mode with a real remote server** — tested only against the mock server (unit).
+- **Real OpenCode contract drift.** CI runs a dedicated `contract` job nightly and on manual dispatch
+  against a pinned `opencode@2.2.7`, with `continue-on-error`: it reports a regression but does not
+  block a merge. The normal push/PR workflow only uses mocks and recorded fixtures.
+- **Untrusting a workspace mid-session.** The 1.99 API exposes only `onDidGrantWorkspaceTrust`;
+  removing trust takes effect in VS Code after a window reload. The extension re-checks `isTrusted`
+  on every connect/reconnect, so no process is started or secret read in the meantime.
 
 ## Behaviour limits
 
@@ -62,6 +68,9 @@ test or a manual probe actually ran.
 - **VS Code 1.99–1.103** cannot contribute to the Secondary Side Bar: the chat opens in the Explorer
   there (move it with *OpenCode: Move Chat View…*). VS Code remembers a view moved by the user, so
   users upgrading from such a setup keep their custom location.
+- **Open Chat in Editor** is a second view of the same session, not an independent conversation:
+  switching sessions in either view switches both. The tab is restored after a window reload via a
+  webview panel serializer, but its scroll position and any unsubmitted text are not.
 
 - **Orphaned servers if VS Code crashes.** Managed servers are stopped on `deactivate` and a PID
   record (no password) is written on start, keyed by folder **and** owning extension-host PID, so
