@@ -44,6 +44,10 @@ jobs:
           git diff --exit-code -- src/shared/openapi.generated.ts
       - run: npm run compile
       - run: npm run test:unit
+      - name: Recorded contract gate (opencode@2.2.7)
+        # Deterministic half of the contract gate: no server/provider needed. The live `contract`
+        # job remains opt-in because it needs a real binary and credentials.
+        run: npx vitest run test/unit/contractSnapshot.test.ts
       - name: Coverage thresholds
         # Enforce the configured floors on one runner; the other two keep the faster unit-only run.
         if: runner.os == 'Linux'

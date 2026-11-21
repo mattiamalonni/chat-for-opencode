@@ -39,7 +39,9 @@ test or a manual probe actually ran.
 - **External server mode with a real remote server** — tested only against the mock server (unit).
 - **Real OpenCode contract drift.** CI runs a dedicated `contract` job nightly and on manual dispatch
   against a pinned `opencode@2.2.7`, with `continue-on-error`: it reports a regression but does not
-  block a merge. The normal push/PR workflow only uses mocks and recorded fixtures.
+  block a merge, because it needs a real binary and provider credentials. The deterministic half is
+  now a blocking gate on every push/PR: a named CI step checks that all 989 recorded 2.2.7 SSE events
+  still normalize and that the OpenAPI snapshot still lists every endpoint the client calls.
 - **Untrusting a workspace mid-session.** The 1.99 API exposes only `onDidGrantWorkspaceTrust`;
   removing trust takes effect in VS Code after a window reload. The extension re-checks `isTrusted`
   on every connect/reconnect, so no process is started or secret read in the meantime.

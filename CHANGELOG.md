@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- **CI:** the contract now has a deterministic, blocking gate: every push/PR verifies that all 989
+  recorded 2.2.7 SSE events still normalize and that the OpenAPI snapshot still contains every
+  endpoint the client calls. The live provider-backed job stays opt-in and advisory.
 - **Tests:** a dedicated controller state-machine suite now covers status publication, stale
   generation guards on local idle, event-stream reconnect/resync, workspace-trust revocation,
   `synced` release on a no-op manual sync and `connect()` deduplication — paths that previously had
