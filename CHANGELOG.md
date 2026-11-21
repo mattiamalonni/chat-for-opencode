@@ -1,7 +1,15 @@
 # Changelog
 
-## Unreleased
+## 0.3.19 — 2026-11-22
 
+- **Trust and views:** the extension now declares limited support for untrusted workspaces. Before
+  starting `opencode serve`, reading saved logins or using `opencode.executablePath` /
+  `opencode.endpoint`, it checks Workspace Trust and shows an actionable *Trust workspace* banner
+  instead of silently degrading; trusting the folder reconnects without a reload. A new
+  *OpenCode: Open Chat in Editor* command (also in the chat toolbar, with a valid `$(link-external)`
+  codicon) opens a second, wider view of the same session, and *OpenCode: Ask OpenCode…*
+  (`Cmd/Ctrl+Alt+Shift+O`) sends a prompt from anywhere in VS Code. New approval cards now take
+  keyboard focus, so `1` / `2` / `3` work immediately when a permission arrives.
 - **Fix:** opening a long session now lands at the very bottom of the conversation. The chat cards
   are always laid out (the `content-visibility: auto` optimization was removed): its estimated
   intrinsic height made `scrollHeight` wrong until cards scrolled into view, so the view stopped
@@ -32,7 +40,9 @@
   The controller now delegates those commands; prompt building still uses `resolveAttachment`.
 - **Search:** *OpenCode: Search All Session Conversations* (Cmd/Ctrl+Alt+F) searches titles and
   message bodies across the workspace, shows hits with snippets in a Quick Pick, opens the chosen
-  session and scrolls to — and briefly highlights — the matching message.
+  session and scrolls to — and briefly highlights — the matching message. Inside the chat,
+  `Cmd/Ctrl+F` now opens the message search and `Cmd/Ctrl+R` reloads the current session from the
+  server with the same busy guard as the header's sync button.
 - **Performance:** the session list no longer issues three HTTP requests per busy session on every
   event burst. Deep state (busy / needs-input) is cached for 3 s while `time.updated` is unchanged,
   forked-session lookups for 30 s, and the open session is always refreshed. Unit tests cover the
@@ -138,7 +148,9 @@
   parity. Added a real-browser regression for crafted HTML in replies and an integration test that a
   prompt still ships when history loading fails. The supported server version now comes from the
   generated OpenAPI snapshot, and the startup/HTTP timeouts are shared constants checked against
-  `package.json`.
+  `package.json`. The test harness itself was also hardened: the local-idle regression drives
+  `resyncNow()` directly instead of toggling the auxiliary bar (portable across VS Code builds),
+  and private prototype methods are reached without weakening typechecking.
 
 - Fixed the composer being re-locked on **Stop** after an abort, a rejected permission or a cancelled
   question: the local-idle guard used for reconnect/visibility resyncs compared the load counter
