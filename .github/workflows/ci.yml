@@ -49,7 +49,7 @@ jobs:
       # The Chromium binary is ~150 MB. Reuse it across runs; `playwright install`
       # then only checks the (cheap) system dependencies. Both are Linux-only here
       # (`--with-deps` needs apt), so the UI tests stay a single-platform gate.
-      - uses: actions/cache@v4
+      - uses: actions/cache@v6
         if: runner.os == 'Linux'
         with:
           path: ~/.cache/ms-playwright
@@ -103,7 +103,7 @@ jobs:
       # the whole .vscode-test folder would also restore user-data/extensions:
       # stale global state makes the extension resume a session the fresh mock
       # server doesn't know, and the prompt tests hang or fail.
-      - uses: actions/cache@v4
+      - uses: actions/cache@v6
         with:
           path: .vscode-test/vscode-*
           key: ${{ runner.os }}-vscode-bin-v3-${{ matrix.vscode }}-${{ hashFiles('package.json') }}
