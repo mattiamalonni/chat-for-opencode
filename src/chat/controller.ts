@@ -1798,10 +1798,14 @@ export class ChatController implements vscode.Disposable {
         const sid = this.sessionId;
         const generation = this.executionGen.current();
         if (this.client && sid) {
-          await this.client.interrupt(sid);
-          // A server that receives a second interrupt on an already-idle session emits no
-          // terminal event. Clear busy locally so the composer can never stay stuck on "stop".
-          this.postLocalIdle(sid, generation);
+          try {
+            await this.client.interrupt(sid);
+          } finally {
+            // A server that receives a second interrupt on an already-idle session emits no
+            // terminal event. A failed request (e.g. a 500) must not leave the composer stuck on
+            // "stop" either, so clear busy locally on both paths.
+            this.postLocalIdle(sid, generation);
+          }
         }
         return;
       }

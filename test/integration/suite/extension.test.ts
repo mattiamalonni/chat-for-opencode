@@ -449,6 +449,24 @@ describe("chat-for-opencode extension", () => {
     assert.equal(idle.type === "event" && (idle.event.data as { status: { type: string } }).status.type, "idle");
   });
 
+  it("keeps the composer usable when the interrupt request itself fails", async () => {
+    // The server applies the interrupt but responds with a 500. Without the local-idle guard in a
+    // `finally`, the rejected request used to leave the composer locked on "stop" indefinitely.
+    const mark = posted.length;
+    await controller.receive({ type: "send", text: "[slow] answer with failing interrupt", attachments: [], context: [] });
+    await waitFor(() => eventPosted("session.text.delta", mark), "streaming started");
+    const armed = await fetch(`${controller.debugState.baseUrl}/__mock/failInterruptOnce`, { method: "POST" });
+    assert.equal(armed.status, 204);
+
+    await controller.receive({ type: "abort" });
+    const idle = await waitFor(
+      () => posted.slice(mark).find((m) => m.type === "event" && m.event.type === "session.status"),
+      "local idle status after failed interrupt",
+    );
+    assert.equal(idle.type === "event" && (idle.event.data as { status: { type: string } }).status.type, "idle");
+    assert.ok(lastPosted("notice", mark), "the failed request is still reported to the user");
+  });
+
   it("keeps the composer usable after cancelling a question", async () => {
     const mark = posted.length;
     await controller.receive({ type: "send", text: "[question] pick a color", attachments: [], context: [] });

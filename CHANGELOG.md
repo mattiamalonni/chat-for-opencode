@@ -12,6 +12,9 @@
   absolute path or a `../` escape; blocked attempts are logged. Icon-theme asset paths are resolved
   (so `../` cannot escape the theme directory) and remote `https:` assets are deliberately not
   fetched, matching the "no network calls" promise and the webview CSP.
+- **Robustness:** a failed **Stop** request no longer leaves the composer locked on "stop". The
+  local-idle status is now posted from a `finally` block, so a server error on `/interrupt` unlocks
+  the input just like an already-idle session does.
 - **Robustness:** a transient failure fetching a new session's history no longer swallows the first
   prompt — `send()` proceeds with an empty history and the live stream fills it in. Session lists are
   normalized before their timestamps are read, so a server that omits `time` cannot abort a refresh.

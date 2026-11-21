@@ -114,6 +114,7 @@ export function startMockServer(opts: MockOptions = {}): Promise<MockServer> {
   const stepMs = opts.stepMs ?? 10;
   let noModels = opts.noModels ?? false;
   let failHistoryOnce = false;
+  let failInterruptOnce = false;
   const sessions = new Map<string, MockSession>();
   const clients = new Set<http.ServerResponse>();
   const requests: MockServer["requests"] = [];
@@ -453,6 +454,13 @@ export function startMockServer(opts: MockOptions = {}): Promise<MockServer> {
       return send(res, 204);
     }
 
+    // Test-only: make the next interrupt fail after applying it, so the host has to clear busy
+    // locally instead of relying on a terminal event from the stream.
+    if (path === "/__mock/failInterruptOnce" && req.method === "POST") {
+      failInterruptOnce = true;
+      return send(res, 204);
+    }
+
     // Test-only: seed pending inbox items without going through a running turn.
     if (path === "/__mock/inbox" && req.method === "POST") {
       const b = (body ?? {}) as Json;
@@ -582,6 +590,13 @@ export function startMockServer(opts: MockOptions = {}): Promise<MockServer> {
         return send(res, 204);
       }
       if (rest === "interrupt") {
+        if (failInterruptOnce) {
+          failInterruptOnce = false;
+          s.interrupted = true;
+          for (const [, resolve] of s.waiters) resolve(null);
+          s.waiters.clear();
+          return send(res, 500, { _tag: "InterruptUnavailable", message: "injected interrupt failure" });
+        }
         s.interrupted = true;
         for (const [, resolve] of s.waiters) resolve(null);
         s.waiters.clear();
