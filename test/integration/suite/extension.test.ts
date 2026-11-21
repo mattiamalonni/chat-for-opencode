@@ -513,6 +513,69 @@ describe("chat-for-opencode extension", () => {
     assert.equal(reverted.text, "turn one");
   });
 
+  it("forks a turn into a new session and keeps the original conversation", async () => {
+    await controller.receive({ type: "newSession" });
+    const mark = posted.length;
+    await controller.receive({ type: "send", text: "fork me", attachments: [], context: [] });
+    const withTurn = await waitFor(() => {
+      const p = lastPosted("session", mark);
+      return p?.session?.messages.some((m) => m.type === "user") ? p : undefined;
+    }, "a turn to fork");
+    const sid = controller.debugState.sessionId!;
+    const userId = withTurn.session!.messages.find((m) => m.type === "user")!.id;
+
+    await controller.receive({ type: "forkTo", sessionId: sid, messageID: userId });
+    const forked = await waitFor(() => lastPosted("forked", mark), "forked notice");
+    assert.notEqual(forked.sessionId, sid);
+    assert.equal(controller.debugState.sessionId, forked.sessionId);
+    const loaded = lastPosted("session", mark);
+    assert.equal(loaded?.session?.id, forked.sessionId);
+    // Forking before the first prompt yields an empty branch; the source keeps its history.
+    assert.equal(loaded!.session!.messages.length, 0);
+    const sessions = await waitFor(() => {
+      const s = lastPosted("sessions", mark);
+      return s?.items.some((i) => i.id === sid) ? s : undefined;
+    }, "original session still listed");
+    assert.ok(sessions.items.some((i) => i.id === forked.sessionId), "fork listed too");
+  });
+
+  it("publishes the server inbox and applies promote/cancel from the webview", async () => {
+    const baseUrl = controller.debugState.baseUrl;
+    const sid = controller.debugState.sessionId;
+    assert.ok(baseUrl && sid, "connected with an open session");
+    const item = {
+      id: "msg_queued_it",
+      sessionID: sid,
+      time: { created: 1 },
+      type: "user",
+      delivery: "queue",
+      payload: { text: "queued in integration" },
+    };
+    await fetch(`${baseUrl}/__mock/inbox`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ sessionID: sid, items: [item] }),
+    });
+
+    const mark = posted.length;
+    await controller.receive({ type: "sync" });
+    const inbox = await waitFor(() => lastPosted("inbox", mark), "inbox after sync");
+    assert.deepEqual(inbox.items.map((i) => i.id), [item.id]);
+
+    await controller.receive({ type: "setInboxDelivery", sessionId: sid, inboxId: item.id, delivery: "steer" });
+    const promoted = await waitFor(() => {
+      const i = lastPosted("inbox", mark);
+      return i?.items[0]?.delivery === "steer" ? i : undefined;
+    }, "promoted to steer");
+    assert.equal(promoted.items[0].payload.text, "queued in integration");
+
+    await controller.receive({ type: "cancelInbox", sessionId: sid, inboxId: item.id });
+    await waitFor(() => {
+      const i = lastPosted("inbox", mark);
+      return i && i.items.length === 0 ? i : undefined;
+    }, "inbox emptied after cancel");
+  });
+
   it("rediscovers a running subagent and its pending permission after a session switch", async () => {
     const baseUrl = controller.debugState.baseUrl;
     assert.ok(baseUrl, "server is running");

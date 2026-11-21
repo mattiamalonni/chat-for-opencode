@@ -22,6 +22,7 @@ sends **no telemetry**.
 - **Collapsible reasoning** ("Thoughts") and **tool cards** that work with any tool name (input, output, errors).
 - **Sessions**: list, create, switch, resume, rename and delete, with *Load more sessions* for older ones and a discreet trash icon to *Delete all sessions* (with a native VS Code confirmation) to clear the workspace at once. The last session of each folder is restored when VS Code restarts.
 - **Rollback to any turn**: every prompt has a discreet *Roll back to this turn* button. Pick the first, the last or any intermediate turn: OpenCode restores the files changed after it and removes that prompt, its reply and all later turns, while the prompt itself returns to the composer so you can edit and resend it. A native confirmation lets you keep the current files (*Messages only*).
+- **Fork a turn**: the other button beside each prompt, *Fork conversation from this turn*, opens a new sibling session with the history up to that point. The current conversation and its files stay untouched, so you can try a different approach without losing the original. Forks stay visible in the session list.
 - **Subagents**: live progress stays inline in the conversation. Click **Open subagent conversation** on a subagent card to inspect the child session in a read-only modal rendered with the same chat view (steps, thoughts, tools and report). Breadcrumbs navigate nested subagents and lead back to the parent chat; `Esc` or a backdrop click closes it.
 - **Opens on the right** in the Secondary Side Bar, like Copilot Chat (VS Code 1.104+); movable anywhere with *OpenCode: Move Chat View…* or drag and drop.
 - **Context window at a glance**: each model in the picker shows its context size, and a meter
@@ -33,8 +34,10 @@ sends **no telemetry**.
 - **Model, reasoning-effort and agent pickers** (custom, searchable, grouped by provider) filled with what your server actually returns (e.g. *Build* / *Plan*).
 - **Stop** a running response (button or `Esc` in the input), and **compact** a long session from the composer toolbar or the command palette.
 - **Keep working while the agent runs**: plain `Enter` queues the next message (`delivery: queue`),
-  `Ctrl/Cmd+Enter` interrupts and sends it immediately (`delivery: steer`). Composer drafts are
-  stored per session **and survive a window reload**.
+  `Ctrl/Cmd+Enter` interrupts and sends it immediately (`delivery: steer`). A **Queued messages**
+  panel above the composer lists the prompts still waiting in the server's inbox: promote one to
+  *send now*, put it back in the composer to edit it, or remove it. Composer drafts are stored per
+  session **and survive a window reload**.
 - A **contract smoke test** on connect names the features that a non-2.2.7 server cannot support, instead of only warning about the version number.
 - **Editor context**: the active file and selection are attached automatically as chips you can remove before sending. File chips use the icons of your active VS Code file icon theme, the same as the Explorer (including dark/light/high-contrast variants and glyph fonts such as Seti).
 - **`@` mentions** with fuzzy workspace file search: picking a file attaches it as a chip and removes the `@query` from the input, so only the chip is sent with the message. **Add Selection to Chat** / **Add File to Chat** in the editor and explorer context menus work the same way.

@@ -83,6 +83,15 @@ export const IconRevert = function IconRevert(props: P) {
     </svg>
   );
 };
+/** Branching arrows: "split a new session off this turn". */
+export const IconFork = function IconFork(props: P) {
+  return (
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false" {...props}>
+      <path d="M8 13V8M8 8 3.5 3.5M8 8l4.5-4.5" />
+      <path d="M2.5 5.4V2.5h2.9M13.5 5.4V2.5h-2.9" />
+    </svg>
+  );
+};
 export const IconHistory = svg("M8 1a7 7 0 1 1-6.6 9.3l1.3-.4A5.6 5.6 0 1 0 3 5H5v1.3H1V2.3h1.3v1.5A7 7 0 0 1 8 1zm-.7 3h1.4v3.7l2.8 1.7-.7 1.2-3.5-2.1z");
 /** Diagonal arrow out of a box: "open this in its own view". */
 export const IconOpen = svg("M9 2h5v5h-1.5V4.6L9.2 8 8.1 6.9l3.4-3.4H9zM3 3h4.5v1.5H4.5v8h8V8.5H14V13H3z");

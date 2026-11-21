@@ -2464,3 +2464,56 @@ test("every turn has a rollback button that targets its own prompt and restores 
   await expect(input).toHaveValue("first prompt");
   expect(await lastPosted(page, "saveDraft")).toEqual({ type: "saveDraft", sessionId: S1, text: "first prompt" });
 });
+
+test("every turn has a fork button that branches from its own prompt", async ({ page }) => {
+  await boot(page);
+  const messages: SessionMessage[] = [
+    { id: "u1", type: "user", text: "first prompt", time: { created: 1000 } },
+    { id: "u2", type: "user", text: "second prompt", time: { created: 2000 } },
+  ];
+  await host(page, { type: "session", session: { id: S1, busy: false, messages, permissions: [], forms: [] } });
+
+  const buttons = page.locator(".msg.user .fork-turn");
+  await expect(buttons).toHaveCount(2);
+  await expect(buttons.first()).toHaveAttribute("aria-label", STRINGS.forkTurn);
+  await buttons.nth(1).click();
+  expect(await lastPosted(page, "forkTo")).toEqual({ type: "forkTo", sessionId: S1, messageID: "u2" });
+
+  await host(page, { type: "event", event: { type: "session.status", created: 3000, data: { sessionID: S1, status: { type: "busy" } } } });
+  await expect(buttons.first()).toBeDisabled();
+  await expect(buttons.first()).toHaveAttribute("data-tooltip", STRINGS.forkTurnBusy);
+});
+
+test("the queued-messages panel can promote, edit and remove pending prompts", async ({ page }) => {
+  await boot(page);
+  await host(page, { type: "session", session: { id: S1, busy: true, messages: [], permissions: [], forms: [] } });
+  await host(page, {
+    type: "inbox",
+    items: [
+      { id: "q1", sessionID: S1, time: { created: 1 }, type: "user", delivery: "queue", payload: { text: "queued prompt" } },
+      { id: "q2", sessionID: S1, time: { created: 2 }, type: "synthetic", delivery: "steer", payload: { text: "report" } },
+    ],
+  });
+
+  const panel = page.locator(".panel.inbox");
+  await expect(panel).toBeVisible();
+  await expect(panel.locator(".inbox-item")).toHaveCount(2);
+  await expect(panel.locator(".inbox-item").first()).toContainText("queued prompt");
+  await expect(panel.locator(".inbox-item").first()).toContainText(STRINGS.inboxDeliveryQueue);
+  await expect(panel.locator(".inbox-item").nth(1)).toContainText("report");
+
+  await panel.locator(".inbox-item").first().getByRole("button", { name: STRINGS.inboxSendNow }).click();
+  expect(await lastPosted(page, "setInboxDelivery")).toEqual({
+    type: "setInboxDelivery", sessionId: S1, inboxId: "q1", delivery: "steer",
+  });
+
+  await panel.locator(".inbox-item").first().getByRole("button", { name: STRINGS.inboxEdit }).click();
+  expect(await lastPosted(page, "cancelInbox")).toEqual({ type: "cancelInbox", sessionId: S1, inboxId: "q1" });
+  await expect(page.getByRole("textbox", { name: STRINGS.inputLabel })).toHaveValue("queued prompt");
+
+  await panel.locator(".inbox-item").nth(1).getByRole("button", { name: STRINGS.inboxRemove }).click();
+  expect(await lastPosted(page, "cancelInbox")).toEqual({ type: "cancelInbox", sessionId: S1, inboxId: "q2" });
+
+  await host(page, { type: "inbox", items: [] });
+  await expect(panel).toHaveCount(0);
+});

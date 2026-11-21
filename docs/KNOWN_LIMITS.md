@@ -35,6 +35,11 @@ test or a manual probe actually ran.
 
 ## Behaviour limits
 
+- **Queued prompts cannot be edited in place.** OpenCode's inbox `PATCH` only accepts `delivery`
+  (`queue` or `steer`): the panel can promote an item to *send now*, but *Put back in composer to
+  edit* cancels the item and restores its text in the composer instead of patching it. The API also
+  exposes no reordering, and non-`user` items (subagent reports, compaction, moves) have no edit
+  action.
 - **Subagent conversations are read-only in the modal.** It renders the child's steps, thoughts,
   tools and report, but there is no composer: you cannot send a new prompt to the child, stop it or
   steer it from there (`send`/`abort` are addressed to the currently open session, so that would need

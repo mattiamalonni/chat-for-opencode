@@ -28,7 +28,7 @@ import {
 import { isolateKeys } from "./env";
 import { FileTypeIcon } from "./fileIcons";
 import { useT } from "./i18n";
-import { IconCheck, IconChevron, IconError, IconFile, IconInfo, IconOpen, IconRevert, IconSelection, IconTool, IconWarning } from "./icons";
+import { IconCheck, IconChevron, IconError, IconFile, IconFork, IconInfo, IconOpen, IconRevert, IconSelection, IconTool, IconWarning } from "./icons";
 import { renderMarkdown } from "./markdown";
 import { clearReplyFailure, useReplyFailed } from "./replyFeedback";
 import { useOpenSubagent, useSubagent } from "./subagents";
@@ -119,16 +119,28 @@ export function MessageView({
     const sessionId = state.sessionId;
     return (
       <article class={`msg user${hidden}`} aria-label={t("you")}>
-        <button
-          type="button"
-          class="icon-button revert-turn tooltip-host"
-          data-tooltip={state.busy ? t("revertTurnBusy") : t("revertTurn")}
-          aria-label={t("revertTurn")}
-          disabled={!sessionId || state.busy}
-          onClick={() => sessionId && post({ type: "revertTo", sessionId, messageID: message.id, text: message.text })}
-        >
-          <IconRevert />
-        </button>
+        <div class="turn-actions">
+          <button
+            type="button"
+            class="icon-button fork-turn tooltip-host"
+            data-tooltip={state.busy ? t("forkTurnBusy") : t("forkTurn")}
+            aria-label={t("forkTurn")}
+            disabled={!sessionId || state.busy}
+            onClick={() => sessionId && post({ type: "forkTo", sessionId, messageID: message.id })}
+          >
+            <IconFork />
+          </button>
+          <button
+            type="button"
+            class="icon-button revert-turn tooltip-host"
+            data-tooltip={state.busy ? t("revertTurnBusy") : t("revertTurn")}
+            aria-label={t("revertTurn")}
+            disabled={!sessionId || state.busy}
+            onClick={() => sessionId && post({ type: "revertTo", sessionId, messageID: message.id, text: message.text })}
+          >
+            <IconRevert />
+          </button>
+        </div>
         <div class="bubble">
           <div class="user-text"><Highlight text={message.text} query={searchQuery} /></div>
           {message.files.length > 0 && (

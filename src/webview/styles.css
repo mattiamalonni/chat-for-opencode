@@ -733,17 +733,24 @@ details[open] > summary > .chevron,
   gap: 4px;
 }
 
-/* Per-turn rollback stays quiet until the user approaches the prompt it belongs to. */
-.revert-turn {
+/* Per-turn rollback/fork stay quiet until the user approaches the prompt they belong to. */
+.turn-actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex: none;
+}
+
+.turn-actions .icon-button {
   opacity: 0.4;
 }
 
-.msg.user:hover .revert-turn,
-.revert-turn:focus-visible {
+.msg.user:hover .turn-actions .icon-button,
+.turn-actions .icon-button:focus-visible {
   opacity: 1;
 }
 
-.revert-turn:disabled {
+.turn-actions .icon-button:disabled {
   opacity: 0.15;
   cursor: default;
 }
@@ -1665,6 +1672,34 @@ button:disabled {
   align-items: center;
   justify-content: center;
   font-size: 10px;
+  flex: none;
+}
+
+/* Queued prompts, docked right above the composer like the attention panel. */
+.panel.inbox .inbox-text {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.panel.inbox .inbox-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 0;
+}
+
+.panel.inbox .inbox-delivery {
+  color: var(--vscode-descriptionForeground);
+  font-size: 0.9em;
+  flex: none;
+}
+
+.panel.inbox .inbox-actions {
+  display: flex;
+  gap: 2px;
   flex: none;
 }
 

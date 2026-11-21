@@ -33,6 +33,7 @@ interface MockSession {
   messages: Json[];
   permissions: Json[];
   forms: Json[];
+  inbox: Json[];
   interrupted: boolean;
   waiters: Map<string, (value: unknown) => void>;
   files: Json[];
@@ -118,8 +119,8 @@ export function startMockServer(opts: MockOptions = {}): Promise<MockServer> {
   const expected = "Basic " + Buffer.from(`opencode:${password}`).toString("base64");
 
   if (opts.stateFile && fs.existsSync(opts.stateFile)) {
-    const saved = JSON.parse(fs.readFileSync(opts.stateFile, "utf8")) as Pick<MockSession, "info" | "messages" | "files">[];
-    for (const s of saved) sessions.set(s.info.id, { ...s, permissions: [], forms: [], interrupted: false, waiters: new Map() });
+    const saved = JSON.parse(fs.readFileSync(opts.stateFile, "utf8")) as Pick<MockSession, "info" | "messages" | "files" | "inbox">[];
+    for (const s of saved) sessions.set(s.info.id, { ...s, permissions: [], forms: [], inbox: s.inbox ?? [], interrupted: false, waiters: new Map() });
   }
   function persist(): void {
     if (!opts.stateFile) return;
@@ -180,7 +181,7 @@ export function startMockServer(opts: MockOptions = {}): Promise<MockServer> {
     };
     if (body?.parentID) info.parentID = body.parentID;
     if (body?.permissions) info.permissions = body.permissions;
-    const s: MockSession = { info, messages: [], permissions: [], forms: [], interrupted: false, waiters: new Map(), files: [] };
+    const s: MockSession = { info, messages: [], permissions: [], forms: [], inbox: [], interrupted: false, waiters: new Map(), files: [] };
     sessions.set(sid, s);
     persist();
     emit({ type: "session.created", data: { sessionID: sid, slug: "mock", version: "mock", projectID: "proj_mock", location } });
@@ -445,6 +446,15 @@ export function startMockServer(opts: MockOptions = {}): Promise<MockServer> {
       return send(res, 204);
     }
 
+    // Test-only: seed pending inbox items without going through a running turn.
+    if (path === "/__mock/inbox" && req.method === "POST") {
+      const b = (body ?? {}) as Json;
+      const s = sessions.get(String(b.sessionID ?? ""));
+      if (!s) return notFound(res);
+      s.inbox = Array.isArray(b.items) ? (b.items as Json[]) : [];
+      return send(res, 204);
+    }
+
     if (req.headers.authorization !== expected) {
       res.writeHead(401, { "content-type": "application/json", "www-authenticate": 'Basic realm="Secure Area"' });
       res.end(JSON.stringify({ _tag: "UnauthorizedError", message: "Authentication required" }));
@@ -519,6 +529,34 @@ export function startMockServer(opts: MockOptions = {}): Promise<MockServer> {
         const order = url.searchParams.get("order") ?? "desc";
         const list = order === "asc" ? s.messages : [...s.messages].reverse();
         return send(res, 200, { data: list, cursor: {} });
+      }
+      if (rest === "inbox" && req.method === "GET") return send(res, 200, { data: s.inbox });
+      const im = /^inbox\/([^/]+)$/.exec(rest);
+      if (im) {
+        const inboxId = decodeURIComponent(im[1]);
+        const item = s.inbox.find((x) => x.id === inboxId);
+        if (!item) return notFound(res);
+        if (req.method === "PATCH") {
+          item.delivery = b.delivery;
+          emit({ type: "session.inbox.delivery.changed", data: { sessionID: s.info.id, inboxID: inboxId, delivery: b.delivery } });
+          return send(res, 204);
+        }
+        if (req.method === "DELETE") {
+          s.inbox = s.inbox.filter((x) => x.id !== inboxId);
+          emit({ type: "session.inbox.cancelled", data: { sessionID: s.info.id, inboxID: inboxId } });
+          return send(res, 204);
+        }
+      }
+      if (rest === "fork" && req.method === "POST") {
+        const before = typeof b.before === "string" ? b.before : undefined;
+        const at = before ? s.messages.findIndex((x) => x.id === before) : s.messages.length;
+        if (before && at < 0) return notFound(res, "MessageNotFoundError");
+        const child = newSession({ location: s.info.location, agent: s.info.agent, model: s.info.model });
+        child.info.parentID = s.info.id;
+        child.info.title = `Fork of ${s.info.title ?? s.info.id}`;
+        child.messages = s.messages.slice(0, at).map((m) => ({ ...m }));
+        persist();
+        return send(res, 200, { data: child.info });
       }
       if (rest === "prompt") {
         const userId = id("msg");

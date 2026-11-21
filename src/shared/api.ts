@@ -118,6 +118,19 @@ export interface FileDiff {
   status: "added" | "deleted" | "modified";
 }
 
+/** How an inbox item will be delivered when the agent loop picks it up (OpenCode 2.2.7). */
+export type InboxDelivery = "steer" | "queue";
+
+/** A pending item of `GET /api/session/{id}/inbox` — a prompt not delivered yet. */
+export interface InboxItem {
+  id: string;
+  sessionID: string;
+  time: { created: number };
+  type: "user" | "synthetic" | "compaction" | "move";
+  delivery: InboxDelivery;
+  payload: { text?: string; description?: string; [key: string]: unknown };
+}
+
 export interface PermissionRequest {
   id: string;
   sessionID: string;

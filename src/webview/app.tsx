@@ -1,6 +1,6 @@
 import { Component, type ComponentChildren } from "preact";
 import { useEffect, useLayoutEffect, useMemo, useReducer, useRef, useState } from "preact/hooks";
-import type { AgentInfo, CommandSuggestion, FileDiff, ModelInfo, ModelRef, ServerEvent, SkillSuggestion } from "../shared/api";
+import type { AgentInfo, CommandSuggestion, FileDiff, InboxItem, ModelInfo, ModelRef, ServerEvent, SkillSuggestion } from "../shared/api";
 import {
   chatReducer,
   initialChatState,
@@ -27,7 +27,7 @@ import { Composer } from "./composer";
 import { collectDroppedFiles, hasFiles, readFileAsBase64, type DragData } from "./dropFiles";
 import { env, isolateKeys } from "./env";
 import { StringsContext, useT } from "./i18n";
-import { IconCheck, IconChevron, IconClose, IconEdit, IconError, IconFileMarkdown, IconHistory, IconPlus, IconRefresh, IconTrash, IconWarning } from "./icons";
+import { IconCheck, IconChevron, IconClose, IconEdit, IconError, IconFileMarkdown, IconHistory, IconPlus, IconRefresh, IconSend, IconTrash, IconWarning } from "./icons";
 import { setCopyLabel } from "./markdown";
 import { Picker } from "./picker";
 import { clearReplyFailures, markReplyFailed } from "./replyFeedback";
@@ -66,6 +66,7 @@ export function App() {
   const [fileResults, setFileResults] = useState<{ query: string; items: Attachment[] }>({ query: "", items: [] });
   const [changes, setChanges] = useState<FileDiff[]>([]);
   const [dismissedChanges, setDismissedChanges] = useState<string | null>(null);
+  const [inbox, setInbox] = useState<InboxItem[]>([]);
   const [autoApprove, setAutoApprove] = useState(false);
   const [notice, setNotice] = useState<UiError | undefined>();
   const [focusToken, setFocusToken] = useState(0);
@@ -149,6 +150,7 @@ export function App() {
             setSubagentLabels({});
             setAttachments([]);
             setChanges([]);
+            setInbox([]);
             setDismissedChanges(null);
             setNotice(undefined);
             setSearchQuery("");
@@ -218,6 +220,12 @@ export function App() {
           break;
         case "changedFiles":
           setChanges(msg.files);
+          break;
+        case "inbox":
+          setInbox(msg.items);
+          break;
+        case "forked":
+          announce(stringsRef.current.forkDone);
           break;
         case "autoApprove":
           setAutoApprove(msg.enabled);
@@ -479,6 +487,27 @@ export function App() {
   };
   syncNowRef.current = syncNow;
 
+  /** Pull a queued prompt back into the composer (the API cannot patch its text in place). */
+  const editQueued = (item: InboxItem) => {
+    const sid = chat.sessionId;
+    if (!sid || item.type !== "user" || typeof item.payload.text !== "string") return;
+    post({ type: "cancelInbox", sessionId: sid, inboxId: item.id });
+    setDraft(item.payload.text, sid);
+    setRestoredDraft((prev) => ({ text: item.payload.text!, token: (prev?.token ?? 0) + 1 }));
+    post({ type: "saveDraft", sessionId: sid, text: item.payload.text });
+    setNotice(undefined);
+    setFocusToken((n) => n + 1);
+  };
+  const removeQueued = (item: InboxItem) => {
+    if (!chat.sessionId) return;
+    post({ type: "cancelInbox", sessionId: chat.sessionId, inboxId: item.id });
+    announce(stringsRef.current.inboxCancelled);
+  };
+  const sendQueuedNow = (item: InboxItem) => {
+    if (!chat.sessionId) return;
+    post({ type: "setInboxDelivery", sessionId: chat.sessionId, inboxId: item.id, delivery: "steer" });
+  };
+
   return (
     <StringsContext.Provider value={strings}>
       <SubagentsContext.Provider value={subagentEntries}>
@@ -536,6 +565,14 @@ export function App() {
         {/* When the subagent modal is open it renders its own overlay; passing the child requests
             here too would duplicate the same cards (and the same DOM ids) behind the backdrop. */}
         <AttentionOverlay key={chat.sessionId ?? "new"} state={chat} subagents={subagentStack.length === 0 ? subagents : undefined} />
+        {inbox.length > 0 && (
+          <InboxPanel
+            items={inbox}
+            onSendNow={sendQueuedNow}
+            onEdit={editQueued}
+            onRemove={removeQueued}
+          />
+        )}
         <Composer
           sessionId={chat.sessionId ?? undefined}
           draftToken={draftToken}
@@ -1660,6 +1697,71 @@ function SubagentModal({
         </div>
       </div>
     </div>
+  );
+}
+
+/** Prompts the server has accepted but not delivered yet, with actions mirroring the API. */
+function InboxPanel(props: {
+  items: InboxItem[];
+  onSendNow: (item: InboxItem) => void;
+  onEdit: (item: InboxItem) => void;
+  onRemove: (item: InboxItem) => void;
+}) {
+  const t = useT();
+  return (
+    <details class="panel inbox" open>
+      <summary>
+        <IconChevron class="chevron" />
+        {t("inbox")} ({props.items.length})
+      </summary>
+      <ul>
+        {props.items.map((item) => {
+          const text = item.type === "user"
+            ? item.payload.text ?? ""
+            : item.payload.description ?? item.payload.text ?? item.type;
+          const editable = item.type === "user" && typeof item.payload.text === "string";
+          return (
+            <li class="inbox-item" key={item.id}>
+              <span class="inbox-text" title={text}>{text}</span>
+              {item.delivery === "queue" && <span class="inbox-delivery">{t("inboxDeliveryQueue")}</span>}
+              <span class="inbox-actions">
+                {item.delivery === "queue" && (
+                  <button
+                    type="button"
+                    class="icon-button tooltip-host"
+                    data-tooltip={t("inboxSendNow")}
+                    aria-label={t("inboxSendNow")}
+                    onClick={() => props.onSendNow(item)}
+                  >
+                    <IconSend />
+                  </button>
+                )}
+                {editable && (
+                  <button
+                    type="button"
+                    class="icon-button tooltip-host"
+                    data-tooltip={t("inboxEdit")}
+                    aria-label={t("inboxEdit")}
+                    onClick={() => props.onEdit(item)}
+                  >
+                    <IconEdit />
+                  </button>
+                )}
+                <button
+                  type="button"
+                  class="icon-button tooltip-host"
+                  data-tooltip={t("inboxRemove")}
+                  aria-label={t("inboxRemove")}
+                  onClick={() => props.onRemove(item)}
+                >
+                  <IconClose />
+                </button>
+              </span>
+            </li>
+          );
+        })}
+      </ul>
+    </details>
   );
 }
 

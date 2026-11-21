@@ -1,5 +1,16 @@
 # Changelog
 
+## Unreleased
+
+- **Fork a turn**: every prompt now has a *Fork conversation from this turn* action next to the
+  rollback button. It creates a new sibling session with the history up to that prompt, opens it and
+  keeps the original conversation intact. Forks are child sessions on the server, so they are kept
+  visible at the top of the session list instead of being filtered out with subagents.
+- **Queued messages panel**: prompts accepted by the server but not delivered yet now appear above
+  the composer. Each item can be promoted to *send now* (interrupting the current reply), moved back
+  into the composer to edit its text, or removed from the queue. The list is re-read on connect,
+  sync and on inbox events, so prompts queued from other clients are visible too.
+
 ## 0.3.18 — 2026-11-20
 
 - Attachment chips on **already-sent prompts** now open their project file with a single click (or

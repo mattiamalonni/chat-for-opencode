@@ -190,6 +190,54 @@ describe("OpenCodeClient against the mock server", () => {
     expect(mock.sessions.get(s.id)!.info.revert).toBeUndefined();
     expect((await client.messages(s.id)).some((m) => m.id === third.id)).toBe(true);
   });
+
+  it("forks history before a message without touching the original session", async () => {
+    const s = await client.createSession({});
+    await client.prompt(s.id, "first");
+    await waitForIdle(client, s.id);
+    await client.prompt(s.id, "second");
+    await waitForIdle(client, s.id);
+    const all = await client.messages(s.id);
+    const secondUser = all.find((m, i) => m.type === "user" && all.slice(0, i).some((p) => p.type === "user"))!;
+    const fork = await client.forkSession(s.id, secondUser.id);
+    expect(mock.requests.at(-1)).toMatchObject({
+      method: "POST",
+      path: `/api/session/${s.id}/fork`,
+      body: { before: secondUser.id },
+    });
+    expect(fork.id).not.toBe(s.id);
+    const texts = (await client.messages(fork.id)).filter((m) => m.type === "user").map((m) => (m.type === "user" ? m.text : ""));
+    expect(texts).toEqual(["first"]);
+    expect((await client.messages(s.id)).filter((m) => m.type === "user")).toHaveLength(2);
+  });
+
+  it("lists, promotes and cancels pending inbox items", async () => {
+    const s = await client.createSession({});
+    const item = {
+      id: "msg_queued",
+      sessionID: s.id,
+      time: { created: 1 },
+      type: "user",
+      delivery: "queue",
+      payload: { text: "queued prompt" },
+    };
+    await fetch(`${mock.url}/__mock/inbox`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ sessionID: s.id, items: [item] }),
+    });
+    expect(await client.inbox(s.id)).toEqual([item]);
+    await client.setInboxDelivery(s.id, item.id, "steer");
+    expect(mock.requests.at(-1)).toMatchObject({
+      method: "PATCH",
+      path: `/api/session/${s.id}/inbox/${item.id}`,
+      body: { delivery: "steer" },
+    });
+    expect((await client.inbox(s.id))[0].delivery).toBe("steer");
+    await client.cancelInbox(s.id, item.id);
+    expect(mock.requests.at(-1)).toMatchObject({ method: "DELETE", path: `/api/session/${s.id}/inbox/${item.id}` });
+    expect(await client.inbox(s.id)).toEqual([]);
+  });
 });
 
 async function waitForIdle(client: OpenCodeClient, id: string): Promise<void> {

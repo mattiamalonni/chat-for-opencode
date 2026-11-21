@@ -14,6 +14,7 @@ import type {
   FileAttachment,
   FileDiff,
   FormRequest,
+  InboxItem,
   ModelInfo,
   PermissionRequest,
   ServerEvent,
@@ -205,9 +206,12 @@ export class ChatController implements vscode.Disposable {
   private readonly sessionsGen = new Generation();
   private sessionsCursor: string | undefined;
   private sessionsHasMore = false;
+  /** Forks are child sessions, so the normal `parentID=null` page hides them; keep them listed. */
+  private readonly forkedSessionIds = new Set<string>();
   private sessionsLoadingMore = false;
   private sessionItems: SessionSummary[] = [];
   private changesTimer: NodeJS.Timeout | undefined;
+  private inboxTimer: NodeJS.Timeout | undefined;
   private reconcileTimer: NodeJS.Timeout | undefined;
   private readonly executionGen = new Generation();
   /**
@@ -675,6 +679,7 @@ export class ChatController implements vscode.Disposable {
       },
     });
     void this.refreshChanges().catch(() => {});
+    void this.refreshInbox(sid).catch(() => {});
     return true;
   }
 
@@ -932,6 +937,15 @@ export class ChatController implements vscode.Disposable {
         else this.trackSubagent(parsed.sessionId);
       }
     }
+    if (
+      sid === this.sessionId &&
+      (event.type === "session.inbox.enqueued" ||
+        event.type === "session.inbox.delivered" ||
+        event.type === "session.inbox.cancelled" ||
+        event.type === "session.inbox.delivery.changed")
+    ) {
+      this.scheduleInbox();
+    }
     if (event.type === "session.deleted" && sid && this.childSessions.delete(sid)) {
       this.sessionParents.delete(sid);
       this.pendingChildEvents.delete(sid);
@@ -1020,6 +1034,8 @@ export class ChatController implements vscode.Disposable {
     this.sessionsTimer = undefined;
     if (this.changesTimer) clearTimeout(this.changesTimer);
     this.changesTimer = undefined;
+    if (this.inboxTimer) clearTimeout(this.inboxTimer);
+    this.inboxTimer = undefined;
     if (this.reconcileTimer) clearTimeout(this.reconcileTimer);
     this.reconcileTimer = undefined;
   }
@@ -1088,6 +1104,31 @@ export class ChatController implements vscode.Disposable {
   private scheduleChanges(): void {
     if (this.changesTimer) clearTimeout(this.changesTimer);
     this.changesTimer = setTimeout(() => void this.refreshChanges().catch(() => {}), 400);
+  }
+
+  /** Enqueue/deliver/cancel events arrive in bursts; one refresh per burst is enough. */
+  private scheduleInbox(): void {
+    if (this.inboxTimer) clearTimeout(this.inboxTimer);
+    this.inboxTimer = setTimeout(() => {
+      this.inboxTimer = undefined;
+      void this.refreshInbox().catch(() => {});
+    }, 150);
+  }
+
+  /**
+   * Re-read the pending prompts from the server. A queued message is stored server-side, so the
+   * webview cannot reconstruct the list from the SSE events (which carry no replay).
+   */
+  private async refreshInbox(sid = this.sessionId): Promise<void> {
+    const client = this.client;
+    if (!client || !sid || sid !== this.sessionId) return;
+    const items = await client.inbox(sid).catch(() => [] as InboxItem[]);
+    if (sid !== this.sessionId || client !== this.client) return;
+    this.publishInbox(items);
+  }
+
+  private publishInbox(items: InboxItem[]): void {
+    this.post({ type: "inbox", items });
   }
 
   /**
@@ -1163,7 +1204,15 @@ export class ChatController implements vscode.Disposable {
     const generation = this.sessionsGen.bump();
     const { items, next } = await this.client.listSessionsPage(this.folder.uri.fsPath, this.sessionPageSize());
     const sessions = items.filter((s) => !s.parentID && !s.time.archived);
-    const summaries = await this.toSummaries(sessions);
+    // A fork is a child session, so it never appears in the parent-only page. Keep the ones this
+    // window created visible at the top of the picker instead of losing them after a refresh.
+    const forks: SessionInfo[] = [];
+    for (const id of this.forkedSessionIds) {
+      if (sessions.some((s) => s.id === id)) continue;
+      const info = await this.client.getSession(id).catch(() => undefined);
+      if (info && !info.time.archived) forks.push(info);
+    }
+    const summaries = await this.toSummaries([...forks, ...sessions]);
     if (!this.sessionsGen.is(generation)) return;
     this.sessionItems = summaries;
     this.sessionsCursor = next;
@@ -1232,6 +1281,7 @@ export class ChatController implements vscode.Disposable {
       }
     }
 
+    for (const id of deleted) this.forkedSessionIds.delete(id);
     if (deleted.length > 0) {
       const key = DRAFTS_KEY(folder.uri.toString());
       const saved = this.ctx.workspaceState.get<{ drafts?: Record<string, string> }>(key) ?? {};
@@ -1322,17 +1372,47 @@ export class ChatController implements vscode.Disposable {
     }
   }
 
+  /**
+   * Copy the conversation up to `messageID` into a new sibling session and open it. The original
+   * keeps its full history and files, so unlike a rollback this is a non-destructive "what if".
+   */
+  async forkToTurn(sessionId: string, messageID: string): Promise<void> {
+    const client = this.client;
+    if (!client || sessionId !== this.sessionId) return;
+    const generation = this.loadGen.bump();
+    try {
+      const info = await client.forkSession(sessionId, messageID);
+      if (!this.loadGen.is(generation) || client !== this.client) return;
+      this.forkedSessionIds.add(info.id);
+      await this.loadSession(info, () => !this.loadGen.is(generation) || client !== this.client);
+      if (client !== this.client) return;
+      this.post({ type: "forked", sessionId: info.id, title: info.title });
+    } catch (err) {
+      const s = translatedStrings();
+      this.post({
+        type: "notice",
+        error: {
+          kind: "requestFailed",
+          message: s["error.forkFailed"],
+          detail: err instanceof Error ? err.message : String(err),
+          actions: ["showLogs"],
+        },
+      });
+    }
+  }
+
   private async loadSession(rawInfo: SessionInfo, stale?: () => boolean, busyOverride?: boolean): Promise<void> {
     const client = this.client;
     if (!client || !this.folder) return;
-    const [rawMessages, rawPermissions, rawForms] = await Promise.all([
+    const [rawMessages, rawPermissions, rawForms, rawInbox] = await Promise.all([
       client.messages(rawInfo.id),
       client.permissions(rawInfo.id).catch(() => []),
       client.forms(rawInfo.id).catch(() => []),
+      client.inbox(rawInfo.id).catch(() => [] as InboxItem[]),
     ]);
     // A newer prompt may have started while history was loading; its events are fresher.
     if (stale?.()) return;
-    this.observeContract({ messages: rawMessages });
+    this.observeContract({ messages: rawMessages, inbox: rawInbox });
     const info = normalizeSessionInfo(rawInfo) ?? rawInfo;
     const messages = normalizeList(rawMessages, normalizeSessionMessage);
     const forms = normalizeList(rawForms, normalizeForm);
@@ -1377,6 +1457,7 @@ export class ChatController implements vscode.Disposable {
     // permission is still answerable after the user switches back to this chat.
     void this.discoverChildren();
     this.postAutoApprove();
+    this.publishInbox(rawInbox);
     await this.refreshSessions();
     const diff = await this.refreshChanges();
     this.observeContract({ diff });
@@ -1395,6 +1476,7 @@ export class ChatController implements vscode.Disposable {
     if (this.folder) await this.ctx.workspaceState.update(SESSION_KEY(this.folder.uri.toString()), undefined);
     this.post({ type: "session", session: null });
     this.post({ type: "changedFiles", files: [] });
+    this.publishInbox([]);
     this.postAutoApprove();
     this.catalog.publish();
     await this.refreshSessions().catch(() => {});
@@ -1471,6 +1553,7 @@ export class ChatController implements vscode.Disposable {
     this.sessionItems = [];
     this.sessionsCursor = undefined;
     this.sessionsHasMore = false;
+    this.forkedSessionIds.clear();
     this.folder = folder;
     this.postInit();
     this.post({ type: "session", session: null });
@@ -1696,6 +1779,7 @@ export class ChatController implements vscode.Disposable {
       case "deleteSession":
         if (!this.client) return;
         await this.client.deleteSession(msg.id);
+        this.forkedSessionIds.delete(msg.id);
         await this.permissions.write(msg.id, undefined);
         if (this.folder) {
           const key = DRAFTS_KEY(this.folder.uri.toString());
@@ -1866,6 +1950,18 @@ export class ChatController implements vscode.Disposable {
         );
         if (choice !== rollback && choice !== messagesOnly) return;
         return this.revertToTurn(msg.sessionId, msg.messageID, msg.text, choice === rollback);
+      }
+      case "forkTo":
+        return this.forkToTurn(msg.sessionId, msg.messageID);
+      case "setInboxDelivery": {
+        if (!this.client || msg.sessionId !== this.sessionId) return;
+        await this.client.setInboxDelivery(msg.sessionId, msg.inboxId, msg.delivery);
+        return this.refreshInbox(msg.sessionId);
+      }
+      case "cancelInbox": {
+        if (!this.client || msg.sessionId !== this.sessionId) return;
+        await this.client.cancelInbox(msg.sessionId, msg.inboxId);
+        return this.refreshInbox(msg.sessionId);
       }
       case "dismissCompatibility":
         await this.ctx.globalState.update(COMPAT_DISMISSED_KEY, msg.version);

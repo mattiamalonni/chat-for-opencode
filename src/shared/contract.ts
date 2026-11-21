@@ -11,7 +11,8 @@ export type CapabilityId =
   | "skills"
   | "history"
   | "contextMeter"
-  | "changedFiles";
+  | "changedFiles"
+  | "inbox";
 
 export interface ContractFailure {
   id: CapabilityId;
@@ -30,6 +31,7 @@ export interface ContractObservations {
   skills?: unknown;
   messages?: unknown;
   diff?: unknown;
+  inbox?: unknown;
 }
 
 const isObj = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null && !Array.isArray(v);
@@ -81,6 +83,13 @@ export function checkContract(o: ContractObservations): ContractReport {
       "changedFiles",
       o.diff.every((f) => isObj(f) && typeof f.file === "string" && typeof f.patch === "string"),
       "GET /api/session/{id}/diff did not return file patches.",
+    );
+  }
+  if (Array.isArray(o.inbox) && o.inbox.length > 0) {
+    check(
+      "inbox",
+      o.inbox.every((i) => isObj(i) && typeof i.id === "string" && typeof i.type === "string" && (i.delivery === "queue" || i.delivery === "steer")),
+      "GET /api/session/{id}/inbox did not return items with id, type and delivery.",
     );
   }
 

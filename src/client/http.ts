@@ -5,6 +5,8 @@ import type {
   FileDiff,
   FormRequest,
   FormValue,
+  InboxDelivery,
+  InboxItem,
   ModelInfo,
   ModelRef,
   PermissionDecision,
@@ -206,6 +208,31 @@ export class OpenCodeClient {
     if (files.length > 0) body.files = files;
     if (delivery) body.delivery = delivery;
     await this.request("POST", `api/session/${encodeURIComponent(id)}/command`, { body });
+  }
+
+  /** Copy the session's history up to (but not including) `before` into a new session. */
+  async forkSession(id: string, before: string): Promise<SessionInfo> {
+    const res = await this.request<{ data: SessionInfo }>("POST", `api/session/${encodeURIComponent(id)}/fork`, {
+      body: { before },
+    });
+    return res.data;
+  }
+
+  /** Prompts still waiting in the inbox, oldest first (the server keeps insertion order). */
+  async inbox(id: string): Promise<InboxItem[]> {
+    const res = await this.request<{ data: InboxItem[] }>("GET", `api/session/${encodeURIComponent(id)}/inbox`);
+    return res.data ?? [];
+  }
+
+  /** Change how a queued item is delivered. `steer` makes it interrupt the current turn. */
+  async setInboxDelivery(id: string, inboxId: string, delivery: InboxDelivery): Promise<void> {
+    await this.request("PATCH", `api/session/${encodeURIComponent(id)}/inbox/${encodeURIComponent(inboxId)}`, {
+      body: { delivery },
+    });
+  }
+
+  async cancelInbox(id: string, inboxId: string): Promise<void> {
+    await this.request("DELETE", `api/session/${encodeURIComponent(id)}/inbox/${encodeURIComponent(inboxId)}`);
   }
 
   /** Durably admit a compaction request; the server runs it at the next step boundary. */

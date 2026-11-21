@@ -4,6 +4,8 @@ import type {
   FileDiff,
   FormRequest,
   FormValue,
+  InboxDelivery,
+  InboxItem,
   ModelInfo,
   ModelRef,
   PermissionDecision,
@@ -202,6 +204,10 @@ export type HostMessage =
   | { type: "fileResults"; query: string; items: Attachment[] }
   | { type: "addAttachment"; item: Attachment }
   | { type: "changedFiles"; files: FileDiff[] }
+  /** Prompts waiting in the server's inbox for the current session. */
+  | { type: "inbox"; items: InboxItem[] }
+  /** A session was forked from a turn and is now the open conversation. */
+  | { type: "forked"; sessionId: string; title?: string }
   | { type: "autoApprove"; enabled: boolean }
   /** Dropzone setting changed at runtime; lets the webview rebind drag & drop listeners live. */
   | { type: "dropzone"; enabled: boolean }
@@ -221,6 +227,8 @@ export type WebviewMessage =
   | { type: "compact" }
   /** Roll the conversation back to the turn opened by `messageID` and restore its prompt. */
   | { type: "revertTo"; sessionId: string; messageID: string; text: string }
+  /** Create a new session with history up to `messageID`, keeping this one untouched. */
+  | { type: "forkTo"; sessionId: string; messageID: string }
   | { type: "newSession" }
   | { type: "selectSession"; id: string }
   | { type: "deleteSession"; id: string }
@@ -233,6 +241,10 @@ export type WebviewMessage =
   | { type: "setAutoApprove"; enabled: boolean }
   | { type: "saveDraft"; sessionId?: string; text: string }
   | { type: "permissionReply"; sessionId: string; requestId: string; decision: PermissionDecision }
+  /** Switch a queued prompt between interrupt-and-send (`steer`) and wait-behind (`queue`). */
+  | { type: "setInboxDelivery"; sessionId: string; inboxId: string; delivery: InboxDelivery }
+  /** Drop a queued prompt from the server's inbox. */
+  | { type: "cancelInbox"; sessionId: string; inboxId: string }
   | { type: "formReply"; sessionId: string; formId: string; answer: Record<string, FormValue> }
   | { type: "formCancel"; sessionId: string; formId: string }
   | { type: "searchFiles"; query: string }
