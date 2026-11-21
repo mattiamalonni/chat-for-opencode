@@ -8,7 +8,7 @@ import { EventStream } from "../client/sse";
 import { CatalogService } from "./catalogService";
 import { FileIconThemeService, type LanguageContribution } from "./fileIconTheme";
 import { Generation } from "./generation";
-import { ExternalServer, ManagedServer, ServerError, type ServerHandle, type ServerState } from "../server/server";
+import { describeServerError, ExternalServer, ManagedServer, ServerError, type ServerHandle, type ServerState } from "../server/server";
 import type {
   AgentInfo,
   ConfigEntry,
@@ -395,6 +395,16 @@ export class ChatController implements vscode.Disposable {
     for (const l of this.postListeners) l(msg);
   }
 
+  /** Best-effort fetches degrade to a fallback, but the reason must still reach the output channel. */
+  private async bestEffort<T>(label: string, promise: Promise<T>, fallback: T): Promise<T> {
+    try {
+      return await promise;
+    } catch (err) {
+      this.output.warn(`[chat] ${label} failed: ${describeServerError(err)}`);
+      return fallback;
+    }
+  }
+
   /** Observes messages sent to the webview (used by integration tests). */
   onDidPost(listener: (msg: HostMessage) => void): vscode.Disposable {
     this.postListeners.add(listener);
@@ -575,14 +585,14 @@ export class ChatController implements vscode.Disposable {
     const sessionId = this.sessionId ?? this.ctx.workspaceState.get<string>(SESSION_KEY(this.folder.uri.toString()));
     let session: SessionInfo | undefined;
     if (sessionId) {
-      session = await client.getSession(sessionId).catch(() => undefined);
+      session = await this.bestEffort("load stored session", client.getSession(sessionId), undefined);
       if (stale()) return;
     }
     // Plugin skills/commands are registered only once a session exists. With no session yet
     // (fresh window, or right after "New session") create a throwaway one so the `/` picker is
     // populated before the first prompt; the registrations survive deleting that session.
     if (!session && !this.catalog.isWarmedUp) {
-      const tmp = await client.createSession({ directory: this.folder.uri.fsPath }).catch(() => undefined);
+      const tmp = await this.bestEffort("create warm-up session", client.createSession({ directory: this.folder.uri.fsPath }), undefined);
       if (tmp) {
         try {
           this.catalog.markWarmedUp();
@@ -938,10 +948,10 @@ export class ChatController implements vscode.Disposable {
     if (!client || !parent) return;
     const generation = this.childGen.current();
     const [info, rawMessages, rawPermissions, rawForms] = await Promise.all([
-      client.getSession(childId).catch(() => undefined),
-      client.messages(childId).catch(() => []),
-      client.permissions(childId).catch(() => []),
-      client.forms(childId).catch(() => []),
+      this.bestEffort("subagent session", client.getSession(childId), undefined),
+      this.bestEffort("subagent history", client.messages(childId), [] as SessionMessage[]),
+      this.bestEffort("subagent permissions", client.permissions(childId), [] as PermissionRequest[]),
+      this.bestEffort("subagent forms", client.forms(childId), [] as FormRequest[]),
     ]);
     if (!this.childGen.is(generation) || parent !== this.sessionId) return;
     const safe = normalizeSessionInfo(info) ?? info;

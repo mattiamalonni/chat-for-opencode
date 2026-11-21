@@ -94,6 +94,13 @@ abstract class BaseServer implements ServerHandle {
   }
 }
 
+/** Keeps the HTTP status and error tag in logs; `String(ApiError)` would report only the message. */
+export function describeServerError(err: unknown): string {
+  if (err instanceof ApiError) return `HTTP ${err.status}${err.tag ? ` (${err.tag})` : ""}: ${err.message}`;
+  if (err instanceof Error) return `${err.name}: ${err.message}`;
+  return String(err);
+}
+
 export async function waitForHealthy(conn: Connection, timeoutMs: number, isAlive: () => boolean = () => true): Promise<string> {
   const client = new OpenCodeClient(conn);
   const deadline = Date.now() + timeoutMs;
@@ -110,7 +117,9 @@ export async function waitForHealthy(conn: Connection, timeoutMs: number, isAliv
     }
     await new Promise((r) => setTimeout(r, 200));
   }
-  throw new ServerError("startFailed", "The OpenCode server did not become healthy in time.", String(lastError ?? ""));
+  if (!isAlive()) throw new ServerError("startFailed", "OpenCode stopped while starting.");
+  const detail = lastError === undefined ? "no response before the deadline" : describeServerError(lastError);
+  throw new ServerError("startFailed", "The OpenCode server did not become healthy in time.", detail);
 }
 
 export interface ManagedServerOptions {
@@ -422,7 +431,7 @@ export class ExternalServer extends BaseServer {
       if (err instanceof ApiError && err.status === 401) {
         throw new ServerError("unauthorized", "The OpenCode server requires a password.");
       }
-      throw new ServerError("unreachable", `Cannot reach ${this.opts.endpoint}.`, String(err));
+      throw new ServerError("unreachable", `Cannot reach ${this.opts.endpoint}.`, describeServerError(err));
     }
   }
 

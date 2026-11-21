@@ -2,9 +2,9 @@ import { chmodSync, mkdtempSync, readdirSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { OpenCodeClient } from "../../src/client/http";
+import { ApiError, OpenCodeClient } from "../../src/client/http";
 import { clearServerRecord, writeServerRecord } from "../../src/server/orphans";
-import { ExternalServer, ManagedServer, type ServerState } from "../../src/server/server";
+import { describeServerError, ExternalServer, ManagedServer, waitForHealthy, type ServerState } from "../../src/server/server";
 import { startMockServer, type MockServer } from "../mock/mockServer";
 
 const MOCK = join(__dirname, "../mock/mockServer.ts");
@@ -131,6 +131,20 @@ describe("ManagedServer", () => {
     // A stop still awaiting its kill must not overwrite the state of the start that took over.
     await Promise.all([server.stop(), server.restart()]);
     expect(server.state.status).toBe("running");
+  });
+});
+
+describe("server error diagnostics", () => {
+  it("keeps the HTTP status and tag in error details", () => {
+    expect(describeServerError(new ApiError("boom", 503, "Unavailable"))).toBe("HTTP 503 (Unavailable): boom");
+    expect(describeServerError(new Error("oops"))).toBe("Error: oops");
+  });
+
+  it("distinguishes a stopped server from a startup timeout", async () => {
+    await expect(waitForHealthy({ baseUrl: "http://127.0.0.1:1" }, 1_000, () => false)).rejects.toMatchObject({
+      kind: "startFailed",
+      message: "OpenCode stopped while starting.",
+    });
   });
 });
 

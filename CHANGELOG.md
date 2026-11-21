@@ -5,6 +5,10 @@
 - **Robustness:** starting a new session now stops the 2-second external-tail poll instead of leaving
   an interval that can only no-op; loading the next session (including the first prompt of a new
   chat) starts it again, so turns from other clients are still followed.
+- **Diagnostics:** server errors now keep their HTTP status and tag in the output channel, and a
+  server that stops during startup is reported as such instead of as a health-check timeout.
+  Best-effort host fetches (stored session, warm-up session, subagent snapshots) log why they failed
+  instead of silently degrading.
 - **Performance:** the active file icon theme is no longer fully read and base64-encoded before the
   first chip renders. Assets are inlined only for definitions and fonts actually resolved, then
   cached per theme, which removes the first-attachment jank with large themes such as Seti.
