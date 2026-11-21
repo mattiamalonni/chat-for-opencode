@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- **Architecture:** subagent bookkeeping (discovery, nested parent chain, event buffering and history
+  snapshots) moved into `SubagentTracker`, with unit tests for routing and cleanup. The controller's
+  event handler no longer owns child-session state.
 - **Architecture:** attachment handling (drops, native picker, inline staging, temp-file eviction and
   the `file:` URI allowlist) moved into `AttachmentService`, with unit tests for the path allowlist.
   The controller now delegates those commands; prompt building still uses `resolveAttachment`.

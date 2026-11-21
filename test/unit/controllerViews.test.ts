@@ -108,7 +108,7 @@ describe("loadSession staleness", () => {
       output: { warn: vi.fn() },
       observeContract: vi.fn(),
       sessionId: "old",
-      resetSubagents: vi.fn(),
+      subagents: { reset: vi.fn(), track: vi.fn(), discover: vi.fn() },
       permissions: {
         filterPending: vi.fn(async () => {
           stale = true;
@@ -118,8 +118,6 @@ describe("loadSession staleness", () => {
       ctx: { workspaceState: { update: vi.fn() } },
       catalog: { models: [], agents: [], publish: vi.fn() },
       post: vi.fn(),
-      trackSubagent: vi.fn(),
-      discoverChildren: vi.fn(),
       postAutoApprove: vi.fn(),
       publishInbox: vi.fn(),
       refreshSessions: vi.fn().mockResolvedValue(undefined),
