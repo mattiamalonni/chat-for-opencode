@@ -5,7 +5,7 @@ import { CatalogService } from "./catalogService";
 import { ConnectionSupervisor } from "./connectionSupervisor";
 import { FileIconThemeService, type LanguageContribution } from "./fileIconTheme";
 import { ChatLifecycle } from "./lifecycle";
-import { describeServerError, ExternalServer, ManagedServer, ServerError, type ServerHandle } from "../server/server";
+import { describeServerError, ExternalServer, ManagedServer, ServerError, type ServerHandle, type ServerState } from "../server/server";
 import type {
   AgentInfo,
   ConfigEntry,
@@ -556,6 +556,11 @@ export class ChatController implements vscode.Disposable {
   /** Starts (or reuses) the server for the current folder and loads everything. */
   connect(): Promise<void> {
     return this.supervisor.connect();
+  }
+
+  /** Integration-test hook for late server notifications (see extension.test.ts). */
+  onServerState(state: ServerState, server?: ServerHandle): void {
+    this.supervisor.onServerState(state, server);
   }
 
   /**
