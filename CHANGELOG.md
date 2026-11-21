@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- **Notifications:** the status-bar item now mirrors the current turn (spinner while running,
+  check/alert/stop when it settles), and a hidden chat can announce finished or failed turns with an
+  *Open chat* action. Failures notify by default; successes are opt-in via `opencode.notifyOnComplete`
+  (`opencode.notifyOnFailure` turns failures off). Announcements are deduplicated per turn, so a
+  resync replays nothing twice.
 - **CI:** coverage floors are now enforced (`npm run test:coverage` on Linux) and the production
   `npm audit` gate can no longer be silently skipped; a waived CVE needs an explicit `overrides`
   entry. The UI harness uses the same nonce-based CSP shape as the real webview and a browser test

@@ -329,6 +329,16 @@
           "default": false,
           "markdownDescription": "%config.autoApprovePermissions%"
         },
+        "opencode.notifyOnComplete": {
+          "type": "boolean",
+          "default": false,
+          "markdownDescription": "%config.notifyOnComplete%"
+        },
+        "opencode.notifyOnFailure": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "%config.notifyOnFailure%"
+        },
         "opencode.sessionPageSize": {
           "type": "number",
           "default": 10,

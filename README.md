@@ -164,6 +164,11 @@ loads the skill content.
 | `opencode.sessionPermissions` | ask before edits, shell and external files | Rules added to new sessions. Set `[]` to restore OpenCode's permissive defaults. |
 | `opencode.autoApprovePermissions` | `false` | Default for new chats: auto-approve every permission request without showing the approval panel (granted once, saved rules untouched). The **Auto-approve** toggle in the composer overrides it per chat. |
 | `opencode.sessionPageSize` | `10` | Sessions shown per page in the session list; older ones are fetched with **Load more sessions**. |
+| `opencode.notifyOnComplete` | `false` | Notify when a turn finishes while the chat is hidden, with an **Open chat** action. |
+| `opencode.notifyOnFailure` | `true` | Notify when a turn fails while the chat is hidden. |
+
+The status-bar item mirrors the current turn (`$(sync~spin)` while running, then a check/alert/stop
+badge), so you can see at a glance whether the agent is still working without opening the chat.
 
 By default new sessions ask before editing files, running shell commands or accessing files outside
 the workspace: OpenCode's base policy (`{"action":"*","effect":"allow"}`) would otherwise approve

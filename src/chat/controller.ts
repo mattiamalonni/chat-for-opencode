@@ -184,6 +184,12 @@ function toUiError(err: unknown, fallback: UiErrorKind = "requestFailed"): UiErr
 
 type ChatWebview = vscode.WebviewView | vscode.WebviewPanel;
 
+export type ExecutionStatus = "idle" | "running" | "succeeded" | "failed" | "interrupted";
+export interface ExecutionState {
+  status: ExecutionStatus;
+  sessionId?: string;
+}
+
 export class ChatController implements vscode.Disposable {
   /** All live chats: the sidebar view plus any editor tabs. `post()` fans out to every one. */
   private readonly views = new Set<ChatWebview>();
@@ -468,6 +474,24 @@ export class ChatController implements vscode.Disposable {
     }
   }
 
+  private readonly executionListeners = new Set<(state: ExecutionState) => void>();
+  private executionState: ExecutionStatus = "idle";
+
+  /**
+   * Host-side execution state, for the status bar and completion notifications. Deliberately
+   * separate from `post()`: the webview already receives events, the editor chrome does not.
+   */
+  onDidChangeExecution(listener: (state: ExecutionState) => void): vscode.Disposable {
+    this.executionListeners.add(listener);
+    listener({ status: this.executionState, sessionId: this.sessionId });
+    return new vscode.Disposable(() => this.executionListeners.delete(listener));
+  }
+
+  private publishExecution(status: ExecutionStatus, sid: string | undefined = this.sessionId): void {
+    this.executionState = status;
+    for (const listener of this.executionListeners) listener({ status, sessionId: sid });
+  }
+
   /** Observes messages sent to the webview (used by integration tests). */
   onDidPost(listener: (msg: HostMessage) => void): vscode.Disposable {
     this.postListeners.add(listener);
@@ -483,6 +507,7 @@ export class ChatController implements vscode.Disposable {
     // Ignore late results: a newer prompt may have started while interrupt/cancel was in flight.
     if (sid !== this.sessionId || !this.executionGen.is(generation)) return;
     this.localIdle = { sid, generation };
+    this.publishExecution("idle", sid);
     this.post({
       type: "event",
       event: { type: "session.status", data: { sessionID: sid, status: { type: "idle" } } } as ServerEvent,
@@ -1180,6 +1205,7 @@ export class ChatController implements vscode.Disposable {
     if (sid === this.sessionId && (event.type === "session.inbox.enqueued" || event.type === "session.execution.started")) {
       this.executionGen.bump();
       this.localIdle = undefined;
+      if (event.type === "session.execution.started") this.publishExecution("running", sid);
     }
     switch (event.type) {
       case "session.created":
@@ -1207,7 +1233,33 @@ export class ChatController implements vscode.Disposable {
         event.type === "session.execution.failed" ||
         event.type === "session.execution.interrupted")
     ) {
+      const status = event.type === "session.execution.succeeded"
+        ? "succeeded"
+        : event.type === "session.execution.failed"
+          ? "failed"
+          : "interrupted";
+      this.publishExecution(status, sid);
       this.scheduleReconcile();
+      // A resync can replay the same terminal event, so include the turn's generation in the key.
+      const key = `execution.terminal:${sid}:${this.executionGen.current()}`;
+      if (!this.isVisible && !this.announcedHiddenAttention.has(key)) {
+        const cfg = vscode.workspace.getConfiguration("opencode", this.folder?.uri);
+        const enabled = status === "failed"
+          ? cfg.get<boolean>("notifyOnFailure", true)
+          : cfg.get<boolean>("notifyOnComplete", false);
+        if (enabled) {
+          this.announcedHiddenAttention.add(key);
+          const message = status === "failed"
+            ? vscode.l10n.t("OpenCode turn failed.")
+            : status === "interrupted"
+              ? vscode.l10n.t("OpenCode turn was interrupted.")
+              : vscode.l10n.t("OpenCode turn finished.");
+          const open = vscode.l10n.t("Open chat");
+          void vscode.window.showInformationMessage(message, open).then((choice) => {
+            if (choice === open) void vscode.commands.executeCommand("opencode.chatView.focus");
+          });
+        }
+      }
     }
     if (event.type === "session.deleted" && sid === this.sessionId) {
       void this.newSession();
@@ -2283,7 +2335,10 @@ export class ChatController implements vscode.Disposable {
   /** Returns false when the prompt never reached the server (no notice is posted for stale loads). */
   private async send(text: string, attachments: Attachment[], context: ContextItem[], delivery?: "steer" | "queue"): Promise<boolean> {
     // A queued message starts no turn yet: leave the current turn's reconcile generation alone.
-    if (delivery !== "queue") this.executionGen.bump();
+    if (delivery !== "queue") {
+      this.executionGen.bump();
+      this.publishExecution("running", this.sessionId);
+    }
     if (delivery !== "queue" && this.reconcileTimer) {
       clearTimeout(this.reconcileTimer);
       this.reconcileTimer = undefined;

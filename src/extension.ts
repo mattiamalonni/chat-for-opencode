@@ -2,7 +2,7 @@ import { execFile } from "node:child_process";
 import * as path from "node:path";
 import { promisify } from "node:util";
 import * as vscode from "vscode";
-import { ChatController, ServerRegistry } from "./chat/controller";
+import { ChatController, ServerRegistry, type ExecutionStatus } from "./chat/controller";
 import { DIFF_SCHEME, DiffService } from "./chat/diff";
 import { ChatViewProvider } from "./chat/viewProvider";
 import { cleanupOrphanServers } from "./server/orphans";
@@ -210,8 +210,21 @@ export function activate(context: vscode.ExtensionContext): ExtensionApi {
   };
   updateStatusTooltip();
   status.command = "opencode.account";
+  const executionIcons: Record<ExecutionStatus, string> = {
+    idle: "$(comment-discussion)",
+    running: "$(sync~spin)",
+    succeeded: "$(check)",
+    failed: "$(alert)",
+    interrupted: "$(stop)",
+  };
+  status.text = executionIcons.idle;
+  context.subscriptions.push(
+    status,
+    chat.onDidChangeExecution((state) => {
+      status.text = executionIcons[state.status];
+    }),
+  );
   status.show();
-  context.subscriptions.push(status);
   if (vscode.workspace.isTrusted) void readAuthLogins().then(
     (logins) => {
       authLogins = logins;
