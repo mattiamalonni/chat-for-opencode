@@ -284,6 +284,9 @@ export function App() {
           break;
         case "synced":
           setSyncing(false);
+          // A no-op sync (e.g. no client/session yet) posts no `session` message. Without clearing
+          // here, the next queue overflow would short-circuit and the hidden chat stays stale.
+          resyncPending.current = false;
           break;
         case "notice":
           if (msg.error.target) markReplyFailed(msg.error.target);

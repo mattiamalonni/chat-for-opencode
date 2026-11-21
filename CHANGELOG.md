@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- **Robustness:** a recreated sidebar view is no longer blocked by a stale `sidebarView` handle, and
+  editor tabs restored by VS Code now clear `panel` on dispose like freshly opened ones. The
+  overflow resync flag is also re-armed on a no-op `synced` reply, so a hidden chat cannot stay
+  stale forever after a reconnect. Unit tests cover both view lifecycles and the session-load
+  staleness guard added after auto-approve.
 - **CI:** the unit suite is now platform-aware (path separators, `netstat` and `taskkill` on Windows)
   and icon-theme assets keep URI-style paths so theme files resolve on Windows too. The external-tail
   integration test looks for the folding delta among all updates instead of only the newest one,

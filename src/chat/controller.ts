@@ -370,6 +370,9 @@ export class ChatController implements vscode.Disposable {
     this.viewSubscriptions.get(view)?.dispose();
     this.viewSubscriptions.delete(view);
     this.views.delete(view);
+    // A recreated sidebar WebviewView would otherwise leave the stale one as `sidebarView`, so
+    // `attachView()`'s identity check fails and the new view never becomes the focus target.
+    if (this.sidebarView === view) this.sidebarView = undefined;
     if (this.view === view) this.view = this.sidebarView && this.views.has(this.sidebarView) ? this.sidebarView : undefined;
   }
 
@@ -386,9 +389,6 @@ export class ChatController implements vscode.Disposable {
       { enableScripts: true, localResourceRoots: [vscode.Uri.joinPath(this.ctx.extensionUri, "dist")] },
     );
     this.attachPanel(panel);
-    panel.onDidDispose(() => {
-      if (this.panel === panel) this.panel = undefined;
-    });
   }
 
   /** Used by the serializer when VS Code restores an editor tab after a reload. */
@@ -405,6 +405,14 @@ export class ChatController implements vscode.Disposable {
       e2e: process.env.OC_IT_E2E === "1",
     });
     this.attachView(panel);
+    // Serialized tabs go through `attachPanel()` too, so the dispose cleanup must live here rather
+    // than only in `openChatInEditor()`. Otherwise a closed tab leaves `this.panel` pointing at a
+    // disposed panel and the next `openChatInEditor()` calls `reveal()` on it and throws.
+    const disposeSub = panel.onDidDispose(() => {
+      if (this.panel === panel) this.panel = undefined;
+    });
+    const existing = this.viewSubscriptions.get(panel);
+    this.viewSubscriptions.set(panel, existing ? vscode.Disposable.from(existing, disposeSub) : disposeSub);
   }
 
   /** Serializes webview messages: a late `ready`/loadAll must not race a prompt and drop its events. */
@@ -1642,6 +1650,9 @@ export class ChatController implements vscode.Disposable {
     this.lastKnownMessage = newest ? { sessionId: info.id, id: newest.id } : undefined;
     // Requests granted automatically must not linger as cards when the chat's toggle is on.
     const pending = await this.permissions.filterPending(client, info.id, normalizeList(rawPermissions, normalizePermission));
+    // `filterPending` performs real HTTP calls (auto-approve). A session switch while it is in
+    // flight bumps `loadGen`; without a second guard we would persist and post the stale session.
+    if (stale?.()) return;
     await this.ctx.workspaceState.update(SESSION_KEY(this.folder.uri.toString()), info.id);
     if (info.model && this.catalog.models.some((m) => m.id === info.model?.id && m.providerID === info.model?.providerID)) {
       this.catalog.selectedModel = info.model;
