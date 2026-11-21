@@ -1,3 +1,4 @@
+import { join } from "node:path";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const state = vi.hoisted(() => ({
@@ -12,23 +13,28 @@ const state = vi.hoisted(() => ({
   spawned: [] as string[][],
 }));
 
-vi.mock("node:fs", () => ({
-  promises: {
-    readdir: async () => [...state.files.keys()].map((p) => p.split("/").at(-1)!),
-    readFile: async (p: string) => {
-      const value = state.files.get(p);
-      if (value === undefined) throw new Error("ENOENT");
-      return value;
+vi.mock("node:fs", async () => {
+  // The records are joined with node:path by the code under test, so parse them the same way
+  // instead of assuming POSIX separators (Windows uses backslashes).
+  const { basename } = await import("node:path");
+  return {
+    promises: {
+      readdir: async () => [...state.files.keys()].map((p) => basename(p)),
+      readFile: async (p: string) => {
+        const value = state.files.get(p);
+        if (value === undefined) throw new Error("ENOENT");
+        return value;
+      },
+      unlink: async (p: string) => {
+        state.files.delete(p);
+      },
+      mkdir: async () => undefined,
+      writeFile: async (p: string, value: string) => {
+        state.files.set(p, value);
+      },
     },
-    unlink: async (p: string) => {
-      state.files.delete(p);
-    },
-    mkdir: async () => undefined,
-    writeFile: async (p: string, value: string) => {
-      state.files.set(p, value);
-    },
-  },
-}));
+  };
+});
 
 vi.mock("node:child_process", () => ({
   // Callback style so promisify() in orphans.ts wraps it.
@@ -38,7 +44,10 @@ vi.mock("node:child_process", () => ({
   },
   spawn: (cmd: string, args: string[]) => {
     state.spawned.push([cmd, ...args]);
-    return { on: () => undefined };
+    const handlers: Record<string, (() => void) | undefined> = {};
+    // killPid() waits for "close" on Windows; resolve it on the next microtask.
+    queueMicrotask(() => handlers.close?.());
+    return { on: (event: string, cb: () => void) => { handlers[event] = cb; } };
   },
 }));
 
@@ -46,9 +55,17 @@ import { cleanupOrphanServers, writeServerRecord, type ServerRecord } from "../.
 
 const DIR = "/records";
 const FOLDER = "/work/project";
+const PORT = 4096;
+
+/** stdout for the OS tool that checks port ownership (`lsof` on POSIX, `netstat` on Windows). */
+function listeningOn(pid: number): string {
+  return process.platform === "win32"
+    ? `  TCP    0.0.0.0:${PORT}    0.0.0.0:0    LISTENING    ${pid}\n`
+    : `${pid}\n`;
+}
 
 function record(overrides: Partial<ServerRecord> = {}): ServerRecord {
-  return { pid: 4242, port: 4096, folder: FOLDER, ownerPid: 100, startedAt: 1, ...overrides };
+  return { pid: 4242, port: PORT, folder: FOLDER, ownerPid: 100, startedAt: 1, ...overrides };
 }
 
 async function add(r: ServerRecord): Promise<void> {
@@ -57,9 +74,12 @@ async function add(r: ServerRecord): Promise<void> {
 
 function signalsTo(pid: number): Array<string | number | undefined> {
   // Ignore the `kill(pid, 0)` liveness probes; only real termination signals count.
-  return state.killed
+  const signals = state.killed
     .filter(([p, signal]) => p === pid && signal !== 0 && signal !== undefined)
     .map(([, signal]) => signal);
+  // Windows terminates through `taskkill /pid <pid> /T /F` instead of process.kill(SIGTERM).
+  if (state.spawned.some(([cmd, ...args]) => /^taskkill$/i.test(cmd) && args.includes(String(pid)))) signals.push("SIGTERM");
+  return signals;
 }
 
 describe("cleanupOrphanServers", () => {
@@ -68,7 +88,7 @@ describe("cleanupOrphanServers", () => {
     state.killed.length = 0;
     state.spawned.length = 0;
     state.alivePids.clear();
-    state.lsofOutput = "4242\n";
+    state.lsofOutput = listeningOn(4242);
     state.lsofFails = false;
     state.fetchStatus = 401;
     state.fetchAuth = 'Basic realm="Secure Area"';
@@ -110,7 +130,7 @@ describe("cleanupOrphanServers", () => {
 
   it("does not kill on PID reuse when another process owns the port", async () => {
     state.alivePids.add(4242);
-    state.lsofOutput = "9999\n"; // the recorded pid no longer listens
+    state.lsofOutput = listeningOn(9999); // the recorded pid no longer listens
     await add(record());
     await cleanupOrphanServers(DIR, vi.fn());
     expect(signalsTo(4242)).toEqual([]);
@@ -136,7 +156,7 @@ describe("cleanupOrphanServers", () => {
   });
 
   it("removes invalid records without killing anything", async () => {
-    state.files.set(`${DIR}/broken.json`, '{"pid":"nope"}');
+    state.files.set(join(DIR, "broken.json"), '{"pid":"nope"}');
     await cleanupOrphanServers(DIR, vi.fn());
     expect(state.files.size).toBe(0);
     expect(state.killed).toEqual([]);

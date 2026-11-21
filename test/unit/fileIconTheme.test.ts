@@ -19,7 +19,10 @@ function envOf(fixture: Fixture): { env: FileIconThemeEnv; reads: string[] } {
     locate: (id) => (id === fixture.themeId ? { jsonPath: "/theme/theme.json", baseDir: "/theme" } : undefined),
     readFile: async (file) => {
       reads.push(file);
-      const content = fixture.files[file];
+      // path.resolve() emits native separators and, on Windows, a drive prefix for the POSIX-style
+      // paths used by these fixtures. Compare them in a separator/drive-agnostic way.
+      const key = file.replace(/\\/g, "/").replace(/^[a-zA-Z]:/, "");
+      const content = fixture.files[file] ?? fixture.files[key];
       if (content === undefined) throw new Error(`missing fixture ${file}`);
       return Buffer.from(content, "utf8");
     },

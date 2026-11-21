@@ -1,3 +1,4 @@
+import { join } from "node:path";
 import { describe, expect, it, vi } from "vitest";
 
 const state = vi.hoisted(() => ({
@@ -70,7 +71,8 @@ describe("DiffService workspace containment", () => {
     state.diffs.length = 0;
     const warn = vi.fn();
     await new DiffService(warn).open(root as never, "src/a.txt", patch, true);
-    expect(state.reads).toEqual(["/workspace/project/src/a.txt"]);
+    // Uri.joinPath uses node:path, so the expected path must use the host separator too.
+    expect(state.reads).toEqual([join(root.fsPath, "src/a.txt")]);
     expect(state.diffs).toHaveLength(1);
     expect(warn).not.toHaveBeenCalled();
   });

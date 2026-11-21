@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- **CI:** the unit suite is now platform-aware (path separators, `netstat` and `taskkill` on Windows)
+  and icon-theme assets keep URI-style paths so theme files resolve on Windows too. The external-tail
+  integration test looks for the folding delta among all updates instead of only the newest one,
+  which a later resync could replace on slower runners.
 - **Robustness:** starting a new session now stops the 2-second external-tail poll instead of leaving
   an interval that can only no-op; loading the next session (including the first prompt of a new
   chat) starts it again, so turns from other clients are still followed.

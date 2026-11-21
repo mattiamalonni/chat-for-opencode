@@ -146,6 +146,7 @@ describe("chat-for-opencode extension", () => {
   });
 
   it("folds in a prompt written by another client without a manual sync", async () => {
+    await waitFor(() => controller.debugState.status === "connected", "connected before external sync", 5000);
     const sid = controller.debugState.sessionId;
     assert.ok(sid, "a session is open");
     const mark = posted.length;
@@ -158,10 +159,11 @@ describe("chat-for-opencode extension", () => {
     // Drive one poll explicitly: the 2s timer is timing-sensitive on slow CI runners. This still
     // exercises the exact host path used by the timer (history tail -> sessionDelta).
     await controller.pollNow();
-    const delta = await waitFor(() => {
-      const d = lastPosted("sessionDelta", mark);
-      return d && d.delta.messages.some((m) => m.type === "user" && m.text === "from the tui") && d;
-    }, "external prompt folded into the conversation", 12_000);
+    // Any delta since the mark counts, not just the newest one: a reconnect resync can post an
+    // empty delta afterwards and hide the update that actually folded the external prompt in.
+    const delta = await waitFor(() => posted.slice(mark).find((m): m is Extract<HostMessage, { type: "sessionDelta" }> =>
+      m.type === "sessionDelta" && m.delta.messages.some((x) => x.type === "user" && x.text === "from the tui"),
+    ), "external prompt folded into the conversation", 12_000);
     assert.ok(delta);
   });
 

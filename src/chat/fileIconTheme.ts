@@ -484,5 +484,7 @@ function mergeThemeFiles(theme: ThemeFile, base: ThemeFile): ThemeFile {
 function resolveRelative(baseDir: string, asset: string): string {
   if (asset.startsWith("/") || /^[a-zA-Z]:/.test(asset)) return asset;
   // Resolve so `./` and `../` segments cannot escape the theme directory as raw string fragments.
-  return path.resolve(baseDir, asset);
+  // Theme paths are URI-style, so keep forward slashes even on Windows: both VS Code's fs API and
+  // the test fixture env accept them, and `load()` below splits `extends` paths on "/".
+  return path.resolve(baseDir, asset).replace(/\\/g, "/");
 }
