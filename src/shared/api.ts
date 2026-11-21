@@ -90,16 +90,25 @@ export interface IdleMessage extends MessageBase {
   error?: StructuredError;
 }
 
+/**
+ * Types of `OtherMessage` in the verified 2.2.7 contract, as a value so the adapter can narrow raw
+ * wire strings at runtime instead of asserting an unknown string into the union.
+ */
+export const OTHER_MESSAGE_TYPES = [
+  "synthetic",
+  "system",
+  "skill",
+  "shell",
+  "agent-switched",
+  "model-switched",
+  "location-switched",
+  "compaction",
+] as const;
+
+export type OtherMessageType = (typeof OTHER_MESSAGE_TYPES)[number];
+
 export interface OtherMessage extends MessageBase {
-  type:
-    | "synthetic"
-    | "system"
-    | "skill"
-    | "shell"
-    | "agent-switched"
-    | "model-switched"
-    | "location-switched"
-    | "compaction";
+  type: OtherMessageType;
   text?: string;
   description?: string;
   agent?: string;

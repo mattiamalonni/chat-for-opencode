@@ -15,6 +15,7 @@ import type {
   FormValue,
   ModelInfo,
   ModelRef,
+  OtherMessageType,
   PermissionRequest,
   ServerEvent,
   ServerInfo,
@@ -27,6 +28,7 @@ import type {
   ToolState,
   FileDiff,
 } from "./api";
+import { OTHER_MESSAGE_TYPES } from "./api";
 import { OPENAPI_SNAPSHOT_VERSION } from "./openapi.generated";
 // The generated module also exports the raw wire types for the 2.2.7 snapshot. Normalisers take
 // `unknown` on purpose: a newer server must not be able to violate our types at runtime, it should
@@ -41,6 +43,11 @@ const num = (v: unknown): number | undefined => (typeof v === "number" && Number
 const bool = (v: unknown): boolean | undefined => (typeof v === "boolean" ? v : undefined);
 
 const firstString = (...values: unknown[]): string | undefined => values.map(str).find((v) => v !== undefined);
+
+/** Runtime narrowing for the "other" message family; unknown types are dropped, never mislabelled. */
+function isOtherMessageType(type: string): type is OtherMessageType {
+  return (OTHER_MESSAGE_TYPES as readonly string[]).includes(type);
+}
 
 export { OPENAPI_SNAPSHOT_VERSION };
 
@@ -211,9 +218,10 @@ export function normalizeSessionMessage(raw: unknown): SessionMessage | undefine
       error: normalizeError(o.error),
     };
   }
+  if (!isOtherMessageType(type)) return undefined;
   return {
     id,
-    type: type as Extract<SessionMessage, { type: "system" }>["type"],
+    type,
     time: { created, completed: num(time.completed) },
     text: str(o.text),
     description: str(o.description),

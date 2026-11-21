@@ -21,6 +21,12 @@ describe("OpenCode wire adapter", () => {
     expect(normalizeList([{ id: "u1", type: "user", text: "ok", time: { created: 1 } }, {}], normalizeSessionMessage)).toHaveLength(1);
   });
 
+  it("drops unknown message types instead of mislabelling them as system messages", () => {
+    expect(normalizeSessionMessage({ id: "x", type: "brand-new-kind", time: {} })).toBeUndefined();
+    const known = normalizeSessionMessage({ id: "c", type: "compaction", time: {}, text: "compacted" });
+    expect(known).toMatchObject({ id: "c", type: "compaction", text: "compacted" });
+  });
+
   it("fills optional fields so a shape drift cannot break rendering", () => {
     const message = normalizeSessionMessage({ id: "a1", type: "assistant", time: {}, content: [{ type: "text", text: "hi" }, { type: "bogus" }] });
     expect(message?.type).toBe("assistant");
