@@ -68,9 +68,10 @@ screen readers and multi-window process management.
     session is still there**, while the other session kept its own (empty) draft. Sending clears it.
     Quit and reopen VS Code: the draft must still be there (it is now in `workspaceState`).
 12b. **Queue and steer**: start a long answer, then type another message. The hint should say that
-    `Enter` queues it and `Ctrl/Cmd+Enter` sends now; press `Enter` and confirm the message is
-    delivered after the current answer finishes. Repeat with `Ctrl/Cmd+Enter`: the current answer
-    must be interrupted and the new one answered.
+    `Enter` queues it and `Ctrl/Cmd+Enter` sends now; press `Enter` and confirm the message shows up
+    in the **Queued messages** panel but **not** in the chat conversation yet. When the current
+    answer finishes, the queued prompt must leave the panel and appear in the chat before its reply.
+    Repeat with `Ctrl/Cmd+Enter`: the current answer must be interrupted and the new one answered.
 12c. **Permission shortcuts**: when a permission card appears in the panel above the composer, Tab
     to it and press `1` (Allow once) or `3` (Reject); `2` (Always allow) should only exist when the
     request offers saved rules. With several requests pending, check the counter and that

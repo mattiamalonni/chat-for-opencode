@@ -36,8 +36,9 @@ sends **no telemetry**.
 - **Keep working while the agent runs**: plain `Enter` queues the next message (`delivery: queue`),
   `Ctrl/Cmd+Enter` interrupts and sends it immediately (`delivery: steer`). A **Queued messages**
   panel above the composer lists the prompts still waiting in the server's inbox: promote one to
-  *send now*, put it back in the composer to edit it, or remove it. Composer drafts are stored per
-  session **and survive a window reload**.
+  *send now*, put it back in the composer to edit it, or remove it. A queued prompt stays in the
+  panel only — it joins the conversation once the agent actually starts working on it. Composer
+  drafts are stored per session **and survive a window reload**.
 - A **contract smoke test** on connect names the features that a non-2.2.7 server cannot support, instead of only warning about the version number.
 - **Editor context**: the active file and selection are attached automatically as chips you can remove before sending. File chips use the icons of your active VS Code file icon theme, the same as the Explorer (including dark/light/high-contrast variants and glyph fonts such as Seti).
 - **`@` mentions** with fuzzy workspace file search: picking a file attaches it as a chip and removes the `@query` from the input, so only the chip is sent with the message. **Add Selection to Chat** / **Add File to Chat** in the editor and explorer context menus work the same way.

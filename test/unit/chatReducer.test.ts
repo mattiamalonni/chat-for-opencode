@@ -567,18 +567,56 @@ describe("a prompt queued while a turn is running", () => {
       },
     });
     expect(state.busy).toBe(true);
-    expect(state.messages.filter((m) => m.kind === "user")).toHaveLength(2);
+    // A queued prompt is not sent yet: it stays in the inbox panel, not in the conversation.
+    expect(state.messages.filter((m) => m.kind === "user")).toHaveLength(1);
+    expect(state.queuedMessages?.u2).toMatchObject({ id: "u2", text: "next" });
     // The running turn stays open: no premature summary, and no second turn until it really starts.
     expect(state.turns).toHaveLength(1);
     expect(state.turns[0].ended).toBeUndefined();
+
+    // Once the server hands the prompt to the agent, it joins the conversation.
+    const delivered = chatReducer(state, {
+      type: "event",
+      event: { type: "session.inbox.delivered", created: 1500, data: { sessionID: S1, inboxID: "u2" } },
+    });
+    expect(delivered.messages.filter((m) => m.kind === "user")).toHaveLength(2);
+    expect(delivered.queuedMessages?.u2).toBeUndefined();
+    expect(delivered.turns).toHaveLength(1);
 
     const started = chatReducer(state, {
       type: "event",
       event: { type: "session.execution.started", created: 2000, data: { sessionID: S1 } },
     });
+    expect(started.messages.filter((m) => m.kind === "user")).toHaveLength(2);
+    expect(started.queuedMessages?.u2).toBeUndefined();
     expect(started.turns).toHaveLength(2);
     expect(started.turns[0]).toMatchObject({ id: "u1", ended: 2000 });
     expect(started.turns[1]).toMatchObject({ id: "u2", started: 2000 });
+  });
+
+  it("keeps a cancelled queued prompt out of the conversation", () => {
+    const queued = chatReducer(running(), {
+      type: "event",
+      event: {
+        type: "session.inbox.enqueued",
+        created: 1300,
+        data: { sessionID: S1, inboxID: "u2", item: { type: "user", payload: { text: "next" }, delivery: "queue" } },
+      },
+    });
+    const cancelled = chatReducer(queued, {
+      type: "event",
+      event: { type: "session.inbox.cancelled", created: 1400, data: { sessionID: S1, inboxID: "u2" } },
+    });
+    expect(cancelled.messages.filter((m) => m.kind === "user")).toHaveLength(1);
+    expect(cancelled.queuedMessages?.u2).toBeUndefined();
+    expect(cancelled.queuedTurnId).toBeUndefined();
+
+    // A late delivery for a removed item must not resurrect it.
+    const late = chatReducer(cancelled, {
+      type: "event",
+      event: { type: "session.inbox.delivered", created: 1500, data: { sessionID: S1, inboxID: "u2" } },
+    });
+    expect(late.messages.filter((m) => m.kind === "user")).toHaveLength(1);
   });
 });
 
