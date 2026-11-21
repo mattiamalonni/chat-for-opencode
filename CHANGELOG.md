@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- **Performance:** long conversations now skip layout and paint for off-screen cards via
+  `content-visibility: auto` with a remembered intrinsic size, instead of paying for every turn on
+  each streamed frame. `KNOWN_LIMITS.md` no longer claims DOM windowing, which the renderer never
+  implemented; the full history is still attached to the DOM.
 - **Security:** a reply can no longer smuggle in a fake *Copy* button on a code block. DOMPurify
   already strips `data-action` from model HTML, but kept `class`, so crafted
   `.code-block .code-header .code-copy` markup regained the handler and could put attacker-chosen

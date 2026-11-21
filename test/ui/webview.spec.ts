@@ -2523,6 +2523,23 @@ test("every turn has a rollback button that targets its own prompt and restores 
   expect(await lastPosted(page, "saveDraft")).toEqual({ type: "saveDraft", sessionId: S1, text: "first prompt" });
 });
 
+test("off-screen conversation cards are skipped with content-visibility", async ({ page }) => {
+  await boot(page);
+  await host(page, {
+    type: "session",
+    session: {
+      id: S1,
+      busy: false,
+      messages: [{ id: "u1", type: "user", text: "hello", time: { created: 1000 } }],
+      permissions: [],
+      forms: [],
+    },
+  });
+  const card = page.locator(".conversation > .msg.user").first();
+  await expect(card).toBeVisible();
+  expect(await card.evaluate((el) => getComputedStyle(el).contentVisibility)).toBe("auto");
+});
+
 test("a failed prompt returns to the composer without overwriting newer typing", async ({ page }) => {
   await boot(page);
   await host(page, { type: "session", session: { id: S1, busy: false, messages: [], permissions: [], forms: [] } });
