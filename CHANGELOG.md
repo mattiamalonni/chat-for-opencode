@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- **Performance:** the session list no longer issues three HTTP requests per busy session on every
+  event burst. Deep state (busy / needs-input) is cached for 3 s while `time.updated` is unchanged,
+  forked-session lookups for 30 s, and the open session is always refreshed. Unit tests cover the
+  cache invalidation and the open-session exception.
 - **Onboarding:** the empty chat now shows a short keyboard hint and four clickable starter prompts
   (explain, find bugs, write tests, plan a refactor) that fill the composer and focus it.
 - **Editor integration:** *Explain / Find bugs / Write tests / Optimize Selection* commands in the

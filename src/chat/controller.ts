@@ -226,6 +226,13 @@ export class ChatController implements vscode.Disposable {
   private sessionsLoadingMore = false;
   private sessionItems: SessionSummary[] = [];
   /**
+   * Deep session state (busy/needsInput) needs three HTTP calls per busy session. Event bursts
+   * refresh the list many times per second, so reuse a short-lived result while `time.updated`
+   * is unchanged. The open session is always fetched: it is the one the user is looking at.
+   */
+  private readonly summaryCache = new Map<string, { updated: number; expires: number; busy: boolean; needsInput: boolean }>();
+  private readonly forkInfoCache = new Map<string, { info: SessionInfo; expires: number }>();
+  /**
    * Last locally-posted idle status. A resync before the next turn must not re-lock the composer
    * with stale server timestamps (e.g. a dismissed question leaves `busy` newer than `idle`).
    */
@@ -1345,10 +1352,15 @@ export class ChatController implements vscode.Disposable {
    */
   private async toSummaries(sessions: SessionInfo[]): Promise<SessionSummary[]> {
     const client = this.client;
+    const now = Date.now();
     return Promise.all(
       sessions.map(async (info) => {
         const safe = normalizeSessionInfo(info) ?? info;
         if (!client || !sessionLooksBusy(safe.time)) return toSessionSummary(safe);
+        const cached = this.summaryCache.get(info.id);
+        if (cached && cached.updated === safe.time.updated && cached.expires > now && info.id !== this.sessionId) {
+          return { ...toSessionSummary(safe), busy: cached.busy, needsInput: cached.needsInput };
+        }
         // Only a session whose turn is still running can be paused on a question or a permission
         // request, so fetch the pending-input state together with the history we already need.
         const [messages, permissions, forms] = await Promise.all([
@@ -1356,7 +1368,10 @@ export class ChatController implements vscode.Disposable {
           client.permissions(info.id).catch(() => []),
           client.forms(info.id).catch(() => []),
         ]);
-        return toSessionSummary(safe, messages && normalizeList(messages, normalizeSessionMessage), permissions.length > 0 || forms.length > 0);
+        const summary = toSessionSummary(safe, messages && normalizeList(messages, normalizeSessionMessage), permissions.length > 0 || forms.length > 0);
+        if (this.summaryCache.size > 200) this.summaryCache.delete(this.summaryCache.keys().next().value as string);
+        this.summaryCache.set(info.id, { updated: safe.time.updated, expires: Date.now() + 3000, busy: summary.busy, needsInput: summary.needsInput });
+        return summary;
       }),
     );
   }
@@ -1377,10 +1392,19 @@ export class ChatController implements vscode.Disposable {
     // A fork is a child session, so it never appears in the parent-only page. Keep the ones this
     // window created visible at the top of the picker instead of losing them after a refresh.
     const forks: SessionInfo[] = [];
+    const now = Date.now();
     for (const id of this.forkedSessionIds) {
       if (sessions.some((s) => s.id === id)) continue;
-      const info = await this.client.getSession(id).then((s) => normalizeSessionInfo(s) ?? s).catch(() => undefined);
-      if (info && !info.time.archived) forks.push(info);
+      const cached = this.forkInfoCache.get(id);
+      const info = cached && cached.expires > now
+        ? cached.info
+        : await this.client.getSession(id).then((s) => normalizeSessionInfo(s) ?? s).catch(() => undefined);
+      if (info && !info.time.archived) {
+        forks.push(info);
+        if (info !== cached?.info) this.forkInfoCache.set(id, { info, expires: now + 30_000 });
+      } else {
+        this.forkInfoCache.delete(id);
+      }
     }
     const summaries = await this.toSummaries([...forks, ...sessions]);
     if (!this.lifecycle.generations.sessions.is(generation)) return;
@@ -1452,7 +1476,11 @@ export class ChatController implements vscode.Disposable {
       }
     }
 
-    for (const id of deleted) this.forkedSessionIds.delete(id);
+    for (const id of deleted) {
+      this.forkedSessionIds.delete(id);
+      this.summaryCache.delete(id);
+      this.forkInfoCache.delete(id);
+    }
     if (deleted.length > 0) {
       const key = DRAFTS_KEY(folder.uri.toString());
       const saved = this.ctx.workspaceState.get<{ drafts?: Record<string, string> }>(key) ?? {};
