@@ -815,7 +815,7 @@ test("renders markdown with highlighted code and copies code via the host", asyn
   await expect(page.locator(".hljs-keyword").first()).toHaveText("const");
   // DOMPurify strips the event handler.
   expect(await page.locator(".md img").getAttribute("onerror")).toBeNull();
-  await page.getByRole("button", { name: STRINGS.copy }).click();
+  await page.getByRole("button", { name: STRINGS.copy, exact: true }).click();
   expect(await lastPosted(page, "copy")).toEqual({ type: "copy", text: "const answer: number = 42;" });
   await page.getByRole("link", { name: "docs" }).click();
   expect(await lastPosted(page, "openLink")).toEqual({ type: "openLink", href: "https://opencode.ai" });
@@ -2672,6 +2672,56 @@ test("the queued-messages panel can promote, edit and remove pending prompts", a
 
   await host(page, { type: "inbox", items: [] });
   await expect(panel).toHaveCount(0);
+});
+
+test("a finished response can be copied as plain text", async ({ page }) => {
+  await boot(page);
+  const messages: SessionMessage[] = [
+    { id: "u1", type: "user", text: "summarise", time: { created: 1000 } },
+    {
+      id: "a1",
+      type: "assistant",
+      agent: "build",
+      model: { id: "m", providerID: "p" },
+      content: [{ type: "text", text: "the short answer" }],
+      time: { created: 1100, completed: 1200 },
+    },
+  ];
+  await host(page, { type: "session", session: { id: S1, busy: false, messages, permissions: [], forms: [] } });
+  const copy = page.locator(".msg.assistant .copy-response");
+  await expect(copy).toHaveCount(1);
+  await copy.click();
+  expect(await lastPosted(page, "copy")).toEqual({ type: "copy", text: "the short answer" });
+});
+
+test("a prompt can be regenerated with its original text and files", async ({ page }) => {
+  await boot(page);
+  const messages: SessionMessage[] = [
+    {
+      id: "u1",
+      type: "user",
+      text: "check this file",
+      files: [{ uri: "file:///work/src/app.ts", name: "app.ts" }],
+      time: { created: 1000 },
+    },
+    {
+      id: "a1",
+      type: "assistant",
+      agent: "build",
+      model: { id: "m", providerID: "p" },
+      content: [{ type: "text", text: "old answer" }],
+      time: { created: 1100, completed: 1200 },
+    },
+  ];
+  await host(page, { type: "session", session: { id: S1, busy: false, messages, permissions: [], forms: [] } });
+  await page.locator(".msg.user .regenerate-turn").click();
+  expect(await lastPosted(page, "regenerate")).toEqual({
+    type: "regenerate",
+    sessionId: S1,
+    messageID: "u1",
+    text: "check this file",
+    attachments: [{ uri: "file:///work/src/app.ts", name: "app.ts", kind: "file" }],
+  });
 });
 
 test("the webview CSP refuses an inline script that has no nonce", async ({ page }) => {

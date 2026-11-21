@@ -1509,8 +1509,13 @@ export class ChatController implements vscode.Disposable {
    * tests can exercise the flow without the native confirmation dialog.
    */
   async revertToTurn(sessionId: string, messageID: string, text: string, files: boolean): Promise<void> {
+    if (await this.revertBoundary(sessionId, messageID, files)) this.post({ type: "reverted", sessionId, text });
+  }
+
+  /** Shared boundary stage/commit/reload, used by both rollback and regenerate. */
+  private async revertBoundary(sessionId: string, messageID: string, files: boolean): Promise<boolean> {
     const client = this.client;
-    if (!client || sessionId !== this.sessionId) return;
+    if (!client || sessionId !== this.sessionId) return false;
     this.lifecycle.generations.execution.bump();
     const generation = this.lifecycle.generations.load.bump();
     try {
@@ -1526,16 +1531,25 @@ export class ChatController implements vscode.Disposable {
         await client.revertClear(sessionId).catch(() => undefined);
         throw err;
       }
-      if (!this.lifecycle.generations.load.is(generation) || sessionId !== this.sessionId) return;
+      if (!this.lifecycle.generations.load.is(generation) || sessionId !== this.sessionId) return false;
       const info = await client.getSession(sessionId);
-      if (!this.lifecycle.generations.load.is(generation) || sessionId !== this.sessionId) return;
+      if (!this.lifecycle.generations.load.is(generation) || sessionId !== this.sessionId) return false;
       // A commit deletes messages, so a tail resync cannot detect it: rebuild from history.
       await this.loadSession(info, () => !this.lifecycle.generations.load.is(generation) || sessionId !== this.sessionId);
-      this.post({ type: "reverted", sessionId, text });
+      return true;
     } catch (err) {
       const s = translatedStrings();
       throw new Error(`${s["error.revertFailed"]} ${err instanceof Error ? err.message : String(err)}`, { cause: err });
     }
+  }
+
+  /**
+   * Drop the reply after `messageID` without touching files, then resend the original prompt.
+   * The model/agent selection stays as the user left it, so the retry uses the current settings.
+   */
+  async regenerateTurn(sessionId: string, messageID: string, text: string, attachments: Attachment[]): Promise<void> {
+    if (!(await this.revertBoundary(sessionId, messageID, false))) return;
+    await this.send(text, attachments, [], undefined);
   }
 
   /**
@@ -2196,6 +2210,23 @@ export class ChatController implements vscode.Disposable {
       }
       case "forkTo":
         return this.forkToTurn(msg.sessionId, msg.messageID);
+      case "regenerate": {
+        if (!this.client || !this.sessionId || msg.sessionId !== this.sessionId) return;
+        const regenerate = vscode.l10n.t("Regenerate");
+        const choice = await vscode.window.showWarningMessage(
+          vscode.l10n.t("Regenerate this response?"),
+          {
+            modal: true,
+            detail: vscode.l10n.t(
+              "The reply and every later turn will be removed and your prompt sent again. Your files stay untouched. Use Roll back if you want to restore files too.",
+            ),
+          },
+          regenerate,
+          vscode.l10n.t("Cancel"),
+        );
+        if (choice !== regenerate) return;
+        return this.regenerateTurn(msg.sessionId, msg.messageID, msg.text, msg.attachments);
+      }
       case "setInboxDelivery": {
         if (!this.client || msg.sessionId !== this.sessionId) return;
         await this.client.setInboxDelivery(msg.sessionId, msg.inboxId, msg.delivery);

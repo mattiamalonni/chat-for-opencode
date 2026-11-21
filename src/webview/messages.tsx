@@ -28,7 +28,7 @@ import {
 import { isolateKeys } from "./env";
 import { FileTypeIcon } from "./fileIcons";
 import { useT } from "./i18n";
-import { IconCheck, IconChevron, IconError, IconFile, IconFork, IconInfo, IconOpen, IconRevert, IconSelection, IconTool, IconWarning } from "./icons";
+import { IconCheck, IconChevron, IconCopy, IconError, IconFile, IconFork, IconInfo, IconOpen, IconRefresh, IconRevert, IconSelection, IconTool, IconWarning } from "./icons";
 import { renderMarkdown } from "./markdown";
 import { clearReplyFailure, useReplyFailed } from "./replyFeedback";
 import { useOpenSubagent, useSubagent } from "./subagents";
@@ -120,6 +120,27 @@ export function MessageView({
     return (
       <article class={`msg user${hidden}`} aria-label={t("you")}>
         <div class="turn-actions">
+          <button
+            type="button"
+            class="icon-button regenerate-turn tooltip-host"
+            data-tooltip={state.busy ? t("regenerateTurnBusy") : t("regenerateTurn")}
+            aria-label={t("regenerateTurn")}
+            disabled={!sessionId || state.busy}
+            onClick={() =>
+              sessionId &&
+              post({
+                type: "regenerate",
+                sessionId,
+                messageID: message.id,
+                text: message.text,
+                attachments: message.files
+                  .filter((f) => !!f.uri)
+                  .map((f) => ({ uri: f.uri, name: f.name ?? fileNameOf(f.uri), kind: "file" as const })),
+              })
+            }
+          >
+            <IconRefresh />
+          </button>
           <button
             type="button"
             class="icon-button fork-turn tooltip-host"
@@ -321,6 +342,18 @@ function AssistantView({
         ),
       )}
       {showStatus && <AssistantStatus message={message} typing={message.parts.length === 0} />}
+      <div class="turn-actions assistant-actions">
+        <button
+          type="button"
+          class="icon-button copy-response tooltip-host"
+          data-tooltip={t("copyResponse")}
+          aria-label={t("copyResponse")}
+          disabled={!message.done || message.parts.length === 0}
+          onClick={() => post({ type: "copy", text: messageSearchText(message).trim() })}
+        >
+          <IconCopy />
+        </button>
+      </div>
     </article>
   );
 }

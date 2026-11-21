@@ -759,8 +759,13 @@ details[open] > summary > .chevron,
 }
 
 .msg.user:hover .turn-actions .icon-button,
+.msg.assistant:hover .turn-actions .icon-button,
 .turn-actions .icon-button:focus-visible {
   opacity: 1;
+}
+
+.assistant-actions {
+  align-self: flex-end;
 }
 
 .turn-actions .icon-button:disabled {

@@ -50,6 +50,7 @@ export const IconFileDoc = fileSvg("M5 8.6h6M5 10.4h6M5 12.2h3.8");
 export const IconSelection = svg("M2 3h12v1H2zm0 3h8v1H2zm0 3h12v1H2zm0 3h6v1H2z");
 export const IconTool = svg("M13.6 2.4a3.5 3.5 0 0 0-4.7 4.2L2.2 13.3l1.5 1.5 6.7-6.7a3.5 3.5 0 0 0 4.2-4.7l-2 2-1.5-.4-.4-1.5z");
 export const IconCheck = svg("M6.3 11.3 2.7 7.7l-1 1 4.6 4.6 8-8-1-1z");
+export const IconCopy = svg("M5.5 2h7.5v9h-1.5V3.5H5.5zm-3 3h7.5v9H2.5zm1.5 1.5v6h4.5v-6z");
 export const IconShield = function IconShield(props: P) {
   return (
     <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.2" aria-hidden="true" focusable="false" {...props}>

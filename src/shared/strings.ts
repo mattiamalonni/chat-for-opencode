@@ -83,6 +83,9 @@ export const STRINGS = {
   forkTurn: "Fork conversation from this turn",
   forkTurnBusy: "Wait for the current response to finish before forking",
   forkDone: "Forked conversation. You are now in the new branch.",
+  copyResponse: "Copy this response",
+  regenerateTurn: "Try again (regenerate this response)",
+  regenerateTurnBusy: "Wait for the current response to finish before regenerating",
   // Inbox: prompts already sent but not delivered yet (Enter while the agent works).
   inbox: "Queued messages",
   inboxDeliveryQueue: "Queued",

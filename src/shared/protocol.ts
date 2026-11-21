@@ -237,6 +237,14 @@ export type WebviewMessage =
   | { type: "revertTo"; sessionId: string; messageID: string; text: string }
   /** Create a new session with history up to `messageID`, keeping this one untouched. */
   | { type: "forkTo"; sessionId: string; messageID: string }
+  /** Drop the reply after this prompt (keeping files) and immediately resend the same prompt. */
+  | {
+      type: "regenerate";
+      sessionId: string;
+      messageID: string;
+      text: string;
+      attachments: Attachment[];
+    }
   | { type: "newSession" }
   | { type: "selectSession"; id: string }
   | { type: "deleteSession"; id: string }

@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- **Turn actions:** a finished response now has a *Copy this response* button (plain text, including
+  tool text) and every prompt has a *Try again* button that drops the old reply without touching
+  files and resends the original prompt with its files. Both reuse the existing revert boundary and
+  ask for confirmation before regenerating, so a retry can never silently rewrite file changes.
 - **Architecture:** view bookkeeping moved out of the controller into `ChatViews` (one owner for the
   sidebar/editor handles, their listeners and `post()` fan-out), and the five generation counters plus
   six timers into `ChatLifecycle` (named tokens, named reschedulable timers, one `clearAll()`).
