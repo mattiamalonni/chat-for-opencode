@@ -118,7 +118,7 @@ export function MessageView({
   if (message.kind === "user") {
     const sessionId = state.sessionId;
     return (
-      <article class={`msg user${hidden}`} aria-label={t("you")}>
+      <article class={`msg user${hidden}`} aria-label={t("you")} data-message-id={message.id}>
         <div class="turn-actions">
           <button
             type="button"
@@ -331,7 +331,7 @@ function AssistantView({
 }) {
   const t = useT();
   return (
-    <article class={`msg assistant${grouped ? " grouped" : ""}${filteredOut ? " filtered-out" : ""}`} aria-label={t("assistant")} aria-busy={!message.done}>
+    <article class={`msg assistant${grouped ? " grouped" : ""}${filteredOut ? " filtered-out" : ""}`} aria-label={t("assistant")} aria-busy={!message.done} data-message-id={message.id}>
       {message.parts.map((p) =>
         p.kind === "tool" ? (
           <ToolCard key={p.key} part={p} state={state} />

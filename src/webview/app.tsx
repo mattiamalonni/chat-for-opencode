@@ -77,6 +77,7 @@ export function App() {
   /** Prompt returned by a rollback; a new token forces the composer to adopt it even if it has text. */
   const [restoredDraft, setRestoredDraft] = useState<{ text: string; token: number } | undefined>();
   const [scrollToken, setScrollToken] = useState(0);
+  const [revealMessageId, setRevealMessageId] = useState<string | undefined>(undefined);
   const [showSessions, setShowSessions] = useState(false);
   // Read-only drill-down into a child session. Nested children push a crumb; ancestors are kept so
   // the report stays reachable without leaving the parent conversation.
@@ -281,6 +282,9 @@ export function App() {
           break;
         case "focusInput":
           setFocusToken((n) => n + 1);
+          break;
+        case "revealMessage":
+          setRevealMessageId(msg.messageId);
           break;
         case "prefillDraft":
           setDraft(msg.text, msg.sessionId);
@@ -609,6 +613,7 @@ export function App() {
           chat={chat}
           scrollToken={scrollToken}
           searchQuery={searchQuery}
+          revealMessageId={revealMessageId}
           onSuggestedPrompt={(text) => {
             setDraft(text, chat.sessionId ?? undefined);
             setDraftToken((n) => n + 1);
@@ -1490,12 +1495,14 @@ function Conversation({
   scrollToken,
   searchQuery,
   label,
+  revealMessageId,
   onSuggestedPrompt,
 }: {
   chat: ReturnType<typeof chatReducer>;
   scrollToken: number;
   searchQuery: string;
   label?: string;
+  revealMessageId?: string;
   onSuggestedPrompt?: (text: string) => void;
 }) {
   const t = useT();
@@ -1530,6 +1537,16 @@ function Conversation({
   useEffect(() => {
     scrollToEnd();
   }, [scrollToken]);
+
+  useEffect(() => {
+    if (!revealMessageId) return;
+    const el = ref.current?.querySelector<HTMLElement>(`[data-message-id="${revealMessageId}"]`);
+    if (!el) return;
+    el.scrollIntoView({ block: "center" });
+    el.classList.add("revealed");
+    const timer = setTimeout(() => el.classList.remove("revealed"), 1600);
+    return () => clearTimeout(timer);
+  }, [revealMessageId, chat.messages]);
 
   // Pin to the bottom only when the conversation actually grows (a streamed token, a new
   // message, a new card). This used to run after *every* render, so an unrelated state change

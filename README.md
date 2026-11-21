@@ -167,6 +167,9 @@ loads the skill content.
 | `opencode.notifyOnComplete` | `false` | Notify when a turn finishes while the chat is hidden, with an **Open chat** action. |
 | `opencode.notifyOnFailure` | `true` | Notify when a turn fails while the chat is hidden. |
 
+**OpenCode: Search All Session Conversations** (`Cmd/Ctrl+Alt+F`) searches titles and message bodies
+across every session in the workspace, then opens the hit and highlights the matching message.
+
 On a fresh chat the welcome screen offers four starter prompts and a keyboard hint. With text
 selected in an editor, the context menu also offers **OpenCode: Explain / Find bugs / Write tests /
 Optimize Selection**: each opens the chat with the instruction pre-filled and the selection attached.

@@ -222,6 +222,8 @@ export type HostMessage =
    */
   | { type: "draftRestored"; sessionId?: string; text: string; force?: boolean }
   | { type: "focusInput" }
+  /** Scroll a message into view after a cross-session search jumped to it. */
+  | { type: "revealMessage"; messageId: string; sessionId?: string }
   /** Editor context actions: fill the composer with an intent and attach the current selection. */
   | { type: "prefillDraft"; sessionId?: string; text: string; attachments: Attachment[] }
   /** A turn was rolled back; its prompt goes back into the composer so it can be edited and resent. */

@@ -803,6 +803,12 @@ details[open] > summary > .chevron,
   align-self: flex-end;
 }
 
+.msg.revealed {
+  outline: 1px solid var(--vscode-focusBorder, var(--vscode-textLink-foreground));
+  outline-offset: 3px;
+  border-radius: 4px;
+}
+
 .turn-actions .icon-button:disabled {
   opacity: 0.15;
   cursor: default;

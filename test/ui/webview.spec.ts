@@ -2674,6 +2674,24 @@ test("the queued-messages panel can promote, edit and remove pending prompts", a
   await expect(panel).toHaveCount(0);
 });
 
+test("a cross-session search hit scrolls to and highlights its message", async ({ page }) => {
+  await boot(page);
+  const messages: SessionMessage[] = [
+    { id: "u1", type: "user", text: "first prompt", time: { created: 1000 } },
+    {
+      id: "a1",
+      type: "assistant",
+      agent: "build",
+      model: { id: "m", providerID: "p" },
+      content: [{ type: "text", text: "answer" }],
+      time: { created: 1100, completed: 1200 },
+    },
+  ];
+  await host(page, { type: "session", session: { id: S1, busy: false, messages, permissions: [], forms: [] } });
+  await host(page, { type: "revealMessage", messageId: "a1", sessionId: S1 });
+  await expect(page.locator('.msg.assistant[data-message-id="a1"].revealed')).toHaveCount(1);
+});
+
 test("the welcome screen offers suggested prompts that fill the composer", async ({ page }) => {
   await boot(page);
   await expect(page.getByRole("heading", { name: STRINGS.welcomeTitle })).toBeVisible();

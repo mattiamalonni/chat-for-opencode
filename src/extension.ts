@@ -2,7 +2,7 @@ import { execFile } from "node:child_process";
 import * as path from "node:path";
 import { promisify } from "node:util";
 import * as vscode from "vscode";
-import { ChatController, ServerRegistry, type ExecutionStatus } from "./chat/controller";
+import { ChatController, ServerRegistry, type ExecutionStatus, type SessionSearchResult } from "./chat/controller";
 import { DIFF_SCHEME, DiffService } from "./chat/diff";
 import { selectionAttachment } from "./chat/context";
 import { ChatViewProvider } from "./chat/viewProvider";
@@ -103,6 +103,33 @@ export function activate(context: vscode.ExtensionContext): ExtensionApi {
     vscode.commands.registerCommand("opencode.openConfigFile", () => chat.openConfigFile()),
     vscode.commands.registerCommand("opencode.openSettings", () => chat.runAction("openSettings")),
     vscode.commands.registerCommand("opencode.compact", () => chat.compact()),
+    vscode.commands.registerCommand("opencode.searchSessions", async () => {
+      const query = await vscode.window.showInputBox({
+        title: vscode.l10n.t("Search all OpenCode conversations"),
+        prompt: vscode.l10n.t("Search session titles and messages in this workspace"),
+      });
+      if (!query?.trim()) return;
+      const hits = await vscode.window.withProgress(
+        { location: vscode.ProgressLocation.Notification, title: vscode.l10n.t("Searching conversations…") },
+        () => chat.searchSessions(query),
+      );
+      if (hits.length === 0) {
+        void vscode.window.showInformationMessage(vscode.l10n.t("No conversation matched “{0}”.", query));
+        return;
+      }
+      type HitItem = vscode.QuickPickItem & { hit: SessionSearchResult };
+      const items: HitItem[] = hits.map((hit) => ({
+        label: hit.title,
+        description: new Date(hit.updated).toLocaleString(),
+        detail: hit.snippet,
+        hit,
+      }));
+      const picked = await vscode.window.showQuickPick(items, {
+        title: vscode.l10n.t("Conversations matching “{0}”", query),
+        matchOnDetail: true,
+      });
+      if (picked) await chat.openSearchResult(picked.hit);
+    }),
     vscode.commands.registerCommand("opencode.focus", async () => {
       await focusView();
       chat.post({ type: "focusInput" });

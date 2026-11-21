@@ -131,6 +131,12 @@
         "category": "OpenCode"
       },
       {
+        "command": "opencode.searchSessions",
+        "title": "%command.searchSessions%",
+        "category": "OpenCode",
+        "icon": "$(search)"
+      },
+      {
         "command": "opencode.focus",
         "title": "%command.focus%",
         "category": "OpenCode"
@@ -277,6 +283,9 @@
           "command": "opencode.ask"
         },
         {
+          "command": "opencode.searchSessions"
+        },
+        {
           "command": "opencode.openChatInEditor"
         }
       ]
@@ -291,6 +300,11 @@
         "command": "opencode.ask",
         "key": "ctrl+alt+shift+o",
         "mac": "cmd+alt+shift+o"
+      },
+      {
+        "command": "opencode.searchSessions",
+        "key": "ctrl+alt+f",
+        "mac": "cmd+alt+f"
       },
       {
         "command": "opencode.addSelectionToChat",

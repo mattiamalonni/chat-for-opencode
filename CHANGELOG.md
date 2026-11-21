@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- **Search:** *OpenCode: Search All Session Conversations* (Cmd/Ctrl+Alt+F) searches titles and
+  message bodies across the workspace, shows hits with snippets in a Quick Pick, opens the chosen
+  session and scrolls to — and briefly highlights — the matching message.
 - **Performance:** the session list no longer issues three HTTP requests per busy session on every
   event burst. Deep state (busy / needs-input) is cached for 3 s while `time.updated` is unchanged,
   forked-session lookups for 30 s, and the open session is always refreshed. Unit tests cover the

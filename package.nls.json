@@ -16,6 +16,7 @@
   "command.addFileToChat": "Add File to Chat",
   "command.focus": "Focus Chat",
   "command.ask": "Ask OpenCode…",
+  "command.searchSessions": "Search All Session Conversations",
   "command.openChatInEditor": "Open Chat in Editor",
   "command.account": "OpenCode Account",
   "command.showLogs": "Show Logs",

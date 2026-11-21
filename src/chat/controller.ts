@@ -106,6 +106,28 @@ function subagentSessionsFromMessages(messages: SessionMessage[]): string[] {
   return [...ids];
 }
 
+/** Collect all readable text out of an unknown wire value, for cross-session search snippets. */
+function searchableText(value: unknown): string {
+  if (typeof value === "string") return value;
+  if (Array.isArray(value)) return value.map(searchableText).join(" ");
+  if (value && typeof value === "object") {
+    return Object.entries(value as Record<string, unknown>)
+      .filter(([key]) => key !== "id" && key !== "sessionID")
+      .map(([, v]) => searchableText(v))
+      .join(" ");
+  }
+  return "";
+}
+
+/** A hit in a session title or in one of its messages, opened from the palette search. */
+export interface SessionSearchResult {
+  sessionId: string;
+  title: string;
+  snippet: string;
+  messageId?: string;
+  updated: number;
+}
+
 let cachedStrings: Strings | undefined;
 /** Locale and the string table are static for a session: translate once, not on every error/reconnect. */
 export function translatedStrings(): Strings {
@@ -352,6 +374,53 @@ export class ChatController implements vscode.Disposable {
 
   openChatInEditor(): void {
     this.chatViews.openChatInEditor();
+  }
+
+  /**
+   * Search session titles and message bodies across the workspace. Explicit user action, so a
+   * bounded full scan is acceptable here (the periodic list refresh stays cached and cheap).
+   */
+  async searchSessions(query: string, maxSessions = 200): Promise<SessionSearchResult[]> {
+    const client = this.client;
+    const folder = this.folder;
+    const needle = query.trim().toLowerCase();
+    if (!client || !folder || !needle) return [];
+    const results: SessionSearchResult[] = [];
+    const seen = new Set<string>();
+    const cursors = new Set<string>();
+    let cursor: string | undefined;
+    while (seen.size < maxSessions) {
+      if (cursor && cursors.has(cursor)) break;
+      if (cursor) cursors.add(cursor);
+      const page = await client.listSessionsPage(folder.uri.fsPath, 100, cursor).catch(() => ({ items: [] as SessionInfo[], next: undefined as string | undefined }));
+      for (const raw of page.items) {
+        const info = normalizeSessionInfo(raw) ?? raw;
+        if (info.parentID || info.time.archived || seen.has(info.id)) continue;
+        seen.add(info.id);
+        const title = info.title ?? "";
+        if (title.toLowerCase().includes(needle)) {
+          results.push({ sessionId: info.id, title: title || vscode.l10n.t("Untitled session"), snippet: vscode.l10n.t("Title match"), updated: info.time.updated });
+          continue;
+        }
+        const messages = await client.messages(info.id, 200).catch(() => [] as SessionMessage[]);
+        const match = messages.find((m) => searchableText(m).toLowerCase().includes(needle));
+        if (!match) continue;
+        const text = searchableText(match);
+        const at = text.toLowerCase().indexOf(needle);
+        const snippet = text.slice(Math.max(0, at - 40), at + needle.length + 60).trim();
+        results.push({ sessionId: info.id, title: title || vscode.l10n.t("Untitled session"), snippet, messageId: match.id, updated: info.time.updated });
+      }
+      if (!page.next || page.items.length === 0) break;
+      cursor = page.next;
+    }
+    return results.sort((a, b) => b.updated - a.updated);
+  }
+
+  /** Opens the session a search hit came from and asks the webview to scroll to its message. */
+  async openSearchResult(result: SessionSearchResult): Promise<void> {
+    await vscode.commands.executeCommand("opencode.chatView.focus");
+    if (result.sessionId !== this.sessionId) await this.receive({ type: "selectSession", id: result.sessionId });
+    if (result.messageId) this.post({ type: "revealMessage", messageId: result.messageId, sessionId: result.sessionId });
   }
 
   /** Fills the composer from an editor context action, attaching the selection it came from. */
