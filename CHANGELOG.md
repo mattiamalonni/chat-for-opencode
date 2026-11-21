@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- **Tests:** a dedicated controller state-machine suite now covers status publication, stale
+  generation guards on local idle, event-stream reconnect/resync, workspace-trust revocation,
+  `synced` release on a no-op manual sync and `connect()` deduplication — paths that previously had
+  no unit coverage at all.
 - **Architecture:** the session picker moved into `SessionListService` (paging, busy summaries and
   their cache, fork visibility, rename/delete bookkeeping and the bounded cross-session index).
   The controller keeps `loadSession` and delegates list work; the cache and search tests now target
