@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- **Robustness:** reconnect, server auto-restart and catalog retry delays now include ±50% jitter.
+  Multiple windows losing the same server no longer retry in lockstep and hammer it on every restart.
 - **Robustness:** the webview's live-event queues are now bounded (500 events each). With the chat
   hidden, `requestAnimationFrame` is suspended while the SSE stream keeps delivering events; instead
   of growing forever, the queue keeps the newest events and asks the host once for a fresh snapshot.

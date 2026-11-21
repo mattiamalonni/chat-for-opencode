@@ -34,7 +34,7 @@ import {
 import { eventSessionId, sessionIsBusy, sessionLooksBusy, toSessionSummary } from "../shared/chatReducer";
 import { parseSubagentReport } from "../shared/subagentReport";
 import { checkCompatibility } from "../shared/compatibility";
-import { DEFAULT_STARTUP_TIMEOUT_MS } from "../shared/constants";
+import { DEFAULT_STARTUP_TIMEOUT_MS, jitteredDelay } from "../shared/constants";
 import { checkContract, contractSignature, emptyContract, type ContractObservations } from "../shared/contract";
 import type {
   ActionId,
@@ -615,7 +615,7 @@ export class ChatController implements vscode.Disposable {
       this.setStatus("error", { kind: "requestFailed", message: s["error.requestFailed"], detail: catalogError, actions: ["reconnect", "showLogs"] });
       if (this.catalogRetries < 2 && !stale()) {
         this.catalogRetries++;
-        const wait = 500 * this.catalogRetries;
+        const wait = jitteredDelay(500 * this.catalogRetries);
         this.catalogRetryTimer = setTimeout(() => {
           this.catalogRetryTimer = undefined;
           if (!stale()) void this.loadAll();

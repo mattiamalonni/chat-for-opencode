@@ -2,6 +2,7 @@ import { spawn, type ChildProcess } from "node:child_process";
 import { EventEmitter } from "node:events";
 import { randomBytes } from "node:crypto";
 import { ApiError, OpenCodeClient, type Connection } from "../client/http";
+import { jitteredDelay } from "../shared/constants";
 import { clearServerRecord, writeServerRecord } from "./orphans";
 
 export type ServerErrorKind = "notInstalled" | "startFailed" | "unauthorized" | "unreachable";
@@ -313,7 +314,7 @@ export class ManagedServer extends BaseServer {
       });
       return;
     }
-    const delay = Math.min(10_000, 500 * 2 ** this.restarts.length);
+    const delay = jitteredDelay(Math.min(10_000, 500 * 2 ** this.restarts.length));
     this.restarts.push(now);
     this.opts.log(`[server] restarting in ${delay} ms (attempt ${this.restarts.length}/${max})`);
     this.setState({ status: "starting" });

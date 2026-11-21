@@ -1,4 +1,5 @@
 import type { ServerEvent } from "../shared/api";
+import { jitteredDelay } from "../shared/constants";
 
 export interface SseMessage {
   event?: string;
@@ -212,7 +213,7 @@ export class EventStream {
     this.setStatus("reconnecting", failure);
     const min = this.opts.minBackoffMs ?? 500;
     const max = this.opts.maxBackoffMs ?? 10_000;
-    const delay = Math.min(max, min * 2 ** this.attempt);
+    const delay = jitteredDelay(Math.min(max, min * 2 ** this.attempt));
     this.attempt++;
     this.retryTimer = setTimeout(() => {
       this.retryTimer = undefined;
