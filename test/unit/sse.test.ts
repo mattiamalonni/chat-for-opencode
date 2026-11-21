@@ -123,6 +123,31 @@ describe("EventStream", () => {
     expect(statuses).not.toContain("connected");
   });
 
+  it("reconnects when the server accepts the socket but never sends headers", async () => {
+    let connects = 0;
+    const statuses: string[] = [];
+    // A real fetch rejects when its signal aborts; the stalled server is emulated that way.
+    const fetchImpl = ((_url: string, init?: RequestInit) => {
+      connects++;
+      return new Promise<Response>((_resolve, reject) => {
+        init?.signal?.addEventListener("abort", () => reject(new Error("connect timed out")), { once: true });
+      });
+    }) as typeof fetch;
+    stream = new EventStream({
+      url: "http://localhost/api/event",
+      headers: {},
+      onEvent: () => {},
+      onStatus: (s) => statuses.push(s),
+      fetchImpl,
+      connectTimeoutMs: 30,
+      minBackoffMs: 10,
+      maxBackoffMs: 20,
+    });
+    stream.start();
+    await waitUntil(() => connects >= 2, 2000);
+    expect(statuses).toContain("reconnecting");
+  });
+
   it("aborts and reconnects when idle longer than the watchdog", async () => {
     mock = await startMockServer({ password: "pw" });
     let connects = 0;

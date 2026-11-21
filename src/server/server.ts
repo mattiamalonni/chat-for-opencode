@@ -150,6 +150,8 @@ export class ManagedServer extends BaseServer {
   readonly managed = true;
   private child: ChildProcess | undefined;
   private stopping = false;
+  /** Invalidates a `stop()` that is still awaiting a kill when a new start takes over. */
+  private stopGen = 0;
   private restarts: number[] = [];
   private restartTimer: NodeJS.Timeout | undefined;
   /** The delayed restart is shared with `ensure()` so a concurrent caller cannot spawn a second child. */
@@ -173,6 +175,8 @@ export class ManagedServer extends BaseServer {
     const password = randomBytes(24).toString("base64url");
     const args = ["serve", "--hostname", "127.0.0.1", "--port", "0"];
     log(`[server] starting ${executable} ${args.join(" ")} (cwd: ${folder})`);
+    // A new start supersedes any stop still in flight: its final setState must not clobber us.
+    this.stopGen++;
     this.stopping = false;
 
     return new Promise<Connection>((resolve, reject) => {
@@ -275,8 +279,10 @@ export class ManagedServer extends BaseServer {
 
       child.on("exit", (code, signal) => {
         log(`[server] exited (code ${code}, signal ${signal})`);
-        void clearServerRecord(this.opts.recordsDir, folder, process.pid);
-        if (this.child === child) this.child = undefined;
+        // Clear only this child's record: a replacement may have written a new one already.
+        void clearServerRecord(this.opts.recordsDir, folder, process.pid, child.pid);
+        const isCurrent = this.child === child;
+        if (isCurrent) this.child = undefined;
         if (!ready) {
           fail(
             new ServerError(
@@ -287,7 +293,9 @@ export class ManagedServer extends BaseServer {
           );
           return;
         }
-        if (this.stopping) return;
+        // A child we already stopped or replaced must not trigger a spurious auto-restart, even
+        // when a concurrent start has reset `stopping` in the meantime.
+        if (this.stopping || !isCurrent) return;
         this.onUnexpectedExit(code, stderrTail);
       });
     });
@@ -327,6 +335,7 @@ export class ManagedServer extends BaseServer {
   }
 
   async stop(): Promise<void> {
+    const gen = ++this.stopGen;
     this.stopping = true;
     if (this.restartTimer) clearTimeout(this.restartTimer);
     this.restartTimer = undefined;
@@ -338,8 +347,11 @@ export class ManagedServer extends BaseServer {
     const child = this.child;
     this.child = undefined;
     if (child) await this.kill(child);
-    void clearServerRecord(this.opts.recordsDir, this.folder, process.pid);
+    void clearServerRecord(this.opts.recordsDir, this.folder, process.pid, child?.pid);
     if (this.pending) await this.pending.catch(() => {});
+    // A new start may have taken over while we were awaiting the kill. Its state wins; setting
+    // "stopped" here would leave a live server unmanaged and spawn a duplicate on the next ensure.
+    if (gen !== this.stopGen) return;
     this.setState({ status: "stopped" });
   }
 

@@ -609,7 +609,7 @@ describe("a prompt queued while a turn is running", () => {
     });
     expect(cancelled.messages.filter((m) => m.kind === "user")).toHaveLength(1);
     expect(cancelled.queuedMessages?.u2).toBeUndefined();
-    expect(cancelled.queuedTurnId).toBeUndefined();
+    expect(cancelled.queuedTurnIds).toEqual([]);
 
     // A late delivery for a removed item must not resurrect it.
     const late = chatReducer(cancelled, {
@@ -617,6 +617,46 @@ describe("a prompt queued while a turn is running", () => {
       event: { type: "session.inbox.delivered", created: 1500, data: { sessionID: S1, inboxID: "u2" } },
     });
     expect(late.messages.filter((m) => m.kind === "user")).toHaveLength(1);
+  });
+
+  it("starts each queued prompt in order with its own turn id", () => {
+    let state = running();
+    for (const [id, text, created] of [
+      ["u2", "second", 1300],
+      ["u3", "third", 1350],
+    ] as const) {
+      state = chatReducer(state, {
+        type: "event",
+        event: {
+          type: "session.inbox.enqueued",
+          created,
+          data: { sessionID: S1, inboxID: id, item: { type: "user", payload: { text }, delivery: "queue" } },
+        },
+      });
+    }
+    expect(state.queuedTurnIds).toEqual(["u2", "u3"]);
+    expect(state.messages.filter((m) => m.kind === "user")).toHaveLength(1);
+
+    // No `inbox.delivered` events at all (e.g. missed on a reconnect): `execution.started` must
+    // still deliver each prompt and open its turn under the real user message id.
+    const second = chatReducer(state, {
+      type: "event",
+      event: { type: "session.execution.started", created: 2000, data: { sessionID: S1 } },
+    });
+    expect(second.queuedTurnIds).toEqual(["u3"]);
+    expect(second.queuedMessages?.u2).toBeUndefined();
+
+    const third = chatReducer(second, {
+      type: "event",
+      event: { type: "session.execution.started", created: 3000, data: { sessionID: S1 } },
+    });
+    expect(third.queuedTurnIds).toEqual([]);
+    expect(third.queuedMessages?.u3).toBeUndefined();
+    expect(third.messages.filter((m) => m.kind === "user")).toHaveLength(3);
+    expect(third.turns.map((t) => t.id)).toEqual(["u1", "u2", "u3"]);
+    expect(third.turns[0]).toMatchObject({ ended: 2000 });
+    expect(third.turns[1]).toMatchObject({ started: 2000, ended: 3000 });
+    expect(third.turns[2]).toMatchObject({ started: 3000 });
   });
 });
 

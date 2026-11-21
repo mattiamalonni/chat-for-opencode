@@ -397,6 +397,15 @@ export class ChatController implements vscode.Disposable {
     this.scheduleSessions();
   }
 
+  /**
+   * Whether a locally-posted idle is still the latest execution state. `localIdle.generation` is an
+   * `executionGen` token, so every reader must compare it against that counter — comparing it with
+   * `loadGen.current()` made the guard fire only by accident and re-locked the composer on resync.
+   */
+  private isLocallyIdle(sid: string): boolean {
+    return this.localIdle?.sid === sid && this.localIdle.generation === this.executionGen.current();
+  }
+
   private pickFolder(): vscode.WorkspaceFolder | undefined {
     const folders = vscode.workspace.workspaceFolders ?? [];
     const active = vscode.window.activeTextEditor?.document.uri;
@@ -693,7 +702,7 @@ export class ChatController implements vscode.Disposable {
       if (sid && sid === this.sessionId && this.client) {
         const info = await this.client.getSession(sid);
         if (!this.loadGen.is(generation) || sid !== this.sessionId) return;
-        const busyOverride = this.localIdle?.sid === sid && this.localIdle.generation === generation ? false : undefined;
+        const busyOverride = this.isLocallyIdle(sid) ? false : undefined;
         const stale = () => !this.loadGen.is(generation) || sid !== this.sessionId;
         if (!(await this.resyncTail(sid, info, stale, busyOverride))) {
           await this.loadSession(info, stale, busyOverride);
@@ -759,7 +768,7 @@ export class ChatController implements vscode.Disposable {
       if (!newer || newer.length === 0 || stale()) return;
       const info = await client.getSession(sid);
       if (stale()) return;
-      const busyOverride = this.localIdle?.sid === sid && this.localIdle.generation === generation ? false : undefined;
+      const busyOverride = this.isLocallyIdle(sid) ? false : undefined;
       // A trimmed/compacted history has no overlap with our high-water mark: fall back to a full
       // load, the same way a reconnect does. It resets the mark, so this cannot repeat every tick.
       if (!(await this.resyncTail(sid, info, stale, busyOverride, newer))) {
@@ -883,9 +892,14 @@ export class ChatController implements vscode.Disposable {
     const messages = normalizeList(rawMessages, normalizeSessionMessage);
     // With auto-approve on, the live event is granted on arrival. A snapshot fetched around the same
     // time can still contain the request, so grant those too instead of resurrecting a stale card.
-    const permissions = this.autoApproveEnabled()
-      ? await this.permissions.filterPending(client, childId, normalizeList(rawPermissions, normalizePermission))
-      : normalizeList(rawPermissions, normalizePermission);
+    // Pass the decision explicitly: children have no override of their own, so re-checking it for
+    // `childId` here would see the global default and resurrect an already-granted request.
+    const permissions = await this.permissions.filterPending(
+      client,
+      childId,
+      normalizeList(rawPermissions, normalizePermission),
+      this.autoApproveEnabled(),
+    );
     if (!this.childGen.is(generation) || parent !== this.sessionId) return;
     this.post({
       type: "subagent",
@@ -1156,7 +1170,7 @@ export class ChatController implements vscode.Disposable {
       // If the composer was cleared locally and no new turn has started, the server's timestamps
       // are stale (a dismissed question can leave `busy` newer than `idle` with no idle message).
       // Keep it unlocked instead of re-syncing back to "stop".
-      const busyOverride = this.localIdle?.sid === sid && this.localIdle.generation === generation ? false : undefined;
+      const busyOverride = this.isLocallyIdle(sid) ? false : undefined;
       const stale = () => sid !== this.sessionId || !this.executionGen.is(generation);
       if (!(await this.resyncTail(sid, info, stale, busyOverride))) {
         await this.loadSession(info, stale, busyOverride);

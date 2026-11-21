@@ -103,6 +103,8 @@ export interface EventStreamOptions {
   onStatus?: (status: StreamStatus, error?: unknown) => void;
   /** Reconnect when nothing (not even a heartbeat) arrives for this long. */
   idleTimeoutMs?: number;
+  /** Bound the initial `fetch()` too: the idle watchdog only starts once headers arrive. */
+  connectTimeoutMs?: number;
   minBackoffMs?: number;
   maxBackoffMs?: number;
   fetchImpl?: typeof fetch;
@@ -120,6 +122,7 @@ export class EventStream {
   private attempt = 0;
   private watchdog: NodeJS.Timeout | undefined;
   private retryTimer: NodeJS.Timeout | undefined;
+  private connectTimer: NodeJS.Timeout | undefined;
   private status: StreamStatus = "connecting";
 
   constructor(private readonly opts: EventStreamOptions) {}
@@ -148,8 +151,10 @@ export class EventStream {
   private clearTimers(): void {
     if (this.watchdog) clearTimeout(this.watchdog);
     if (this.retryTimer) clearTimeout(this.retryTimer);
+    if (this.connectTimer) clearTimeout(this.connectTimer);
     this.watchdog = undefined;
     this.retryTimer = undefined;
+    this.connectTimer = undefined;
   }
 
   private kick(): void {
@@ -164,11 +169,17 @@ export class EventStream {
     this.controller = controller;
     const fetchImpl = this.opts.fetchImpl ?? fetch;
     let failure: unknown;
+    // `fetch` has no deadline of its own and the idle watchdog is armed only after headers arrive.
+    // A server that accepts the socket but stalls before replying would otherwise freeze the chat
+    // in "connecting" forever: no status change, no backoff, no reconnect.
+    this.connectTimer = setTimeout(() => controller.abort(), this.opts.connectTimeoutMs ?? 10_000);
     try {
       const res = await fetchImpl(this.opts.url, {
         headers: { accept: "text/event-stream", ...this.opts.headers },
         signal: controller.signal,
       });
+      if (this.connectTimer) clearTimeout(this.connectTimer);
+      this.connectTimer = undefined;
       if (!res.ok || !res.body) throw new Error(`Event stream failed: HTTP ${res.status}`);
       this.attempt = 0;
       this.setStatus("connected");
@@ -195,6 +206,8 @@ export class EventStream {
       failure = err;
     }
     if (this.watchdog) clearTimeout(this.watchdog);
+    if (this.connectTimer) clearTimeout(this.connectTimer);
+    this.connectTimer = undefined;
     if (this.closed) return;
     this.setStatus("reconnecting", failure);
     const min = this.opts.minBackoffMs ?? 500;

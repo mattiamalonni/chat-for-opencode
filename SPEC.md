@@ -43,6 +43,19 @@ drafts; if history was trimmed/compacted it falls back to a full `session` load.
 therefore doesn't need `retainContextWhenHidden`; the composer keeps a draft per session in
 `vscode.setState`.
 
+An abort, a rejected permission or a cancelled question posts a **local idle** to the webview so the
+composer unlocks even when OpenCode emits no terminal event. Every resync path keeps it unlocked via
+an `executionGen` guard until the next turn starts, so stale server timestamps cannot bring the Stop
+button back. Queued prompts are consumed in order at `execution.started`: each opens its own turn
+under the real user message id and is delivered even when its `inbox.delivered` event was missed.
+
+The SSE stream has two watchdogs — an **idle timeout** (no event or heartbeat) and a **connect
+timeout** (`connectTimeoutMs`, waiting for response headers). Either aborts the request, so a server
+that stalls before replying takes the normal reconnect-with-backoff path instead of freezing the
+chat. Managed-server lifecycle uses a generation token so a `stop()` still awaiting a child kill
+cannot overwrite a replacement's state or trigger a spurious auto-restart, and a PID record is
+removed only if it still names the child that is exiting.
+
 Raw server payloads are normalised by `src/shared/adapter.ts` before reaching the reducer. The raw
 wire shapes for the 2.2.7 snapshot are generated from `docs/openapi-2.2.7.json` by
 `npm run gen:types` (CI checks that the generated file is current) and serve as the reference for

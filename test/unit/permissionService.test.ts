@@ -66,3 +66,20 @@ describe("PermissionService.approveOnce", () => {
     expect(calls()).toBe(1);
   });
 });
+
+describe("PermissionService.filterPending", () => {
+  it("uses the caller's decision instead of re-checking the child session's own override", async () => {
+    const permissions = service();
+    const replyPermission = vi.fn(async () => {});
+    const client = { replyPermission } as unknown as OpenCodeClient;
+    const request = { id: "p1" } as Parameters<PermissionService["filterPending"]>[2][number];
+
+    // A child has no override and the global default is off: the plain gate keeps the card.
+    expect(await permissions.filterPending(client, "child", [request])).toEqual([request]);
+    expect(replyPermission).not.toHaveBeenCalled();
+
+    // The parent's explicit auto-approve decision grants it, still addressed to the child.
+    expect(await permissions.filterPending(client, "child", [request], true)).toEqual([]);
+    expect(replyPermission).toHaveBeenCalledWith("child", "p1", "once");
+  });
+});

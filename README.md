@@ -184,7 +184,8 @@ Auto-approval is off by default; only enable it when you trust unattended edits 
 - With `opencode.endpoint` the extension connects to your server instead; its password is kept in
   VS Code `SecretStorage` (OS keychain).
 - Live updates come from the SSE stream `GET /api/event`; after a disconnect the extension
-  reconnects and re-fetches the session, because the stream has no replay.
+  reconnects and re-fetches the session, because the stream has no replay. Both a stalled connect
+  (no response headers) and an idle stream trigger the reconnect.
 - The stream only carries events from the server we are connected to. Another client (e.g. the TUI
   running as its own process) writes sessions to the same on-disk storage without emitting events
   on our stream, so while the chat is visible the extension also re-reads the open session's history

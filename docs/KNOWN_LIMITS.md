@@ -65,6 +65,8 @@ test or a manual probe actually ran.
   listens on the recorded port (`lsof` on macOS/Linux, `netstat` on Windows). If that tool is
   unavailable, the reap is skipped on purpose: leaking a server is safer than killing a process
   whose PID was reused. A server that dies before the record is written is still not covered.
+  A record is cleared only if it still names the child that is exiting, so the late exit of a failed
+  start cannot delete the record of the replacement the user reconnected to.
 - **OpenCode's base policy** allows every action without asking (observed with 2.2.7). Sessions
   created by the extension start with `edit`, `shell` and `external_directory` set to `ask` (the
   `opencode.sessionPermissions` default). Sessions created elsewhere, or after setting that option

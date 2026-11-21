@@ -47,11 +47,22 @@ export async function writeServerRecord(dir: string, record: ServerRecord): Prom
   }
 }
 
-export async function clearServerRecord(dir: string, folder: string, ownerPid?: number): Promise<void> {
+/**
+ * Removes a record, optionally only if it still belongs to `expectedPid`. A failed start kills its
+ * child asynchronously; if the user reconnects before that child exits, a new record is written
+ * under the same folder/owner key. Without the guard the old exit would delete the replacement's
+ * record and leave a live server untracked (and un-reapable after a crash).
+ */
+export async function clearServerRecord(dir: string, folder: string, ownerPid?: number, expectedPid?: number): Promise<void> {
   try {
-    await fs.unlink(recordPath(dir, folder, ownerPid));
+    const path = recordPath(dir, folder, ownerPid);
+    if (expectedPid !== undefined) {
+      const record = JSON.parse(await fs.readFile(path, "utf8")) as ServerRecord;
+      if (record.pid !== expectedPid) return;
+    }
+    await fs.unlink(path);
   } catch {
-    // already gone
+    // already gone / unreadable
   }
 }
 

@@ -124,6 +124,14 @@ describe("ManagedServer", () => {
     await client.prompt(session.id, "[crash]").catch(() => {});
     await waitFor(() => server.state.status === "failed", 5000);
   });
+
+  it("ends in the running state when a stop races with a restart", async () => {
+    const { server } = make(fakeOpencode());
+    await server.ensure();
+    // A stop still awaiting its kill must not overwrite the state of the start that took over.
+    await Promise.all([server.stop(), server.restart()]);
+    expect(server.state.status).toBe("running");
+  });
 });
 
 describe("ExternalServer", () => {
@@ -160,6 +168,16 @@ describe("server records", () => {
     const remaining = readdirSync(dir);
     expect(remaining).toHaveLength(1);
     expect(remaining[0]).toContain("-222.json");
+  });
+
+  it("keeps a replacement's record when a stale child exits", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "oc-records-"));
+    await writeServerRecord(dir, { pid: 200, port: 5000, folder, ownerPid: process.pid, startedAt: 2 });
+    // The old child's late exit must not delete the record written by the replacement.
+    await clearServerRecord(dir, folder, process.pid, 100);
+    expect(readdirSync(dir)).toHaveLength(1);
+    await clearServerRecord(dir, folder, process.pid, 200);
+    expect(readdirSync(dir)).toHaveLength(0);
   });
 });
 

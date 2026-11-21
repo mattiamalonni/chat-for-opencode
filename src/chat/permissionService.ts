@@ -93,9 +93,19 @@ export class PermissionService {
     return attempt;
   }
 
-  /** Drops requests granted by auto-approval so stale cards do not reappear after a resync. */
-  async filterPending(client: OpenCodeClient, sessionId: string, permissions: PermissionRequest[]): Promise<PermissionRequest[]> {
-    if (permissions.length === 0 || !this.enabled(sessionId)) return permissions;
+  /**
+   * Drops requests granted by auto-approval so stale cards do not reappear after a resync.
+   * `approved` overrides the gate for callers that already resolved it in another session's
+   * context (a subagent inherits its parent's per-chat choice but has no override of its own);
+   * `sessionId` is still the session the reply is addressed to.
+   */
+  async filterPending(
+    client: OpenCodeClient,
+    sessionId: string,
+    permissions: PermissionRequest[],
+    approved = this.enabled(sessionId),
+  ): Promise<PermissionRequest[]> {
+    if (permissions.length === 0 || !approved) return permissions;
     const unresolved: PermissionRequest[] = [];
     for (const request of permissions) {
       if (!(await this.approveOnce(client, sessionId, request.id))) unresolved.push(request);

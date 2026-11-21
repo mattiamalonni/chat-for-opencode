@@ -110,8 +110,8 @@ export interface ChatState {
   touchedFiles?: string[];
   /** Final reports of background subagents, announced as synthetic messages keyed by child id. */
   subagentReports?: Record<string, string>;
-  /** Inbox id of a prompt queued while another turn runs; its turn starts at `execution.started`. */
-  queuedTurnId?: string;
+  /** Inbox ids of queued prompts, in delivery order; each opens its own turn at `execution.started`. */
+  queuedTurnIds?: string[];
   /** Prompts accepted into the inbox but not delivered yet. Kept out of `messages` until delivery. */
   queuedMessages?: Record<string, UiUserMessage>;
   agent?: string;
@@ -844,8 +844,8 @@ export function applyEvent(state: ChatState, event: ServerEvent): ChatState {
         ? {
             ...state,
             queuedMessages: { ...state.queuedMessages, [id]: msg },
-            // The first queued prompt is the next one to be delivered.
-            queuedTurnId: state.queuedTurnId ?? id,
+            // Queued prompts start in order; each `execution.started` consumes the next id.
+            queuedTurnIds: [...(state.queuedTurnIds ?? []), id],
           }
         : { ...state, messages, turns: openTurn(state, id, created) };
     }
@@ -862,17 +862,20 @@ export function applyEvent(state: ChatState, event: ServerEvent): ChatState {
         messages: state.messages.filter((m) => m.id !== id),
         turns: state.turns.filter((t) => t.id !== id),
         queuedMessages,
-        queuedTurnId: state.queuedTurnId === id ? undefined : state.queuedTurnId,
+        queuedTurnIds: (state.queuedTurnIds ?? []).filter((queued) => queued !== id),
       };
     }
     case "session.execution.started": {
-      if (state.queuedTurnId) {
+      const [nextId, ...remaining] = state.queuedTurnIds ?? [];
+      if (nextId) {
         // The queued prompt finally starts. Settle the previous turn (normally already closed by
         // its terminal event) and open the new one under the queued message's id. Deliver the prompt
-        // here too, in case its `inbox.delivered` event was missed on a reconnect.
-        const started = deliverQueued(state, state.queuedTurnId);
-        const turns = [...closeOpenTurns(started.turns, created), { id: state.queuedTurnId, started: created }];
-        return { ...started, busy: true, lastError: undefined, retry: undefined, queuedTurnId: undefined, turns };
+        // here too, in case its `inbox.delivered` event was missed on a reconnect. Consume one id per
+        // start: with a single id, the second prompt of a batch got a synthetic turn id and created
+        // a duplicate turn on the next resync.
+        const started = deliverQueued(state, nextId);
+        const turns = [...closeOpenTurns(started.turns, created), { id: nextId, started: created }];
+        return { ...started, busy: true, lastError: undefined, retry: undefined, queuedTurnIds: remaining, turns };
       }
       // Events can be missed when connecting mid-turn, so always have a turn to attach usage to.
       const turns = state.turns.some((t) => t.ended === undefined)

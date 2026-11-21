@@ -2,6 +2,18 @@
 
 ## Unreleased
 
+- Fixed the composer being re-locked on **Stop** after an abort, a rejected permission or a cancelled
+  question: the local-idle guard used for reconnect/visibility resyncs compared the load counter
+  instead of the execution counter, so stale server timestamps could restore the busy state.
+- The SSE stream now has a **connect timeout**: a server that accepts the socket but never sends
+  response headers reconnects with backoff instead of leaving the chat frozen in "connecting".
+- Hardened managed-server lifecycle against **stop/restart races**: a late stop can no longer
+  overwrite the replacement server's state, delete its PID record, or trigger a spurious
+  auto-restart from the old child's exit.
+- Fixed already-granted **subagent permissions reappearing** after a snapshot reload when auto-approve
+  was enabled only for the parent chat.
+- Multiple **queued prompts** now each open their own turn with the real message id, and are delivered
+  even if their `inbox.delivered` events are missed during a reconnect.
 - Toolbar reshuffle: **New Session** moves from the view title into the chat header, next to the
   session refresh icon, and its place in the toolbar is taken by a gear button that opens the
   effective OpenCode `opencode.json` in the editor (creating a minimal one in the workspace if the

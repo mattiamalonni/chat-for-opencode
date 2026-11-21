@@ -503,6 +503,30 @@ describe("chat-for-opencode extension", () => {
     assert.equal(busyOf(reconciled), false);
   });
 
+  it("does not re-lock the composer when the chat is hidden and shown again after a local idle", async () => {
+    const mark = posted.length;
+    await controller.receive({ type: "send", text: "[question][cancel-stale] pick a color", attachments: [], context: [] });
+    const created = await waitFor(() => eventPosted("form.created", mark), "question form");
+    assert.ok(created.type === "event");
+    const form = (created.event.data as { form: { id: string; sessionID: string } }).form;
+    await controller.receive({ type: "formCancel", sessionId: form.sessionID, formId: form.id });
+    await waitFor(() => eventPosted("session.execution.interrupted", mark), "execution interrupted");
+
+    // Leaving and re-entering the view triggers `resync()`, which reads the stale busy timestamp
+    // from the server. The locally posted idle must keep the composer unlocked there too, not just
+    // in the post-turn reconcile (which uses a different generation counter).
+    await vscode.commands.executeCommand("workbench.action.closeAuxiliaryBar");
+    await waitFor(() => !controller.isVisible, "hidden after cancel", 5000);
+    const beforeVisible = posted.length;
+    await vscode.commands.executeCommand("workbench.action.focusAuxiliaryBar");
+    await waitFor(() => controller.isVisible, "visible again after cancel", 5000);
+    const resynced = await waitFor(
+      () => posted.slice(beforeVisible).find((m): m is ReconcileMessage => m.type === "session" || m.type === "sessionDelta"),
+      "resynced session after becoming visible",
+    );
+    assert.equal(busyOf(resynced), false);
+  });
+
   it("rolls back to any turn with a staged revert and returns its prompt", async () => {
     await controller.receive({ type: "newSession" });
     const mark = posted.length;
