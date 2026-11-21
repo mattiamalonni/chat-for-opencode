@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- **Robustness:** starting a new session now stops the 2-second external-tail poll instead of leaving
+  an interval that can only no-op; loading the next session (including the first prompt of a new
+  chat) starts it again, so turns from other clients are still followed.
 - **Robustness:** reconnect, server auto-restart and catalog retry delays now include ±50% jitter.
   Multiple windows losing the same server no longer retry in lockstep and hammer it on every restart.
 - **Robustness:** the webview's live-event queues are now bounded (500 events each). With the chat

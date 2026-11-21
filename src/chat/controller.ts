@@ -1543,6 +1543,9 @@ export class ChatController implements vscode.Disposable {
     await this.refreshSessions();
     const diff = await this.refreshChanges();
     this.observeContract({ diff });
+    // Idempotent: a session opened without a connection change (e.g. after New Session + prompt)
+    // still needs to follow turns started by other clients sharing the same on-disk storage.
+    this.startLivePoll();
   }
 
   // ---- commands ---------------------------------------------------------------------------
@@ -1552,6 +1555,9 @@ export class ChatController implements vscode.Disposable {
     this.failedPrompt = undefined;
     this.loadGen.bump();
     this.clearTimers();
+    // No session is open any more: polling its tail would be a no-op every two seconds until the
+    // next load. Loading that session starts the poll again.
+    this.stopLivePoll();
     this.sessionId = undefined;
     this.resetSubagents();
     this.lastKnownMessage = undefined;
@@ -2303,6 +2309,13 @@ export class ChatController implements vscode.Disposable {
   // Exposed for integration tests.
   get debugState() {
     const storedSession = this.folder ? this.ctx.workspaceState.get<string>(SESSION_KEY(this.folder.uri.toString())) : undefined;
-    return { status: this.status, sessionId: this.sessionId, storedSession, folder: this.folder?.uri.fsPath, baseUrl: this.client?.conn.baseUrl };
+    return {
+      status: this.status,
+      sessionId: this.sessionId,
+      storedSession,
+      folder: this.folder?.uri.fsPath,
+      baseUrl: this.client?.conn.baseUrl,
+      livePolling: this.livePollTimer !== undefined,
+    };
   }
 }

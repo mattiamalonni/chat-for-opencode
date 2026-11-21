@@ -526,6 +526,17 @@ describe("chat-for-opencode extension", () => {
     assert.ok(!posted.slice(mark).some((m) => m.type === "connection" && m.status === "error"));
   });
 
+  it("stops the external live poll when starting a new session", async () => {
+    await waitFor(() => controller.debugState.livePolling || undefined, "live poll running");
+    await controller.receive({ type: "newSession" });
+    assert.equal(controller.debugState.livePolling, false);
+
+    const mark = posted.length;
+    await controller.receive({ type: "send", text: "restart the poll", attachments: [], context: [] });
+    await waitFor(() => eventPosted("session.execution.succeeded", mark), "reply after new session");
+    await waitFor(() => controller.debugState.livePolling || undefined, "live poll restarted");
+  });
+
   it("keeps the composer usable after cancelling a question", async () => {
     const mark = posted.length;
     await controller.receive({ type: "send", text: "[question] pick a color", attachments: [], context: [] });
