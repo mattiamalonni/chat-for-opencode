@@ -39,7 +39,8 @@ export type ActionId =
   | "login"
   | "setPassword"
   | "openFolder"
-  | "newSession";
+  | "newSession"
+  | "retry";
 
 /** Identifies the inline card a failed reply belongs to, so it can re-enable its buttons. */
 export interface ReplyTarget {
@@ -213,6 +214,11 @@ export type HostMessage =
   | { type: "dropzone"; enabled: boolean }
   /** Drafts restored from workspaceState on webview startup (vscode.setState alone dies on reload). */
   | { type: "drafts"; drafts: Record<string, string>; globalDraft?: string }
+  /**
+   * A prompt that failed to reach the server goes back into the composer. The composer only accepts
+   * it while empty (`force` is used after a successful retry), so newer typing is never overwritten.
+   */
+  | { type: "draftRestored"; sessionId?: string; text: string; force?: boolean }
   | { type: "focusInput" }
   /** A turn was rolled back; its prompt goes back into the composer so it can be edited and resent. */
   | { type: "reverted"; sessionId: string; text: string }

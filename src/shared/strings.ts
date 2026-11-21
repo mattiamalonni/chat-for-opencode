@@ -179,6 +179,7 @@ export const STRINGS = {
   "action.setPassword": "Enter password",
   "action.openFolder": "Open folder",
   "action.newSession": "New session",
+  "action.retry": "Retry",
   // errors
   "error.notInstalled": "OpenCode is not installed or not on PATH.",
   "error.startFailed": "OpenCode server failed to start.",

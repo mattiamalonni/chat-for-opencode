@@ -2523,6 +2523,24 @@ test("every turn has a rollback button that targets its own prompt and restores 
   expect(await lastPosted(page, "saveDraft")).toEqual({ type: "saveDraft", sessionId: S1, text: "first prompt" });
 });
 
+test("a failed prompt returns to the composer without overwriting newer typing", async ({ page }) => {
+  await boot(page);
+  await host(page, { type: "session", session: { id: S1, busy: false, messages: [], permissions: [], forms: [] } });
+  const input = page.getByRole("textbox", { name: STRINGS.inputLabel });
+
+  await host(page, { type: "draftRestored", sessionId: S1, text: "unsent prompt" });
+  await expect(input).toHaveValue("unsent prompt");
+
+  // A newer draft must win: the host restore is best-effort and arrives asynchronously.
+  await input.fill("newer text");
+  await host(page, { type: "draftRestored", sessionId: S1, text: "older prompt" });
+  await expect(input).toHaveValue("newer text");
+
+  // After a successful retry the host force-clears the text it had restored.
+  await host(page, { type: "draftRestored", sessionId: S1, text: "", force: true });
+  await expect(input).toHaveValue("");
+});
+
 test("every turn has a fork button that branches from its own prompt", async ({ page }) => {
   await boot(page);
   const messages: SessionMessage[] = [

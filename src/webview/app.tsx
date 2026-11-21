@@ -243,6 +243,13 @@ export function App() {
           post({ type: "saveDraft", sessionId: msg.sessionId, text: msg.text });
           announce(stringsRef.current.revertDone);
           break;
+        case "draftRestored":
+          setDraft(msg.text, msg.sessionId);
+          // Normal restore only fills an empty composer; a successful retry force-clears the text
+          // it put back, without clobbering anything the user typed in the meantime.
+          if (msg.force) setRestoredDraft((prev) => ({ text: msg.text, token: (prev?.token ?? 0) + 1 }));
+          else setDraftToken((n) => n + 1);
+          break;
         case "focusInput":
           setFocusToken((n) => n + 1);
           break;

@@ -115,6 +115,7 @@ export function startMockServer(opts: MockOptions = {}): Promise<MockServer> {
   let noModels = opts.noModels ?? false;
   let failHistoryOnce = false;
   let failInterruptOnce = false;
+  let failPromptOnce = false;
   const sessions = new Map<string, MockSession>();
   const clients = new Set<http.ServerResponse>();
   const requests: MockServer["requests"] = [];
@@ -461,6 +462,12 @@ export function startMockServer(opts: MockOptions = {}): Promise<MockServer> {
       return send(res, 204);
     }
 
+    // Test-only: reject the next prompt request so the host has to restore the user's draft.
+    if (path === "/__mock/failPromptOnce" && req.method === "POST") {
+      failPromptOnce = true;
+      return send(res, 204);
+    }
+
     // Test-only: seed pending inbox items without going through a running turn.
     if (path === "/__mock/inbox" && req.method === "POST") {
       const b = (body ?? {}) as Json;
@@ -581,6 +588,10 @@ export function startMockServer(opts: MockOptions = {}): Promise<MockServer> {
         return send(res, 200, { data: child.info });
       }
       if (rest === "prompt") {
+        if (failPromptOnce) {
+          failPromptOnce = false;
+          return send(res, 500, { _tag: "PromptUnavailable", message: "injected prompt failure" });
+        }
         const userId = id("msg");
         void runPrompt(s, String(b.text ?? ""), b.files as Json[] | undefined, userId);
         return send(res, 200, { data: { id: userId, sessionID: s.info.id, type: "user", payload: { text: b.text }, delivery: "steer" } });

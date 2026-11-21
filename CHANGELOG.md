@@ -12,6 +12,10 @@
   absolute path or a `../` escape; blocked attempts are logged. Icon-theme asset paths are resolved
   (so `../` cannot escape the theme directory) and remote `https:` assets are deliberately not
   fetched, matching the "no network calls" promise and the webview CSP.
+- **Robustness:** a prompt the server refuses is no longer lost. Its text goes back into the composer
+  (without overwriting anything typed since) and the error banner offers **Retry**, which resends the
+  exact original prompt, attachments and context; the restored text is cleared only once that retry
+  succeeds. A stale failed prompt is discarded when switching session, folder or starting a new chat.
 - **Robustness:** a failed **Stop** request no longer leaves the composer locked on "stop". The
   local-idle status is now posted from a `finally` block, so a server error on `/interrupt` unlocks
   the input just like an already-idle session does.

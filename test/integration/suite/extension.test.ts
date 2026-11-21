@@ -467,6 +467,29 @@ describe("chat-for-opencode extension", () => {
     assert.ok(lastPosted("notice", mark), "the failed request is still reported to the user");
   });
 
+  it("restores a refused prompt and resends it from the Retry action", async () => {
+    await controller.receive({ type: "newSession" });
+    const mark = posted.length;
+    const armed = await fetch(`${controller.debugState.baseUrl}/__mock/failPromptOnce`, { method: "POST" });
+    assert.equal(armed.status, 204);
+
+    await controller.receive({ type: "send", text: "do not lose me", attachments: [], context: [] });
+    const notice = await waitFor(() => lastPosted("notice", mark), "prompt failed notice");
+    assert.equal(notice.error.kind, "promptFailed");
+    assert.ok(notice.error.actions.includes("retry"));
+    const restored = await waitFor(() => lastPosted("draftRestored", mark), "restored draft");
+    assert.equal(restored.text, "do not lose me");
+    assert.equal(restored.force, undefined);
+
+    await controller.receive({ type: "action", id: "retry" });
+    await waitFor(() => eventPosted("session.text.delta", mark), "reply streamed after retry");
+    const cleared = await waitFor(
+      () => posted.slice(mark).find((m): m is Extract<HostMessage, { type: "draftRestored" }> => m.type === "draftRestored" && m.force === true),
+      "composer cleared after retry",
+    );
+    assert.equal(cleared.text, "");
+  });
+
   it("keeps the composer usable after cancelling a question", async () => {
     const mark = posted.length;
     await controller.receive({ type: "send", text: "[question] pick a color", attachments: [], context: [] });

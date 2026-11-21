@@ -353,6 +353,15 @@ export class ChatController implements vscode.Disposable {
   /** Serializes webview messages: a late `ready`/loadAll must not race a prompt and drop its events. */
   private messageQueue: Promise<unknown> = Promise.resolve();
 
+  /** The last prompt the server refused, kept so the "Retry" action can resend the exact payload. */
+  private failedPrompt?: {
+    text: string;
+    attachments: Attachment[];
+    context: ContextItem[];
+    delivery?: "steer" | "queue";
+    sessionId?: string;
+  };
+
   /** Entry point for webview messages (also used by integration tests). */
   async receive(msg: WebviewMessage): Promise<void> {
     const run = this.messageQueue.then(() => this.handle(msg));
@@ -1505,6 +1514,7 @@ export class ChatController implements vscode.Disposable {
 
   async newSession(): Promise<void> {
     this.announcedHiddenAttention.clear();
+    this.failedPrompt = undefined;
     this.loadGen.bump();
     this.clearTimers();
     this.sessionId = undefined;
@@ -1576,6 +1586,7 @@ export class ChatController implements vscode.Disposable {
   async switchFolder(folder: vscode.WorkspaceFolder | undefined): Promise<void> {
     if (folder?.uri.toString() === this.folder?.uri.toString()) return;
     this.announcedHiddenAttention.clear();
+    this.failedPrompt = undefined;
     this.connectGen.bump();
     this.connecting = undefined;
     this.loadGen.bump();
@@ -1775,6 +1786,16 @@ export class ChatController implements vscode.Disposable {
         return;
       case "newSession":
         return this.newSession();
+      case "retry": {
+        const failed = this.failedPrompt;
+        if (!failed) return;
+        if (await this.send(failed.text, failed.attachments, failed.context, failed.delivery)) {
+          // The restored text is no longer needed: clear it from both the composer and storage.
+          if (failed.sessionId) await this.saveDraft(failed.sessionId, "").catch(() => undefined);
+          this.post({ type: "draftRestored", sessionId: failed.sessionId, text: "", force: true });
+        }
+        return;
+      }
     }
   }
 
@@ -1793,7 +1814,8 @@ export class ChatController implements vscode.Disposable {
         }
         return;
       case "send":
-        return this.send(msg.text, msg.attachments, msg.context, msg.delivery);
+        await this.send(msg.text, msg.attachments, msg.context, msg.delivery);
+        return;
       case "abort": {
         const sid = this.sessionId;
         const generation = this.executionGen.current();
@@ -1813,6 +1835,7 @@ export class ChatController implements vscode.Disposable {
         return this.newSession();
       case "selectSession": {
         if (!this.client) return;
+        this.failedPrompt = undefined;
         const generation = this.loadGen.bump();
         const info = await this.client.getSession(msg.id);
         if (!this.loadGen.is(generation)) return;
@@ -2015,7 +2038,24 @@ export class ChatController implements vscode.Disposable {
     }
   }
 
-  private async send(text: string, attachments: Attachment[], context: ContextItem[], delivery?: "steer" | "queue"): Promise<void> {
+  /** Put a refused prompt back in the composer and offer an exact-payload retry. */
+  private async restoreFailedPrompt(
+    text: string,
+    attachments: Attachment[],
+    context: ContextItem[],
+    delivery: "steer" | "queue" | undefined,
+    sid: string | undefined,
+    detail: string,
+  ): Promise<void> {
+    this.failedPrompt = { text, attachments, context, delivery, sessionId: sid };
+    if (sid) await this.saveDraft(sid, text).catch(() => undefined);
+    this.post({ type: "draftRestored", sessionId: sid, text });
+    const s = translatedStrings();
+    this.post({ type: "notice", error: { kind: "promptFailed", message: s["error.promptFailed"], detail, actions: ["retry", "reconnect", "showLogs"] } });
+  }
+
+  /** Returns false when the prompt never reached the server (no notice is posted for stale loads). */
+  private async send(text: string, attachments: Attachment[], context: ContextItem[], delivery?: "steer" | "queue"): Promise<boolean> {
     // A queued message starts no turn yet: leave the current turn's reconcile generation alone.
     if (delivery !== "queue") this.executionGen.bump();
     if (delivery !== "queue" && this.reconcileTimer) {
@@ -2024,7 +2064,10 @@ export class ChatController implements vscode.Disposable {
     }
     if (!this.client) await this.connect();
     const client = this.client;
-    if (!client || !this.folder) throw new Error(translatedStrings()["error.connectionLost"]);
+    if (!client || !this.folder) {
+      await this.restoreFailedPrompt(text, attachments, context, delivery, this.sessionId, translatedStrings()["error.connectionLost"]);
+      return false;
+    }
     const files: FileAttachment[] = [];
     const seen = new Set<string>();
     // An external server cannot stat our local `file:` URIs, so those attachments are sent inline.
@@ -2060,10 +2103,10 @@ export class ChatController implements vscode.Disposable {
           await this.permissions.write(info.id, autoApprove);
         }
         await this.loadSession(info, () => !this.loadGen.is(generation));
-        if (!this.loadGen.is(generation)) return;
+        if (!this.loadGen.is(generation)) return false;
       }
       const sid = this.sessionId;
-      if (!sid) return;
+      if (!sid) return false;
       const slash = /^\/(\S+)(?:\s+([\s\S]*))?$/.exec(text);
       const command = slash && this.catalog.commands.find((c) => c.name === slash[1]);
       // A steer replaces the current answer: interrupt first, then send with the server's
@@ -2074,10 +2117,12 @@ export class ChatController implements vscode.Disposable {
       } else {
         await client.prompt(sid, text, files, delivery);
       }
+      this.failedPrompt = undefined;
+      return true;
     } catch (err) {
-      const s = translatedStrings();
       const detail = err instanceof Error ? err.message : String(err);
-      this.post({ type: "notice", error: { kind: "promptFailed", message: s["error.promptFailed"], detail, actions: ["reconnect", "showLogs"] } });
+      await this.restoreFailedPrompt(text, attachments, context, delivery, this.sessionId, detail);
+      return false;
     }
   }
 
