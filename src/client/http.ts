@@ -1,6 +1,7 @@
 import type {
   AgentInfo,
   CommandInfo,
+  ConfigEntry,
   FileAttachment,
   FileDiff,
   FormRequest,
@@ -107,6 +108,14 @@ export class OpenCodeClient {
 
   info(signal?: AbortSignal): Promise<ServerInfo> {
     return this.request("GET", "api/info", { signal, timeoutMs: 5_000 });
+  }
+
+  /** Config documents and discovery sources, from lowest to highest priority. */
+  async config(directory?: string): Promise<ConfigEntry[]> {
+    const res = await this.request<ConfigEntry[]>("GET", "api/config", {
+      query: directory ? { "location[directory]": directory } : undefined,
+    });
+    return Array.isArray(res) ? res : [];
   }
 
   /** One page of sessions plus the opaque cursor for the next page (if any). */

@@ -12,7 +12,7 @@ Legend: `[x]` done and verified by an automated test or probe · `[~]` written, 
 - [x] package.json, tsconfig strict, esbuild (host + webview), eslint, vitest
 - [x] F5 launch config (`.vscode/launch.json`); extension launch exercised via test-electron
 - [x] Server management: spawn, dynamic port, health, auto-restart, stop, external endpoint (unit + integration)
-- [x] Commands `opencode.reconnect`, `opencode.newSession` (integration)
+- [x] Commands `opencode.restart`, `opencode.newSession` (integration)
 - [x] Sidebar webview, send prompt, show reply (UI + integration)
 
 ## Phase 2 — Real chat

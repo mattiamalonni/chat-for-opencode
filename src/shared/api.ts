@@ -110,6 +110,13 @@ export interface OtherMessage extends MessageBase {
 
 export type SessionMessage = UserMessage | AssistantMessage | IdleMessage | OtherMessage;
 
+/** A configuration document reported by `GET /api/config`, with its on-disk path. */
+export interface ConfigEntry {
+  type: "document" | "directory";
+  path?: string;
+  info?: Record<string, unknown>;
+}
+
 export interface FileDiff {
   file: string;
   patch: string;

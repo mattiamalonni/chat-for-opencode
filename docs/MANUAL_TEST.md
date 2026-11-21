@@ -62,7 +62,8 @@ screen readers and multi-window process management.
     type `/` and choose it. Expect `/skill-id` in the composer, **underlined like a link**; a typo
     such as `/nope` stays plain text. Send it with a request and confirm OpenCode loads the skill.
     Other slash commands should remain unchanged and be underlined too.
-12. **Sessions and drafts**: click the session title → list; create a new session with `+`; switch
+12. **Sessions and drafts**: click the session title → list; create a new session with the `+` button
+    in the chat header (just before the refresh icon); switch
     back. Before switching, type a half-finished message; come back and confirm the **draft for that
     session is still there**, while the other session kept its own (empty) draft. Sending clears it.
     Quit and reopen VS Code: the draft must still be there (it is now in `workspaceState`).
@@ -81,6 +82,11 @@ screen readers and multi-window process management.
 12d. **Export and search**: use the header buttons to export the conversation as a `.md` file and to
     search for a word you used earlier; non-matching messages must be hidden and the result count
     shown. Add a large inline attachment and check the context meter shows a `~`-prefixed estimate.
+ 12e. **Toolbar actions**: from the view title, the file icon opens the effective `opencode.json` in
+     the editor (a minimal one is created in the workspace if the server reports no config document);
+     the refresh icon opens **Restart Server…** with a modal confirmation that has exactly one
+     *Cancel* button (the native one) plus *Restart*; the gear icon opens the VS Code Settings view
+     filtered to this extension. Cancelling the restart must leave the chat and its server connected.
 13. **Resume after restart**: quit VS Code completely (`Cmd/Ctrl+Q`), check `ps aux | grep "opencode serve"`
     shows no process started by the extension, reopen the folder and the sidebar. The last session
     and its messages are restored.

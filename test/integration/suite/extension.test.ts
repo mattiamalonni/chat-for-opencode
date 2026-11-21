@@ -1,5 +1,5 @@
 import * as assert from "node:assert/strict";
-import { readFileSync, writeFileSync } from "node:fs";
+import { readFileSync, unlinkSync, writeFileSync } from "node:fs";
 import * as path from "node:path";
 import * as vscode from "vscode";
 import type { ChatController } from "../../../src/chat/controller";
@@ -51,7 +51,9 @@ describe("chat-for-opencode extension", () => {
     const all = await vscode.commands.getCommands(true);
     for (const c of [
       "opencode.newSession",
-      "opencode.reconnect",
+      "opencode.restart",
+      "opencode.openConfigFile",
+      "opencode.openSettings",
       "opencode.addSelectionToChat",
       "opencode.addFileToChat",
       "opencode.focus",
@@ -62,6 +64,19 @@ describe("chat-for-opencode extension", () => {
       "opencode.moveView",
     ]) {
       assert.ok(all.includes(c), `missing command ${c}`);
+    }
+  });
+
+  it("opens the OpenCode config file from the toolbar command", async () => {
+    await vscode.commands.executeCommand("opencode.openConfigFile");
+    const opened = await waitFor(
+      () => (vscode.window.activeTextEditor?.document.fileName.endsWith("opencode.json") ? vscode.window.activeTextEditor.document.fileName : undefined),
+      "config file opened",
+    );
+    try {
+      unlinkSync(opened);
+    } catch {
+      // The mock may point at a file already cleaned up by another test.
     }
   });
 
@@ -364,7 +379,9 @@ describe("chat-for-opencode extension", () => {
     const id = controller.debugState.sessionId!;
     const oldUrl = controller.debugState.baseUrl;
     const mark = posted.length;
-    await vscode.commands.executeCommand("opencode.reconnect");
+    // The toolbar Restart command asks for confirmation (a native modal); call the underlying
+    // controller action directly, which is exactly what the confirmed command does.
+    await controller.resetServers();
     await waitFor(() => controller.debugState.status === "connected" && controller.debugState.baseUrl !== oldUrl, "reconnected");
     const s = await waitFor(() => lastPosted("session", mark), "session reloaded");
     assert.equal(s.session?.id, id);

@@ -613,15 +613,21 @@ test("a queued prompt does not show the running turn's summary early", async ({ 
       data: { ...base, inboxID: "u2", item: { type: "user", payload: { text: "queued next" }, delivery: "queue" } },
     },
   });
-  await expect(page.locator(".conversation")).toContainText("queued next");
+  // A queued prompt lives in the inbox panel until it is delivered — not in the chat yet.
+  await expect(page.locator(".conversation")).not.toContainText("queued next");
   await expect(stats).toHaveCount(0);
 
   await host(page, { type: "event", event: { type: "session.execution.succeeded", created: 1300, data: base } });
   await expect(stats).toHaveCount(1);
 
-  // The queued prompt starts its own turn: the old summary stays, no premature second one.
+  // Once delivered, it appears in the conversation. The queued prompt starts its own turn: the old
+  // summary stays, no premature second one.
+  await host(page, { type: "event", event: { type: "session.inbox.delivered", created: 1350, data: { ...base, inboxID: "u2" } } });
+  await expect(page.locator(".conversation")).toContainText("queued next");
+  await expect(stats).toHaveCount(1);
   await host(page, { type: "event", event: { type: "session.execution.started", created: 1400, data: base } });
   await expect(stats).toHaveCount(1);
+  await expect(page.locator(".conversation")).toContainText("queued next");
 });
 
 test("a thought emitted after a sentence stays below it, also once tools arrive", async ({ page }) => {
@@ -1578,6 +1584,18 @@ test("header sync icon posts a manual sync and clears its busy state on completi
   // The host always answers with `synced`, even when there is no session to reload.
   await host(page, { type: "synced" });
   await expect(sync).toBeEnabled();
+});
+
+test("the header has a new-session button before the session refresh", async ({ page }) => {
+  await boot(page);
+  const sync = page.getByRole("button", { name: STRINGS.syncConversation });
+  const newSession = page.locator(".header .new-session");
+  await expect(newSession).toHaveAttribute("aria-label", STRINGS.newSession);
+  // Both buttons are siblings in the header, with nothing else between them.
+  expect(await newSession.evaluate((el) => el.nextElementSibling?.getAttribute("aria-label"))).toBe(STRINGS.syncConversation);
+  await newSession.click();
+  expect(await lastPosted(page, "newSession")).toEqual({ type: "newSession" });
+  await expect(sync).toBeVisible();
 });
 
 test("session list: delete all follows the list being empty or not", async ({ page }) => {

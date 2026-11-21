@@ -66,7 +66,9 @@ describe("real opencode serve inside VS Code", () => {
     assert.equal(controller.debugState.storedSession, id);
     const oldUrl = controller.debugState.baseUrl;
     const mark = posted.length;
-    await vscode.commands.executeCommand("opencode.reconnect");
+    // The toolbar Restart command asks for confirmation (a native modal); call the underlying
+    // controller action directly, which is exactly what the confirmed command does.
+    await controller.resetServers();
     await waitFor(() => controller.debugState.status === "connected" && controller.debugState.baseUrl !== oldUrl, "reconnected", 60_000);
     const s = await waitFor(() => posted.slice(mark).filter((m): m is Extract<HostMessage, { type: "session" }> => m.type === "session").at(-1), "session");
     assert.equal(s.session?.id, id);

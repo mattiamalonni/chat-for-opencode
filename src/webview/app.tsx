@@ -524,6 +524,7 @@ export function App() {
           }}
           onExport={exportConversation}
           onSync={syncNow}
+          onNewSession={() => post({ type: "newSession" })}
           syncing={syncing}
           searchOpen={searchOpen}
           onToggleSearch={() => setSearchOpen((open) => !open)}
@@ -737,6 +738,7 @@ function Header(props: {
   onToggleSessions: () => void;
   onExport: () => void;
   onSync: () => void;
+  onNewSession: () => void;
   syncing: boolean;
   searchOpen: boolean;
   onToggleSearch: () => void;
@@ -785,6 +787,15 @@ function Header(props: {
           onChange={(uri) => post({ type: "selectFolder", uri })}
         />
       )}
+      <button
+        type="button"
+        class="icon-button tooltip-host new-session"
+        data-tooltip={t("newSession")}
+        aria-label={t("newSession")}
+        onClick={props.onNewSession}
+      >
+        <IconPlus />
+      </button>
       <button
         type="button"
         class={`icon-button tooltip-host${props.syncing ? " syncing" : ""}`}

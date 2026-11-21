@@ -110,7 +110,7 @@ Press **F5** in this repository to launch an Extension Development Host.
 4. Pick the agent (*Build*, *Plan*, …), model and reasoning effort in the toolbar below the input.
 5. When the agent wants to edit a file or run a command that needs approval, a card appears inside
    the tool call: open the diff, then **Allow once**, **Always allow** or **Reject**.
-6. Use the session button (top left) to switch, resume, rename or delete sessions; `+` starts a new one, *Load more sessions* reaches older ones, and the small trash icon to the right of `+ New Session` deletes every session after a native VS Code confirmation.
+6. Use the session button (top left) to switch, resume, rename or delete sessions. The `+` next to the header's refresh icon starts a new one; *Load more sessions* reaches older ones, and the small trash icon next to `+ New Session` in the list deletes every session after a native VS Code confirmation.
 
 ### Skills
 
@@ -136,7 +136,9 @@ loads the skill content.
 | Search messages in the chat | `Cmd/Ctrl+F` (chat focused) |
 | Sync the current session | `Cmd/Ctrl+R` (chat focused) |
 | OpenCode: Compact Conversation | – |
-| OpenCode: Reconnect / Restart Server | – |
+| OpenCode: Restart Server… | – (toolbar, with confirmation) |
+| OpenCode: Open Config File | – (toolbar file icon) |
+| OpenCode: Open Extension Settings | – (toolbar gear icon) |
 | OpenCode: Move Chat View… | – (left/right side bar or panel) |
 | OpenCode: Show Logs | – |
 | OpenCode: Set Server Password… | – (external server only) |
@@ -185,7 +187,7 @@ Auto-approval is off by default; only enable it when you trust unattended edits 
 - The stream only carries events from the server we are connected to. Another client (e.g. the TUI
   running as its own process) writes sessions to the same on-disk storage without emitting events
   on our stream, so while the chat is visible the extension also re-reads the open session's history
-  every 2 seconds and folds new messages in automatically — no need to press **Sync** or **Reconnect**.
+  every 2 seconds and folds new messages in automatically — no need to press **Sync** or restart the server.
   Polling pauses while live events are arriving, so it never races a reply streaming into this chat.
 - Each managed server writes a PID record (no password) in global storage. On the next start,
   servers whose owning VS Code window is gone are reaped; servers owned by another live window

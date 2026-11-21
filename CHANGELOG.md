@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- Toolbar reshuffle: **New Session** moves from the view title into the chat header, next to the
+  session refresh icon, and its place in the toolbar is taken by a gear button that opens the
+  effective OpenCode `opencode.json` in the editor (creating a minimal one in the workspace if the
+  server reports no config document). A gear icon to the right of Restart opens the VS Code Settings
+  view filtered to this extension (`opencode.openSettings`). **Restart Server…** asks for confirmation in a native modal
+  before tearing down the server; VS Code already supplies the modal's Cancel button, so there is
+  only one. The `opencode.reconnect` command is replaced by `opencode.restart`.
 - **Fork a turn**: every prompt now has a *Fork conversation from this turn* action next to the
   rollback button. It creates a new sibling session with the history up to that prompt, opens it and
   keeps the original conversation intact. Forks are child sessions on the server, so they are kept
@@ -9,7 +16,9 @@
 - **Queued messages panel**: prompts accepted by the server but not delivered yet now appear above
   the composer. Each item can be promoted to *send now* (interrupting the current reply), moved back
   into the composer to edit its text, or removed from the queue. The list is re-read on connect,
-  sync and on inbox events, so prompts queued from other clients are visible too.
+  sync and on inbox events, so prompts queued from other clients are visible too. A queued prompt no
+  longer shows up in the conversation before it is actually delivered — it lives only in the panel
+  until the agent starts working on it.
 
 ## 0.3.18 — 2026-11-20
 

@@ -68,10 +68,22 @@
         "icon": "$(add)"
       },
       {
-        "command": "opencode.reconnect",
-        "title": "%command.reconnect%",
+        "command": "opencode.openConfigFile",
+        "title": "%command.openConfigFile%",
         "category": "OpenCode",
-        "icon": "$(debug-restart)"
+        "icon": "$(file-code)"
+      },
+      {
+        "command": "opencode.openSettings",
+        "title": "%command.openSettings%",
+        "category": "OpenCode",
+        "icon": "$(settings-gear)"
+      },
+      {
+        "command": "opencode.restart",
+        "title": "%command.restart%",
+        "category": "OpenCode",
+        "icon": "$(refresh)"
       },
       {
         "command": "opencode.compact",
@@ -124,14 +136,19 @@
     "menus": {
       "view/title": [
         {
-          "command": "opencode.newSession",
+          "command": "opencode.openConfigFile",
           "when": "view == opencode.chatView",
           "group": "navigation@1"
         },
         {
-          "command": "opencode.reconnect",
+          "command": "opencode.restart",
           "when": "view == opencode.chatView",
           "group": "navigation@2"
+        },
+        {
+          "command": "opencode.openSettings",
+          "when": "view == opencode.chatView",
+          "group": "navigation@3"
         },
         {
           "command": "opencode.compact",

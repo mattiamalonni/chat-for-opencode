@@ -74,7 +74,24 @@ export function activate(context: vscode.ExtensionContext): ExtensionApi {
       await focusView();
       await chat.newSession();
     }),
-    vscode.commands.registerCommand("opencode.reconnect", () => chat.reconnect()),
+    vscode.commands.registerCommand("opencode.restart", async () => {
+      const restart = vscode.l10n.t("Restart");
+      // A modal showWarningMessage already gets a native Cancel button: adding one as an action
+      // would show it twice.
+      const choice = await vscode.window.showWarningMessage(
+        vscode.l10n.t("Restart the OpenCode server?"),
+        {
+          modal: true,
+          detail: vscode.l10n.t(
+            "The current server and its event stream are torn down and started again. Running turns are interrupted and pending approvals are cancelled.",
+          ),
+        },
+        restart,
+      );
+      if (choice === restart) await chat.resetServers();
+    }),
+    vscode.commands.registerCommand("opencode.openConfigFile", () => chat.openConfigFile()),
+    vscode.commands.registerCommand("opencode.openSettings", () => chat.runAction("openSettings")),
     vscode.commands.registerCommand("opencode.compact", () => chat.compact()),
     vscode.commands.registerCommand("opencode.focus", async () => {
       await focusView();
