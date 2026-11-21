@@ -29,11 +29,11 @@ test or a manual probe actually ran.
   the accessibility tree of the composer and permission cards; no test with NVDA/VoiceOver.
 - **Long sessions / performance.** History pagination is capped at 2000 messages; markdown is
   re-rendered per streaming frame (cached, batched with `requestAnimationFrame`). Reconnects fetch
-  only the tail and merge it via `sessionDelta`. Top-level conversation cards (messages, tools,
-  steps and turn summaries) use `content-visibility: auto` with a remembered intrinsic size, so
-  off-screen turns skip layout and paint. This is **not true DOM windowing**: every message is still
-  built as a node and `conversationItems()` is recomputed on each update, so the cost still grows
-  with the length of the history. The remote caches (auto-approved ids, virtual diffs, subagents and
+  only the tail and merge it via `sessionDelta`. Every top-level conversation card (messages, tools,
+  steps and turn summaries) is laid out: `content-visibility: auto` was removed because its intrinsic
+  height estimate left a newly opened long conversation far short of the real bottom and made the view
+  feel unscrollable. This is **not DOM windowing** — every message is still built as a node and
+  `conversationItems()` is recomputed on each update, so the cost grows with the length of the history. The remote caches (auto-approved ids, virtual diffs, subagents and
   their metadata, touched files) and the webview's live-event queues are bounded to prevent unbounded
   growth, but a single conversation with very large messages or patches is still not profiled.
 - **External server mode with a real remote server** — tested only against the mock server (unit).

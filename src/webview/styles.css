@@ -667,19 +667,9 @@ details[open] > summary > .chevron,
   outline-offset: -2px;
 }
 
-/* Long histories: let the browser skip layout/paint for turns outside the viewport. The `auto`
-   keyword remembers each card's last real height, which keeps the scrollbar and "stick to bottom"
-   stable as cards enter and leave the viewport. This is *not* DOM windowing: every message is still
-   in the tree, so huge messages or patches remain unprofiled (see KNOWN_LIMITS.md). */
-.conversation > .msg,
-.conversation > .tool,
-.conversation > .tool-group,
-.conversation > .step-block,
-.conversation > .turn-stats {
-  content-visibility: auto;
-  contain-intrinsic-size: auto 160px;
-}
-
+/* Every card is laid out so `scrollHeight` is always exact: `content-visibility: auto` used to
+   estimate off-screen cards at 160px, which left a newly opened long conversation ~1400px short of
+   the bottom. All messages stay in the DOM either way (see KNOWN_LIMITS.md). */
 /* Header search keeps every message in the DOM and simply hides the non-matches. */
 .filtered-out {
   display: none !important;

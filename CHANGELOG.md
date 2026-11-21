@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- **Fix:** opening a long session now lands at the very bottom of the conversation. The chat cards
+  are always laid out (the `content-visibility: auto` optimization was removed): its estimated
+  intrinsic height made `scrollHeight` wrong until cards scrolled into view, so the view stopped
+  ~1400px short and felt unscrollable. A browser test covers both the landing position and that
+  scrolling still works afterwards.
 - **Architecture:** server process, HTTP client and SSE stream ownership moved into
   `ConnectionSupervisor` (connect dedup, restart/reconnect, stream-status transitions, teardown).
   The controller keeps the chat-state side of connecting (`useConnection`, load, resync) and reads

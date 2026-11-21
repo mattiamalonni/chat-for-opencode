@@ -743,6 +743,37 @@ test("a new prompt follows the latest message even after scrolling up", async ({
   await expect(page.locator(".msg.user .user-text").last()).toHaveText("a second prompt");
 });
 
+test("opening a long session lands at the bottom and the view stays scrollable", async ({ page }) => {
+  await page.setViewportSize({ width: 420, height: 500 });
+  await boot(page);
+  // Many turns make `content-visibility: auto` estimate the height of off-screen cards, so a single
+  // scrollTop assignment used to stop ~1400px short of the real bottom on session open.
+  const longHistory: SessionMessage[] = Array.from({ length: 60 }, (_, i) =>
+    i % 2 === 0
+      ? { id: `u${i}`, type: "user", text: `prompt ${i}`, time: { created: i } }
+      : {
+          id: `a${i}`,
+          type: "assistant",
+          agent: "build",
+          model: { id: "m", providerID: "p" },
+          content: [{ type: "text", text: `answer ${i} ` + "x".repeat(200) }],
+          time: { created: i, completed: i },
+        },
+  );
+  await host(page, { type: "session", session: { id: S1, busy: false, messages: longHistory, permissions: [], forms: [] } });
+  const conversation = page.locator(".conversation");
+  await expect.poll(async () => conversation.evaluate((el) => el.scrollHeight > el.clientHeight)).toBe(true);
+  await expect.poll(async () => conversation.evaluate((el) => el.scrollHeight - el.scrollTop - el.clientHeight)).toBeLessThan(40);
+
+  // Scrolling still works after landing at the bottom: an explicit scroll up must stick.
+  await conversation.evaluate((el) => {
+    el.scrollTop = Math.max(0, el.scrollTop - 300);
+    el.dispatchEvent(new Event("scroll"));
+  });
+  const moved = await conversation.evaluate((el) => el.scrollTop);
+  expect(moved).toBeLessThan(await conversation.evaluate((el) => el.scrollHeight - el.clientHeight - 100));
+});
+
 test("scrolling up near the bottom is not snapped back by unrelated re-renders", async ({ page }) => {
   await page.setViewportSize({ width: 420, height: 500 });
   await boot(page);
@@ -2586,7 +2617,7 @@ test("very large code blocks are escaped instead of highlighted", async ({ page 
   expect((await page.locator(".conversation pre code").first().textContent())?.length).toBeGreaterThan(20_000);
 });
 
-test("off-screen conversation cards are skipped with content-visibility", async ({ page }) => {
+test("conversation cards are laid out so the scroll position is exact", async ({ page }) => {
   await boot(page);
   await host(page, {
     type: "session",
@@ -2600,7 +2631,9 @@ test("off-screen conversation cards are skipped with content-visibility", async 
   });
   const card = page.locator(".conversation > .msg.user").first();
   await expect(card).toBeVisible();
-  expect(await card.evaluate((el) => getComputedStyle(el).contentVisibility)).toBe("auto");
+  // `content-visibility: auto` made off-screen cards contribute only an estimated height, which
+  // left a newly opened long conversation hundreds of pixels short of the real bottom.
+  expect(await card.evaluate((el) => getComputedStyle(el).contentVisibility)).toBe("visible");
 });
 
 test("a failed prompt returns to the composer without overwriting newer typing", async ({ page }) => {

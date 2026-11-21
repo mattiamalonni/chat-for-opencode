@@ -1540,9 +1540,15 @@ function Conversation({
 
   useEffect(() => {
     if (!revealMessageId) return;
-    const el = ref.current?.querySelector<HTMLElement>(`[data-message-id="${revealMessageId}"]`);
-    if (!el) return;
-    el.scrollIntoView({ block: "center" });
+    const container = ref.current;
+    const el = container?.querySelector<HTMLElement>(`[data-message-id="${revealMessageId}"]`);
+    if (!container || !el) return;
+    // Scroll only the chat container: `scrollIntoView` would also scroll the surrounding webview
+    // (and the editor), which can leave the visible chat apparently stuck somewhere else.
+    const delta = el.getBoundingClientRect().top - container.getBoundingClientRect().top;
+    container.scrollTop += delta - container.clientHeight / 2 + el.clientHeight / 2;
+    stick.current = false;
+    setAtBottom(false);
     el.classList.add("revealed");
     const timer = setTimeout(() => el.classList.remove("revealed"), 1600);
     return () => clearTimeout(timer);
