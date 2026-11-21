@@ -71,6 +71,14 @@ export function isFindKey(e: KeyLike, platform: Platform): boolean {
   return isPlainChord(e, platform, "f");
 }
 
+/**
+ * Cmd+R (mac) / Ctrl+R (Windows/Linux), plain and outside an IME composition: re-syncs the current
+ * session from the server while the webview has focus, instead of VS Code's "Open Recent".
+ */
+export function isSyncKey(e: KeyLike, platform: Platform): boolean {
+  return isPlainChord(e, platform, "r");
+}
+
 export type ComposerAction = "send" | "steer" | "newline" | "none";
 
 /**

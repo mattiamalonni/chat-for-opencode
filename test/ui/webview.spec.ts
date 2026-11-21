@@ -1231,6 +1231,45 @@ test("Cmd/Ctrl+F opens and focuses the chat message search without reaching the 
   expect(await windowKeys()).not.toContain("Meta+f");
 });
 
+test("Cmd/Ctrl+R syncs the session without reaching the workbench", async ({ page }) => {
+  await boot(page); // init platform: windows
+  const input = page.getByRole("textbox", { name: STRINGS.inputLabel });
+  const sync = page.getByRole("button", { name: STRINGS.syncConversation });
+  const windowKeys = () => page.evaluate(() => (window as unknown as { __windowKeys: string[] }).__windowKeys);
+  const syncCount = async () => (await posted(page)).filter((m) => m.type === "sync").length;
+  await input.click();
+  await page.evaluate(() => ((window as unknown as { __windowKeys: string[] }).__windowKeys.length = 0));
+
+  await page.keyboard.press("Control+r");
+  expect(await lastPosted(page, "sync")).toEqual({ type: "sync" });
+  // The preload listens in the bubble phase: the chord must not reach the workbench's "Open Recent".
+  expect(await windowKeys()).not.toContain("Ctrl+r");
+  await expect(sync).toBeDisabled();
+
+  // While the first sync is in flight, the same guard as the header button prevents a second one.
+  await page.keyboard.press("Control+r");
+  expect(await syncCount()).toBe(1);
+  await host(page, { type: "synced" });
+  await expect(sync).toBeEnabled();
+  await page.keyboard.press("Control+r");
+  expect(await syncCount()).toBe(2);
+
+  // Modified variants are left alone (the composer keeps Ctrl+Shift+R inside the webview).
+  await page.evaluate(() => ((window as unknown as { __windowKeys: string[] }).__windowKeys.length = 0));
+  await page.keyboard.press("Control+Shift+r");
+  expect(await syncCount()).toBe(2);
+
+  // Same behaviour with Cmd on macOS.
+  await host(page, { type: "synced" });
+  await expect(sync).toBeEnabled();
+  await host(page, { type: "init", strings: { ...STRINGS }, platform: "mac", folders: [{ uri: "file:///work", name: "work" }], activeFolder: "file:///work", issuesUrl: ISSUES_URL });
+  await input.click();
+  await page.evaluate(() => ((window as unknown as { __windowKeys: string[] }).__windowKeys.length = 0));
+  await page.keyboard.press("Meta+r");
+  expect(await syncCount()).toBe(3);
+  expect(await windowKeys()).not.toContain("Meta+r");
+});
+
 test("IME composition: Enter confirming a candidate does not send", async ({ page }) => {
   await boot(page);
   const input = page.getByRole("textbox", { name: STRINGS.inputLabel });

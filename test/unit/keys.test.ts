@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { composerAction, isFindKey, isNewSessionKey, shouldIsolateKey, type KeyLike } from "../../src/shared/keys";
+import { composerAction, isFindKey, isNewSessionKey, isSyncKey, shouldIsolateKey, type KeyLike } from "../../src/shared/keys";
 
 function k(key: string, mods: Partial<KeyLike> = {}): KeyLike {
   return {
@@ -98,6 +98,27 @@ describe("isFindKey", () => {
     expect(isFindKey(k("f"), "mac")).toBe(false);
     expect(isFindKey(k("Process", { metaKey: true, keyCode: 229 }), "mac")).toBe(false);
     expect(isFindKey(k("f", { isComposing: true, metaKey: true }), "mac")).toBe(false);
+  });
+});
+
+describe("isSyncKey", () => {
+  it("matches plain Cmd+R on mac and Ctrl+R elsewhere", () => {
+    expect(isSyncKey(k("r", { metaKey: true }), "mac")).toBe(true);
+    expect(isSyncKey(k("R", { metaKey: true }), "mac")).toBe(true);
+    expect(isSyncKey(k("r", { ctrlKey: true }), "windows")).toBe(true);
+    expect(isSyncKey(k("r", { ctrlKey: true }), "linux")).toBe(true);
+  });
+
+  it("ignores the wrong modifier, extra modifiers and IME compositions", () => {
+    expect(isSyncKey(k("r", { ctrlKey: true }), "mac")).toBe(false);
+    expect(isSyncKey(k("r", { metaKey: true }), "windows")).toBe(false);
+    expect(isSyncKey(k("r", { metaKey: true, shiftKey: true }), "mac")).toBe(false);
+    expect(isSyncKey(k("r", { metaKey: true, altKey: true }), "mac")).toBe(false);
+    expect(isSyncKey(k("r", { metaKey: true, ctrlKey: true }), "mac")).toBe(false);
+    expect(isSyncKey(k("f", { metaKey: true }), "mac")).toBe(false);
+    expect(isSyncKey(k("r"), "mac")).toBe(false);
+    expect(isSyncKey(k("Process", { metaKey: true, keyCode: 229 }), "mac")).toBe(false);
+    expect(isSyncKey(k("r", { isComposing: true, metaKey: true }), "mac")).toBe(false);
   });
 });
 

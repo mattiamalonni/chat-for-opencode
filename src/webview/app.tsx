@@ -17,7 +17,7 @@ import {
 } from "../shared/chatReducer";
 import { SUPPORTED_SERVER_VERSION, type Compatibility } from "../shared/compatibility";
 import { estimateDataUrlTokens } from "../shared/format";
-import { isFindKey, isNewSessionKey } from "../shared/keys";
+import { isFindKey, isNewSessionKey, isSyncKey } from "../shared/keys";
 import { contractSignature, emptyContract, type ContractReport } from "../shared/contract";
 import type { Attachment, ConnectionStatus, ContextItem, FolderInfo, HostMessage, SessionSummary, UiError } from "../shared/protocol";
 import { initialSubagentState, pushSubagentSession, subagentReducer, truncateSubagentStack, type SubagentEvent, type SubagentState } from "../shared/subagents";
@@ -81,6 +81,9 @@ export function App() {
   // its agent name when only live events were received).
   const [subagentLabels, setSubagentLabels] = useState<Record<string, string>>({});
   const [syncing, setSyncing] = useState(false);
+  // The capture-phase key listener is installed once; keep the latest `syncNow` reachable so its
+  // `syncing` guard still sees current state instead of the first render's value.
+  const syncNowRef = useRef<() => void>(() => {});
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   // Bumped by Cmd/Ctrl+F so re-focusing the search works even when it is already open.
@@ -293,10 +296,10 @@ export function App() {
     if (tooltipFrame.current !== undefined) cancelAnimationFrame(tooltipFrame.current);
   }, []);
 
-  // Cmd/Ctrl+N creates a new session and Cmd/Ctrl+F opens the message search while the chat has
-  // focus. The VS Code webview preload forwards every keydown that reaches `window` to the
-  // workbench (see D7), where these chords mean "new file" / "find". Capture them before that
-  // bubble-phase listener so the workbench never sees them.
+  // Cmd/Ctrl+N creates a new session, Cmd/Ctrl+F opens the message search and Cmd/Ctrl+R re-syncs
+  // the session while the chat has focus. The VS Code webview preload forwards every keydown that
+  // reaches `window` to the workbench (see D7), where these chords mean "new file" / "find" /
+  // "open recent". Capture them before that bubble-phase listener so the workbench never sees them.
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.repeat) return;
@@ -309,6 +312,10 @@ export function App() {
         e.stopPropagation();
         setSearchOpen(true);
         setSearchFocusToken((token) => token + 1);
+      } else if (isSyncKey(e, env.platform)) {
+        e.preventDefault();
+        e.stopPropagation();
+        syncNowRef.current();
       }
     };
     window.addEventListener("keydown", onKeyDown, true);
@@ -470,6 +477,7 @@ export function App() {
     setSyncing(true);
     post({ type: "sync" });
   };
+  syncNowRef.current = syncNow;
 
   return (
     <StringsContext.Provider value={strings}>
