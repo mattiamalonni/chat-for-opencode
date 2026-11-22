@@ -25,12 +25,10 @@ import {
   normalizeForm,
   normalizeList,
   normalizePermission,
-  normalizeServerEvent,
   normalizeSessionInfo,
   normalizeSessionMessage,
 } from "../shared/adapter";
-import { eventSessionId, sessionIsBusy } from "../shared/chatReducer";
-import { parseSubagentReport } from "../shared/subagentReport";
+import { sessionIsBusy } from "../shared/chatReducer";
 import { checkCompatibility } from "../shared/compatibility";
 import { DEFAULT_STARTUP_TIMEOUT_MS, jitteredDelay } from "../shared/constants";
 import { checkContract, contractSignature, emptyContract, type ContractObservations } from "../shared/contract";
@@ -62,6 +60,7 @@ import { isWithinDirectoryReal } from "./pathSafety";
 import { normalizeEndpoint } from "../server/endpoint";
 import { configTargetPaths } from "./configTarget";
 import { BoundedSet } from "../shared/boundedSet";
+import { ChatEventRouter } from "./eventRouter";
 import { ExecutionStateService, type ExecutionState } from "./executionState";
 
 export type { ExecutionState, ExecutionStatus, TerminalStatus } from "./executionState";
@@ -211,6 +210,7 @@ export class ChatController implements vscode.Disposable {
   private readonly permissions: PermissionService;
   /** All in-flight tokens and timers live in one place; see lifecycle.ts. */
   private readonly lifecycle = new ChatLifecycle();
+  private readonly eventRouter: ChatEventRouter;
   /** Single owner of turn status, generation and local-idle grace; see executionState.ts. */
   private readonly execution = new ExecutionStateService();
   /** Picker paging, summaries, fork visibility and bounded search; see sessionListService.ts. */
@@ -326,6 +326,29 @@ export class ChatController implements vscode.Disposable {
       (line) => output.info(line),
       () => this.chatViews.size > 0,
     );
+    this.eventRouter = new ChatEventRouter({
+      getSessionId: () => this.sessionId,
+      getFolderUri: () => this.folder?.uri,
+      isVisible: () => this.isVisible,
+      noteSessionEvent: () => {
+        this.lastSessionEventAt = Date.now();
+      },
+      post: (msg) => this.post(msg),
+      postSessionEvent: (sid, event) => this.postSessionEvent(sid, event),
+      subagents: this.subagents,
+      permissions: this.permissions,
+      execution: this.execution,
+      attention: this.announcedHiddenAttention,
+      scheduleInbox: () => this.scheduleInbox(),
+      scheduleSessions: () => this.scheduleSessions(),
+      scheduleReconcile: () => this.scheduleReconcile(),
+      scheduleChanges: () => this.scheduleChanges(),
+      refreshSlashItems: async () => {
+        await this.refreshSlashItems();
+      },
+      autoApprove: (event, sid) => this.autoApprove(event, sid),
+      newSession: () => this.newSession(),
+    });
     this.fileIcons = new FileIconThemeService({
       themeId: () => vscode.workspace.getConfiguration("workbench").get<string | null>("iconTheme") ?? undefined,
       variant: () => {
@@ -908,143 +931,7 @@ export class ChatController implements vscode.Disposable {
   // ---- events -----------------------------------------------------------------------------
 
   private onEvent(event: ServerEvent): void {
-    const normalized = normalizeServerEvent(event);
-    if (!normalized) return;
-    event = normalized;
-    const sid = eventSessionId(event);
-    if (sid && sid === this.sessionId) this.lastSessionEventAt = Date.now();
-    if (event.type === "session.created") {
-      const data = event.data as { sessionID?: string; parentID?: string; title?: string; agent?: string };
-      if (data.sessionID && data.parentID) {
-        this.subagents.setParent(data.sessionID, data.parentID);
-        if (this.subagents.isTracked(data.sessionID)) {
-          this.subagents.track(data.sessionID, data);
-        }
-      }
-    }
-    if (
-      sid === this.sessionId &&
-      (event.type === "session.tool.progress" || event.type === "session.tool.success" || event.type === "session.tool.failed")
-    ) {
-      const data = event.data as { id?: unknown; metadata?: { sessionID?: unknown } };
-      const childId = data.metadata?.sessionID;
-      if (typeof childId === "string" && childId) {
-        this.subagents.track(childId);
-        // Link by tool call id, not by title: two concurrent subagents can share a description, and
-        // the tool card may be created after this event. The webview keeps the id until it appears.
-        if (typeof data.id === "string" && data.id) this.post({ type: "linkSubagent", toolId: data.id, sessionId: childId });
-      }
-    }
-    if (sid === this.sessionId && event.type === "session.inbox.enqueued") {
-      // A background child announces its final report after the parent turn has already ended.
-      // Re-read its history now: that is when the steps and the report are actually complete.
-      const item = (event.data as { item?: { type?: string; payload?: { text?: string } } }).item;
-      const parsed = item?.type === "synthetic" ? parseSubagentReport(item.payload?.text) : undefined;
-      if (parsed && this.sessionId) {
-        this.subagents.setParent(parsed.sessionId, this.sessionId);
-        if (this.subagents.hasChild(parsed.sessionId)) void this.subagents.snapshot(parsed.sessionId);
-        else this.subagents.track(parsed.sessionId);
-      }
-    }
-    if (
-      sid === this.sessionId &&
-      (event.type === "session.inbox.enqueued" ||
-        event.type === "session.inbox.delivered" ||
-        event.type === "session.inbox.cancelled" ||
-        event.type === "session.inbox.delivery.changed")
-    ) {
-      this.scheduleInbox();
-    }
-    if (event.type === "session.deleted" && sid && this.subagents.hasChild(sid)) {
-      this.subagents.forget(sid);
-    }
-    if (event.type === "permission.replied") {
-      const requestId = (event.data as { requestID?: string }).requestID;
-      if (requestId) this.permissions.forgetRequest(requestId);
-      this.announcedHiddenAttention.delete(`permission.asked:${requestId}`);
-    }
-    if (event.type === "form.replied" || event.type === "form.cancelled") {
-      this.announcedHiddenAttention.delete(`form.created:${(event.data as { id?: string }).id}`);
-    }
-    // Plugin skills/commands can be registered or removed while the chat is open.
-    if (event.type === "skill.updated" || event.type === "command.updated") void this.refreshSlashItems();
-    // Bypass the inline card: grant each request on arrival instead of asking the user. Children
-    // are included — otherwise a subagent's `ask` permission would block with no card to act on.
-    if (event.type === "permission.asked" && sid && this.subagents.isTracked(sid) && this.autoApproveEnabled()) {
-      void this.autoApprove(event, sid);
-      return;
-    }
-    if (sid) this.postSessionEvent(sid, event);
-    // One owner for turn starts and terminals: it invalidates deferred work, ends the local-idle
-    // grace period and publishes the host status. Terminal events are reported back to us below.
-    const terminalStatus = this.execution.observe(event.type, sid, this.sessionId);
-    switch (event.type) {
-      case "session.created":
-      case "session.renamed":
-      case "session.deleted":
-      case "session.execution.started":
-      case "session.execution.succeeded":
-      case "session.execution.failed":
-      case "session.execution.interrupted":
-      case "session.status":
-      case "permission.asked":
-      case "permission.replied":
-      case "form.created":
-      case "form.replied":
-      case "form.cancelled":
-        // Busy/idle and pending-input transitions both change the session list indicator.
-        this.scheduleSessions();
-        break;
-      default:
-        break;
-    }
-    if (terminalStatus) {
-      const status = terminalStatus;
-      this.scheduleReconcile();
-      // A resync can replay the same terminal event, so include the turn's generation in the key.
-      const key = `execution.terminal:${sid}:${this.execution.generation.current()}`;
-      if (!this.isVisible && !this.announcedHiddenAttention.has(key)) {
-        const cfg = vscode.workspace.getConfiguration("opencode", this.folder?.uri);
-        const enabled = status === "failed" ? cfg.get<boolean>("notifyOnFailure", true) : cfg.get<boolean>("notifyOnComplete", false);
-        if (enabled) {
-          this.announcedHiddenAttention.add(key);
-          const message =
-            status === "failed"
-              ? vscode.l10n.t("OpenCode turn failed.")
-              : status === "interrupted"
-                ? vscode.l10n.t("OpenCode turn was interrupted.")
-                : vscode.l10n.t("OpenCode turn finished.");
-          const open = vscode.l10n.t("Open chat");
-          void vscode.window.showInformationMessage(message, open).then((choice) => {
-            if (choice === open) void vscode.commands.executeCommand("opencode.chatView.focus");
-          });
-        }
-      }
-    }
-    if (event.type === "session.deleted" && sid === this.sessionId) {
-      void this.newSession();
-    }
-    if (sid === this.sessionId && event.type === "session.step.ended") {
-      const files = (event.data as { files?: string[] }).files;
-      if (files && files.length > 0) this.scheduleChanges();
-    }
-    if (sid && this.subagents.isTracked(sid) && (event.type === "permission.asked" || event.type === "form.created") && !this.isVisible) {
-      const id =
-        event.type === "permission.asked" ? (event.data as { id?: string }).id : (event.data as { form?: { id?: string } }).form?.id;
-      const key = `${event.type}:${id}`;
-      // A resync re-posts the same pending request; announce it only once, not on every event.
-      if (id && !this.announcedHiddenAttention.has(key)) {
-        this.announcedHiddenAttention.add(key);
-        const msg =
-          event.type === "permission.asked"
-            ? vscode.l10n.t("OpenCode is asking for permission.")
-            : vscode.l10n.t("OpenCode is asking a question.");
-        const open = vscode.l10n.t("Open chat");
-        void vscode.window.showInformationMessage(msg, open).then((choice) => {
-          if (choice === open) void vscode.commands.executeCommand("opencode.chatView.focus");
-        });
-      }
-    }
+    this.eventRouter.route(event);
   }
 
   /** Cancel all deferred work from the previous connection/session before switching or resetting. */

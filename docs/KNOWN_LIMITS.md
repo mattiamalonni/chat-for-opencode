@@ -51,13 +51,12 @@ test or a manual probe actually ran.
 ## Architectural debt
 
 - **`ChatController` is still the orchestrator for many concerns.** Connection supervision, session
-  listing, subagents, attachments, diffs, permissions and turn state already live in dedicated
-  services (`ConnectionSupervisor`, `SessionListService`, `SubagentTracker`, `AttachmentService`,
-  `DiffService`, `PermissionService`, `ExecutionStateService`). The remaining large blocks are
-  `onEvent()` (event routing) and `handle()` (webview command dispatch). Splitting those into an
-  event router and a command handler is the next refactor: it needs a dependency-injection boundary
-  wide enough that unit tests can exercise them without a VS Code host. Turn state itself is no
-  longer duplicated — see `src/chat/executionState.ts`.
+  listing, subagents, attachments, diffs, permissions, turn state and server-event routing now live
+  in dedicated services (`ConnectionSupervisor`, `SessionListService`, `SubagentTracker`,
+  `AttachmentService`, `DiffService`, `PermissionService`, `ExecutionStateService`, `ChatEventRouter`).
+  The remaining large block is `handle()` (webview command dispatch). Splitting it into a command
+  handler with an explicit hooks boundary is the next refactor. Turn state itself is no longer
+  duplicated — see `src/chat/executionState.ts`.
 - **The webview's `busy` flag is still derived from server events**, not from the host's execution
   status. This is deliberate: it renders per-step history and queued turns. The two state machines
   can still disagree briefly during a resync, but the host-side one (status bar, composer unlocking)

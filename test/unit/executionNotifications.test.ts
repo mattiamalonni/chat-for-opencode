@@ -18,23 +18,39 @@ vi.mock("vscode", () => ({
 import * as vscode from "vscode";
 import { ChatController, type ExecutionState } from "../../src/chat/controller";
 import { ExecutionStateService } from "../../src/chat/executionState";
+import { ChatEventRouter, type EventRouterHooks } from "../../src/chat/eventRouter";
+import { BoundedSet } from "../../src/shared/boundedSet";
 
 const proto = ChatController.prototype as unknown as Record<string, (...args: unknown[]) => unknown>;
 
-function fakeController() {
-  return {
-    sessionId: "s1",
-    folder: undefined,
-    isVisible: false,
-    lastSessionEventAt: 0,
-    announcedHiddenAttention: new Set<string>(),
-    execution: new ExecutionStateService(),
-    lifecycle: { generations: {} },
+function routerFor() {
+  const hooks: EventRouterHooks = {
+    getSessionId: () => "s1",
+    getFolderUri: () => undefined,
+    isVisible: () => false,
+    noteSessionEvent: vi.fn(),
+    post: vi.fn(),
     postSessionEvent: vi.fn(),
-    subagents: { isTracked: vi.fn(() => false) },
+    subagents: {
+      setParent: vi.fn(),
+      isTracked: vi.fn(() => false),
+      track: vi.fn(),
+      hasChild: vi.fn(() => false),
+      snapshot: vi.fn(async () => undefined),
+      forget: vi.fn(),
+    },
+    permissions: { forgetRequest: vi.fn(), enabled: vi.fn(() => false) },
+    execution: new ExecutionStateService(),
+    attention: new BoundedSet<string>(10),
+    scheduleInbox: vi.fn(),
     scheduleSessions: vi.fn(),
     scheduleReconcile: vi.fn(),
+    scheduleChanges: vi.fn(),
+    refreshSlashItems: vi.fn(async () => undefined),
+    autoApprove: vi.fn(async () => undefined),
+    newSession: vi.fn(async () => undefined),
   };
+  return new ChatEventRouter(hooks);
 }
 
 describe("host-side execution state", () => {
@@ -59,13 +75,12 @@ describe("host-side execution state", () => {
   it("announces a failed turn while hidden, but not a successful one by default", () => {
     const show = vscode.window.showInformationMessage as unknown as ReturnType<typeof vi.fn>;
     show.mockClear();
-    const onEvent = proto["onEvent"] as unknown as (this: ReturnType<typeof fakeController>, event: unknown) => void;
 
-    onEvent.call(fakeController(), { type: "session.execution.failed", data: { sessionID: "s1" } });
+    routerFor().route({ type: "session.execution.failed", data: { sessionID: "s1" } } as never);
     expect(show).toHaveBeenCalledWith("OpenCode turn failed.", "Open chat");
 
     show.mockClear();
-    onEvent.call(fakeController(), { type: "session.execution.succeeded", data: { sessionID: "s1" } });
+    routerFor().route({ type: "session.execution.succeeded", data: { sessionID: "s1" } } as never);
     expect(show).not.toHaveBeenCalled();
   });
 
@@ -109,12 +124,11 @@ describe("host-side execution state", () => {
   it("announces a terminal event only once per turn", () => {
     const show = vscode.window.showInformationMessage as unknown as ReturnType<typeof vi.fn>;
     show.mockClear();
-    const onEvent = proto["onEvent"] as unknown as (this: ReturnType<typeof fakeController>, event: unknown) => void;
-    const c = fakeController();
-    const event = { type: "session.execution.failed", data: { sessionID: "s1" } };
+    const router = routerFor();
+    const event = { type: "session.execution.failed", data: { sessionID: "s1" } } as never;
 
-    onEvent.call(c, event);
-    onEvent.call(c, event);
+    router.route(event);
+    router.route(event);
     expect(show).toHaveBeenCalledTimes(1);
   });
 });

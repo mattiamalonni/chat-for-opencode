@@ -2,6 +2,10 @@
 
 ## 0.3.19 — 2026-11-22
 
+- **Architecture:** server-event routing moved out of `ChatController` into `ChatEventRouter` with an
+  explicit hooks boundary. Subagent discovery/linking, inbox scheduling, turn lifecycle, hidden
+  notifications and picker refreshes are now unit-testable without a VS Code host; the controller
+  only wires the router to its services.
 - **UI:** the _Copy response_ action is now docked beside the first line of the answer and revealed
   on hover/focus, instead of floating in the empty bottom-right corner of tall grouped messages.
 - **Robustness:** the set that suppresses duplicate notifications while the chat is hidden is now
