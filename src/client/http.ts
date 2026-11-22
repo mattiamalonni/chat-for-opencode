@@ -52,6 +52,38 @@ type Query = Record<string, string | number | boolean | undefined>;
 
 /** A server error body is untrusted: never let a huge one flood the chat's notice UI. */
 const MAX_ERROR_BODY = 4000;
+/** Success bodies can be large (a session's full history), but not unbounded. */
+const MAX_RESPONSE_BYTES = 20 * 1024 * 1024;
+
+/**
+ * Read a response body incrementally instead of buffering an unlimited `res.text()`.
+ * Error bodies are truncated in place; success bodies beyond the cap fail the request, so a broken
+ * server or proxy cannot exhaust the extension host's memory while the UI waits for JSON.
+ */
+async function readBoundedText(res: Response, limit: number, truncate: boolean): Promise<string> {
+  if (!res.body) return (await res.text()).slice(0, limit);
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let text = "";
+  let bytes = 0;
+  try {
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      bytes += value.byteLength;
+      if (bytes > limit) {
+        await reader.cancel().catch(() => undefined);
+        if (truncate) break;
+        throw new ApiError(`Response too large (over ${limit} bytes)`, 413);
+      }
+      text += decoder.decode(value, { stream: true });
+    }
+    text += decoder.decode();
+  } finally {
+    reader.releaseLock();
+  }
+  return text;
+}
 
 export function authHeaders(conn: Connection): Record<string, string> {
   if (!conn.password) return {};
@@ -93,7 +125,7 @@ export class OpenCodeClient {
     const timeout = AbortSignal.timeout(options.timeoutMs ?? this.timeoutMs);
     const signal = options.signal ? AbortSignal.any([options.signal, timeout]) : timeout;
     const res = await this.fetchImpl(this.url(path, options.query), { method, headers, body, signal });
-    const text = await res.text();
+    const text = await readBoundedText(res, res.ok ? MAX_RESPONSE_BYTES : MAX_ERROR_BODY, !res.ok);
     if (!res.ok) {
       const body = text.slice(0, MAX_ERROR_BODY);
       let message = body || res.statusText || `HTTP ${res.status}`;
@@ -153,12 +185,14 @@ export class OpenCodeClient {
     directory?: string,
     limit = 50,
     cursor?: string,
+    signal?: AbortSignal,
   ): Promise<{ items: SessionInfo[]; next?: string }> {
     const res = await this.request<{ data: SessionInfo[]; cursor?: { next?: string | null } }>("GET", "api/session", {
       // `order` only applies to the first page; the cursor continues that ordering.
       query: cursor
         ? { directory, limit, parentID: "null", cursor }
         : { directory, limit, order: "desc", parentID: "null" },
+      signal,
     });
     return { items: this.dataArray<SessionInfo>(res, "session list"), next: res.cursor?.next ?? undefined };
   }
@@ -185,8 +219,8 @@ export class OpenCodeClient {
     return this.data<SessionInfo>(res, "session");
   }
 
-  async getSession(id: string): Promise<SessionInfo> {
-    const res = await this.request<unknown>("GET", `api/session/${encodeURIComponent(id)}`);
+  async getSession(id: string, signal?: AbortSignal): Promise<SessionInfo> {
+    const res = await this.request<unknown>("GET", `api/session/${encodeURIComponent(id)}`, { signal });
     return this.data<SessionInfo>(res, "session");
   }
 
@@ -199,7 +233,7 @@ export class OpenCodeClient {
   }
 
   /** Full history in chronological order (follows pagination up to `max` messages). */
-  async messages(id: string, max = 2000): Promise<SessionMessage[]> {
+  async messages(id: string, max = 2000, signal?: AbortSignal): Promise<SessionMessage[]> {
     const out: SessionMessage[] = [];
     let cursor: string | undefined;
     do {
@@ -207,7 +241,7 @@ export class OpenCodeClient {
         "GET",
         `api/session/${encodeURIComponent(id)}/message`,
         // The server rejects `order` together with `cursor` ("Cursor cannot be combined with order").
-        { query: cursor ? { limit: 200, cursor } : { order: "asc", limit: 200 } },
+        { query: cursor ? { limit: 200, cursor } : { order: "asc", limit: 200 }, signal },
       );
       const page = this.dataArray<SessionMessage>(res, "session history");
       out.push(...page);
@@ -322,10 +356,11 @@ export class OpenCodeClient {
     await this.request("POST", `api/session/${encodeURIComponent(id)}/model`, { body: { model } });
   }
 
-  async permissions(id: string): Promise<PermissionRequest[]> {
+  async permissions(id: string, signal?: AbortSignal): Promise<PermissionRequest[]> {
     const res = await this.request<unknown>(
       "GET",
       `api/session/${encodeURIComponent(id)}/permission`,
+      { signal },
     );
     return this.dataArray<PermissionRequest>(res, "permission list");
   }
@@ -338,8 +373,8 @@ export class OpenCodeClient {
     );
   }
 
-  async forms(id: string): Promise<FormRequest[]> {
-    const res = await this.request<unknown>("GET", `api/session/${encodeURIComponent(id)}/form`);
+  async forms(id: string, signal?: AbortSignal): Promise<FormRequest[]> {
+    const res = await this.request<unknown>("GET", `api/session/${encodeURIComponent(id)}/form`, { signal });
     return this.dataArray<FormRequest>(res, "form list");
   }
 

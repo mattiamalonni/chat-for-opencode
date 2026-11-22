@@ -164,6 +164,13 @@ describe("OpenCodeClient against the mock server", () => {
     expect(error?.message.length).toBeLessThanOrEqual(4000);
   });
 
+  it("rejects a success body larger than the memory cap", async () => {
+    const huge = "x".repeat(20 * 1024 * 1024 + 1);
+    const fetchImpl = (async () => new Response(huge, { status: 200 })) as typeof fetch;
+    const bounded = new OpenCodeClient({ baseUrl: "http://localhost:1", password: "secret" }, fetchImpl);
+    await expect(bounded.info()).rejects.toMatchObject({ status: 413, message: /too large/i });
+  });
+
   it("stages and commits a revert at any message, and can clear a staged one", async () => {
     const s = await client.createSession({});
     await client.prompt(s.id, "first");

@@ -144,6 +144,8 @@ export interface ManagedServerOptions {
 }
 
 const LISTEN_RE = /listening on (https?:\/\/[^\s]+)/i;
+/** A child that prints without newlines must not grow an unbounded in-memory buffer. */
+const MAX_STDOUT_LINE = 64 * 1024;
 
 /**
  * `executablePath` is machine-overridable, so a workspace can set it. On Windows the child is
@@ -259,7 +261,9 @@ export class ManagedServer extends BaseServer {
 
       child.stdout?.setEncoding("utf8");
       child.stdout?.on("data", (chunk: string) => {
-        stdoutBuf += chunk;
+        // Keep only the tail of an unterminated line: startup URLs are short, and a broken child
+        // printing forever must not accumulate in memory until the first newline arrives.
+        stdoutBuf = (stdoutBuf + chunk).slice(-MAX_STDOUT_LINE);
         const lines = stdoutBuf.split(/\r?\n/);
         stdoutBuf = lines.pop() ?? "";
         for (const line of lines) {

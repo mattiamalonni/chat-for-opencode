@@ -38,6 +38,28 @@ describe("cross-session search", () => {
     expect(hits[1].snippet).toBe("Title match");
   });
 
+  it("aborts an obsolete search instead of leaving history fetches running", async () => {
+    const client = {
+      listSessionsPage: vi.fn().mockImplementation((_dir: string, _limit: number, _cursor?: string, signal?: AbortSignal) =>
+        new Promise((_resolve, reject) => signal?.addEventListener("abort", () => reject(new Error("aborted")))),
+      ),
+      messages: vi.fn(),
+    };
+    const s = new SessionListService(
+      () => client as never,
+      () => "/work",
+      () => "other",
+      new Generation(),
+      vi.fn(),
+      vi.fn(),
+      () => 10,
+    );
+    const pending = s.search("old query");
+    s.cancelSearch();
+    expect(await pending).toEqual([]);
+    expect(client.messages).not.toHaveBeenCalled();
+  });
+
   it("does nothing without a connected client or a query", async () => {
     expect(await service().search("   ")).toEqual([]);
     expect(await service(false).search("auth")).toEqual([]);

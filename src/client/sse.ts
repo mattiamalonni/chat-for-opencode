@@ -7,6 +7,24 @@ export interface SseMessage {
   id?: string;
 }
 
+/** Thrown when a stream sends an incomplete line or event larger than the configured cap. */
+export class SseOverflowError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "SseOverflowError";
+  }
+}
+
+export interface SseParserOptions {
+  /** Cap for a line that never terminates with a newline (a stalling/broken peer). */
+  maxUnfinishedBytes?: number;
+  /** Cap for the accumulated `data:` lines of one event. */
+  maxEventBytes?: number;
+}
+
+const DEFAULT_MAX_UNFINISHED_BYTES = 512 * 1024;
+const DEFAULT_MAX_EVENT_BYTES = 2 * 1024 * 1024;
+
 /**
  * Incremental parser for the text/event-stream format (WHATWG HTML §9.2).
  * Comment lines (`: heartbeat`) are reported through `onComment` so callers can use them as
@@ -18,10 +36,12 @@ export class SseParser {
   private event: string | undefined;
   private id: string | undefined;
   private sawCR = false;
+  private dataBytes = 0;
 
   constructor(
     private readonly onMessage: (msg: SseMessage) => void,
     private readonly onComment: (text: string) => void = () => {},
+    private readonly opts: SseParserOptions = {},
   ) {}
 
   feed(chunk: string): void {
@@ -29,6 +49,11 @@ export class SseParser {
     if (this.sawCR && chunk.startsWith("\n")) chunk = chunk.slice(1);
     this.sawCR = chunk.endsWith("\r");
     this.buffer += chunk;
+    // The idle watchdog only sees whole chunks: a slow trickle of bytes without a newline would
+    // keep it alive while this buffer grows without bound. Fail the stream instead and resync.
+    if (this.buffer.length > (this.opts.maxUnfinishedBytes ?? DEFAULT_MAX_UNFINISHED_BYTES)) {
+      throw new SseOverflowError("SSE line exceeded the size limit");
+    }
     const lines = this.buffer.split(/\r\n|\r|\n/);
     this.buffer = lines.pop() ?? "";
     for (const line of lines) this.line(line);
@@ -56,6 +81,10 @@ export class SseParser {
     if (value.startsWith(" ")) value = value.slice(1);
     switch (field) {
       case "data":
+        this.dataBytes += value.length;
+        if (this.dataBytes > (this.opts.maxEventBytes ?? DEFAULT_MAX_EVENT_BYTES)) {
+          throw new SseOverflowError("SSE event exceeded the size limit");
+        }
         this.data.push(value);
         break;
       case "event":
@@ -78,6 +107,7 @@ export class SseParser {
     if (this.event !== undefined) msg.event = this.event;
     if (this.id !== undefined) msg.id = this.id;
     this.data = [];
+    this.dataBytes = 0;
     this.event = undefined;
     this.onMessage(msg);
   }

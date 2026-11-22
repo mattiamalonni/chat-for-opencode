@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { EventStream, SseParser, parseServerEvent, type SseMessage } from "../../src/client/sse";
+import { EventStream, SseOverflowError, SseParser, parseServerEvent, type SseMessage } from "../../src/client/sse";
 import type { ServerEvent } from "../../src/shared/api";
 import { startMockServer, type MockServer } from "../mock/mockServer";
 
@@ -41,6 +41,17 @@ describe("SseParser", () => {
 
   it("flushes a trailing event without blank line at end()", () => {
     expect(collect(["data: last"]).messages.map((m) => m.data)).toEqual(["last"]);
+  });
+
+  it("fails a stream that trickles an unterminated line past the cap", () => {
+    const p = new SseParser(() => {}, () => {}, { maxUnfinishedBytes: 100 });
+    for (let i = 0; i < 10; i++) p.feed("x".repeat(10)); // 100 bytes is fine
+    expect(() => p.feed("x".repeat(11))).toThrow(SseOverflowError);
+  });
+
+  it("fails a single event whose data exceeds the cap", () => {
+    const p = new SseParser(() => {}, () => {}, { maxEventBytes: 50 });
+    expect(() => p.feed(`data: ${"x".repeat(51)}\n\n`)).toThrow(SseOverflowError);
   });
 
   it("ignores malformed JSON when decoding server events", () => {

@@ -367,6 +367,8 @@ export class ChatController implements vscode.Disposable {
 
   /** Search session titles and message bodies across the workspace (delegated to the picker service). */
   async searchSessions(query: string, maxSessions = 200): Promise<SessionSearchResult[]> {
+    // A new query supersedes the previous one; do not leave its history fetches running.
+    this.sessionList.cancelSearch();
     return this.sessionList.search(query, maxSessions);
   }
 
@@ -2043,6 +2045,7 @@ export class ChatController implements vscode.Disposable {
   }
 
   async dispose(): Promise<void> {
+    this.sessionList.cancelSearch();
     await this.attachments.dispose();
     this.supervisor.detachServerOnly();
     this.fileIndex?.dispose();

@@ -2,6 +2,11 @@
 
 ## 0.3.19 — 2026-11-22
 
+- **Robustness:** HTTP bodies, SSE buffers and raw server stdout are now size-bounded, so a broken
+  server or proxy cannot exhaust the extension host's memory. Session summaries and cross-session
+  search use a bounded request pool with cancellation, and "Load more" has its own generation: an
+  event-burst refresh no longer invalidates a page the user just requested or discards the pages
+  already loaded.
 - **Security:** the managed server's password is now redacted in every encoding that can appear in
   child-process output (raw, Basic Base64/Base64URL, URL-encoded, hex, `OPENCODE_PASSWORD=…` and any
   `Authorization: Basic/Bearer` value). Raw stderr is no longer sent to the webview as an error

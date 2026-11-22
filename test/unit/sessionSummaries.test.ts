@@ -52,6 +52,68 @@ describe("session list summaries", () => {
     expect(client.messages).toHaveBeenCalledTimes(2);
   });
 
+  it("does not invalidate a load-more request when a refresh happens during it", async () => {
+    const post = vi.fn();
+    const second = { id: "s2", title: "Second", time: { created: 1, updated: 99 } };
+    const client = {
+      messages: vi.fn().mockResolvedValue([]),
+      permissions: vi.fn().mockResolvedValue([]),
+      forms: vi.fn().mockResolvedValue([]),
+      listSessionsPage: vi.fn().mockImplementation((_dir: string, _limit: number, cursor?: string) =>
+        Promise.resolve(cursor ? { items: [second], next: undefined } : { items: [busy], next: "cursor-1" }),
+      ),
+    };
+    const s = new SessionListService(
+      () => client as never,
+      () => "/work",
+      () => "other",
+      new Generation(),
+      post,
+      vi.fn(),
+      () => 10,
+    );
+    await s.refresh();
+    const loading = s.loadMore();
+    // Event bursts call refresh constantly; with a single shared generation this used to throw
+    // away the page the user had just asked for.
+    await s.refresh();
+    await loading;
+    const items = post.mock.calls.at(-1)?.[0] as { items: Array<{ id: string }> };
+    expect(items.items.map((i) => i.id)).toEqual(["s1", "s2"]);
+  });
+
+  it("caps concurrent deep fetches while a busy page refreshes", async () => {
+    let active = 0;
+    let peak = 0;
+    const client = {
+      messages: vi.fn().mockImplementation(async () => {
+        active++;
+        peak = Math.max(peak, active);
+        await new Promise((r) => setTimeout(r, 5));
+        active--;
+        return [];
+      }),
+      permissions: vi.fn().mockResolvedValue([]),
+      forms: vi.fn().mockResolvedValue([]),
+      listSessionsPage: vi.fn().mockResolvedValue({
+        items: Array.from({ length: 18 }, (_, i) => ({ id: `s${i}`, title: "S", time: { created: 1, updated: 100, busy: 1000 } })),
+        next: undefined,
+      }),
+    };
+    const s = new SessionListService(
+      () => client as never,
+      () => "/work",
+      () => "other",
+      new Generation(),
+      vi.fn(),
+      vi.fn(),
+      () => 50,
+    );
+    await s.refresh();
+    expect(client.messages).toHaveBeenCalledTimes(18);
+    expect(peak).toBeLessThanOrEqual(6);
+  });
+
   it("posts the summaries to the webview", async () => {
     const post = vi.fn();
     const client = {
