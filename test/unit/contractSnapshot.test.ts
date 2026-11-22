@@ -2,6 +2,7 @@ import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { parseServerEvent } from "../../src/client/sse";
+import { REQUIRED_ENDPOINTS } from "../../src/client/endpoints";
 import { normalizeServerEvent } from "../../src/shared/adapter";
 
 const FIXTURES = join(__dirname, "../fixtures");
@@ -36,26 +37,15 @@ describe("recorded OpenCode 2.2.7 contract", () => {
     expect(dropped).toEqual([]);
   });
 
-  it("keeps every endpoint the client relies on in the OpenAPI snapshot", () => {
-    const required = [
-      "/api/info",
-      "/api/event",
-      "/api/config",
-      "/api/model",
-      "/api/model/default",
-      "/api/agent",
-      "/api/skill",
-      "/api/command",
-      "/api/session",
-      "/api/session/{sessionID}/message",
-      "/api/session/{sessionID}/prompt",
-      "/api/session/{sessionID}/revert/stage",
-      "/api/session/{sessionID}/revert/commit",
-      "/api/session/{sessionID}/inbox",
-      "/api/session/{sessionID}/permission",
-      "/api/session/{sessionID}/form",
-      "/api/session/{sessionID}/diff",
-    ];
-    expect(required.filter((path) => !(path in OPENAPI.paths))).toEqual([]);
+  it("keeps every endpoint and method the client relies on in the OpenAPI snapshot", () => {
+    // The registry is what OpenCodeClient.requestEndpoint uses, so a new call cannot escape the gate.
+    const missing = REQUIRED_ENDPOINTS.flatMap((endpoint) => {
+      const path = `/${endpoint.path}`;
+      const item = OPENAPI.paths[path] as Record<string, unknown> | undefined;
+      if (!item) return [path];
+      return endpoint.method.toLowerCase() in item ? [] : [`${endpoint.method} ${path}`];
+    });
+    expect(missing).toEqual([]);
+    expect(REQUIRED_ENDPOINTS.length).toBeGreaterThanOrEqual(30);
   });
 });

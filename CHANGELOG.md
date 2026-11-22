@@ -2,6 +2,9 @@
 
 ## 0.3.19 — 2026-11-22
 
+- **CI:** the deterministic contract gate now checks every endpoint and HTTP method the client
+  actually calls. `OpenCodeClient` builds requests from a shared `ENDPOINTS` registry, so a new or
+  changed call cannot silently fall outside the 2.2.7 OpenAPI snapshot.
 - **Fix:** a locally posted idle (Stop, rejecting a permission, dismissing a question) now also
   finishes the partial assistant message and its turn in the webview, instead of only unlocking the
   composer. Without a server terminal event those cards kept shimmering with a disabled copy button.

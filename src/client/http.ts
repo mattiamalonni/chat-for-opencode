@@ -18,6 +18,7 @@ import type {
   SessionMessage,
 } from "../shared/api";
 import { DEFAULT_HTTP_TIMEOUT_MS } from "../shared/constants";
+import { ENDPOINTS, endpointPath, type ApiEndpoint } from "./endpoints";
 
 export interface Connection {
   baseUrl: string;
@@ -149,6 +150,15 @@ export class OpenCodeClient {
     }
   }
 
+  /** Build every request from the shared endpoint registry (also used by the contract gate). */
+  private requestEndpoint<T>(
+    endpoint: ApiEndpoint,
+    params: Record<string, string> = {},
+    options: { query?: Query; body?: unknown; signal?: AbortSignal; timeoutMs?: number } = {},
+  ): Promise<T> {
+    return this.request<T>(endpoint.method, endpointPath(endpoint.path, params), options);
+  }
+
   /** Unwrap `{ data: … }` envelopes: a missing/wrong field is a contract break, not `undefined`. */
   private data<T>(res: unknown, label: string): T {
     if (!res || typeof res !== "object" || !("data" in res)) {
@@ -165,7 +175,7 @@ export class OpenCodeClient {
   }
 
   async info(signal?: AbortSignal): Promise<ServerInfo> {
-    const res = await this.request<{ version?: unknown }>("GET", "api/info", { signal, timeoutMs: 5_000 });
+    const res = await this.requestEndpoint<{ version?: unknown }>(ENDPOINTS.info, {}, { signal, timeoutMs: 5_000 });
     if (!res || typeof res.version !== "string") {
       throw new ApiError("Malformed server info response", 200, "malformedResponse");
     }
@@ -174,9 +184,13 @@ export class OpenCodeClient {
 
   /** Config documents and discovery sources, from lowest to highest priority. */
   async config(directory?: string): Promise<ConfigEntry[]> {
-    const res = await this.request<ConfigEntry[]>("GET", "api/config", {
-      query: directory ? { "location[directory]": directory } : undefined,
-    });
+    const res = await this.requestEndpoint<ConfigEntry[]>(
+      ENDPOINTS.config,
+      {},
+      {
+        query: directory ? { "location[directory]": directory } : undefined,
+      },
+    );
     return Array.isArray(res) ? res : [];
   }
 
@@ -187,11 +201,15 @@ export class OpenCodeClient {
     cursor?: string,
     signal?: AbortSignal,
   ): Promise<{ items: SessionInfo[]; next?: string }> {
-    const res = await this.request<{ data: SessionInfo[]; cursor?: { next?: string | null } }>("GET", "api/session", {
-      // `order` only applies to the first page; the cursor continues that ordering.
-      query: cursor ? { directory, limit, parentID: "null", cursor } : { directory, limit, order: "desc", parentID: "null" },
-      signal,
-    });
+    const res = await this.requestEndpoint<{ data: SessionInfo[]; cursor?: { next?: string | null } }>(
+      ENDPOINTS.sessionList,
+      {},
+      {
+        // `order` only applies to the first page; the cursor continues that ordering.
+        query: cursor ? { directory, limit, parentID: "null", cursor } : { directory, limit, order: "desc", parentID: "null" },
+        signal,
+      },
+    );
     return { items: this.dataArray<SessionInfo>(res, "session list"), next: res.cursor?.next ?? undefined };
   }
 
@@ -201,9 +219,13 @@ export class OpenCodeClient {
 
   /** Child sessions of one session. The root list filters them out with `parentID=null`. */
   async listChildSessions(parentID: string, directory?: string, limit = 100): Promise<SessionInfo[]> {
-    const res = await this.request<unknown>("GET", "api/session", {
-      query: { directory, limit, parentID, order: "desc" },
-    });
+    const res = await this.requestEndpoint<unknown>(
+      ENDPOINTS.sessionList,
+      {},
+      {
+        query: { directory, limit, parentID, order: "desc" },
+      },
+    );
     return this.dataArray<SessionInfo>(res, "child session list");
   }
 
@@ -213,21 +235,21 @@ export class OpenCodeClient {
     if (input.agent) body.agent = input.agent;
     if (input.model) body.model = input.model;
     if (input.permissions && input.permissions.length > 0) body.permissions = input.permissions;
-    const res = await this.request<unknown>("POST", "api/session", { body });
+    const res = await this.requestEndpoint<unknown>(ENDPOINTS.sessionCreate, {}, { body });
     return this.data<SessionInfo>(res, "session");
   }
 
   async getSession(id: string, signal?: AbortSignal): Promise<SessionInfo> {
-    const res = await this.request<unknown>("GET", `api/session/${encodeURIComponent(id)}`, { signal });
+    const res = await this.requestEndpoint<unknown>(ENDPOINTS.sessionGet, { sessionID: id }, { signal });
     return this.data<SessionInfo>(res, "session");
   }
 
   async deleteSession(id: string): Promise<void> {
-    await this.request("DELETE", `api/session/${encodeURIComponent(id)}`);
+    await this.requestEndpoint(ENDPOINTS.sessionDelete, { sessionID: id });
   }
 
   async renameSession(id: string, title: string): Promise<void> {
-    await this.request("PATCH", `api/session/${encodeURIComponent(id)}`, { body: { title } });
+    await this.requestEndpoint(ENDPOINTS.sessionRename, { sessionID: id }, { body: { title } });
   }
 
   /** Full history in chronological order (follows pagination up to `max` messages). */
@@ -235,9 +257,9 @@ export class OpenCodeClient {
     const out: SessionMessage[] = [];
     let cursor: string | undefined;
     do {
-      const res = await this.request<{ data?: unknown; cursor?: { next?: string | null } }>(
-        "GET",
-        `api/session/${encodeURIComponent(id)}/message`,
+      const res = await this.requestEndpoint<{ data?: unknown; cursor?: { next?: string | null } }>(
+        ENDPOINTS.messages,
+        { sessionID: id },
         // The server rejects `order` together with `cursor` ("Cursor cannot be combined with order").
         { query: cursor ? { limit: 200, cursor } : { order: "asc", limit: 200 }, signal },
       );
@@ -255,7 +277,7 @@ export class OpenCodeClient {
    * was trimmed or compacted — so callers must fall back to a full `messages()` fetch.
    */
   async messagesNewerThan(id: string, lastId: string, limit = 200): Promise<SessionMessage[] | undefined> {
-    const res = await this.request<unknown>("GET", `api/session/${encodeURIComponent(id)}/message`, { query: { order: "desc", limit } });
+    const res = await this.requestEndpoint<unknown>(ENDPOINTS.messages, { sessionID: id }, { query: { order: "desc", limit } });
     const page = this.dataArray<SessionMessage>(res, "session history");
     const index = page.findIndex((m) => !!m && typeof m === "object" && m.id === lastId);
     return index < 0 ? undefined : page.slice(0, index).reverse();
@@ -265,9 +287,13 @@ export class OpenCodeClient {
     const body: Record<string, unknown> = { text };
     if (files.length > 0) body.files = files;
     if (delivery) body.delivery = delivery;
-    const res = await this.request<unknown>("POST", `api/session/${encodeURIComponent(id)}/prompt`, {
-      body,
-    });
+    const res = await this.requestEndpoint<unknown>(
+      ENDPOINTS.prompt,
+      { sessionID: id },
+      {
+        body,
+      },
+    );
     return this.data<{ id: string }>(res, "prompt");
   }
 
@@ -276,37 +302,45 @@ export class OpenCodeClient {
     const body: Record<string, unknown> = { name, text };
     if (files.length > 0) body.files = files;
     if (delivery) body.delivery = delivery;
-    await this.request("POST", `api/session/${encodeURIComponent(id)}/command`, { body });
+    await this.requestEndpoint(ENDPOINTS.command, { sessionID: id }, { body });
   }
 
   /** Copy the session's history up to (but not including) `before` into a new session. */
   async forkSession(id: string, before: string): Promise<SessionInfo> {
-    const res = await this.request<unknown>("POST", `api/session/${encodeURIComponent(id)}/fork`, {
-      body: { before },
-    });
+    const res = await this.requestEndpoint<unknown>(
+      ENDPOINTS.fork,
+      { sessionID: id },
+      {
+        body: { before },
+      },
+    );
     return this.data<SessionInfo>(res, "fork");
   }
 
   /** Prompts still waiting in the inbox, oldest first (the server keeps insertion order). */
   async inbox(id: string): Promise<InboxItem[]> {
-    const res = await this.request<unknown>("GET", `api/session/${encodeURIComponent(id)}/inbox`);
+    const res = await this.requestEndpoint<unknown>(ENDPOINTS.inbox, { sessionID: id });
     return this.dataArray<InboxItem>(res, "inbox");
   }
 
   /** Change how a queued item is delivered. `steer` makes it interrupt the current turn. */
   async setInboxDelivery(id: string, inboxId: string, delivery: InboxDelivery): Promise<void> {
-    await this.request("PATCH", `api/session/${encodeURIComponent(id)}/inbox/${encodeURIComponent(inboxId)}`, {
-      body: { delivery },
-    });
+    await this.requestEndpoint(
+      ENDPOINTS.inboxDelivery,
+      { sessionID: id, inboxID: inboxId },
+      {
+        body: { delivery },
+      },
+    );
   }
 
   async cancelInbox(id: string, inboxId: string): Promise<void> {
-    await this.request("DELETE", `api/session/${encodeURIComponent(id)}/inbox/${encodeURIComponent(inboxId)}`);
+    await this.requestEndpoint(ENDPOINTS.inboxCancel, { sessionID: id, inboxID: inboxId });
   }
 
   /** Durably admit a compaction request; the server runs it at the next step boundary. */
   async compact(id: string): Promise<void> {
-    await this.request("POST", `api/session/${encodeURIComponent(id)}/compact`, { body: {} });
+    await this.requestEndpoint(ENDPOINTS.compact, { sessionID: id }, { body: {} });
   }
 
   /**
@@ -314,96 +348,108 @@ export class OpenCodeClient {
    * message right away (unless `files` is false); the boundary is applied by `revertCommit`.
    */
   async revertStage(id: string, messageID: string, files?: boolean): Promise<void> {
-    await this.request("POST", `api/session/${encodeURIComponent(id)}/revert/stage`, {
-      body: files === undefined ? { messageID } : { messageID, files },
-    });
+    await this.requestEndpoint(
+      ENDPOINTS.revertStage,
+      { sessionID: id },
+      {
+        body: files === undefined ? { messageID } : { messageID, files },
+      },
+    );
   }
 
   /** Apply the staged boundary: the target message and everything after it are dropped. */
   async revertCommit(id: string): Promise<void> {
-    await this.request("POST", `api/session/${encodeURIComponent(id)}/revert/commit`, { body: {} });
+    await this.requestEndpoint(ENDPOINTS.revertCommit, { sessionID: id }, { body: {} });
   }
 
   /** Discard a staged boundary and restore the files it temporarily rolled back. */
   async revertClear(id: string): Promise<void> {
-    await this.request("DELETE", `api/session/${encodeURIComponent(id)}/revert`);
+    await this.requestEndpoint(ENDPOINTS.revertDelete, { sessionID: id });
   }
 
   /** Wait for the session's agent loop to become idle, so a revert can be staged. */
   async waitIdle(id: string): Promise<void> {
-    await this.request("POST", `api/experimental/session/${encodeURIComponent(id)}/wait`);
+    await this.requestEndpoint(ENDPOINTS.wait, { sessionID: id });
   }
 
   async interrupt(id: string): Promise<boolean> {
-    const res = await this.request<{ interrupted: boolean }>("POST", `api/session/${encodeURIComponent(id)}/interrupt`);
+    const res = await this.requestEndpoint<{ interrupted: boolean }>(ENDPOINTS.interrupt, { sessionID: id });
     return res?.interrupted ?? false;
   }
 
   async switchAgent(id: string, agent: string): Promise<void> {
-    await this.request("POST", `api/session/${encodeURIComponent(id)}/agent`, { body: { agent } });
+    await this.requestEndpoint(ENDPOINTS.switchAgent, { sessionID: id }, { body: { agent } });
   }
 
   async switchModel(id: string, model: ModelRef): Promise<void> {
-    await this.request("POST", `api/session/${encodeURIComponent(id)}/model`, { body: { model } });
+    await this.requestEndpoint(ENDPOINTS.switchModel, { sessionID: id }, { body: { model } });
   }
 
   async permissions(id: string, signal?: AbortSignal): Promise<PermissionRequest[]> {
-    const res = await this.request<unknown>("GET", `api/session/${encodeURIComponent(id)}/permission`, { signal });
+    const res = await this.requestEndpoint<unknown>(ENDPOINTS.permissions, { sessionID: id }, { signal });
     return this.dataArray<PermissionRequest>(res, "permission list");
   }
 
   async replyPermission(sessionId: string, requestId: string, decision: PermissionDecision): Promise<void> {
-    await this.request("POST", `api/session/${encodeURIComponent(sessionId)}/permission/${encodeURIComponent(requestId)}/reply`, {
-      body: { decision },
-    });
+    await this.requestEndpoint(
+      ENDPOINTS.permissionReply,
+      { sessionID: sessionId, requestID: requestId },
+      {
+        body: { decision },
+      },
+    );
   }
 
   async forms(id: string, signal?: AbortSignal): Promise<FormRequest[]> {
-    const res = await this.request<unknown>("GET", `api/session/${encodeURIComponent(id)}/form`, { signal });
+    const res = await this.requestEndpoint<unknown>(ENDPOINTS.forms, { sessionID: id }, { signal });
     return this.dataArray<FormRequest>(res, "form list");
   }
 
   async replyForm(sessionId: string, formId: string, answer: Record<string, FormValue>): Promise<void> {
-    await this.request("POST", `api/session/${encodeURIComponent(sessionId)}/form/${encodeURIComponent(formId)}/reply`, {
-      body: { answer },
-    });
+    await this.requestEndpoint(
+      ENDPOINTS.formReply,
+      { sessionID: sessionId, formID: formId },
+      {
+        body: { answer },
+      },
+    );
   }
 
   async cancelForm(sessionId: string, formId: string): Promise<void> {
-    await this.request("DELETE", `api/session/${encodeURIComponent(sessionId)}/form/${encodeURIComponent(formId)}`);
+    await this.requestEndpoint(ENDPOINTS.formCancel, { sessionID: sessionId, formID: formId });
   }
 
   async diff(id: string): Promise<FileDiff[]> {
-    const res = await this.request<unknown>("GET", `api/session/${encodeURIComponent(id)}/diff`);
+    const res = await this.requestEndpoint<unknown>(ENDPOINTS.diff, { sessionID: id });
     return this.dataArray<FileDiff>(res, "diff");
   }
 
   async models(): Promise<ModelInfo[]> {
-    const res = await this.request<unknown>("GET", "api/model", { query: { types: "chat" } });
+    const res = await this.requestEndpoint<unknown>(ENDPOINTS.models, {}, { query: { types: "chat" } });
     return this.dataArray<ModelInfo>(res, "model list");
   }
 
   async defaultModel(): Promise<ModelInfo | null> {
-    const res = await this.request<unknown>("GET", "api/model/default");
+    const res = await this.requestEndpoint<unknown>(ENDPOINTS.modelDefault);
     return this.data<ModelInfo | null>(res, "default model");
   }
 
   async agents(): Promise<AgentInfo[]> {
-    const res = await this.request<unknown>("GET", "api/agent");
+    const res = await this.requestEndpoint<unknown>(ENDPOINTS.agents);
     return this.dataArray<AgentInfo>(res, "agent list");
   }
 
   async skills(): Promise<SkillInfo[]> {
-    const res = await this.request<unknown>("GET", "api/skill");
+    const res = await this.requestEndpoint<unknown>(ENDPOINTS.skills);
     return this.dataArray<SkillInfo>(res, "skill list");
   }
 
   async commands(): Promise<CommandInfo[]> {
-    const res = await this.request<unknown>("GET", "api/command");
+    const res = await this.requestEndpoint<unknown>(ENDPOINTS.commands);
     return this.dataArray<CommandInfo>(res, "command list");
   }
 
   eventUrl(): string {
-    return this.url("api/event");
+    return this.url(ENDPOINTS.event.path);
   }
 }
