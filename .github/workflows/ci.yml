@@ -21,6 +21,7 @@ concurrency:
 jobs:
   test:
     name: Lint, build, unit + UI tests
+    timeout-minutes: 20
     strategy:
       fail-fast: false
       matrix:
@@ -95,6 +96,7 @@ jobs:
 
   integration:
     name: VS Code integration (${{ matrix.os }} / ${{ matrix.vscode }})
+    timeout-minutes: 20
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -136,6 +138,7 @@ jobs:
 
   package:
     name: Package .vsix
+    timeout-minutes: 10
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -154,7 +157,11 @@ jobs:
     name: Contract (opencode@2.2.7)
     # Only on manual/scheduled runs: these tests hit a real `opencode serve` and a provider.
     if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    timeout-minutes: 20
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
@@ -165,6 +172,32 @@ jobs:
       - name: Install opencode 2.2.7
         run: npm install -g opencode@2.2.7
       - name: Contract e2e tests
+        id: contract-tests
         run: npm run test:e2e
-        # A missing provider/network or an upstream API drift must not block releases.
+        # A missing provider/network or an upstream API drift must not block releases, but the
+        # steps below make sure it is visible instead of silently showing a green check.
         continue-on-error: true
+      - name: Contract drift summary
+        if: always()
+        run: |
+          if [ "${{ steps.contract-tests.outcome }}" = "failure" ]; then
+            echo "### ⚠️ OpenCode 2.2.7 contract check failed" >> "$GITHUB_STEP_SUMMARY"
+            echo "The live contract suite reported a failure. Inspect the job log to distinguish provider/network issues from API drift." >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "### ✅ OpenCode 2.2.7 contract check passed" >> "$GITHUB_STEP_SUMMARY"
+          fi
+          echo "Run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" >> "$GITHUB_STEP_SUMMARY"
+      - name: Report contract drift
+        if: steps.contract-tests.outcome == 'failure'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          gh label create contract-drift --description "Scheduled OpenCode contract check failed" --color b60205 || true
+          existing=$(gh issue list --label contract-drift --state open --json number --jq '.[0].number' || true)
+          body="The scheduled OpenCode 2.2.7 contract check failed. Review the run: $RUN_URL"
+          if [ -n "$existing" ]; then
+            gh issue comment "$existing" --body "$body"
+          else
+            gh issue create --title "OpenCode contract drift (scheduled check)" --label contract-drift --body "$body"
+          fi

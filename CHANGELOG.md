@@ -2,6 +2,9 @@
 
 ## 0.3.19 — 2026-11-22
 
+- **CI:** every job now has an explicit timeout, and the nightly live-contract job writes a run
+  summary and opens/comments on a `contract-drift` issue on failure. Being advisory no longer means
+  being invisible.
 - **CI:** added a smoke test against the minified, source-map-free production bundle. The full UI
   suite still runs on the development bundle (so coverage can be mapped to TypeScript), but the
   artefact that ships is now exercised before packaging.
