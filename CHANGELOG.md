@@ -2,6 +2,11 @@
 
 ## 0.3.19 — 2026-11-22
 
+- **Fix:** switching sessions (or starting a new one) now closes a turn that was still running on
+  the previous session. Terminal events of the old session cannot arrive for the new id, so the
+  status bar used to keep spinning; `ensureSession()` invalidates the token and publishes `idle`.
+  `reset()` now always notifies subscribers, and the two early returns in `send()` close a turn that
+  never reached the server.
 - **Security:** config documents reported by the server are now treated as untrusted input. Only
   `opencode.json`/`opencode.jsonc` files inside the workspace (after resolving symlinks) may be
   opened; a path outside the workspace is ignored and creation is limited to the in-workspace

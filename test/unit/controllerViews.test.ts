@@ -116,6 +116,7 @@ describe("loadSession staleness", () => {
       output: { warn: vi.fn() },
       observeContract: vi.fn(),
       sessionId: "old",
+      execution: { ensureSession: vi.fn() },
       subagents: { reset: vi.fn(), track: vi.fn(), discover: vi.fn() },
       permissions: {
         filterPending: vi.fn(async () => {

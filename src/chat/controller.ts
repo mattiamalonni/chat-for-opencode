@@ -1368,7 +1368,11 @@ export class ChatController implements vscode.Disposable {
     // synchronously and drops its result if that id no longer matches the open session. Setting it
     // afterwards made every subagent of a freshly selected session fail its own staleness guard.
     this.sessionId = info.id;
-    if (changed) this.subagents.reset();
+    if (changed) {
+      this.subagents.reset();
+      // Terminal events of the previous session cannot close its turn any more.
+      this.execution.ensureSession(info.id);
+    }
     const newest = messages.at(-1);
     this.lastKnownMessage = newest ? { sessionId: info.id, id: newest.id } : undefined;
     // Requests granted automatically must not linger as cards when the chat's toggle is on.
@@ -1446,6 +1450,7 @@ export class ChatController implements vscode.Disposable {
     this.failedPrompt = undefined;
     this.lifecycle.generations.load.bump();
     this.clearTimers();
+    this.execution.reset();
     // No session is open any more: polling its tail would be a no-op every two seconds until the
     // next load. Loading that session starts the poll again.
     this.stopLivePoll();
@@ -1917,7 +1922,7 @@ export class ChatController implements vscode.Disposable {
   /** Returns false when the prompt never reached the server (no notice is posted for stale loads). */
   private async send(text: string, attachments: Attachment[], context: ContextItem[], delivery?: "steer" | "queue"): Promise<boolean> {
     // A queued message starts no turn yet: leave the current turn's reconcile generation alone.
-    const generation = delivery === "queue" ? undefined : this.execution.start(this.sessionId);
+    const turn = { generation: delivery === "queue" ? undefined : this.execution.start(this.sessionId) };
     if (delivery !== "queue") this.lifecycle.cancel("reconcile");
     if (!this.client) await this.connect();
     const client = this.client;
@@ -1929,7 +1934,7 @@ export class ChatController implements vscode.Disposable {
         delivery,
         this.sessionId,
         translatedStrings()["error.connectionLost"],
-        generation,
+        turn.generation,
       );
       return false;
     }
@@ -1957,7 +1962,7 @@ export class ChatController implements vscode.Disposable {
           .getConfiguration("opencode", this.folder.uri)
           .get<PermissionRule[]>("sessionPermissions", DEFAULT_SESSION_PERMISSIONS);
         const autoApprove = this.permissions.takePending();
-        const generation = this.lifecycle.generations.load.bump();
+        const loadGeneration = this.lifecycle.generations.load.bump();
         const info = await client.createSession({
           directory: this.folder.uri.fsPath,
           agent: this.catalog.selectedAgent,
@@ -1967,11 +1972,22 @@ export class ChatController implements vscode.Disposable {
         if (autoApprove !== undefined) {
           await this.permissions.write(info.id, autoApprove);
         }
-        await this.loadSession(info, () => !this.lifecycle.generations.load.is(generation), undefined, true);
-        if (!this.lifecycle.generations.load.is(generation)) return false;
+        await this.loadSession(info, () => !this.lifecycle.generations.load.is(loadGeneration), undefined, true);
+        if (!this.lifecycle.generations.load.is(loadGeneration)) {
+          this.execution.fail(this.sessionId, turn.generation);
+          return false;
+        }
+        // Loading the freshly created session changes `sessionId`, which correctly closes the
+        // previous session's turn. This prompt is still in flight, so re-arm it for the new id.
+        if (turn.generation !== undefined && !this.execution.is(turn.generation)) {
+          turn.generation = this.execution.start(this.sessionId);
+        }
       }
       const sid = this.sessionId;
-      if (!sid) return false;
+      if (!sid) {
+        this.execution.fail(this.sessionId, turn.generation);
+        return false;
+      }
       const slash = /^\/(\S+)(?:\s+([\s\S]*))?$/.exec(text);
       const command = slash && this.catalog.commands.find((c) => c.name === slash[1]);
       // A steer replaces the current answer: interrupt first, then send with the server's
@@ -1986,7 +2002,7 @@ export class ChatController implements vscode.Disposable {
       return true;
     } catch (err) {
       const detail = err instanceof Error ? err.message : String(err);
-      await this.restoreFailedPrompt(text, attachments, context, delivery, this.sessionId, detail, generation);
+      await this.restoreFailedPrompt(text, attachments, context, delivery, this.sessionId, detail, turn.generation);
       return false;
     }
   }

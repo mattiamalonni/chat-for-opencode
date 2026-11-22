@@ -898,6 +898,20 @@ describe("chat-for-opencode extension", () => {
     }
   });
 
+  it("closes a running turn when the open session changes", async () => {
+    const states: ExecutionState[] = [];
+    const subscription = controller.onDidChangeExecution((state) => states.push(state));
+    try {
+      await controller.receive({ type: "send", text: "[slow] switch away", attachments: [], context: [] });
+      await waitFor(() => states.at(-1)?.status === "running", "running state before the switch");
+      await controller.receive({ type: "newSession" });
+      await waitFor(() => states.at(-1)?.status === "idle", "idle state after the switch");
+      assert.equal(states.at(-1)?.sessionId, undefined);
+    } finally {
+      subscription.dispose();
+    }
+  });
+
   it("stops the server cleanly and reconnects on the next prompt", async () => {
     const oldUrl = controller.debugState.baseUrl;
     const mark = posted.length;

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { ExecutionStateService } from "../../src/chat/executionState";
+import { ExecutionStateService, type ExecutionState } from "../../src/chat/executionState";
 
 describe("ExecutionStateService — one owner for turn state", () => {
   it("publishes to subscribers and invalidates older turns on start", () => {
@@ -42,10 +42,32 @@ describe("ExecutionStateService — one owner for turn state", () => {
 
   it("reset invalidates in-flight work and clears a stale running badge", () => {
     const service = new ExecutionStateService();
+    const seen: ExecutionState[] = [];
+    service.onDidChange((s) => seen.push(s));
     const token = service.start("s1");
     service.reset();
     expect(service.is(token)).toBe(false);
     expect(service.isLocallyIdle("s1")).toBe(false);
     expect(service.state.status).toBe("idle");
+    // Subscribers must be notified even when no session id is available.
+    expect(seen.at(-1)).toEqual({ status: "idle", sessionId: undefined });
+  });
+
+  it("closes a turn when the open session changes, without disturbing a same-session resync", () => {
+    const service = new ExecutionStateService();
+    const seen: string[] = [];
+    service.onDidChange((s) => seen.push(s.status));
+    const token = service.start("s1");
+    service.ensureSession("s1");
+    expect(service.state.status).toBe("running");
+    expect(service.is(token)).toBe(true);
+
+    service.ensureSession("s2");
+    expect(service.state).toEqual({ status: "idle", sessionId: "s2" });
+    expect(service.is(token)).toBe(false);
+    // A terminal event for the old session must not reopen the new one's state.
+    service.observe("session.execution.failed", "s1", "s2");
+    expect(service.state.status).toBe("idle");
+    expect(seen).toEqual(["idle", "running", "idle"]);
   });
 });

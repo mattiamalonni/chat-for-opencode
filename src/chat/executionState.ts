@@ -115,11 +115,24 @@ export class ExecutionStateService {
     return this.localIdle?.sid === sid && this.is(this.localIdle.generation);
   }
 
-  /** Folder switch / dispose: invalidate in-flight work without leaving a stale running badge. */
+  /**
+   * The open session changed. A turn belonging to the previous session can no longer be closed by
+   * its terminal events (they are filtered by session id), so end it here instead of leaving the
+   * status bar spinning forever. No-op for a same-session resync.
+   */
+  ensureSession(sid?: string): void {
+    if (this.sessionId === sid) return;
+    this.generation.bump();
+    this.localIdle = undefined;
+    this.sessionId = sid;
+    this.publish("idle", sid);
+  }
+
+  /** Folder switch / dispose: invalidate in-flight work and always close a stale running badge. */
   reset(sid?: string): void {
     this.generation.bump();
     this.localIdle = undefined;
-    if (sid !== undefined) this.publish("idle", sid);
-    else this.status = "idle";
+    this.sessionId = sid;
+    this.publish("idle", sid);
   }
 }
