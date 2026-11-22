@@ -1385,10 +1385,12 @@ export class ChatController implements vscode.Disposable {
     // flight bumps `loadGen`; without a second guard we would persist and post the stale session.
     if (stale?.()) return;
     await this.ctx.workspaceState.update(SESSION_KEY(this.folder.uri.toString()), info.id);
+    // Persist the selection carried by the open session, so a reload without a session uses the
+    // same model/agent. These are accepted values from the server, not an optimistic local choice.
     if (info.model && this.catalog.models.some((m) => m.id === info.model?.id && m.providerID === info.model?.providerID)) {
-      this.catalog.selectedModel = info.model;
+      this.catalog.selectModel(info.model);
     }
-    if (info.agent && this.catalog.agents.some((a) => a.id === info.agent)) this.catalog.selectedAgent = info.agent;
+    if (info.agent && this.catalog.agents.some((a) => a.id === info.agent)) this.catalog.selectAgent(info.agent);
     if (!fast) {
       await this.refreshSlashItems();
       if (stale?.()) return;
@@ -1730,14 +1732,29 @@ export class ChatController implements vscode.Disposable {
         return this.refreshSessions();
       case "loadMoreSessions":
         return this.loadMoreSessions();
-      case "setModel":
-        this.catalog.selectModel(msg.model);
-        if (this.client && this.sessionId) await this.client.switchModel(this.sessionId, msg.model);
+      case "setModel": {
+        const previous = this.catalog.selectedModel;
+        try {
+          // The server owns the session's model: commit the UI/selection only after it accepted it.
+          if (this.client && this.sessionId) await this.client.switchModel(this.sessionId, msg.model);
+          this.catalog.selectModel(msg.model);
+        } catch (err) {
+          if (previous) this.catalog.selectModel(previous);
+          throw err; // `receive()` turns it into an actionable notice
+        }
         return;
-      case "setAgent":
-        this.catalog.selectAgent(msg.agent);
-        if (this.client && this.sessionId) await this.client.switchAgent(this.sessionId, msg.agent);
+      }
+      case "setAgent": {
+        const previous = this.catalog.selectedAgent;
+        try {
+          if (this.client && this.sessionId) await this.client.switchAgent(this.sessionId, msg.agent);
+          this.catalog.selectAgent(msg.agent);
+        } catch (err) {
+          if (previous) this.catalog.selectAgent(previous);
+          throw err;
+        }
         return;
+      }
       case "setAutoApprove":
         return this.setAutoApprove(msg.enabled);
       case "saveDraft":

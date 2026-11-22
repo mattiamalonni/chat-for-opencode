@@ -2,6 +2,10 @@
 
 ## 0.3.19 — 2026-11-22
 
+- **Fix:** selecting a model or agent now commits the choice to the webview and persisted settings
+  only after the server accepted the switch. A rejected switch restores the previous selection and
+  reports the error. Loading a session also persists the model/agent it actually uses, so global
+  settings no longer diverge silently from the open conversation.
 - **CI:** the deterministic contract gate now checks every endpoint and HTTP method the client
   actually calls. `OpenCodeClient` builds requests from a shared `ENDPOINTS` registry, so a new or
   changed call cannot silently fall outside the 2.2.7 OpenAPI snapshot.

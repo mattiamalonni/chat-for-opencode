@@ -118,6 +118,7 @@ export function startMockServer(opts: MockOptions = {}): Promise<MockServer> {
   let failInterruptOnce = false;
   let failPromptOnce = false;
   let failModelsOnce = false;
+  let failSwitchOnce = false;
   const sessions = new Map<string, MockSession>();
   const clients = new Set<http.ServerResponse>();
   const requests: MockServer["requests"] = [];
@@ -509,6 +510,12 @@ export function startMockServer(opts: MockOptions = {}): Promise<MockServer> {
       return send(res, 204);
     }
 
+    // Test-only: make the next model/agent switch fail, to check the UI restores its selection.
+    if (path === "/__mock/failSwitchOnce" && req.method === "POST") {
+      failSwitchOnce = true;
+      return send(res, 204);
+    }
+
     // Test-only: make the next catalog fetch fail, to exercise the host's transient-error path.
     if (path === "/__mock/failModelsOnce" && req.method === "POST") {
       failModelsOnce = true;
@@ -667,11 +674,19 @@ export function startMockServer(opts: MockOptions = {}): Promise<MockServer> {
         return send(res, 200, { interrupted: true });
       }
       if (rest === "agent") {
+        if (failSwitchOnce) {
+          failSwitchOnce = false;
+          return send(res, 500, { _tag: "AgentUnavailable", message: "injected switch failure" });
+        }
         s.info.agent = b.agent;
         emit({ type: "session.agent.selected", data: { sessionID: s.info.id, agent: b.agent } });
         return send(res, 204);
       }
       if (rest === "model") {
+        if (failSwitchOnce) {
+          failSwitchOnce = false;
+          return send(res, 500, { _tag: "ModelUnavailable", message: "injected switch failure" });
+        }
         s.info.model = b.model;
         emit({ type: "session.model.selected", data: { sessionID: s.info.id, model: b.model } });
         return send(res, 204);

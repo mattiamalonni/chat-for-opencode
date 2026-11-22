@@ -607,6 +607,19 @@ describe("chat-for-opencode extension", () => {
     );
   });
 
+  it("restores the previous model when the server refuses a switch", async () => {
+    const before = lastPosted("catalog")?.selectedModel?.id ?? "mock-fast";
+    const mark = posted.length;
+    const armed = await fetch(`${controller.debugState.baseUrl}/__mock/failSwitchOnce`, { method: "POST" });
+    assert.equal(armed.status, 204);
+
+    await controller.receive({ type: "setModel", model: { id: "mock-smart", providerID: "mock" } });
+    const notice = await waitFor(() => lastPosted("notice", mark), "switch failure notice");
+    assert.equal(notice.error.kind, "requestFailed");
+    const after = await waitFor(() => lastPosted("catalog", mark), "catalog after the failed switch");
+    assert.equal(after.selectedModel?.id, before);
+  });
+
   it("ignores a late state notification from a server that is no longer attached", async () => {
     // A folder switch detaches the previous server; a queued "running" notification from it must not
     // rebind the chat to its endpoint (the old check compared only client URLs, not server identity).
