@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.3.19 — 2026-11-22
+## 0.3.20 — 2026-11-22
 
 - **Architecture:** webview command dispatch moved out of `ChatController` into `ChatCommandHandler`.
   Together with the earlier `ChatEventRouter`, both large dispatch switches are now standalone
@@ -102,6 +102,9 @@
   `send()` publishes the optimistic `running` state, and the refusal path closes it with `failed`
   only if that generation is still current. Unit and integration tests cover both the terminal
   transition and the stale-generation guard.
+
+## 0.3.19 — 2026-11-22
+
 - **Trust and views:** the extension now declares limited support for untrusted workspaces. Before
   starting `opencode serve`, reading saved logins or using `opencode.executablePath` /
   `opencode.endpoint`, it checks Workspace Trust and shows an actionable _Trust workspace_ banner
