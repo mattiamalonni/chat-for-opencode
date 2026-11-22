@@ -18,20 +18,23 @@ vi.mock("vscode", () => {
     },
     dispose: vi.fn(),
   };
-  let resolveFind: ((files: unknown[]) => void) | undefined;
+  const resolveFindCalls: Array<(files: unknown[]) => void> = [];
   const state = {
     callbacks,
     watcher,
     findFiles: vi.fn(
       () =>
         new Promise<unknown[]>((resolve) => {
-          resolveFind = resolve;
+          resolveFindCalls.push(resolve);
         }),
     ),
-    resolveFind: (files: unknown[]) => resolveFind?.(files),
+    resolveFind: (files: unknown[]) => {
+      for (const resolve of resolveFindCalls.splice(0)) resolve(files);
+    },
     config: {} as Record<string, unknown>,
     storageValues: {} as Record<string, unknown>,
     updates: vi.fn(async (_key: string, _value: unknown) => {}),
+    folders: [] as Array<{ name: string; uri: { fsPath: string; toString: () => string } }>,
   };
   return {
     __state: state,
@@ -39,6 +42,11 @@ vi.mock("vscode", () => {
       getConfiguration: () => ({ get: (key: string) => state.config[key] }),
       createFileSystemWatcher: () => watcher,
       findFiles: state.findFiles,
+      getWorkspaceFolder: (uri: { fsPath?: string }) => state.folders.find((f) => uri.fsPath?.startsWith(f.uri.fsPath)) as never,
+      asRelativePath: (uri: { fsPath?: string }) => {
+        const owner = state.folders.find((f) => uri.fsPath?.startsWith(f.uri.fsPath));
+        return owner ? (uri.fsPath ?? "").slice(owner.uri.fsPath.length + 1) : (uri.fsPath ?? "");
+      },
     },
     RelativePattern: class {
       constructor(..._args: unknown[]) {}
@@ -61,6 +69,7 @@ interface MockState {
   storageValues: Record<string, unknown>;
   updates: ((key: string, value: unknown) => Promise<void>) & { mock: { calls: unknown[][] } };
   watcher: { dispose: object };
+  folders: Array<{ name: string; uri: { fsPath: string; toString: () => string } }>;
 }
 const mock = (vscode as unknown as { __state: MockState }).__state;
 
@@ -148,13 +157,16 @@ describe("FileIndex invalidation", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    // Drop any deferred findFiles resolvers left over from a previous test.
+    mock.resolveFind([]);
     for (const key of Object.keys(mock.callbacks)) delete mock.callbacks[key];
     for (const key of Object.keys(mock.config)) delete mock.config[key];
     for (const key of Object.keys(mock.storageValues)) delete mock.storageValues[key];
+    mock.folders = [{ name: "workspace", uri: { fsPath: "/workspace", toString: () => "file:///workspace" } }];
   });
 
   it("does not restore or persist a scan that finishes after an invalidation", async () => {
-    const index = new FileIndex(folder, storage());
+    const index = new FileIndex([folder], storage());
 
     const stale = index.search("a");
     expect(mock.findFiles.mock.calls.length).toBe(1);
@@ -177,7 +189,7 @@ describe("FileIndex invalidation", () => {
   });
 
   it("does not commit a scan that finishes after dispose", async () => {
-    const index = new FileIndex(folder, storage());
+    const index = new FileIndex([folder], storage());
 
     const pending = index.search("a");
     expect(mock.findFiles.mock.calls.length).toBe(1);
@@ -194,6 +206,31 @@ describe("FileIndex invalidation", () => {
     expect(mock.findFiles.mock.calls.length).toBe(2);
     mock.resolveFind([file("c.ts")]);
     expect(await later).toEqual([expect.objectContaining({ name: "c.ts" })]);
+  });
+});
+
+describe("FileIndex across workspace folders", () => {
+  it("scans every folder and qualifies results with the folder name", async () => {
+    const first = { name: "web", uri: { fsPath: "/workspace", toString: () => "file:///workspace" } } as never;
+    const second = { name: "api", uri: { fsPath: "/other", toString: () => "file:///other" } } as never;
+    mock.folders = [
+      { name: "web", uri: { fsPath: "/workspace", toString: () => "file:///workspace" } },
+      { name: "api", uri: { fsPath: "/other", toString: () => "file:///other" } },
+    ];
+    const index = new FileIndex([first, second]);
+    const pending = index.search("unique-second");
+    expect(mock.findFiles.mock.calls.length).toBe(2);
+    mock.resolveFind([{ fsPath: "/other/src/unique-second.ts", toString: () => "file:///other/src/unique-second.ts" }]);
+    const results = await pending;
+    expect(results).toEqual([
+      expect.objectContaining({
+        name: "unique-second.ts",
+        detail: "api/src/unique-second.ts",
+        uri: "file:///other/src/unique-second.ts",
+      }),
+    ]);
+    index.dispose();
+    expect(mock.watcher.dispose).toHaveBeenCalledTimes(2);
   });
 });
 

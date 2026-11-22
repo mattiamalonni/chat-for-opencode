@@ -23,6 +23,7 @@ vi.mock("vscode", async () => {
       }),
     },
     workspace: {
+      workspaceFolders: [{ uri: uri("/workspace/project") }],
       fs: {
         readFile: async (target: { fsPath: string }) => {
           state.reads.push(target.fsPath);

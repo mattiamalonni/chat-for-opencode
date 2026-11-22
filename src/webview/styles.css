@@ -334,6 +334,15 @@ details[open] > summary > .chevron,
   white-space: nowrap;
 }
 
+.session-folder {
+  margin-left: 6px;
+  padding: 0 4px;
+  border: 1px solid var(--opencode-border);
+  border-radius: 3px;
+  font-size: 0.8em;
+  color: var(--vscode-descriptionForeground);
+}
+
 .session-time,
 .empty {
   color: var(--vscode-descriptionForeground);

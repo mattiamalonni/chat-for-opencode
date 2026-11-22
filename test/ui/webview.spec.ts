@@ -2130,6 +2130,24 @@ test("session list: delete all follows the list being empty or not", async ({ pa
   await expect(dialog.getByRole("button", { name: STRINGS.deleteAllSessions })).toBeVisible();
 });
 
+test("session rows show their workspace folder in multi-root workspaces", async ({ page }) => {
+  await boot(page);
+  await host(page, {
+    type: "sessions",
+    items: [
+      { id: "s1", title: "Frontend work", updated: Date.now(), busy: false, needsInput: false, folder: "web" },
+      { id: "s2", title: "API work", updated: Date.now() - 1000, busy: false, needsInput: false, folder: "api" },
+    ],
+  });
+  await page.getByRole("button", { name: new RegExp(`^${STRINGS.sessions}:`) }).click();
+  const dialog = page.getByRole("dialog", { name: STRINGS.sessions });
+  await expect(dialog).toBeVisible();
+  await expect(dialog.locator(".session-folder")).toHaveCount(2);
+  await expect(dialog.locator(".session-folder").first()).toHaveText("web");
+  await dialog.locator(".session-filter").fill("api");
+  await expect(dialog.locator(".session-item")).toHaveCount(1);
+});
+
 test("session list: busy and waiting-for-input sessions show distinct indicators", async ({ page }) => {
   await boot(page);
   await host(page, {

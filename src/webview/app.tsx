@@ -1246,7 +1246,7 @@ function SessionList(props: {
   const itemRefs = useRef(new Map<string, HTMLButtonElement>());
   const filterTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const visible = useMemo(
-    () => props.sessions.filter((s) => (s.title || t("untitled")).toLowerCase().includes(filter.trim().toLowerCase())),
+    () => props.sessions.filter((s) => `${s.title || t("untitled")} ${s.folder ?? ""}`.toLowerCase().includes(filter.trim().toLowerCase())),
     [props.sessions, filter, t],
   );
   useEffect(() => {
@@ -1405,7 +1405,10 @@ function SessionList(props: {
                   {(s.busy || s.needsInput) && (
                     <span class={`status-dot session-busy ${s.needsInput ? "waiting" : "running"}`} aria-hidden="true" />
                   )}
-                  <span class="session-name">{s.title || t("untitled")}</span>
+                  <span class="session-name">
+                    {s.title || t("untitled")}
+                    {s.folder && <span class="session-folder">{s.folder}</span>}
+                  </span>
                   <span class="session-time">{s.needsInput ? t("needsInput") : s.busy ? t("running") : relativeTime(s.updated)}</span>
                 </button>
                 <button

@@ -330,6 +330,7 @@ export class ChatController implements vscode.Disposable {
         const configured = vscode.workspace.getConfiguration("opencode", this.folder?.uri).get<number>("sessionPageSize", 10);
         return Math.min(100, Math.max(1, Math.floor(configured) || 10));
       },
+      () => (this.folder && (vscode.workspace.workspaceFolders?.length ?? 0) > 1 ? this.folder.name : undefined),
     );
     this.context = new ContextTracker((items) => this.post({ type: "context", items: [...items, ...this.sourceContextItems()] }));
     this.contextSources = new ContextSourceService({
@@ -606,7 +607,11 @@ export class ChatController implements vscode.Disposable {
       vscode.extensions.onDidChange(refreshFileIcons),
       vscode.workspace.onDidChangeWorkspaceFolders(() => {
         this.postInit();
-        if (this.folder && !vscode.workspace.workspaceFolders?.some((f) => f.uri.toString() === this.folder?.uri.toString())) {
+        // Rebuild the file index so added folders become searchable and removed ones disappear.
+        this.fileIndex?.dispose();
+        const folders = vscode.workspace.workspaceFolders ?? [];
+        this.fileIndex = folders.length > 0 ? new FileIndex(folders, this.ctx.workspaceState) : undefined;
+        if (this.folder && !folders.some((f) => f.uri.toString() === this.folder?.uri.toString())) {
           void this.switchFolder(this.pickFolder());
         }
       }),
@@ -831,16 +836,26 @@ export class ChatController implements vscode.Disposable {
     }
   }
 
+  /** True when a file really lives in any folder the user opened, after resolving symlinks. */
+  private async isWithinWorkspace(file: string): Promise<boolean> {
+    for (const folder of vscode.workspace.workspaceFolders ?? []) {
+      if (isWithinDirectory(file, folder.uri.fsPath) && (await isWithinDirectoryReal(file, folder.uri.fsPath))) return true;
+    }
+    return false;
+  }
+
   /** Resolves an untrusted path against the connected folder, with the real-path escape check. */
   private async resolveWorkspacePath(targetPath: string): Promise<{ uri: vscode.Uri; path: string } | undefined> {
     const root = this.folder?.uri;
     if (!root) return undefined;
     const target = path.isAbsolute(targetPath) ? vscode.Uri.file(targetPath) : vscode.Uri.joinPath(root, targetPath);
-    if (!isWithinDirectory(target.fsPath, root.fsPath) || !(await isWithinDirectoryReal(target.fsPath, root.fsPath))) {
+    if (!(await this.isWithinWorkspace(target.fsPath))) {
       this.output.warn(`[chat] blocked a file outside the workspace: ${target.fsPath}`);
       return undefined;
     }
-    return { uri: target, path: vscode.workspace.asRelativePath(target, false) };
+    const owner = vscode.workspace.getWorkspaceFolder(target)?.name;
+    const relative = vscode.workspace.asRelativePath(target, false);
+    return { uri: target, path: owner ? `${owner}/${relative}` : relative };
   }
 
   async usePrompt(id: string): Promise<void> {
@@ -950,7 +965,8 @@ export class ChatController implements vscode.Disposable {
     this.connectionAbort = new AbortController();
     this.catalog.resetWarmUp();
     this.fileIndex?.dispose();
-    this.fileIndex = this.folder ? new FileIndex(this.folder, this.ctx.workspaceState) : undefined;
+    const folders = vscode.workspace.workspaceFolders ?? [];
+    this.fileIndex = folders.length > 0 ? new FileIndex(folders, this.ctx.workspaceState) : undefined;
     this.supervisor.openStream(
       conn,
       (event) => this.onEvent(event as ServerEvent),
@@ -2112,9 +2128,9 @@ export class ChatController implements vscode.Disposable {
       : /^([a-zA-Z]:[\\/]|\/)/.test(file)
         ? vscode.Uri.file(file)
         : vscode.Uri.joinPath(this.folder.uri, file);
-    // Rendered chat content is untrusted model output. Never open a path outside the workspace,
+    // Rendered chat content is untrusted model output. Never open a path outside any opened folder,
     // even through `../` or a symlink that lexically points inside but resolves elsewhere.
-    if (!isWithinDirectory(uri.fsPath, this.folder.uri.fsPath) || !(await isWithinDirectoryReal(uri.fsPath, this.folder.uri.fsPath))) {
+    if (!(await this.isWithinWorkspace(uri.fsPath))) {
       this.output.warn(`[chat] blocked an attempt to open a file outside the workspace: ${uri.fsPath}`);
       return;
     }

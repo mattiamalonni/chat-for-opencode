@@ -69,7 +69,13 @@ export class SessionListService {
     private readonly post: (msg: HostMessage) => void,
     private readonly log: (line: string) => void,
     private readonly pageSize: () => number,
+    private readonly folderName?: () => string | undefined,
   ) {}
+
+  private withFolder(summary: SessionSummary): SessionSummary {
+    const folder = this.folderName?.();
+    return folder ? { ...summary, folder } : summary;
+  }
 
   addFork(id: string): void {
     this.forks.add(id);
@@ -119,10 +125,10 @@ export class SessionListService {
     const now = Date.now();
     return mapWithConcurrency(sessions, 6, async (info) => {
       const safe = normalizeSessionInfo(info) ?? info;
-      if (!client || !sessionLooksBusy(safe.time)) return toSessionSummary(safe);
+      if (!client || !sessionLooksBusy(safe.time)) return this.withFolder(toSessionSummary(safe));
       const cached = this.summaryCache.get(info.id);
       if (cached && cached.updated === safe.time.updated && cached.expires > now && info.id !== this.sessionId()) {
-        return { ...toSessionSummary(safe), busy: cached.busy, needsInput: cached.needsInput };
+        return this.withFolder({ ...toSessionSummary(safe), busy: cached.busy, needsInput: cached.needsInput });
       }
       const [messages, permissions, forms] = await Promise.all([
         client.messages(info.id, 2000, signal).catch(() => undefined),
@@ -137,7 +143,7 @@ export class SessionListService {
         busy: summary.busy,
         needsInput: summary.needsInput,
       });
-      return summary;
+      return this.withFolder(summary);
     });
   }
 

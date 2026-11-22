@@ -146,6 +146,7 @@ const isSessionRow: Check = shape({
   updated: (value) => typeof value === "number" && Number.isFinite(value),
   busy: bool,
   needsInput: bool,
+  folder: opt(str(MAX_LABEL)),
 });
 
 const isSessionPayload: Check = shape({

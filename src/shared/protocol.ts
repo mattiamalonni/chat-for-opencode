@@ -72,6 +72,8 @@ export interface SessionSummary {
   busy: boolean;
   /** A permission request or a question is waiting for the user to answer. */
   needsInput: boolean;
+  /** Name of the workspace folder this session belongs to (shown in multi-root workspaces). */
+  folder?: string;
 }
 
 /** On-demand context sources the host can turn into chips with inline content. */

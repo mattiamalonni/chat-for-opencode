@@ -240,3 +240,15 @@ QuickPick for another Markdown file inside the workspace. Notes already present 
 and replies are capped at 2 000 characters so a long answer cannot take over the file. The
 `ProjectInstructionService` keeps formatting, deduplication and the no-folder / outside-workspace
 refusals in pure hooks; the host only resolves the target path and performs the `WorkspaceEdit`.
+
+## D24 — Multi-root is a scope widening, not a second connection
+
+`ServerRegistry` already keeps one handle per folder and the controller already persists the last
+session per folder, so a full multi-connection chat was unnecessary for the main monorepo pain
+point: not seeing the rest of the repository. `FileIndex` now scans every workspace folder and
+qualifies ambiguous paths with the folder name; path validation accepts any folder the user
+explicitly opened (still after real-path resolution, so `../` and symlink escapes remain blocked);
+session summaries carry their folder name. The active folder stays the single join root for
+relative paths and the only one bound to a client/stream. Switching folders keeps the existing,
+well-tested teardown path and restores that folder's last session via its own storage key. Adding
+or removing a folder rebuilds the index instead of silently leaving stale results.

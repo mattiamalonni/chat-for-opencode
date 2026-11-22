@@ -191,24 +191,25 @@ export class FileIndex implements vscode.Disposable {
   private loading: Promise<vscode.Uri[]> | undefined;
   /** Bumped on every invalidation/dispose so a stale in-flight scan cannot commit its result. */
   private generation = 0;
-  private readonly watcher: vscode.FileSystemWatcher;
+  private readonly watchers: vscode.FileSystemWatcher[];
   private readonly exclude: string[];
   private readonly storage: vscode.Memento | undefined;
   private readonly cacheKey: string | undefined;
 
   constructor(
-    private readonly folder: vscode.WorkspaceFolder,
+    private readonly folders: readonly vscode.WorkspaceFolder[],
     storage?: vscode.Memento,
   ) {
-    const config = vscode.workspace.getConfiguration(undefined, folder.uri);
+    const primary = folders[0];
+    const config = vscode.workspace.getConfiguration(undefined, primary?.uri);
     this.exclude = excludeGlobs(config.get("search.exclude"), config.get("files.exclude"));
     this.storage = storage;
-    // One snapshot per folder: a different workspace must not reuse another folder's file list.
-    this.cacheKey = storage ? `opencode.fileIndex:${folder.uri.toString()}` : undefined;
-    this.watcher = vscode.workspace.createFileSystemWatcher(new vscode.RelativePattern(folder, "**/*"), false, true, false);
+    // One snapshot per workspace (all folders): a different workspace must not reuse another's files.
+    this.cacheKey = storage ? `opencode.fileIndex:${folders.map((f) => f.uri.toString()).join("|")}` : undefined;
     // `createFileSystemWatcher` has no `exclude` argument, so skip events for excluded paths here.
     const invalidate = (uri: vscode.Uri): void => {
-      if (isExcluded(path.relative(this.folder.uri.fsPath, uri.fsPath), this.exclude)) return;
+      const folder = vscode.workspace.getWorkspaceFolder(uri);
+      if (folder && isExcluded(path.relative(folder.uri.fsPath, uri.fsPath), this.exclude)) return;
       this.files = undefined;
       // Bumping the generation disqualifies any scan already in flight: even if it resolves later,
       // it will neither restore `files` nor persist its outdated snapshot.
@@ -219,8 +220,12 @@ export class FileIndex implements vscode.Disposable {
         void Promise.resolve(this.storage.update(this.cacheKey, undefined)).catch(() => {});
       }
     };
-    this.watcher.onDidCreate(invalidate);
-    this.watcher.onDidDelete(invalidate);
+    this.watchers = folders.map((folder) => {
+      const watcher = vscode.workspace.createFileSystemWatcher(new vscode.RelativePattern(folder, "**/*"), false, true, false);
+      watcher.onDidCreate(invalidate);
+      watcher.onDidDelete(invalidate);
+      return watcher;
+    });
   }
 
   private async list(): Promise<vscode.Uri[]> {
@@ -232,11 +237,18 @@ export class FileIndex implements vscode.Disposable {
           const cached = deserializeFileCache(this.storage.get(this.cacheKey), this.exclude);
           if (cached) return cached.map((value) => vscode.Uri.parse(value));
         }
-        const files = await vscode.workspace.findFiles(
-          new vscode.RelativePattern(this.folder, "**/*"),
-          asGlobPattern(this.exclude),
-          20_000,
+        const pages = await Promise.all(
+          this.folders.map((folder) =>
+            vscode.workspace.findFiles(new vscode.RelativePattern(folder, "**/*"), asGlobPattern(this.exclude), 20_000),
+          ),
         );
+        const seen = new Set<string>();
+        const files: vscode.Uri[] = [];
+        for (const uri of pages.flat()) {
+          if (seen.has(uri.toString())) continue;
+          seen.add(uri.toString());
+          files.push(uri);
+        }
         // An invalidation may have happened while `findFiles` was in flight: never persist a
         // snapshot that is already known to be stale.
         if (generation === this.generation && this.storage && this.cacheKey) {
@@ -258,9 +270,13 @@ export class FileIndex implements vscode.Disposable {
     const files = await this.list();
     const scored: { uri: vscode.Uri; rel: string; score: number }[] = [];
     for (const uri of files) {
-      const rel = path.relative(this.folder.uri.fsPath, uri.fsPath).replace(/\\/g, "/");
-      const score = fuzzyScore(query, rel);
-      if (score > 0) scored.push({ uri, rel, score });
+      // `asRelativePath` is relative to the containing folder, which keeps results readable in
+      // multi-root; prefix the folder name when there is more than one to disambiguate duplicates.
+      const rel = vscode.workspace.asRelativePath(uri, false).replace(/\\/g, "/");
+      const owner = vscode.workspace.getWorkspaceFolder(uri);
+      const label = this.folders.length > 1 && owner ? `${owner.name}/${rel}` : rel;
+      const score = Math.max(fuzzyScore(query, rel), fuzzyScore(query, label));
+      if (score > 0) scored.push({ uri, rel: label, score });
     }
     scored.sort((a, b) => b.score - a.score || a.rel.length - b.rel.length || a.rel.localeCompare(b.rel));
     return scored.slice(0, limit).map((s) => ({
@@ -275,7 +291,7 @@ export class FileIndex implements vscode.Disposable {
     // Invalidate so a scan resolving after disposal cannot commit files or persist a snapshot.
     this.generation++;
     this.files = undefined;
-    this.watcher.dispose();
+    for (const watcher of this.watchers) watcher.dispose();
   }
 }
 

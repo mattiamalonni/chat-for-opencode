@@ -65,6 +65,11 @@ test or a manual probe actually ran.
 
 ## Behaviour limits
 
+- **Multi-root still has one active connection.** The chat talks to one folder's server at a time;
+  files and sessions from other folders are available for context, navigation and switching, but
+  there is no combined stream or single session spanning folders. Sessions from another folder are
+  not shown until you switch to it — the folder label on a row tells you where it lives. Adding a
+  folder rebuilds the file index; very large monorepos still share the 20 000-file scan cap.
 - **Instruction notes are appended, not structured.** The reply is stored verbatim under a dated
   heading in `AGENTS.md`; there is no merge with existing rules or editor for the note before saving.
   A note longer than 2 000 characters is truncated, and duplicates are detected by exact text only.

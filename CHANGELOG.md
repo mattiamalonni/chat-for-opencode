@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- **Multi-root:** `@` file search now indexes **every** workspace folder and qualifies duplicate
+  names with the folder name, so files unique to another package are suggested too. Files from any
+  open folder can be attached, opened from a reply and shown in a diff (the real-path containment
+  check now accepts all opened folders, still blocking `../` escapes and symlinks). Session rows
+  carry their folder name when more than one folder is open, and adding or removing a folder
+  refreshes the index and the folder picker. One folder remains actively connected at a time.
 - **Editor:** a finished reply can be saved as a project instruction with the new action next to
   **Copy response**. It appends a dated Markdown section to `AGENTS.md` (or a file you choose in the
   workspace), skips notes already present, caps long replies at 2 000 characters and never writes
