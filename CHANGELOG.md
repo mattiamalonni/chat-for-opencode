@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.3.21 — 2026-11-22
 
 - **UI:** the finished-turn footer now shows the turn's start and end times (`HH:mm`, local time) at
   its two ends, flanking the existing steps, duration, tokens and cost. Both times are in the bar's
@@ -51,6 +51,9 @@
   of only discarding their results.
 - **Robustness:** `EventStream` is safe to close and restart while a fetch is in flight: a stale
   read loop can no longer schedule a second reconnect chain or duplicate events.
+- **Fix:** starting a new session no longer cancels an in-flight _Delete all sessions_ walk. Only a
+  folder switch, server reset or shutdown stops the bulk delete now — server events may legitimately
+  open a session while the walk is in progress.
 - **Architecture:** `ChatCommandHandler` no longer imports the VS Code runtime. Confirmations,
   clipboard and workspace lookup go through host hooks, and the synthetic events no longer use
   `as never` / `as ServerEvent` casts.
