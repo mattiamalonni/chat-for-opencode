@@ -2,6 +2,10 @@
 
 ## 0.3.19 — 2026-11-22
 
+- **Security:** userinfo embedded in `opencode.endpoint` (`https://user:token@host`) is stripped
+  before the endpoint is used as a SecretStorage key, written to the Output channel or shown in an
+  error banner. The password becomes a fallback credential, and redaction also masks URL userinfo as
+  a second line of defence.
 - **Fix:** selecting a model or agent now commits the choice to the webview and persisted settings
   only after the server accepted the switch. A rejected switch restores the previous selection and
   reports the error. Loading a session also persists the model/agent it actually uses, so global

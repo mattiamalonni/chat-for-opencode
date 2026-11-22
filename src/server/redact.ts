@@ -36,6 +36,9 @@ export function redactSecrets(text: string, secret?: string): string {
     out = out.replace(/(OPENCODE_PASSWORD\s*[=:]\s*)(["']?)([^\s"',;]+)\2/gi, `$1$2${REDACTED}$2`);
   }
 
+  // Userinfo in a URL, e.g. `https://user:token@host` — the raw endpoint should never be logged,
+  // but keep this as defence in depth for messages built before normalization.
+  out = out.replace(/(\w+:\/\/)[^\s/@:]+:[^\s/@]+@/gi, "$1***:***@");
   // JSON-serialised headers from HTTP debug logs: keep the field, mask the credential.
   out = out.replace(/("authorization"\s*:\s*")([^"]+)(")/gi, `$1${REDACTED}$3`);
   // Plain `Authorization: Basic <token>` / `Basic <token>` lines, including external servers whose

@@ -22,6 +22,7 @@ describe("server credential redaction", () => {
     expect(redactSecrets("Authorization: Basic dXNlcjpwYXNzd29yZA==")).toContain("Basic ***");
     expect(redactSecrets('{"headers":{"authorization":"Basic abcdefghijkl"}}')).not.toContain("abcdefghijkl");
     expect(redactSecrets("server password abcdefghijklmnop")).toBe("server password ***");
+    expect(redactSecrets("connecting to https://user:my-secret@opencode.example.com")).not.toContain("my-secret");
     expect(redactSecrets("Bearer eyJhbGciOiJIUzI1NiJ9.payload")).toContain("Bearer ***");
     expect(redactSecrets("Authorization: Basic short", SECRET)).toContain("Basic short");
   });

@@ -58,6 +58,7 @@ import { PermissionService } from "./permissionService";
 import { quoteForShell } from "./shell";
 import { isWithinDirectory } from "./tempAttachments";
 import { isWithinDirectoryReal } from "./pathSafety";
+import { normalizeEndpoint } from "../server/endpoint";
 import { configTargetPaths } from "./configTarget";
 import { ExecutionStateService, type ExecutionState } from "./executionState";
 
@@ -113,12 +114,13 @@ export class ServerRegistry implements vscode.Disposable {
     let server = this.servers.get(key);
     if (!server) {
       const cfg = vscode.workspace.getConfiguration("opencode", folder.uri);
-      const endpoint = cfg.get<string>("endpoint", "").trim();
-      server = endpoint
+      const endpoint = normalizeEndpoint(cfg.get<string>("endpoint", "").trim());
+      server = endpoint.baseUrl
         ? new ExternalServer({
             folder: folder.uri.fsPath,
-            endpoint,
-            getPassword: async () => this.secrets.get(PASSWORD_KEY(endpoint)),
+            endpoint: endpoint.baseUrl,
+            // Credentials in userinfo are a fallback; an explicitly stored password wins.
+            getPassword: async () => (await this.secrets.get(PASSWORD_KEY(endpoint.baseUrl))) ?? endpoint.password,
             log: this.log,
           })
         : new ManagedServer({
@@ -1570,7 +1572,9 @@ export class ChatController implements vscode.Disposable {
   async setPassword(): Promise<void> {
     // Use the same folder scope as ServerRegistry.get(), otherwise a per-folder endpoint in a
     // multi-root workspace is invisible here (and the secret would be stored under the wrong key).
-    const endpoint = vscode.workspace.getConfiguration("opencode", this.folder?.uri).get<string>("endpoint", "").trim();
+    const endpoint = normalizeEndpoint(
+      vscode.workspace.getConfiguration("opencode", this.folder?.uri).get<string>("endpoint", "").trim(),
+    ).baseUrl;
     if (!endpoint) {
       void vscode.window.showInformationMessage(
         vscode.l10n.t(
