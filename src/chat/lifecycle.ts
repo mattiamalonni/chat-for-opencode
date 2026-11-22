@@ -14,7 +14,6 @@ export type DeferredName = "sessions" | "changes" | "inbox" | "reconcile" | "cat
 export class ChatLifecycle {
   readonly generations = {
     sessions: new Generation(),
-    execution: new Generation(),
     load: new Generation(),
     connect: new Generation(),
     child: new Generation(),

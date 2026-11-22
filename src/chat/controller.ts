@@ -58,6 +58,9 @@ import { PermissionService } from "./permissionService";
 import { quoteForShell } from "./shell";
 import { isWithinDirectory } from "./tempAttachments";
 import { isWithinDirectoryReal } from "./pathSafety";
+import { ExecutionStateService, type ExecutionState } from "./executionState";
+
+export type { ExecutionState, ExecutionStatus, TerminalStatus } from "./executionState";
 
 const PASSWORD_KEY = (endpoint: string) => `opencode.password:${endpoint}`;
 const SESSION_KEY = (folder: string) => `opencode.session:${folder}`;
@@ -164,12 +167,6 @@ function toUiError(err: unknown, fallback: UiErrorKind = "requestFailed"): UiErr
   return { kind: fallback, message: s[`error.${fallback}`], detail: message, actions: ["reconnect", "showLogs"] };
 }
 
-export type ExecutionStatus = "idle" | "running" | "succeeded" | "failed" | "interrupted";
-export interface ExecutionState {
-  status: ExecutionStatus;
-  sessionId?: string;
-}
-
 export class ChatController implements vscode.Disposable {
   /** All live chats and their listeners; see views.ts. */
   private readonly chatViews: ChatViews;
@@ -193,13 +190,10 @@ export class ChatController implements vscode.Disposable {
   private readonly permissions: PermissionService;
   /** All in-flight tokens and timers live in one place; see lifecycle.ts. */
   private readonly lifecycle = new ChatLifecycle();
+  /** Single owner of turn status, generation and local-idle grace; see executionState.ts. */
+  private readonly execution = new ExecutionStateService();
   /** Picker paging, summaries, fork visibility and bounded search; see sessionListService.ts. */
   private readonly sessionList: SessionListService;
-  /**
-   * Last locally-posted idle status. A resync before the next turn must not re-lock the composer
-   * with stale server timestamps (e.g. a dismissed question leaves `busy` newer than `idle`).
-   */
-  private localIdle: { sid: string; generation: number } | undefined;
   /** High-water mark for incremental resync: the newest history message id of the loaded session. */
   private lastKnownMessage: { sessionId: string; id: string } | undefined;
   /** A failed catalog fetch is retried a couple of times before the banner asks the user to reconnect. */
@@ -446,22 +440,13 @@ export class ChatController implements vscode.Disposable {
     }
   }
 
-  private readonly executionListeners = new Set<(state: ExecutionState) => void>();
-  private executionState: ExecutionStatus = "idle";
-
   /**
    * Host-side execution state, for the status bar and completion notifications. Deliberately
    * separate from `post()`: the webview already receives events, the editor chrome does not.
    */
   onDidChangeExecution(listener: (state: ExecutionState) => void): vscode.Disposable {
-    this.executionListeners.add(listener);
-    listener({ status: this.executionState, sessionId: this.sessionId });
-    return new vscode.Disposable(() => this.executionListeners.delete(listener));
-  }
-
-  private publishExecution(status: ExecutionStatus, sid: string | undefined = this.sessionId): void {
-    this.executionState = status;
-    for (const listener of this.executionListeners) listener({ status, sessionId: sid });
+    const sub = this.execution.onDidChange(listener);
+    return new vscode.Disposable(() => sub.dispose());
   }
 
   /** Observes messages sent to the webview (used by integration tests). */
@@ -474,11 +459,9 @@ export class ChatController implements vscode.Disposable {
    * end a turn (a second interrupt, a dismissed question) without emitting one, which would leave
    * the composer stuck on "stop" forever.
    */
-  private postLocalIdle(sid: string, generation = this.lifecycle.generations.execution.current()): void {
+  private postLocalIdle(sid: string, generation = this.execution.current()): void {
     // Ignore late results: a newer prompt may have started while interrupt/cancel was in flight.
-    if (sid !== this.sessionId || !this.lifecycle.generations.execution.is(generation)) return;
-    this.localIdle = { sid, generation };
-    this.publishExecution("idle", sid);
+    if (sid !== this.sessionId || !this.execution.markLocalIdle(sid, generation)) return;
     this.post({
       type: "event",
       event: { type: "session.status", data: { sessionID: sid, status: { type: "idle" } } } as ServerEvent,
@@ -486,15 +469,6 @@ export class ChatController implements vscode.Disposable {
     // The server may emit no terminal event for a local idle, and `onEvent` is the only other
     // place that refreshes the list — so schedule it here or session rows stay "running" forever.
     this.scheduleSessions();
-  }
-
-  /**
-   * Whether a locally-posted idle is still the latest execution state. `localIdle.generation` is an
-   * `executionGen` token, so every reader must compare it against that counter — comparing it with
-   * `loadGen.current()` made the guard fire only by accident and re-locked the composer on resync.
-   */
-  private isLocallyIdle(sid: string): boolean {
-    return this.localIdle?.sid === sid && this.localIdle.generation === this.lifecycle.generations.execution.current();
   }
 
   private pickFolder(): vscode.WorkspaceFolder | undefined {
@@ -765,7 +739,7 @@ export class ChatController implements vscode.Disposable {
       if (sid && sid === this.sessionId && client && client === this.client) {
         const info = await client.getSession(sid);
         if (!this.lifecycle.generations.load.is(generation) || sid !== this.sessionId || client !== this.client) return;
-        const busyOverride = this.isLocallyIdle(sid) ? false : undefined;
+        const busyOverride = this.execution.isLocallyIdle(sid) ? false : undefined;
         const stale = () => !this.lifecycle.generations.load.is(generation) || sid !== this.sessionId || client !== this.client;
         if (!(await this.resyncTail(sid, info, stale, busyOverride))) {
           await this.loadSession(info, stale, busyOverride);
@@ -835,14 +809,14 @@ export class ChatController implements vscode.Disposable {
         // and the catch below logs, so a broken poll cannot rebuild the chat every two seconds.
         const info = await client.getSession(sid);
         if (stale()) return;
-        await this.loadSession(info, stale, this.isLocallyIdle(sid) ? false : undefined);
+        await this.loadSession(info, stale, this.execution.isLocallyIdle(sid) ? false : undefined);
         void this.refreshSessions().catch(() => {});
         return;
       }
       if (newer.length === 0) return;
       const info = await client.getSession(sid);
       if (stale()) return;
-      const busyOverride = this.isLocallyIdle(sid) ? false : undefined;
+      const busyOverride = this.execution.isLocallyIdle(sid) ? false : undefined;
       if (!(await this.resyncTail(sid, info, stale, busyOverride, newer))) {
         await this.loadSession(info, stale, busyOverride);
       }
@@ -941,13 +915,9 @@ export class ChatController implements vscode.Disposable {
       return;
     }
     if (sid) this.postSessionEvent(sid, event);
-    // Any new turn invalidates a pending history reconcile from the previous one, and ends the
-    // grace period in which a resync must not re-lock a locally cleared composer.
-    if (sid === this.sessionId && (event.type === "session.inbox.enqueued" || event.type === "session.execution.started")) {
-      this.lifecycle.generations.execution.bump();
-      this.localIdle = undefined;
-      if (event.type === "session.execution.started") this.publishExecution("running", sid);
-    }
+    // One owner for turn starts and terminals: it invalidates deferred work, ends the local-idle
+    // grace period and publishes the host status. Terminal events are reported back to us below.
+    const terminalStatus = this.execution.observe(event.type, sid, this.sessionId);
     switch (event.type) {
       case "session.created":
       case "session.renamed":
@@ -968,21 +938,11 @@ export class ChatController implements vscode.Disposable {
       default:
         break;
     }
-    if (
-      sid === this.sessionId &&
-      (event.type === "session.execution.succeeded" ||
-        event.type === "session.execution.failed" ||
-        event.type === "session.execution.interrupted")
-    ) {
-      const status = event.type === "session.execution.succeeded"
-        ? "succeeded"
-        : event.type === "session.execution.failed"
-          ? "failed"
-          : "interrupted";
-      this.publishExecution(status, sid);
+    if (terminalStatus) {
+      const status = terminalStatus;
       this.scheduleReconcile();
       // A resync can replay the same terminal event, so include the turn's generation in the key.
-      const key = `execution.terminal:${sid}:${this.lifecycle.generations.execution.current()}`;
+      const key = `execution.terminal:${sid}:${this.execution.generation.current()}`;
       if (!this.isVisible && !this.announcedHiddenAttention.has(key)) {
         const cfg = vscode.workspace.getConfiguration("opencode", this.folder?.uri);
         const enabled = status === "failed"
@@ -1127,9 +1087,9 @@ export class ChatController implements vscode.Disposable {
    */
   private scheduleReconcile(): void {
     const sid = this.sessionId;
-    const generation = this.lifecycle.generations.execution.current();
+    const generation = this.execution.generation.current();
     this.lifecycle.schedule("reconcile", () => {
-      if (!sid || sid !== this.sessionId || !this.lifecycle.generations.execution.is(generation)) return;
+      if (!sid || sid !== this.sessionId || !this.execution.generation.is(generation)) return;
       void this.reconcileSession(sid, generation);
     }, 350);
   }
@@ -1138,12 +1098,12 @@ export class ChatController implements vscode.Disposable {
     if (!this.client || sid !== this.sessionId) return;
     try {
       const info = await this.client.getSession(sid);
-      if (sid !== this.sessionId || !this.lifecycle.generations.execution.is(generation)) return;
+      if (sid !== this.sessionId || !this.execution.generation.is(generation)) return;
       // If the composer was cleared locally and no new turn has started, the server's timestamps
       // are stale (a dismissed question can leave `busy` newer than `idle` with no idle message).
       // Keep it unlocked instead of re-syncing back to "stop".
-      const busyOverride = this.isLocallyIdle(sid) ? false : undefined;
-      const stale = () => sid !== this.sessionId || !this.lifecycle.generations.execution.is(generation);
+      const busyOverride = this.execution.isLocallyIdle(sid) ? false : undefined;
+      const stale = () => sid !== this.sessionId || !this.execution.generation.is(generation);
       if (!(await this.resyncTail(sid, info, stale, busyOverride))) {
         await this.loadSession(info, stale, busyOverride);
       }
@@ -1264,7 +1224,7 @@ export class ChatController implements vscode.Disposable {
   private async revertBoundary(sessionId: string, messageID: string, files: boolean): Promise<boolean> {
     const client = this.client;
     if (!client || sessionId !== this.sessionId) return false;
-    this.lifecycle.generations.execution.bump();
+    this.execution.generation.bump();
     const generation = this.lifecycle.generations.load.bump();
     try {
       // Staging is rejected while the agent loop runs, and an interrupt can acknowledge before
@@ -1499,6 +1459,7 @@ export class ChatController implements vscode.Disposable {
     this.supervisor.detachServerOnly();
     this.permissions.setPending(undefined);
     this.lifecycle.generations.sessions.bump();
+    this.execution.reset();
     this.sessionList.reset();
     this.folder = folder;
     this.postInit();
@@ -1635,7 +1596,7 @@ export class ChatController implements vscode.Disposable {
         return;
       case "abort": {
         const sid = this.sessionId;
-        const generation = this.lifecycle.generations.execution.current();
+        const generation = this.execution.generation.current();
         if (this.client && sid) {
           try {
             await this.client.interrupt(sid);
@@ -1717,7 +1678,7 @@ export class ChatController implements vscode.Disposable {
         return this.saveDraft(msg.sessionId, msg.text);
       case "permissionReply": {
         const sid = msg.sessionId;
-        const generation = this.lifecycle.generations.execution.current();
+        const generation = this.execution.generation.current();
         try {
           await this.client?.replyPermission(sid, msg.requestId, msg.decision);
           // Rejecting a tool call ends the assistant's turn: stop the generation too, otherwise
@@ -1740,7 +1701,7 @@ export class ChatController implements vscode.Disposable {
         return;
       case "formCancel": {
         const sid = msg.sessionId;
-        const generation = this.lifecycle.generations.execution.current();
+        const generation = this.execution.generation.current();
         try {
           await this.client?.cancelForm(sid, msg.formId);
           // Dismissing a question ends the assistant's turn: stop the generation too, otherwise
@@ -1887,9 +1848,7 @@ export class ChatController implements vscode.Disposable {
   ): Promise<void> {
     this.failedPrompt = { text, attachments, context, delivery, sessionId: sid };
     if (sid) await this.saveDraft(sid, text).catch(() => undefined);
-    if (generation !== undefined && this.lifecycle.generations.execution.is(generation)) {
-      this.publishExecution("failed", sid);
-    }
+    this.execution.fail(sid, generation);
     this.post({ type: "draftRestored", sessionId: sid, text });
     const s = translatedStrings();
     this.post({ type: "notice", error: { kind: "promptFailed", message: s["error.promptFailed"], detail, actions: ["retry", "reconnect", "showLogs"] } });
@@ -1898,8 +1857,7 @@ export class ChatController implements vscode.Disposable {
   /** Returns false when the prompt never reached the server (no notice is posted for stale loads). */
   private async send(text: string, attachments: Attachment[], context: ContextItem[], delivery?: "steer" | "queue"): Promise<boolean> {
     // A queued message starts no turn yet: leave the current turn's reconcile generation alone.
-    const generation = delivery === "queue" ? undefined : this.lifecycle.generations.execution.bump();
-    if (generation !== undefined) this.publishExecution("running", this.sessionId);
+    const generation = delivery === "queue" ? undefined : this.execution.start(this.sessionId);
     if (delivery !== "queue") this.lifecycle.cancel("reconcile");
     if (!this.client) await this.connect();
     const client = this.client;
@@ -2046,6 +2004,7 @@ export class ChatController implements vscode.Disposable {
   }
 
   async dispose(): Promise<void> {
+    this.execution.reset();
     this.sessionList.cancelSearch();
     await this.attachments.dispose();
     this.supervisor.detachServerOnly();

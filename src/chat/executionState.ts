@@ -1,0 +1,125 @@
+/**
+ * The single owner of "is a turn running?" on the host side.
+ *
+ * The controller used to keep `executionState`, a separate `localIdle` override and an execution
+ * generation side by side, with each async path responsible for updating all three. That produced
+ * status bars stuck on "running" and composers that re-locked after a resync. Everything about a
+ * turn's lifecycle now lives here: the status, the invalidation token, the local-idle grace period
+ * and the listener fan-out. Both the status bar (`onDidChange`) and the controller's reconciler read
+ * this one source of truth.
+ */
+import { Generation } from "./generation";
+
+export type ExecutionStatus = "idle" | "running" | "succeeded" | "failed" | "interrupted";
+
+export interface ExecutionState {
+  status: ExecutionStatus;
+  sessionId?: string;
+}
+
+export type TerminalStatus = Extract<ExecutionStatus, "succeeded" | "failed" | "interrupted">;
+
+export interface ExecutionSubscription {
+  dispose(): void;
+}
+
+const TERMINAL_EVENTS: Record<string, TerminalStatus> = {
+  "session.execution.succeeded": "succeeded",
+  "session.execution.failed": "failed",
+  "session.execution.interrupted": "interrupted",
+};
+
+export class ExecutionStateService {
+  /** Turn token, also used by the controller to guard reconciliation and deferred replies. */
+  readonly generation = new Generation();
+
+  private status: ExecutionStatus = "idle";
+  private sessionId: string | undefined;
+  private localIdle: { sid: string; generation: number } | undefined;
+  private readonly listeners = new Set<(state: ExecutionState) => void>();
+
+  onDidChange(listener: (state: ExecutionState) => void): ExecutionSubscription {
+    this.listeners.add(listener);
+    listener(this.state);
+    return { dispose: () => this.listeners.delete(listener) };
+  }
+
+  get state(): ExecutionState {
+    return { status: this.status, sessionId: this.sessionId };
+  }
+
+  publish(status: ExecutionStatus, sid: string | undefined = this.sessionId): void {
+    this.status = status;
+    this.sessionId = sid;
+    const state = this.state;
+    for (const listener of this.listeners) listener(state);
+  }
+
+  is(token: number): boolean {
+    return this.generation.is(token);
+  }
+
+  current(): number {
+    return this.generation.current();
+  }
+
+  /** Start an optimistic turn: invalidate older work and publish "running". */
+  start(sid?: string): number {
+    const token = this.generation.bump();
+    this.localIdle = undefined;
+    this.publish("running", sid);
+    return token;
+  }
+
+  /**
+   * Apply a normalized server event for the open session. Returns the terminal status when this
+   * event ends a turn, so the caller can schedule reconciliation and notifications exactly once.
+   */
+  observe(type: string, sid: string | undefined, openSessionId: string | undefined): TerminalStatus | undefined {
+    if (!sid || sid !== openSessionId) return undefined;
+    if (type === "session.inbox.enqueued") {
+      // A queued prompt opens a turn later; only invalidate the previous turn's deferred work.
+      this.generation.bump();
+      this.localIdle = undefined;
+      return undefined;
+    }
+    if (type === "session.execution.started") {
+      this.generation.bump();
+      this.localIdle = undefined;
+      this.publish("running", sid);
+      return undefined;
+    }
+    const terminal = TERMINAL_EVENTS[type];
+    if (!terminal) return undefined;
+    this.publish(terminal, sid);
+    return terminal;
+  }
+
+  /** Close a turn that never reached the server; a newer turn must not be overwritten. */
+  fail(sid: string | undefined, token: number | undefined): void {
+    if (token !== undefined && this.is(token)) this.publish("failed", sid);
+  }
+
+  /**
+   * Record a locally-posted idle (interrupt/cancel/dismissed question) and remember its token so a
+   * resync does not re-lock the composer with stale server timestamps.
+   */
+  markLocalIdle(sid: string, token: number): boolean {
+    if (!this.is(token)) return false;
+    this.localIdle = { sid, generation: token };
+    this.publish("idle", sid);
+    return true;
+  }
+
+  isLocallyIdle(sid: string): boolean {
+    return this.localIdle?.sid === sid && this.is(this.localIdle.generation);
+  }
+
+  /** Folder switch / dispose: invalidate in-flight work without leaving a stale running badge. */
+  reset(sid?: string): void {
+    this.generation.bump();
+    this.localIdle = undefined;
+    if (sid !== undefined) this.publish("idle", sid);
+    else this.status = "idle";
+  }
+}

@@ -2,6 +2,12 @@
 
 ## 0.3.19 — 2026-11-22
 
+- **Architecture:** turn state has a single owner (`ExecutionStateService`). Generation tokens, the
+  optimistic `running` state, terminal events, locally-posted idles and the resync grace period now
+  live in one class instead of three fields in the controller; the status bar and every deferred
+  reconciler read that one source of truth. The controller's state machine and the webview's
+  event-derived `busy` flag remain separate by design — the latter renders history/steps — but the
+  host-side divergence that caused stuck spinners and re-locked composers is gone.
 - **CI/DX:** `npm test` now runs lint and typecheck first, matching the CI gate; `npm run verify`
   runs the whole local gate. The Playwright suite can collect Chromium V8 coverage for the webview
   (`npm run test:coverage:ui`), mapped back to `src/webview` through the esbuild source map with an

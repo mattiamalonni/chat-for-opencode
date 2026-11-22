@@ -21,13 +21,13 @@ vi.mock("vscode", () => ({
 }));
 
 import { ChatController } from "../../src/chat/controller";
+import { ExecutionStateService } from "../../src/chat/executionState";
 
 const proto = ChatController.prototype as unknown as Record<string, (this: unknown, ...args: unknown[]) => unknown>;
 const call = (name: string, self: unknown, ...args: unknown[]): unknown => proto[name].apply(self, args);
 
 function base(extra: Record<string, unknown> = {}) {
   const gens = {
-    execution: { current: () => 7, is: (n: number) => n === 7, bump: vi.fn() },
     connect: { current: () => 1, is: () => true, bump: vi.fn() },
     load: { current: () => 1, is: () => true, bump: vi.fn() },
   };
@@ -39,8 +39,7 @@ function base(extra: Record<string, unknown> = {}) {
     contract: { failures: [] },
     contractObservations: {},
     sessionId: "s1",
-    executionState: "idle",
-    executionListeners: new Set(),
+    execution: new ExecutionStateService(),
     post: vi.fn(),
     output: { warn: vi.fn(), info: vi.fn(), error: vi.fn() },
     ctx: { globalState: { get: vi.fn(() => undefined), update: vi.fn() } },
@@ -49,7 +48,7 @@ function base(extra: Record<string, unknown> = {}) {
     ...extra,
   };
   // Bind the small helper methods the ones under test call, without constructing the controller.
-  for (const name of ["postConnection", "postUntrusted", "publishExecution", "setStatus", "scheduleSessions"]) {
+  for (const name of ["postConnection", "postUntrusted", "setStatus", "scheduleSessions"]) {
     self[name] = (...args: unknown[]) => call(name, self, ...args);
   }
   return self;
@@ -65,10 +64,12 @@ describe("ChatController state machine", () => {
 
   it("postLocalIdle ignores a generation that went stale during the request", () => {
     const stale = base();
+    for (let i = 0; i < 7; i++) (stale.execution as ExecutionStateService).generation.bump();
     call("postLocalIdle", stale, "s1", 6);
     expect(stale.post).not.toHaveBeenCalled();
 
     const current = base();
+    for (let i = 0; i < 7; i++) (current.execution as ExecutionStateService).generation.bump();
     call("postLocalIdle", current, "s1", 7);
     expect(current.post).toHaveBeenCalledWith({
       type: "event",

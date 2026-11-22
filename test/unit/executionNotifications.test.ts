@@ -17,46 +17,42 @@ vi.mock("vscode", () => ({
 
 import * as vscode from "vscode";
 import { ChatController, type ExecutionState } from "../../src/chat/controller";
+import { ExecutionStateService } from "../../src/chat/executionState";
 
 const proto = ChatController.prototype as unknown as Record<string, (...args: unknown[]) => unknown>;
 
-function fakeController(notifyComplete = false) {
+function fakeController() {
   return {
     sessionId: "s1",
     folder: undefined,
     isVisible: false,
     lastSessionEventAt: 0,
     announcedHiddenAttention: new Set<string>(),
-    lifecycle: { generations: { execution: { current: () => 7, bump: vi.fn() } } },
+    execution: new ExecutionStateService(),
+    lifecycle: { generations: {} },
     postSessionEvent: vi.fn(),
     subagents: { isTracked: vi.fn(() => false) },
     scheduleSessions: vi.fn(),
     scheduleReconcile: vi.fn(),
-    publishExecution: vi.fn(),
-    notifyComplete,
   };
 }
 
 describe("host-side execution state", () => {
   it("publishes the current state on subscribe and on every transition", () => {
-    const c = {
-      sessionId: "s1",
-      executionState: "idle",
-      executionListeners: new Set<(state: ExecutionState) => void>(),
-    };
+    const execution = new ExecutionStateService();
+    const c = { execution };
     const seen: ExecutionState[] = [];
     const onDidChangeExecution = proto["onDidChangeExecution"] as unknown as (
       this: typeof c,
       listener: (state: ExecutionState) => void,
     ) => { dispose(): void };
-    const publishExecution = proto["publishExecution"] as unknown as (this: typeof c, status: ExecutionState["status"]) => void;
 
     const sub = onDidChangeExecution.call(c, (s) => seen.push(s));
-    expect(seen).toEqual([{ status: "idle", sessionId: "s1" }]);
-    publishExecution.call(c, "running");
+    expect(seen).toEqual([{ status: "idle", sessionId: undefined }]);
+    execution.publish("running", "s1");
     expect(seen.at(-1)).toEqual({ status: "running", sessionId: "s1" });
     sub.dispose();
-    publishExecution.call(c, "succeeded");
+    execution.publish("succeeded");
     expect(seen).toHaveLength(2);
   });
 
@@ -78,9 +74,8 @@ describe("host-side execution state", () => {
       this: {
         failedPrompt: unknown;
         saveDraft: (sid: string, text: string) => Promise<void>;
-        publishExecution: (status: "failed", sid: string | undefined) => void;
+        execution: ExecutionStateService;
         post: (msg: unknown) => void;
-        lifecycle: { generations: { execution: { is: (token: number) => boolean } } };
       },
       text: string,
       attachments: unknown[],
@@ -90,21 +85,23 @@ describe("host-side execution state", () => {
       detail: string,
       generation: number,
     ) => Promise<void>;
-    const published: string[] = [];
+    const execution = new ExecutionStateService();
+    const published: ExecutionState[] = [];
+    execution.onDidChange((state) => published.push(state));
+    const token = execution.generation.bump();
     const c = {
       failedPrompt: undefined,
       saveDraft: vi.fn(async () => undefined),
-      publishExecution: vi.fn((status: "failed") => published.push(status)),
+      execution,
       post: vi.fn(),
-      lifecycle: { generations: { execution: { is: (token: number) => token === 7 } } },
     };
 
-    await restoreFailedPrompt.call(c, "hello", [], [], undefined, "s1", "boom", 7);
-    expect(published).toEqual(["failed"]);
+    await restoreFailedPrompt.call(c, "hello", [], [], undefined, "s1", "boom", token);
+    expect(published.at(-1)).toEqual({ status: "failed", sessionId: "s1" });
     expect(c.failedPrompt).toMatchObject({ text: "hello", sessionId: "s1" });
 
     published.length = 0;
-    await restoreFailedPrompt.call(c, "hello", [], [], undefined, "s1", "boom", 6);
+    await restoreFailedPrompt.call(c, "hello", [], [], undefined, "s1", "boom", token - 1);
     // A stale refusal must not overwrite the current turn's state.
     expect(published).toEqual([]);
   });
