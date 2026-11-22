@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { expect, test, type Page } from "@playwright/test";
+import { expect, type Page } from "@playwright/test";
+import { test } from "./fixtures";
 import type { ServerEvent, SessionMessage } from "../../src/shared/api";
 import type { HostMessage, WebviewMessage } from "../../src/shared/protocol";
 import { STRINGS } from "../../src/shared/strings";

@@ -2,6 +2,10 @@
 
 ## 0.3.19 — 2026-11-22
 
+- **CI/DX:** `npm test` now runs lint and typecheck first, matching the CI gate; `npm run verify`
+  runs the whole local gate. The Playwright suite can collect Chromium V8 coverage for the webview
+  (`npm run test:coverage:ui`), mapped back to `src/webview` through the esbuild source map with an
+  enforced floor, so the browser half is no longer a blind spot in the coverage report.
 - **Security:** workspace containment for `openFile`, attachment chips and diff rendering now
   resolves symlinks before deciding: a link inside the folder that points outside can no longer open
   (or send to the model) a file the user never allowed. Both lexical and real-path checks must pass.

@@ -65,8 +65,11 @@ jobs:
         if: runner.os == 'Linux'
       # `compile` already produced dist/webview.js + .css, so call Playwright
       # directly instead of letting `test:ui` rebuild the same bundle.
-      - run: npx playwright test
+      - name: UI tests + webview coverage (Linux)
         if: runner.os == 'Linux'
+        run: npm run test:coverage:ui
+        env:
+          OC_UI_COVERAGE_MIN: 55
       - name: Upload UI screenshots
         if: always() && runner.os == 'Linux'
         uses: actions/upload-artifact@v7

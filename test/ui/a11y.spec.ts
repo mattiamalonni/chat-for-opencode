@@ -1,5 +1,6 @@
 import { join } from "node:path";
-import { expect, test, type Page } from "@playwright/test";
+import { expect, type Page } from "@playwright/test";
+import { test } from "./fixtures";
 import { STRINGS } from "../../src/shared/strings";
 
 const HARNESS = "file://" + join(__dirname, "harness.html");

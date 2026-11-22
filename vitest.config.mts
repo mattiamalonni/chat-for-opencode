@@ -9,7 +9,7 @@ export default defineConfig({
       reporter: ["text", "html", "lcov"],
       include: ["src/**/*.ts"],
       exclude: [
-        "src/webview/**", // browser bundle, exercised by the Playwright UI suite instead
+        "src/webview/**", // measured separately by `npm run test:coverage:ui` (Chromium V8 + source maps)
         "src/**/*.d.ts", // type-only declarations, no executable statements
         "src/**/*.generated.ts", // produced by `npm run gen:types`, not hand-written logic
       ],
