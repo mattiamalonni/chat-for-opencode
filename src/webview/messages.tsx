@@ -27,6 +27,7 @@ import {
   IconChevron,
   IconCopy,
   IconError,
+  IconFileMarkdown,
   IconFork,
   IconInfo,
   IconOpen,
@@ -440,6 +441,16 @@ function AssistantView({
           onClick={() => post({ type: "copy", text: visibleResponseText(message) })}
         >
           <IconCopy />
+        </button>
+        <button
+          type="button"
+          class="icon-button save-instruction tooltip-host"
+          data-tooltip={t("saveInstruction")}
+          aria-label={t("saveInstruction")}
+          disabled={!message.done || message.parts.length === 0}
+          onClick={() => post({ type: "saveInstruction", text: visibleResponseText(message) })}
+        >
+          <IconFileMarkdown />
         </button>
       </div>
     </article>

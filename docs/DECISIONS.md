@@ -231,3 +231,12 @@ host resolves `$selection` / `$file` from the active editor and reuses `contextS
 and `build("problems")` for the other two, then posts the existing `prefillDraft` message. This also
 keeps user-defined prompts (from `opencode.promptLibrary`) on the same path as the curated ones and
 makes the resolution a pure `resolvePromptVariables` function with unit tests.
+
+## D23 — Project instructions are appended as dated Markdown notes
+
+A useful reply is often a project rule worth keeping. The reply action posts only the visible
+response text; the host appends a dated `## OpenCode note` section to `AGENTS.md` by default, with a
+QuickPick for another Markdown file inside the workspace. Notes already present are not duplicated,
+and replies are capped at 2 000 characters so a long answer cannot take over the file. The
+`ProjectInstructionService` keeps formatting, deduplication and the no-folder / outside-workspace
+refusals in pure hooks; the host only resolves the target path and performs the `WorkspaceEdit`.

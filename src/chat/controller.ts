@@ -55,6 +55,7 @@ import { ContextTracker, FileIndex, selectionAttachment } from "./context";
 import { ContextSourceService, decodeContextContent, type SymbolLike } from "./contextSources";
 import { PromptLibraryService } from "./promptLibrary";
 import { ApplyCodeService } from "./applyCode";
+import { DEFAULT_INSTRUCTION_FILE, ProjectInstructionService } from "./projectInstructions";
 import { TerminalOutputTracker } from "./terminalOutput";
 import { workingDiff } from "./gitDiff";
 import { ChatViews, type ChatWebview } from "./views";
@@ -216,6 +217,7 @@ export class ChatController implements vscode.Disposable {
   private readonly applyCode: ApplyCodeService<vscode.Uri>;
   /** Built-in + user prompts inserted into the composer with editor context resolved. */
   private readonly prompts: PromptLibraryService;
+  private readonly projectInstructions: ProjectInstructionService<vscode.Uri>;
   private readonly terminalOutput = new TerminalOutputTracker();
   private readonly activeContextSources = new Set<ContextSourceId>();
   private readonly contextSourceItems = new Map<ContextSourceId, ContextItem>();
@@ -363,16 +365,7 @@ export class ChatController implements vscode.Disposable {
         const editor = vscode.window.activeTextEditor;
         return editor?.document.uri.scheme === "file" ? editor.document.uri.fsPath : undefined;
       },
-      resolve: async (targetPath) => {
-        const root = this.folder?.uri;
-        if (!root) return undefined;
-        const target = path.isAbsolute(targetPath) ? vscode.Uri.file(targetPath) : vscode.Uri.joinPath(root, targetPath);
-        if (!isWithinDirectory(target.fsPath, root.fsPath) || !(await isWithinDirectoryReal(target.fsPath, root.fsPath))) {
-          this.output.warn(`[chat] blocked applying code to a file outside the workspace: ${target.fsPath}`);
-          return undefined;
-        }
-        return { uri: target, path: vscode.workspace.asRelativePath(target, false) };
-      },
+      resolve: (targetPath) => this.resolveWorkspacePath(targetPath),
       pickPath: async (candidates) => {
         const files = await vscode.workspace.findFiles("**/*", "**/node_modules/**", 200);
         const items = [...new Set([...candidates, ...files.map((uri) => vscode.workspace.asRelativePath(uri, false))])];
@@ -432,6 +425,55 @@ export class ChatController implements vscode.Disposable {
         const item = await this.contextSources.build("problems");
         return item ? decodeContextContent(item.uri) : "";
       },
+    });
+    this.projectInstructions = new ProjectInstructionService<vscode.Uri>({
+      t: (message, ...args) => vscode.l10n.t(message, ...args),
+      folder: () => this.folder?.uri.fsPath,
+      pickTarget: async () => {
+        const custom = vscode.l10n.t("Choose another file…");
+        const choice = await vscode.window.showQuickPick([DEFAULT_INSTRUCTION_FILE, custom], {
+          placeHolder: vscode.l10n.t("Where should this instruction be saved?"),
+        });
+        if (!choice) return undefined;
+        if (choice !== custom) return choice;
+        return vscode.window.showInputBox({
+          prompt: vscode.l10n.t("Markdown file inside the workspace"),
+          value: DEFAULT_INSTRUCTION_FILE,
+          validateInput: (value) => {
+            if (!value.trim() || !value.endsWith(".md") || path.isAbsolute(value) || value.split(/[\\/]/).includes("..")) {
+              return vscode.l10n.t("Enter a relative .md path inside the workspace.");
+            }
+            return undefined;
+          },
+        });
+      },
+      resolveTarget: (targetPath) => this.resolveWorkspacePath(targetPath),
+      read: async (uri) => {
+        try {
+          return new TextDecoder().decode(await vscode.workspace.fs.readFile(uri));
+        } catch {
+          return undefined;
+        }
+      },
+      write: async (uri, content) => {
+        const edit = new vscode.WorkspaceEdit();
+        let document: vscode.TextDocument | undefined;
+        try {
+          document = await vscode.workspace.openTextDocument(uri);
+        } catch {
+          document = undefined;
+        }
+        if (document) {
+          edit.set(uri, [new vscode.TextEdit(new vscode.Range(0, 0, document.lineCount, 0), content)]);
+        } else {
+          edit.createFile(uri);
+          edit.insert(uri, new vscode.Position(0, 0), content);
+        }
+        await vscode.workspace.applyEdit(edit);
+      },
+      now: () => new Date(),
+      warn: (message) => this.output.warn(message),
+      info: (message) => void vscode.window.showInformationMessage(message),
     });
     this.permissions = new PermissionService(
       ctx,
@@ -541,6 +583,7 @@ export class ChatController implements vscode.Disposable {
       removeContextSource: (source) => this.removeContextSource(source),
       applyCode: (text, targetPath) => this.applyCode.apply(text, targetPath),
       usePrompt: (id) => this.usePrompt(id),
+      saveInstruction: (text) => this.saveInstruction(text),
       fileIcons: this.fileIcons,
       diffs: this.diffs,
       workspaceState: ctx.workspaceState,
@@ -788,6 +831,18 @@ export class ChatController implements vscode.Disposable {
     }
   }
 
+  /** Resolves an untrusted path against the connected folder, with the real-path escape check. */
+  private async resolveWorkspacePath(targetPath: string): Promise<{ uri: vscode.Uri; path: string } | undefined> {
+    const root = this.folder?.uri;
+    if (!root) return undefined;
+    const target = path.isAbsolute(targetPath) ? vscode.Uri.file(targetPath) : vscode.Uri.joinPath(root, targetPath);
+    if (!isWithinDirectory(target.fsPath, root.fsPath) || !(await isWithinDirectoryReal(target.fsPath, root.fsPath))) {
+      this.output.warn(`[chat] blocked a file outside the workspace: ${target.fsPath}`);
+      return undefined;
+    }
+    return { uri: target, path: vscode.workspace.asRelativePath(target, false) };
+  }
+
   async usePrompt(id: string): Promise<void> {
     if (!id) return;
     const text = await this.prompts.resolve(id);
@@ -796,6 +851,10 @@ export class ChatController implements vscode.Disposable {
       return;
     }
     this.prefillDraft(text, []);
+  }
+
+  async saveInstruction(text: string): Promise<void> {
+    await this.projectInstructions.save(text);
   }
 
   removeContextSource(source: ContextSourceId): void {

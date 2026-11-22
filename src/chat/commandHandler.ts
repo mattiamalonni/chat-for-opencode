@@ -75,6 +75,7 @@ export interface CommandHandlerHooks {
   removeContextSource(source: ContextSourceId): void;
   applyCode(text: string, path?: string): Promise<void>;
   usePrompt(id: string): Promise<void>;
+  saveInstruction(text: string): Promise<void>;
   fileIcons: { resolve(paths: string[]): Promise<FileIconsResponse> };
   diffs: {
     open(root: vscode.Uri, file: string, patch: string, applied: boolean): Promise<void>;
@@ -250,6 +251,10 @@ export class ChatCommandHandler {
       }
       case "usePrompt": {
         await h.usePrompt(msg.id);
+        return;
+      }
+      case "saveInstruction": {
+        await h.saveInstruction(msg.text);
         return;
       }
       case "fileIcons": {

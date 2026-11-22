@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- **Editor:** a finished reply can be saved as a project instruction with the new action next to
+  **Copy response**. It appends a dated Markdown section to `AGENTS.md` (or a file you choose in the
+  workspace), skips notes already present, caps long replies at 2 000 characters and never writes
+  outside the connected folder.
 - **Prompts:** a reusable prompt library is available from `/` alongside skills and commands. Eight
   curated prompts ship with the extension (explain, tests, bugs, optimize, document, review,
   problems, commit) and users can add their own via `opencode.promptLibrary`. Selecting one prefills

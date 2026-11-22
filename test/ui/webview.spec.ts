@@ -3548,6 +3548,36 @@ test("a finished response can be copied as plain text", async ({ page }) => {
   expect(await lastPosted(page, "copy")).toEqual({ type: "copy", text: "the short answer" });
 });
 
+test("a finished response can be saved as a project instruction", async ({ page }) => {
+  await boot(page);
+  await host(page, {
+    type: "session",
+    session: {
+      id: S1,
+      busy: false,
+      messages: [
+        { id: "u1", type: "user", text: "a rule", time: { created: 1000 } },
+        {
+          id: "a1",
+          type: "assistant",
+          agent: "build",
+          model: { id: "m", providerID: "p" },
+          content: [{ type: "text", text: "Always use tabs in this repo." }],
+          time: { created: 1100, completed: 1200 },
+        },
+      ],
+      permissions: [],
+      forms: [],
+    },
+  });
+  const save = page.locator(".msg.assistant .save-instruction");
+  await save.click();
+  expect(await lastPosted(page, "saveInstruction")).toEqual({
+    type: "saveInstruction",
+    text: "Always use tabs in this repo.",
+  });
+});
+
 test("a prompt can be regenerated with its original text and files", async ({ page }) => {
   await boot(page);
   const messages: SessionMessage[] = [
