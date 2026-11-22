@@ -179,3 +179,19 @@ this stays consistent with the existing Explain/Find bugs/Optimize selection com
 `prefillDraft` message. The provider's diagnostic-to-arguments logic is a pure function with an
 injected action factory, so the integration test can drive the real `vscode.executeCodeActionProvider`
 while the unit tests stay host-free.
+
+## D19 — The demo runs in the webview, not in the host
+
+The first-run demo needed to work with **no** server, CLI, credentials or workspace trust, so adding
+a `startDemo` webview→host message would have made the onboarding path depend on the very setup it
+is meant to bypass. Instead `src/shared/demoSession.ts` bundles 37 real 2.2.7 events (the first turn
+of `test/fixtures/real-sse3.jsonl`, with a fixed demo session id) and `App` folds them with the same
+`{type:"event"}` reducer action used by live SSE. The host-message listener drops connection,
+catalog, session and event messages while the demo plays, and `send()` is a no-op that announces the
+demo hint, so the recording cannot be corrupted by a stray server event or a queued prompt. Exiting
+cancels the timers and posts the existing `sync` message to reload the real conversation.
+
+Trade-off: the demo is a fixed, non-interactive recording and each chat view plays its own copy.
+That is enough for a first impression; a scripted, interactive Q&A would need a host-side simulator
+and is deliberately out of scope. To refresh the recording, slice a fixture and rewrite its
+`sessionID` to `DEMO_SESSION_ID`.

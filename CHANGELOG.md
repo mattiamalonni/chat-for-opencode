@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- **UI:** a **Play demo conversation** action in the empty state (also shown when setup is incomplete)
+  replays a real recorded OpenCode turn entirely inside the webview. It shows streaming text,
+  reasoning, tool cards, an approval and the finished-turn stats with no CLI, provider or server
+  required; a banner makes it clear nothing is sent, typing is local only, and **Exit demo** resyncs
+  the real chat. The script and its pacing live in `src/shared/demoSession.ts` and are unit-tested.
 - **Commands:** _OpenCode: Continue This Session in Terminal_ opens a terminal in the workspace and
   runs `opencode --session <id>` for the open conversation (or a fresh TUI when none is open). The
   executable path and session id are shell-quoted per platform, and a warning appears if the chat is

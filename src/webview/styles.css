@@ -842,7 +842,24 @@ details[open] > summary > .chevron,
   flex: 1;
 }
 
-.welcome-starter {
+/* The recorded demo sits apart from the setup steps: it needs no CLI and no provider. */
+.welcome-demo {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  width: min(100%, 320px);
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid var(--opencode-border);
+}
+
+.demo-banner-label {
+  flex: none;
+}
+
+.welcome-starter,
+.demo-play {
   width: min(100%, 280px);
   padding: 6px 10px;
   text-align: left;
@@ -854,7 +871,9 @@ details[open] > summary > .chevron,
 }
 
 .welcome-starter:hover,
-.welcome-starter:focus-visible {
+.welcome-starter:focus-visible,
+.demo-play:hover,
+.demo-play:focus-visible {
   background: var(--vscode-button-secondaryHoverBackground, var(--vscode-input-background));
 }
 
