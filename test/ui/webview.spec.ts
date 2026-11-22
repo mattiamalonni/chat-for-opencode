@@ -163,7 +163,8 @@ test("file chips use the icon resolved by the host from the user's file icon the
 test("changed-files rows use the themed file icon instead of the diff glyph", async ({ page }) => {
   await bootWithOwnedChanges(page, ["src/app.ts"]);
   await host(page, { type: "changedFiles", files: [{ file: "src/app.ts", patch: "@@", additions: 1, deletions: 1, status: "modified" }] });
-  await page.locator(".panel.changes > summary").click();
+  // The panel opens by default: changed files must not be hidden until discovered.
+  await expect(page.locator(".panel.changes")).toHaveAttribute("open", "");
   await expect.poll(async () => (await posted(page)).some((m) => m.type === "fileIcons" && m.paths.includes("src/app.ts"))).toBe(true);
 
   const svg = `data:image/svg+xml;base64,${Buffer.from('<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16"/>').toString("base64")}`;
@@ -176,6 +177,13 @@ test("changed-files rows use the themed file icon instead of the diff glyph", as
 async function openSession(page: Page, id: string, events: ServerEvent[]): Promise<void> {
   await host(page, { type: "session", session: { id, busy: false, messages: [], permissions: [], forms: [] } });
   for (const event of events) await host(page, { type: "event", event });
+}
+
+/** The latest finished turn starts expanded; older expectations can still open every fold. */
+async function expandSteps(page: Page): Promise<void> {
+  for (const header of await page.locator(".step-block .step-fold-header").all()) {
+    if ((await header.getAttribute("aria-expanded")) !== "true") await header.click();
+  }
 }
 
 test("welcome screen, active file is opt-in and selections are attached", async ({ page }) => {
@@ -468,7 +476,7 @@ test("streams a real recorded conversation with reasoning, markdown and tool car
   // Each step keeps its prose visible and folds its own thoughts/tools; expand them all.
   const blocks = page.locator(".step-block");
   await expect(blocks.first()).toBeVisible();
-  for (const header of await blocks.locator(".step-fold-header").all()) await header.click();
+  await expandSteps(page);
 
   // Reasoning is collapsed and expandable.
   const thoughts = page.locator(".reasoning").first();
@@ -519,7 +527,7 @@ test("keeps thoughts and tools in production order and groups adjacent calls", a
   // calls that came after it stay below. Step 2 has no prose, so its tool joins that trailing fold.
   const blocks = page.locator(".step-block");
   await expect(blocks).toHaveCount(2);
-  for (const header of await blocks.locator(".step-fold-header").all()) await header.click();
+  await expandSteps(page);
 
   // Both calls of the first step share one accordion...
   const group = page.locator(".tool-group");
@@ -570,14 +578,21 @@ test("a finished turn folds its intermediate steps and can expand them", async (
 
   await host(page, { type: "event", event: { type: "session.execution.succeeded", created: 1300, data: base } });
 
-  // Finished: both folds collapse while both texts remain visible.
+  // Finished: the latest turn stays open so its work is reviewable, and one control folds it all.
   const headers = blocks.locator(".step-fold-header");
+  await expect(headers.nth(0)).toHaveAttribute("aria-expanded", "true");
+  await expect(headers.nth(1)).toHaveAttribute("aria-expanded", "true");
+  await expect(page.locator(".conversation")).toContainText("thinking hard");
+  await expect(page.locator(".conversation")).toContainText("final thought");
+  await expect(blocks.first().locator(".step-fold-all")).toHaveAttribute("aria-label", STRINGS.collapseAllSteps);
+
+  await blocks.first().locator(".step-fold-all").click();
   await expect(headers.nth(0)).toHaveAttribute("aria-expanded", "false");
   await expect(headers.nth(1)).toHaveAttribute("aria-expanded", "false");
-  await expect(page.locator(".conversation")).toContainText("final answer");
-  await expect(page.locator(".conversation")).toContainText("intermediate narration");
   await expect(page.locator(".conversation")).not.toContainText("thinking hard");
   await expect(page.locator(".conversation")).not.toContainText("final thought");
+  await expect(page.locator(".conversation")).toContainText("final answer");
+  await expect(page.locator(".conversation")).toContainText("intermediate narration");
 
   await headers.first().click();
   await expect(headers.first()).toHaveAttribute("aria-expanded", "true");
@@ -1014,7 +1029,7 @@ test("numbers and versions in a reply are not turned into file links", async ({ 
   await expect(refs).toHaveText("src/app.ts:42");
 });
 
-test("tool, permission and changed-file paths open the file with one click", async ({ page }) => {
+test("tool and permission resource links open the file; changed files offer diffs only", async ({ page }) => {
   await boot(page);
   const events = fixture("real-sse3.jsonl");
   const asked = events.findIndex((e) => e.type === "permission.asked");
@@ -1027,10 +1042,8 @@ test("tool, permission and changed-file paths open the file with one click", asy
   await page.locator(".tool.attention .tool-body .tool-open-file").first().click();
   expect(await lastPosted(page, "openFile")).toEqual({ type: "openFile", path: "a.txt" });
 
-  await card.locator(".file-list .file-open").first().click();
-  expect(await lastPosted(page, "openFile")).toEqual({ type: "openFile", path: "a.txt" });
-
-  // The original diff action still works next to the new button.
+  // The file list of a proposed change exposes only the diff action, not an "open file" icon.
+  await expect(card.locator(".file-list .file-open")).toHaveCount(0);
   await card.locator(".file-row").click();
   expect(await lastPosted(page, "openDiff")).toMatchObject({ type: "openDiff", file: "a.txt" });
 });
@@ -1137,8 +1150,9 @@ test("a pending permission stays visible after its step is folded", async ({ pag
   await openSession(page, S2, events.slice(0, asked + 1));
   await expect(page.locator(".attention-overlay .card.permission")).toBeVisible();
   await expect(page.locator(".step-fold-body")).toHaveCount(1);
-  // The turn ends with the request still pending: the step folds, the overlay does not.
+  // The turn ends with the request still pending: folding the step must not hide the overlay.
   await host(page, { type: "event", event: { type: "session.execution.succeeded", data: { sessionID: S2 }, created: 1794853100000 } });
+  await page.locator(".step-block .step-fold-header").first().click();
   await expect(page.locator(".step-fold-body")).toHaveCount(0);
   await expect(page.locator(".attention-overlay .card.permission")).toBeVisible();
 });
@@ -1448,6 +1462,67 @@ test("Cmd/Ctrl+F opens and focuses the chat message search without reaching the 
   await expect(search).toBeVisible();
   await expect(search).toBeFocused();
   expect(await windowKeys()).not.toContain("Meta+f");
+});
+
+test("search hits use theme background colours and Markdown stays formatted while searching", async ({ page }) => {
+  await boot(page);
+  const messages: SessionMessage[] = [
+    {
+      id: "a1",
+      type: "assistant",
+      agent: "build",
+      model: { id: "m", providerID: "p" },
+      content: [{ type: "text", text: "find this **needle** here and a plain needle" }],
+      time: { created: 1100, completed: 1200 },
+    },
+  ];
+  await host(page, { type: "session", session: { id: S1, busy: false, messages, permissions: [], forms: [] } });
+  await page.getByRole("button", { name: STRINGS.searchMessages }).click();
+  await page.getByRole("searchbox", { name: STRINGS.searchMessages }).fill("needle");
+
+  // The highlight is inside the rendered <strong>, not in a raw-text fallback.
+  await expect(page.locator(".msg.assistant .md strong mark[data-search-match]")).toHaveCount(1);
+  await expect(page.locator(".md.search-plain")).toHaveCount(0);
+  expect(await page.locator(".msg.assistant .md").innerText()).not.toContain("**");
+
+  const marks = page.locator(".conversation mark[data-search-match]");
+  await expect(marks).toHaveCount(2);
+  // One theme colour for every hit, current included, and no outline/underline.
+  const style = await marks.first().evaluate((el) => {
+    const s = getComputedStyle(el);
+    return { background: s.backgroundColor, outline: s.outlineStyle, decoration: s.textDecorationLine };
+  });
+  expect(style.background).toBe("rgb(234, 94, 0)");
+  expect(style.outline).toBe("none");
+  expect(style.decoration).toBe("none");
+
+  await page.getByRole("searchbox", { name: STRINGS.searchMessages }).press("Enter");
+  await expect(page.locator(".conversation mark.match-current")).toHaveCount(1);
+  expect(await marks.first().evaluate((el) => getComputedStyle(el).backgroundColor)).toBe("rgb(234, 94, 0)");
+});
+
+test("Escape closes the search and restores the undimmed, formatted conversation", async ({ page }) => {
+  await boot(page);
+  const messages: SessionMessage[] = [
+    { id: "u1", type: "user", text: "find this needle here", time: { created: 1000 } },
+    { id: "u2", type: "user", text: "a different message", time: { created: 1100 } },
+  ];
+  await host(page, { type: "session", session: { id: S1, busy: false, messages, permissions: [], forms: [] } });
+  const search = page.getByRole("searchbox", { name: STRINGS.searchMessages });
+  await page.getByRole("button", { name: STRINGS.searchMessages }).click();
+  await search.fill("needle");
+  await expect(page.locator(".msg.user.filtered-out")).toHaveCount(1);
+
+  await search.press("Escape");
+  await expect(search).toHaveCount(0);
+  await expect(page.locator(".conversation mark[data-search-match]")).toHaveCount(0);
+  await expect(page.locator(".filtered-out")).toHaveCount(0);
+  expect(
+    await page
+      .locator(".msg.user")
+      .first()
+      .evaluate((el) => getComputedStyle(el).opacity),
+  ).toBe("1");
 });
 
 test("Cmd/Ctrl+R syncs the session without reaching the workbench", async ({ page }) => {
@@ -2111,7 +2186,7 @@ test("the changed-files panel ignores diffs for files another session edited", a
 test("the changed-files refresh button has an instant tooltip and still refreshes", async ({ page }) => {
   await bootWithOwnedChanges(page, ["src/a.txt"]);
   await host(page, { type: "changedFiles", files: [{ file: "src/a.txt", patch: "@@", additions: 1, deletions: 1, status: "modified" }] });
-  const button = page.locator(".panel.changes > summary .refresh-changes");
+  const button = page.locator(".changes-actions .refresh-changes");
   await expect(button).toBeVisible();
   await expect(button).toHaveAttribute("aria-label", STRINGS.refresh);
 
@@ -2149,7 +2224,7 @@ test("the changed-files view-all button opens one diff with every session file",
     { file: "src/b.txt", patch: "@@ -1 +1 @@\n-c\n+d\n", additions: 1, deletions: 1, status: "modified" as const },
   ];
   await host(page, { type: "changedFiles", files });
-  const button = page.locator(".panel.changes > summary .view-all-changes");
+  const button = page.locator(".changes-actions .view-all-changes");
   await expect(button).toBeVisible();
   await expect(button).toHaveAttribute("aria-label", STRINGS.viewAllChanges);
   await expect(button.locator(".adds")).toHaveText("+2");
@@ -2169,7 +2244,7 @@ test("the changed-files check button hides the panel until the changes change", 
   const panel = page.locator(".panel.changes");
   await expect(panel).toBeVisible();
 
-  const check = page.locator(".panel.changes > summary .dismiss-changes");
+  const check = page.locator(".changes-actions .dismiss-changes");
   await expect(check).toHaveAttribute("aria-label", STRINGS.dismissChanges);
   await check.click();
   await expect(panel).toHaveCount(0);
@@ -2190,8 +2265,9 @@ test("the changed-files refresh and check buttons sit together on the right", as
   await bootWithOwnedChanges(page, ["src/a.txt"]);
   await host(page, { type: "changedFiles", files: [{ file: "src/a.txt", patch: "@@", additions: 1, deletions: 1, status: "modified" }] });
   const summary = page.locator(".panel.changes > summary");
-  const refresh = summary.locator(".refresh-changes");
-  const check = summary.locator(".dismiss-changes");
+  const actions = page.locator(".changes-actions");
+  const refresh = actions.locator(".refresh-changes");
+  const check = actions.locator(".dismiss-changes");
   await expect(refresh).toBeVisible();
   await expect(check).toBeVisible();
 
@@ -2623,6 +2699,11 @@ test("subagent progress stays one line until the tool card is expanded", async (
 
   await card.locator(".tool-header").click();
   await expect(card.locator(".subagent-step").first()).toBeVisible();
+  // Step status is an icon plus an accessible name, not an empty colour-only dot.
+  const dot = card.locator(".subagent-step .status-dot").first();
+  await expect(dot).toHaveAttribute("role", "img");
+  expect([STRINGS.completed, STRINGS.failed, STRINGS.running, STRINGS.cancelled]).toContain(await dot.getAttribute("aria-label"));
+  await expect(dot.locator("svg")).toHaveCount(1);
   for (const event of childEvents.slice(called + 1)) await host(page, { type: "subagentEvent", sessionId: child, event });
   await expect(card).toContainText("The directory contains only a `.git` repository");
   expect(csp).toEqual([]);
@@ -2673,8 +2754,15 @@ test("a subagent card opens a read-only conversation modal with breadcrumbs", as
   await expect(modal.locator(".crumb").last()).toHaveText("explore");
 
   await expect(modal).toBeFocused();
+  // Tab cycles inside the dialog instead of escaping into the conversation behind the backdrop.
+  const trigger = card.locator(".tool-open");
+  for (let i = 0; i < 12; i++) {
+    await page.keyboard.press("Tab");
+    expect(await modal.evaluate((el) => el.contains(document.activeElement))).toBe(true);
+  }
   await page.keyboard.press("Escape");
   await expect(modal).toHaveCount(0);
+  await expect(trigger).toBeFocused();
 });
 
 test("a subagent's permission is answerable from the parent chat", async ({ page }) => {
@@ -3207,4 +3295,35 @@ test("the webview CSP refuses an inline script that has no nonce", async ({ page
   expect(await page.evaluate(() => (window as unknown as { __inlineRan?: boolean }).__inlineRan)).toBeUndefined();
   await expect.poll(() => cspErrors.length).toBeGreaterThan(0);
   expect(cspErrors.join("\n")).toMatch(/Content Security Policy|Refused to execute/);
+});
+
+test("a setup blocker replaces the welcome prompts with a first-run checklist", async ({ page }) => {
+  await boot(page);
+  await host(page, {
+    type: "connection",
+    status: "error",
+    error: {
+      kind: "notInstalled",
+      message: STRINGS["error.notInstalled"],
+      detail: "spawn opencode ENOENT",
+      actions: ["install", "openSettings", "showLogs"],
+    },
+  });
+  await expect(page.getByRole("heading", { name: STRINGS.setupTitle })).toBeVisible();
+  await expect(page.locator(".setup-steps li.pending")).toHaveCount(1);
+  await expect(page.locator(".setup-steps li.done")).toHaveCount(2);
+  // The actual cause is no longer hidden behind a collapsed "Details" toggle.
+  await expect(page.locator(".banner-detail-inline")).toContainText("ENOENT");
+  await expect(page.locator(".welcome-starter")).toHaveCount(0);
+  await expect(page.locator(".banner-detail")).toHaveCount(0);
+  await page.locator(".welcome.setup").getByRole("button", { name: STRINGS["action.install"] }).click();
+  expect(await lastPosted(page, "action")).toMatchObject({ type: "action", id: "install" });
+});
+
+test("welcome starters only offer prompts the current editor context can satisfy", async ({ page }) => {
+  await boot(page);
+  await expect(page.locator(".welcome-starter")).toHaveCount(4);
+  await host(page, { type: "context", items: [] });
+  await expect(page.locator(".welcome-starter")).toHaveCount(0);
+  await expect(page.locator(".welcome-starters")).toContainText(STRINGS.starterAvailabilityHint);
 });

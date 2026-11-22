@@ -175,6 +175,8 @@ export type HostMessage =
       issuesUrl?: string;
       /** Whether drag & drop of files into the chat is enabled (defaults to true). */
       dropzone?: boolean;
+      /** Characters of tool output shown inline before the "show all" affordance. */
+      toolOutputLimit?: number;
     }
   | {
       type: "connection";

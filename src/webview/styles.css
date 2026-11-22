@@ -9,6 +9,15 @@ body {
   padding: 0;
 }
 
+/* One border token for every surface, so high-contrast themes never lose a boundary. */
+:root {
+  --opencode-border: var(--vscode-widget-border, var(--vscode-panel-border, var(--vscode-contrastBorder, transparent)));
+  /* Search uses the editor's find-match highlight colour for every hit, with a VS Code-like
+     fallback for themes that leave it unset. Only the background changes: no border or underline. */
+  --opencode-search-match: var(--vscode-editor-findMatchHighlightBackground, #ea5e00);
+  --opencode-search-match-text: var(--vscode-editor-findMatchHighlightForeground, var(--vscode-foreground));
+}
+
 body {
   font-family: var(--vscode-font-family);
   font-size: var(--vscode-font-size);
@@ -80,7 +89,7 @@ button {
   flex-wrap: wrap;
   gap: 4px;
   padding: 4px 8px;
-  border-bottom: 1px solid var(--vscode-sideBarSectionHeader-border, var(--vscode-widget-border, transparent));
+  border-bottom: 1px solid var(--vscode-sideBarSectionHeader-border, var(--opencode-border));
 }
 
 /* Search is toggled from an icon in the header and gets its own full-width row. */
@@ -97,7 +106,7 @@ button {
   flex: 1;
   min-width: 0;
   padding: 3px 6px;
-  border: 1px solid var(--vscode-input-border, transparent);
+  border: 1px solid var(--opencode-border);
   border-radius: 3px;
   background: var(--vscode-input-background);
   color: var(--vscode-input-foreground);
@@ -144,7 +153,7 @@ button {
   flex: 0 1 auto;
   min-width: 0;
   padding-left: 8px;
-  border-left: 1px solid var(--vscode-widget-border, var(--vscode-panel-border, transparent));
+  border-left: 1px solid var(--opencode-border);
 }
 
 .session-current-dot {
@@ -213,7 +222,7 @@ details[open] > summary > .chevron,
   right: 0;
   z-index: 20;
   padding: 3px 6px;
-  border: 1px solid var(--vscode-widget-border, var(--vscode-panel-border, transparent));
+  border: 1px solid var(--opencode-border);
   border-radius: 3px;
   background: var(--vscode-editorWidget-background, var(--vscode-notifications-background, var(--vscode-panel-background)));
   color: var(--vscode-editorWidget-foreground, var(--vscode-foreground));
@@ -236,6 +245,11 @@ details[open] > summary > .chevron,
 .tooltip-host:focus-visible::after {
   opacity: 1;
   visibility: visible;
+}
+
+/* The search toggle stays active while its bar is open: its tooltip would cover the input. */
+.header .icon-button.active::after {
+  display: none;
 }
 
 /* Toolbar and session-list buttons sit near the bottom edge: open upwards. */
@@ -263,7 +277,7 @@ details[open] > summary > .chevron,
   overflow: auto;
   background: var(--vscode-quickInput-background, var(--vscode-editorWidget-background));
   color: var(--vscode-quickInput-foreground, var(--vscode-foreground));
-  border: 1px solid var(--vscode-widget-border, var(--vscode-contrastBorder, transparent));
+  border: 1px solid var(--opencode-border);
   border-radius: 6px;
   box-shadow: 0 4px 16px var(--vscode-widget-shadow, rgba(0, 0, 0, 0.3));
   padding: 4px;
@@ -309,7 +323,7 @@ details[open] > summary > .chevron,
   display: flex;
   align-items: center;
   gap: 4px;
-  border-bottom: 1px solid var(--vscode-widget-border, transparent);
+  border-bottom: 1px solid var(--opencode-border);
   margin-bottom: 4px;
 }
 
@@ -380,14 +394,21 @@ details[open] > summary > .chevron,
   min-width: 0;
   min-height: 0;
   overflow: hidden;
-  border: 1px solid var(--vscode-widget-border, var(--vscode-contrastBorder, transparent));
+  border: 1px solid var(--opencode-border);
   border-radius: 6px;
   background: var(--vscode-editorWidget-background, var(--vscode-sideBar-background));
   box-shadow: 0 4px 16px var(--vscode-widget-shadow, rgba(0, 0, 0, 0.3));
 }
 
+/* The dialog is focused programmatically; keep a visible ring so keyboard users can see where
+   focus landed instead of tabbing blindly into a transparent container. */
 .subagent-modal:focus {
   outline: none;
+}
+
+.subagent-modal:focus-visible {
+  outline: 1px solid var(--vscode-focusBorder);
+  outline-offset: -1px;
 }
 
 .subagent-modal-header {
@@ -395,7 +416,7 @@ details[open] > summary > .chevron,
   align-items: center;
   gap: 6px;
   padding: 4px 6px;
-  border-bottom: 1px solid var(--vscode-widget-border, var(--vscode-panel-border, transparent));
+  border-bottom: 1px solid var(--opencode-border);
 }
 
 .subagent-breadcrumb {
@@ -456,7 +477,7 @@ details[open] > summary > .chevron,
   width: 100%;
   padding: 8px 10px;
   background: var(--vscode-list-hoverBackground);
-  border: 1px solid var(--vscode-widget-border, var(--vscode-panel-border, transparent));
+  border: 1px solid var(--opencode-border);
   border-radius: 4px;
 }
 
@@ -517,7 +538,7 @@ details[open] > summary > .chevron,
   min-width: 0;
   background: var(--vscode-input-background);
   color: var(--vscode-input-foreground);
-  border: 1px solid var(--vscode-input-border, transparent);
+  border: 1px solid var(--opencode-border);
   border-radius: 3px;
   padding: 3px 5px;
   font: inherit;
@@ -530,7 +551,7 @@ details[open] > summary > .chevron,
   padding: 6px 8px;
   background: none;
   border: none;
-  border-top: 1px solid var(--vscode-widget-border, transparent);
+  border-top: 1px solid var(--opencode-border);
   color: var(--vscode-textLink-foreground, var(--vscode-foreground));
   cursor: pointer;
   text-align: center;
@@ -606,7 +627,8 @@ details[open] > summary > .chevron,
   word-break: break-word;
 }
 
-.banner-detail pre {
+.banner-detail pre,
+.banner-detail-inline {
   white-space: pre-wrap;
   word-break: break-word;
   font-family: var(--vscode-editor-font-family);
@@ -614,6 +636,15 @@ details[open] > summary > .chevron,
   margin: 4px 0 0;
   max-height: 120px;
   overflow: auto;
+}
+
+/* Setup blockers are not optional detail: show the actual cause without a click. */
+.banner-detail-inline {
+  width: 100%;
+  padding: 6px 8px;
+  border-left: 2px solid var(--vscode-inputValidation-errorBorder, var(--vscode-errorForeground));
+  background: var(--vscode-textCodeBlock-background);
+  color: var(--vscode-foreground);
 }
 
 .banner-actions,
@@ -670,20 +701,18 @@ details[open] > summary > .chevron,
 /* Every card is laid out so `scrollHeight` is always exact: `content-visibility: auto` used to
    estimate off-screen cards at 160px, which left a newly opened long conversation ~1400px short of
    the bottom. All messages stay in the DOM either way (see KNOWN_LIMITS.md). */
-/* Header search keeps every message in the DOM and simply hides the non-matches. */
+/* Header search keeps every message in the DOM and de-emphasises non-matches instead of removing
+   them: collapsing the history while typing made the conversation jump and hid the context. */
 .filtered-out {
-  display: none !important;
+  opacity: 0.4;
 }
 
+/* Only the text background is highlighted; the colours come from the active theme. */
 .conversation mark {
-  background: var(--vscode-editor-findMatchHighlightBackground, #ea5e00);
-  color: inherit;
+  background: var(--opencode-search-match);
+  color: var(--opencode-search-match-text);
   border-radius: 2px;
-}
-
-.conversation mark.match-current {
-  background: var(--vscode-editor-findMatchBackground, #515c6a);
-  outline: 1px solid var(--vscode-focusBorder, #007fd4);
+  padding: 0 1px;
 }
 
 /* Search shows raw text so it can be highlighted without rewriting rendered Markdown. */
@@ -695,7 +724,7 @@ details[open] > summary > .chevron,
   flex: 1;
   min-width: 60px;
   padding: 3px 6px;
-  border: 1px solid var(--vscode-input-border, transparent);
+  border: 1px solid var(--opencode-border);
   border-radius: 3px;
   background: var(--vscode-input-background);
   color: var(--vscode-input-foreground);
@@ -720,7 +749,7 @@ details[open] > summary > .chevron,
   gap: 4px;
   padding: 3px 10px;
   border-radius: 999px;
-  border: 1px solid var(--vscode-widget-border, var(--vscode-contrastBorder, transparent));
+  border: 1px solid var(--opencode-border);
   background: var(--vscode-button-background);
   color: var(--vscode-button-foreground);
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
@@ -751,7 +780,7 @@ details[open] > summary > .chevron,
 
 .welcome-hint {
   font-size: 0.9em;
-  opacity: 0.8;
+  color: var(--vscode-descriptionForeground);
 }
 
 .welcome-starters {
@@ -768,13 +797,58 @@ details[open] > summary > .chevron,
   letter-spacing: 0.04em;
 }
 
+/* First-run checklist: one glance tells a new user what is still missing. */
+.welcome.setup {
+  max-width: 440px;
+  margin: auto;
+}
+
+.setup-steps {
+  list-style: none;
+  margin: 14px auto 10px;
+  padding: 0;
+  max-width: 360px;
+  text-align: left;
+}
+
+.setup-steps li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  margin: 4px 0;
+  border: 1px solid var(--opencode-border);
+  border-radius: 4px;
+}
+
+.setup-steps li.done {
+  color: var(--vscode-descriptionForeground);
+}
+
+.setup-step-icon {
+  display: inline-flex;
+  flex: none;
+}
+
+.setup-steps li.done .setup-step-icon {
+  color: var(--vscode-testing-iconPassed, var(--vscode-charts-green));
+}
+
+.setup-steps li.pending .setup-step-icon {
+  color: var(--vscode-inputValidation-warningForeground, var(--vscode-charts-yellow, #cca700));
+}
+
+.setup-step-label {
+  flex: 1;
+}
+
 .welcome-starter {
   width: min(100%, 280px);
   padding: 6px 10px;
   text-align: left;
   color: var(--vscode-foreground);
   background: var(--vscode-button-secondaryBackground, var(--vscode-input-background));
-  border: 1px solid var(--vscode-input-border, transparent);
+  border: 1px solid var(--opencode-border);
   border-radius: 6px;
   cursor: pointer;
 }
@@ -800,7 +874,7 @@ details[open] > summary > .chevron,
 }
 
 .turn-actions .icon-button {
-  opacity: 0.4;
+  color: var(--vscode-descriptionForeground);
 }
 
 .msg.user:hover .turn-actions .icon-button,
@@ -838,7 +912,7 @@ details[open] > summary > .chevron,
 .msg.user .bubble {
   max-width: 92%;
   background: var(--vscode-chat-requestBackground, var(--vscode-input-background));
-  border: 1px solid var(--vscode-chat-requestBorder, var(--vscode-input-border, transparent));
+  border: 1px solid var(--vscode-chat-requestBorder, var(--opencode-border));
   border-radius: 8px;
   padding: 6px 10px;
 }
@@ -877,14 +951,14 @@ details[open] > summary > .chevron,
 .turn-stats-line {
   flex: 1;
   height: 1px;
-  background: var(--vscode-widget-border, var(--vscode-panel-border, transparent));
+  background: var(--opencode-border);
   opacity: 0.6;
 }
 
 .turn-stats-text {
   flex: none;
   white-space: nowrap;
-  opacity: 0.7;
+  color: var(--vscode-descriptionForeground);
 }
 
 /* Insertion/deletion counts double as a button that opens the relevant diffs. */
@@ -965,12 +1039,12 @@ details[open] > summary > .chevron,
 
 .md th,
 .md td {
-  border: 1px solid var(--vscode-widget-border, var(--vscode-panel-border));
+  border: 1px solid var(--opencode-border);
   padding: 3px 6px;
 }
 
 .code-block {
-  border: 1px solid var(--vscode-widget-border, var(--vscode-panel-border, transparent));
+  border: 1px solid var(--opencode-border);
   border-radius: 4px;
   margin: 0.5em 0;
   overflow: hidden;
@@ -984,7 +1058,7 @@ details[open] > summary > .chevron,
   padding: 2px 8px;
   font-size: 0.85em;
   color: var(--vscode-descriptionForeground);
-  border-bottom: 1px solid var(--vscode-widget-border, transparent);
+  border-bottom: 1px solid var(--opencode-border);
 }
 
 .code-copy {
@@ -1082,7 +1156,7 @@ details[open] > summary > .chevron,
 }
 
 .reasoning .md {
-  border-left: 2px solid var(--vscode-widget-border, var(--vscode-panel-border));
+  border-left: 2px solid var(--opencode-border);
   padding-left: 8px;
   margin: 4px 0 0 6px;
   font-size: 0.95em;
@@ -1099,7 +1173,7 @@ details[open] > summary > .chevron,
 }
 
 .tool {
-  border: 1px solid var(--vscode-widget-border, var(--vscode-panel-border, transparent));
+  border: 1px solid var(--opencode-border);
   border-radius: 4px;
   background: var(--vscode-editorWidget-background);
   min-width: 0;
@@ -1110,7 +1184,7 @@ details[open] > summary > .chevron,
 }
 
 .tool-group {
-  border: 1px solid var(--vscode-widget-border, var(--vscode-panel-border, transparent));
+  border: 1px solid var(--opencode-border);
   border-radius: 4px;
   background: var(--vscode-editorWidget-background);
   min-width: 0;
@@ -1220,7 +1294,7 @@ details[open] > summary > .chevron,
 }
 
 .tool-group-body > .tool + .tool {
-  border-top: 1px solid var(--vscode-widget-border, var(--vscode-panel-border, transparent));
+  border-top: 1px solid var(--opencode-border);
 }
 
 /* One block per step: prose stays visible, thoughts/tools collapse right underneath it. */
@@ -1230,6 +1304,34 @@ details[open] > summary > .chevron,
 
 .step-fold {
   min-width: 0;
+}
+
+.step-fold-bar {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.step-fold-bar .step-fold-header {
+  flex: 1;
+  min-width: 0;
+}
+
+.step-fold-all {
+  flex: none;
+  padding: 2px 6px;
+  border: 1px solid var(--opencode-border);
+  border-radius: 3px;
+  background: none;
+  color: var(--vscode-descriptionForeground);
+  font-size: 0.8em;
+  cursor: pointer;
+}
+
+.step-fold-all:hover,
+.step-fold-all:focus-visible {
+  color: var(--vscode-foreground);
+  background: var(--vscode-list-hoverBackground, transparent);
 }
 
 .step-fold-header {
@@ -1251,7 +1353,7 @@ details[open] > summary > .chevron,
 .step-fold-header:hover {
   color: var(--vscode-foreground);
   background: var(--vscode-list-hoverBackground, transparent);
-  border-color: var(--vscode-widget-border, var(--vscode-panel-border, transparent));
+  border-color: var(--opencode-border);
 }
 
 /* Expanded details read as one indented timeline instead of a stack of loud cards. */
@@ -1261,7 +1363,7 @@ details[open] > summary > .chevron,
   gap: 6px;
   margin: 4px 0 8px 8px;
   padding: 6px 0 6px 16px;
-  border-left: 1px solid var(--vscode-widget-border, var(--vscode-panel-border, transparent));
+  border-left: 1px solid var(--opencode-border);
 }
 
 /* Thoughts: quiet, note-like; only the reasoning text keeps a faint accent rail. */
@@ -1272,12 +1374,11 @@ details[open] > summary > .chevron,
 .step-fold-body .reasoning > summary {
   color: var(--vscode-descriptionForeground);
   font-style: italic;
-  opacity: 0.85;
 }
 
 .step-fold-body .reasoning .md {
   border-left: 2px solid var(--vscode-textLink-foreground, var(--vscode-focusBorder));
-  opacity: 0.78;
+  color: var(--vscode-descriptionForeground);
   font-size: 0.92em;
   margin: 3px 0 5px 4px;
   padding-left: 8px;
@@ -1436,35 +1537,13 @@ details[open] > summary > .chevron,
   text-overflow: ellipsis;
   white-space: nowrap;
   font-size: 0.82em;
-  opacity: 0.65;
+  color: var(--vscode-descriptionForeground);
 }
 
 .file-list .file-item {
   display: flex;
   align-items: center;
   gap: 2px;
-}
-
-.file-list .file-item .file-row {
-  flex: 1;
-  width: auto;
-  min-width: 0;
-}
-
-.file-open {
-  display: inline-flex;
-  align-items: center;
-  background: none;
-  border: none;
-  border-radius: 3px;
-  padding: 2px 4px;
-  cursor: pointer;
-  color: var(--vscode-textLink-foreground);
-}
-
-.file-open:hover {
-  background: var(--vscode-list-hoverBackground);
-  color: var(--vscode-textLink-activeForeground);
 }
 
 .adds {
@@ -1490,7 +1569,7 @@ details[open] > summary > .chevron,
 
 /* A question is a regular themed widget, not a decorated dialog: same border and spacing as a card. */
 .card.question {
-  border-color: var(--vscode-widget-border, var(--vscode-panel-border, transparent));
+  border-color: var(--opencode-border);
   padding: 8px;
   gap: 8px;
 }
@@ -1663,7 +1742,7 @@ button:disabled {
 .text-input {
   background: var(--vscode-input-background);
   color: var(--vscode-input-foreground);
-  border: 1px solid var(--vscode-input-border, transparent);
+  border: 1px solid var(--opencode-border);
   border-radius: 3px;
   padding: 3px 6px;
   font: inherit;
@@ -1716,7 +1795,7 @@ button:disabled {
 .panel {
   margin: 0 8px;
   padding: 4px 6px;
-  border-top: 1px solid var(--vscode-widget-border, var(--vscode-panel-border, transparent));
+  border-top: 1px solid var(--opencode-border);
   font-size: 0.95em;
 }
 
@@ -1732,6 +1811,29 @@ button:disabled {
    remaining buttons stay right next to it instead of being spread across the summary. */
 .panel > summary > button:first-of-type {
   margin-left: auto;
+}
+
+/* The changes panel opens by default: edits made by the agent should not be a discovery game. */
+.changes-panel {
+  position: relative;
+  margin: 0 8px;
+}
+
+.changes-panel > .panel {
+  margin: 0;
+}
+
+.changes-panel > .panel > summary {
+  padding-right: 96px;
+}
+
+.changes-actions {
+  position: absolute;
+  top: 2px;
+  right: 6px;
+  display: flex;
+  align-items: center;
+  gap: 2px;
 }
 
 .todo {
@@ -1798,7 +1900,7 @@ button:disabled {
   max-height: 55vh;
   margin: 0 8px 4px;
   overflow: hidden;
-  border: 1px solid var(--vscode-widget-border, var(--vscode-panel-border, transparent));
+  border: 1px solid var(--opencode-border);
   border-radius: 3px;
   background: var(--vscode-editorWidget-background, var(--vscode-editor-background));
   box-shadow: 0 2px 8px var(--vscode-widget-shadow, transparent);
@@ -1810,7 +1912,7 @@ button:disabled {
   align-items: center;
   gap: 6px;
   padding: 6px 10px;
-  border-bottom: 1px solid var(--vscode-widget-border, var(--vscode-panel-border, transparent));
+  border-bottom: 1px solid var(--opencode-border);
 }
 
 .attention-title {
@@ -1902,7 +2004,7 @@ button:disabled {
   display: flex;
   flex-direction: column;
   gap: 2px;
-  border: 1px solid var(--vscode-input-border, var(--vscode-widget-border, transparent));
+  border: 1px solid var(--opencode-border);
   border-radius: 6px;
   background: var(--vscode-input-background);
   padding: 4px;
@@ -1980,7 +2082,7 @@ button:disabled {
   max-width: 100%;
   padding: 1px 2px 1px 6px;
   border-radius: 4px;
-  border: 1px solid var(--vscode-widget-border, var(--vscode-input-border, transparent));
+  border: 1px solid var(--opencode-border);
   background: var(--vscode-badge-background);
   color: var(--vscode-badge-foreground);
   font-size: 0.9em;
@@ -1992,13 +2094,16 @@ button:disabled {
   border-style: dashed;
 }
 
+/* "Off" is a state, not dimmed text: keep the label at full contrast and mark it with a dashed
+   outline instead of lowering opacity below the readability threshold. */
 .chip.off {
-  opacity: 0.65;
+  color: var(--vscode-disabledForeground);
+  border-style: dashed;
 }
 
 .chip.off:hover,
 .chip.off:focus-within {
-  opacity: 1;
+  color: var(--vscode-foreground);
 }
 
 .chip.readonly {
@@ -2121,7 +2226,7 @@ button:disabled {
   max-height: 220px;
   overflow: auto;
   background: var(--vscode-quickInput-background, var(--vscode-editorWidget-background));
-  border: 1px solid var(--vscode-widget-border, var(--vscode-editorSuggestWidget-border));
+  border: 1px solid var(--opencode-border);
   border-radius: 6px;
   box-shadow: 0 4px 16px var(--vscode-widget-shadow, rgba(0, 0, 0, 0.3));
 }
@@ -2150,7 +2255,6 @@ button:disabled {
 
 .mention-popup li.active .mention-path {
   color: inherit;
-  opacity: 0.8;
 }
 
 .mention-empty {
@@ -2320,7 +2424,7 @@ button:disabled {
   flex-direction: column;
   background: var(--vscode-quickInput-background, var(--vscode-editorWidget-background));
   color: var(--vscode-quickInput-foreground, var(--vscode-foreground));
-  border: 1px solid var(--vscode-widget-border, var(--vscode-contrastBorder, transparent));
+  border: 1px solid var(--opencode-border);
   border-radius: 6px;
   box-shadow: 0 4px 16px var(--vscode-widget-shadow, rgba(0, 0, 0, 0.3));
   padding: 4px;
@@ -2348,7 +2452,7 @@ button:disabled {
   margin-bottom: 4px;
   padding: 4px 6px;
   border-radius: 4px;
-  border: 1px solid var(--vscode-input-border, transparent);
+  border: 1px solid var(--opencode-border);
   background: var(--vscode-input-background);
   color: var(--vscode-input-foreground);
   font: inherit;
@@ -2423,7 +2527,6 @@ button:disabled {
 
 .picker-option.active .picker-desc {
   color: inherit;
-  opacity: 0.8;
 }
 
 .picker-meta {
@@ -2438,7 +2541,6 @@ button:disabled {
 
 .picker-option.active .picker-meta {
   color: inherit;
-  opacity: 0.8;
 }
 
 .context-meter {
@@ -2500,6 +2602,17 @@ button:disabled {
   *::after {
     animation: none !important;
     transition: none !important;
+  }
+}
+
+/* One token, one place to guarantee a boundary in high contrast. */
+body.vscode-high-contrast {
+  --opencode-border: var(--vscode-contrastBorder, var(--vscode-foreground));
+}
+
+@media (prefers-contrast: more) {
+  :root {
+    --opencode-border: var(--vscode-contrastBorder, var(--vscode-foreground));
   }
 }
 

@@ -10,7 +10,7 @@
  */
 import { Generation } from "./generation";
 
-export type ExecutionStatus = "idle" | "running" | "succeeded" | "failed" | "interrupted";
+export type ExecutionStatus = "idle" | "running" | "needsInput" | "succeeded" | "failed" | "interrupted";
 
 export interface ExecutionState {
   status: ExecutionStatus;
@@ -87,6 +87,16 @@ export class ExecutionStateService {
       this.generation.bump();
       this.localIdle = undefined;
       this.publish("running", sid);
+      return undefined;
+    }
+    // A pending approval/question is not "working": the status bar must say it is waiting on the
+    // user, and clicking it must jump to the request instead of stopping the turn.
+    if (type === "permission.asked" || type === "form.created") {
+      if (this.status === "running" || this.status === "needsInput") this.publish("needsInput", sid);
+      return undefined;
+    }
+    if (type === "permission.replied" || type === "form.replied" || type === "form.cancelled") {
+      if (this.status === "needsInput") this.publish("running", sid);
       return undefined;
     }
     const terminal = TERMINAL_EVENTS[type];

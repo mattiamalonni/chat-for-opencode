@@ -70,6 +70,55 @@
         }
       ]
     },
+    "walkthroughs": [
+      {
+        "id": "opencode.gettingStarted",
+        "title": "%walkthrough.title%",
+        "description": "%walkthrough.description%",
+        "steps": [
+          {
+            "id": "trust",
+            "title": "%walkthrough.trust.title%",
+            "description": "%walkthrough.trust.description%",
+            "command": "workbench.trust.manage",
+            "commandTitle": "%walkthrough.trust.command%",
+            "media": {
+              "markdown": "media/walkthrough-trust.md"
+            }
+          },
+          {
+            "id": "install",
+            "title": "%walkthrough.install.title%",
+            "description": "%walkthrough.install.description%",
+            "command": "opencode.install",
+            "commandTitle": "%walkthrough.install.command%",
+            "media": {
+              "markdown": "media/walkthrough-install.md"
+            }
+          },
+          {
+            "id": "provider",
+            "title": "%walkthrough.provider.title%",
+            "description": "%walkthrough.provider.description%",
+            "command": "opencode.account",
+            "commandTitle": "%walkthrough.provider.command%",
+            "media": {
+              "markdown": "media/walkthrough-provider.md"
+            }
+          },
+          {
+            "id": "chat",
+            "title": "%walkthrough.chat.title%",
+            "description": "%walkthrough.chat.description%",
+            "command": "opencode.focus",
+            "commandTitle": "%walkthrough.chat.command%",
+            "media": {
+              "markdown": "media/walkthrough-chat.md"
+            }
+          }
+        ]
+      }
+    ],
     "commands": [
       {
         "command": "opencode.newSession",
@@ -185,6 +234,16 @@
         "title": "%command.moveView%",
         "category": "OpenCode",
         "icon": "$(arrow-swap)"
+      },
+      {
+        "command": "opencode.install",
+        "title": "%command.install%",
+        "category": "OpenCode"
+      },
+      {
+        "command": "opencode.quickSwitchSession",
+        "title": "%command.quickSwitchSession%",
+        "category": "OpenCode"
       }
     ],
     "menus": {
@@ -292,6 +351,12 @@
           "command": "opencode.searchSessions"
         },
         {
+          "command": "opencode.quickSwitchSession"
+        },
+        {
+          "command": "opencode.install"
+        },
+        {
           "command": "opencode.openChatInEditor"
         }
       ]
@@ -317,6 +382,11 @@
         "key": "ctrl+alt+l",
         "mac": "cmd+alt+l",
         "when": "editorTextFocus && editorHasSelection"
+      },
+      {
+        "command": "opencode.quickSwitchSession",
+        "key": "ctrl+alt+s",
+        "mac": "cmd+alt+s"
       }
     ],
     "configuration": {
@@ -421,6 +491,13 @@
           "minimum": 1,
           "maximum": 100,
           "markdownDescription": "%config.sessionPageSize%"
+        },
+        "opencode.toolOutputLimit": {
+          "type": "number",
+          "default": 4000,
+          "minimum": 500,
+          "maximum": 100000,
+          "markdownDescription": "%config.toolOutputLimit%"
         }
       }
     }

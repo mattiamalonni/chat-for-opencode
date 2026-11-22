@@ -1,5 +1,5 @@
-import { Component, type ComponentChildren } from "preact";
-import { useEffect, useLayoutEffect, useMemo, useReducer, useRef, useState } from "preact/hooks";
+import { Component, createContext, type ComponentChildren } from "preact";
+import { useContext, useEffect, useLayoutEffect, useMemo, useReducer, useRef, useState } from "preact/hooks";
 import type { AgentInfo, CommandSuggestion, FileDiff, InboxItem, ModelInfo, ModelRef, ServerEvent, SkillSuggestion } from "../shared/api";
 import {
   chatReducer,
@@ -19,7 +19,16 @@ import { SUPPORTED_SERVER_VERSION, type Compatibility } from "../shared/compatib
 import { estimateDataUrlTokens } from "../shared/format";
 import { isFindKey, isNewSessionKey, isSyncKey } from "../shared/keys";
 import { contractSignature, emptyContract, type ContractReport } from "../shared/contract";
-import type { Attachment, ConnectionStatus, ContextItem, FolderInfo, HostMessage, SessionSummary, UiError } from "../shared/protocol";
+import type {
+  ActionId,
+  Attachment,
+  ConnectionStatus,
+  ContextItem,
+  FolderInfo,
+  HostMessage,
+  SessionSummary,
+  UiError,
+} from "../shared/protocol";
 import {
   initialSubagentState,
   pushSubagentSession,
@@ -57,6 +66,21 @@ import { hydrateDrafts, onHostMessage, post, setDraft } from "./vscode";
 
 /** Bounded queue: a hidden webview gets no requestAnimationFrame, so SSE events cannot drain. */
 const MAX_QUEUED_EVENTS = 500;
+
+/** Errors whose fix is a setup step, not a retry: the empty state adapts to them. */
+const SETUP_ERROR_KINDS = new Set<UiError["kind"]>(["notInstalled", "startFailed", "noProvider", "untrustedWorkspace", "noWorkspace"]);
+
+/** Per-turn fold overrides: a finished turn keeps its steps open until the user folds them. */
+interface StepGroup {
+  keys: string[];
+  defaults: Map<string, boolean>;
+}
+interface StepControl {
+  expanded: (key: string, fallback: boolean) => boolean;
+  toggle: (key: string, fallback: boolean) => void;
+  toggleGroup: (group: StepGroup) => void;
+}
+const StepControlContext = createContext<StepControl | undefined>(undefined);
 
 interface Catalog {
   models: ModelInfo[];
@@ -112,7 +136,11 @@ export function App() {
   // `syncing` guard still sees current state instead of the first render's value.
   const syncNowRef = useRef<() => void>(() => {});
   const [searchOpen, setSearchOpen] = useState(false);
+  const searchOpenRef = useRef(searchOpen);
+  searchOpenRef.current = searchOpen;
   const [searchQuery, setSearchQuery] = useState("");
+  const searchQueryRef = useRef(searchQuery);
+  searchQueryRef.current = searchQuery;
   // Bumped by Cmd/Ctrl+F so re-focusing the search works even when it is already open.
   const [searchFocusToken, setSearchFocusToken] = useState(0);
   const [activeMatch, setActiveMatch] = useState(0);
@@ -140,6 +168,8 @@ export function App() {
   // Conversation-scoped state must be dropped when the loaded session changes (new session,
   // folder switch, switching/deleting a session) but not on a same-session resync.
   const lastSessionId = useRef<string | null | undefined>(undefined);
+  // The message filter is kept per session: switching to compare two chats used to wipe it.
+  const searchQueries = useRef(new Map<string, string>());
 
   useEffect(() => {
     const requestResync = () => {
@@ -168,6 +198,7 @@ export function App() {
           setStrings({ ...STRINGS, ...msg.strings });
           setCopyLabel(msg.strings.copy);
           env.platform = msg.platform;
+          env.toolOutputLimit = msg.toolOutputLimit ?? 4000;
           setFolders({ list: msg.folders, active: msg.activeFolder });
           setIssuesUrl(msg.issuesUrl);
           setDropzoneEnabled(msg.dropzone ?? true);
@@ -199,7 +230,11 @@ export function App() {
           childResyncPending.current.clear();
           const id = msg.session?.id ?? null;
           if (lastSessionId.current !== id) {
+            const previous = lastSessionId.current;
+            if (previous) searchQueries.current.set(previous, searchQueryRef.current);
             lastSessionId.current = id;
+            setSearchQuery(id ? (searchQueries.current.get(id) ?? "") : "");
+            setActiveMatch(0);
             subagentDispatch({ type: "clear" });
             setSubagentStack([]);
             setSubagentLabels({});
@@ -208,7 +243,6 @@ export function App() {
             setInbox([]);
             setDismissedChanges(null);
             setNotice(undefined);
-            setSearchQuery("");
             clearReplyFailures();
             // Context chips belong to the editor, not the chat: keep the user's explicit
             // opt-in/opt-out across session switches (stale ids are pruned on the next `context`).
@@ -426,6 +460,12 @@ export function App() {
         e.preventDefault();
         e.stopPropagation();
         navigateMatchRef.current(e.shiftKey ? -1 : 1);
+      } else if (e.key === "Escape" && searchOpenRef.current) {
+        // Escape closes the search *and* clears it: leaving the query would keep every non-match
+        // dimmed after the search bar disappeared.
+        e.preventDefault();
+        e.stopPropagation();
+        closeSearchRef.current();
       }
     };
     window.addEventListener("keydown", onKeyDown, true);
@@ -581,11 +621,19 @@ export function App() {
   );
   // Count the marks that are actually rendered (a collapsed tool can hide text) and keep the
   // highlighted one in sync across re-renders while a turn streams in.
+  // Jump to the first hit as soon as it exists, not only on Enter/F3. The query guard keeps the
+  // view still while a turn streams new matching text.
+  const autoScrolledQuery = useRef("");
   useLayoutEffect(() => {
     const marks = Array.from(document.querySelectorAll<HTMLElement>(".conversation mark[data-search-match]"));
     if (marks.length !== matchCount) setMatchCount(marks.length);
     if (marks.length > 0 && activeMatch >= marks.length) setActiveMatch(0);
     marks.forEach((mark, i) => mark.classList.toggle("match-current", i === activeMatch));
+    if (!normalizedQuery) autoScrolledQuery.current = "";
+    else if (marks.length > 0 && autoScrolledQuery.current !== normalizedQuery) {
+      autoScrolledQuery.current = normalizedQuery;
+      marks[0].scrollIntoView({ block: "center", behavior: "smooth" });
+    }
   }, [normalizedQuery, chat.messages, activeMatch, matchCount]);
 
   const navigateMatch = (direction: number) => {
@@ -596,6 +644,15 @@ export function App() {
     marks[next]?.scrollIntoView({ block: "center", behavior: "smooth" });
   };
   navigateMatchRef.current = navigateMatch;
+
+  const closeSearch = () => {
+    setSearchOpen(false);
+    setSearchQuery("");
+    if (chat.sessionId) searchQueries.current.set(chat.sessionId, "");
+    setActiveMatch(0);
+  };
+  const closeSearchRef = useRef(closeSearch);
+  closeSearchRef.current = closeSearch;
 
   // Everything stays in the webview: no host message, no network request.
   const exportConversation = () => {
@@ -652,9 +709,14 @@ export function App() {
                 syncing={syncing}
                 searchOpen={searchOpen}
                 onToggleSearch={() => setSearchOpen((open) => !open)}
+                onCloseSearch={closeSearch}
                 searchFocusToken={searchFocusToken}
                 searchQuery={searchQuery}
-                onSearchChange={setSearchQuery}
+                onSearchChange={(value) => {
+                  setSearchQuery(value);
+                  if (chat.sessionId) searchQueries.current.set(chat.sessionId, value);
+                  setActiveMatch(0);
+                }}
                 searchCount={searchCount}
                 activeMatch={activeMatch}
                 matchCount={matchCount}
@@ -684,6 +746,10 @@ export function App() {
               {notice && <NoticeBanner error={notice} onDismiss={() => setNotice(undefined)} />}
               <Conversation
                 chat={chat}
+                status={status.status}
+                error={status.error}
+                hasActiveFile={context.some((c) => c.kind === "file")}
+                hasSelection={context.some((c) => c.kind === "selection")}
                 scrollToken={scrollToken}
                 searchQuery={searchQuery}
                 revealMessageId={revealMessageId}
@@ -886,6 +952,7 @@ function Header(props: {
   syncing: boolean;
   searchOpen: boolean;
   onToggleSearch: () => void;
+  onCloseSearch: () => void;
   searchFocusToken: number;
   searchQuery: string;
   onSearchChange: (value: string) => void;
@@ -988,7 +1055,7 @@ function Header(props: {
               if (e.key === "Escape") {
                 e.preventDefault();
                 e.stopPropagation();
-                props.onToggleSearch();
+                props.onCloseSearch();
                 return;
               }
               if (e.key === "Enter") {
@@ -1023,7 +1090,7 @@ function Header(props: {
           >
             ↓
           </button>
-          <button type="button" class="icon-button" aria-label={t("dismiss")} onClick={props.onToggleSearch}>
+          <button type="button" class="icon-button" aria-label={t("dismiss")} onClick={props.onCloseSearch}>
             <IconClose />
           </button>
         </div>
@@ -1308,17 +1375,64 @@ function ErrorBlock({ error, onDismiss }: { error: UiError; onDismiss?: () => vo
           </button>
         )}
       </div>
-      {error.detail && (
-        <details class="banner-detail">
-          <summary>{t("details")}</summary>
-          <pre>{error.detail}</pre>
-        </details>
-      )}
+      {error.detail &&
+        (SETUP_ERROR_KINDS.has(error.kind) ? (
+          <pre class="banner-detail-inline">{error.detail}</pre>
+        ) : (
+          <details class="banner-detail">
+            <summary>{t("details")}</summary>
+            <pre>{error.detail}</pre>
+          </details>
+        ))}
       <div class="banner-actions">
         {error.actions.map((a) => (
           <ActionButton key={a} id={a} />
         ))}
       </div>
+    </div>
+  );
+}
+
+/**
+ * Empty state for a setup blocker. The banner above explains the failure; this turns it into a
+ * short checklist so a first-run user knows what to do next instead of staring at chat prompts.
+ */
+function SetupWelcome({ error }: { error: UiError }) {
+  const t = useT();
+  const steps: Array<{ label: string; done: boolean; action?: ActionId }> = [
+    {
+      label: t("setupTrust"),
+      done: error.kind !== "untrustedWorkspace" && error.kind !== "noWorkspace",
+      action: error.kind === "noWorkspace" ? "openFolder" : error.kind === "untrustedWorkspace" ? "trustWorkspace" : undefined,
+    },
+    {
+      label: t("setupInstall"),
+      done: error.kind !== "notInstalled" && error.kind !== "startFailed",
+      action: error.kind === "notInstalled" || error.kind === "startFailed" ? "install" : undefined,
+    },
+    {
+      label: t("setupProvider"),
+      done: error.kind !== "noProvider",
+      action: error.kind === "noProvider" ? "login" : undefined,
+    },
+  ];
+  return (
+    <div class="welcome setup" aria-label={t("setupTitle")}>
+      <h2>{t("setupTitle")}</h2>
+      <p>{t("setupBody")}</p>
+      <ol class="setup-steps">
+        {steps.map((step) => (
+          <li class={step.done ? "done" : "pending"} key={step.label}>
+            <span class="setup-step-icon" aria-hidden="true">
+              {step.done ? <IconCheck /> : <IconError />}
+            </span>
+            <span class="setup-step-label">{step.label}</span>
+            {step.action && <ActionButton id={step.action} />}
+          </li>
+        ))}
+      </ol>
+      <p class="welcome-hint">{error.message}</p>
+      <p class="welcome-hint">{t("setupHint")}</p>
     </div>
   );
 }
@@ -1487,7 +1601,7 @@ function splitStep(items: ConversationItem[]): StepPiece[] {
  * without reordering a thought that arrived after a sentence. The live step's fold stays expanded
  * while the turn streams; finished ones collapse.
  */
-function stepBlocks(groups: ConversationItem[][], liveIndex: number): ConversationItem[] {
+function stepBlocks(groups: ConversationItem[][], liveIndex: number, allLive = false): ConversationItem[] {
   const out: ConversationItem[] = [];
   let pending: ConversationItem[] = [];
   let pendingFrom = -1;
@@ -1502,7 +1616,7 @@ function stepBlocks(groups: ConversationItem[][], liveIndex: number): Conversati
       index: pendingFrom,
       lastIndex: pendingTo,
       details: pending,
-      live: liveIndex >= pendingFrom && liveIndex <= pendingTo,
+      live: allLive || (liveIndex >= pendingFrom && liveIndex <= pendingTo),
     });
     pending = [];
     pendingFrom = -1;
@@ -1533,6 +1647,13 @@ function stepBlocks(groups: ConversationItem[][], liveIndex: number): Conversati
 function conversationItems(messages: UiMessage[], turns: TurnStats[]): ConversationItem[] {
   const items: ConversationItem[] = [];
   let turn: UiAssistantMessage[] = [];
+  let lastAssistant = -1;
+  for (let i = messages.length - 1; i >= 0; i--) {
+    if (messages[i].kind === "assistant") {
+      lastAssistant = i;
+      break;
+    }
+  }
 
   const flushTurn = () => {
     if (turn.length === 0) return;
@@ -1589,10 +1710,12 @@ function conversationItems(messages: UiMessage[], turns: TurnStats[]): Conversat
     }
 
     const stats = statsForTurn(turns, turn);
-    // While streaming, the last step stays open so the work is visible; a finished turn collapses
-    // every step (the user can still expand each one on demand).
-    const liveIndex = stats ? -1 : groups.length - 1;
-    items.push(...stepBlocks(groups, liveIndex));
+    // While streaming, the last step stays open. Once a turn finishes, keep *its* steps open —
+    // that is exactly what someone reviewing the reply wants to see — and fold older turns.
+    const isLatestTurn = lastAssistant >= 0 && turn.includes(messages[lastAssistant] as UiAssistantMessage);
+    const allLive = !!stats && isLatestTurn;
+    const liveIndex = stats ? (allLive ? groups.length - 1 : -1) : groups.length - 1;
+    items.push(...stepBlocks(groups, liveIndex, allLive));
     if (stats) items.push({ kind: "turnStats", key: `stats:${stats.id}`, stats });
     turn = [];
   };
@@ -1639,6 +1762,8 @@ function StepBlock({
   lastIndex,
   details,
   live,
+  controlKey,
+  group,
   filteredOut = false,
   searchActive = false,
   render,
@@ -1647,21 +1772,44 @@ function StepBlock({
   lastIndex: number;
   details: ConversationItem[];
   live: boolean;
+  controlKey?: string;
+  group?: StepGroup;
   filteredOut?: boolean;
   searchActive?: boolean;
   render: (item: ConversationItem, q: string) => ComponentChildren;
 }) {
   const t = useT();
+  const control = useContext(StepControlContext);
   const [open, setOpen] = useState(false);
-  const expanded = live || open || searchActive;
+  const fallback = live || open || searchActive;
+  const expanded = control && controlKey ? control.expanded(controlKey, fallback) : fallback;
   const label = lastIndex > index ? t("stepsRange", index + 1, lastIndex + 1) : t("stepLabel", index + 1);
   return (
     <section class={`step-block${filteredOut ? " filtered-out" : ""}`}>
       <div class="step-fold">
-        <button type="button" class="step-fold-header" aria-expanded={expanded} aria-label={label} onClick={() => setOpen(!open)}>
-          <IconChevron class="chevron" />
-          <span>{label}</span>
-        </button>
+        <div class="step-fold-bar">
+          <button
+            type="button"
+            class="step-fold-header"
+            aria-expanded={expanded}
+            aria-label={label}
+            onClick={() => (control && controlKey ? control.toggle(controlKey, fallback) : setOpen(!open))}
+          >
+            <IconChevron class="chevron" />
+            <span>{label}</span>
+          </button>
+          {group && control && group.keys[0] === controlKey && (
+            <button
+              type="button"
+              class="step-fold-all tooltip-host"
+              aria-label={expanded ? t("collapseAllSteps") : t("expandAllSteps")}
+              data-tooltip={expanded ? t("collapseAllSteps") : t("expandAllSteps")}
+              onClick={() => control.toggleGroup(group)}
+            >
+              {expanded ? t("collapseAll") : t("expandAll")}
+            </button>
+          )}
+        </div>
         {expanded && (
           <div class="step-fold-body">
             {details.map((d, i) => (
@@ -1676,6 +1824,10 @@ function StepBlock({
 
 function Conversation({
   chat,
+  status,
+  error,
+  hasActiveFile,
+  hasSelection,
   scrollToken,
   searchQuery,
   label,
@@ -1684,6 +1836,10 @@ function Conversation({
   onSuggestedPrompt,
 }: {
   chat: ReturnType<typeof chatReducer>;
+  status?: ConnectionStatus;
+  error?: UiError;
+  hasActiveFile?: boolean;
+  hasSelection?: boolean;
   scrollToken: number;
   searchQuery: string;
   label?: string;
@@ -1698,6 +1854,49 @@ function Conversation({
   const [atBottom, setAtBottom] = useState(true);
   const items = useMemo(() => conversationItems(chat.messages, chat.turns), [chat.messages, chat.turns]);
   const query = searchQuery.trim().toLowerCase();
+
+  // Fold state is owned here so one control can expand/collapse every step of a turn. Defaults
+  // come from the items themselves (latest finished turn open, older turns folded, search open).
+  const [stepOverrides, setStepOverrides] = useState<Map<string, boolean>>(new Map());
+  useEffect(() => setStepOverrides(new Map()), [chat.sessionId]);
+  const stepGroups = useMemo(() => {
+    const groups: StepGroup[] = [];
+    let current: StepGroup | undefined;
+    for (const item of items) {
+      if (item.kind === "step") {
+        if (!current) {
+          current = { keys: [], defaults: new Map() };
+          groups.push(current);
+        }
+        current.keys.push(item.key);
+        current.defaults.set(item.key, item.live || !!query);
+      } else if (item.kind === "turnStats" || item.kind === "message") {
+        current = undefined;
+      }
+    }
+    return groups;
+  }, [items, query]);
+  const groupByKey = useMemo(() => {
+    const map = new Map<string, StepGroup>();
+    for (const group of stepGroups) for (const key of group.keys) map.set(key, group);
+    return map;
+  }, [stepGroups]);
+  const stepControl: StepControl = {
+    expanded: (key, fallback) => stepOverrides.get(key) ?? fallback,
+    toggle: (key, fallback) =>
+      setStepOverrides((prev) => {
+        const next = new Map(prev);
+        next.set(key, !(prev.get(key) ?? fallback));
+        return next;
+      }),
+    toggleGroup: (group) =>
+      setStepOverrides((prev) => {
+        const open = group.keys.every((key) => prev.get(key) ?? group.defaults.get(key) ?? false);
+        const next = new Map(prev);
+        for (const key of group.keys) next.set(key, !open);
+        return next;
+      }),
+  };
 
   const scrollToEnd = () => {
     const el = ref.current;
@@ -1829,6 +2028,8 @@ function Conversation({
             lastIndex={item.lastIndex}
             details={item.details}
             live={item.live}
+            controlKey={item.key}
+            group={groupByKey.get(item.key)}
             filteredOut={filteredOut}
             searchActive={!!q}
             render={renderItem}
@@ -1850,63 +2051,77 @@ function Conversation({
     }
   };
   return (
-    <div class="conversation-wrap">
-      <div
-        class="conversation"
-        ref={ref}
-        role="log"
-        aria-label={label ?? t("appName")}
-        aria-busy={chat.busy}
-        tabIndex={0}
-        onScroll={(e) => {
-          const el = e.currentTarget as HTMLDivElement;
-          const bottom = el.scrollHeight - el.scrollTop - el.clientHeight < 40;
-          stick.current = bottom;
-          setAtBottom((prev) => (prev === bottom ? prev : bottom));
-        }}
-        onClick={onClick}
-      >
-        {chat.messages.length === 0 && (
-          <div class="welcome">
-            <h2>{t("welcomeTitle")}</h2>
-            <p>{t("welcomeBody")}</p>
-            {onSuggestedPrompt && (
-              <>
-                <p class="welcome-hint">{t("welcomeHint")}</p>
-                <div class="welcome-starters" aria-label={t("welcomeStarters")}>
-                  <span class="welcome-starters-label">{t("welcomeStarters")}</span>
-                  {[t("starterExplain"), t("starterBugs"), t("starterTests"), t("starterPlan")].map((text) => (
-                    <button type="button" class="welcome-starter" key={text} onClick={() => onSuggestedPrompt(text)}>
-                      {text}
-                    </button>
-                  ))}
-                </div>
-              </>
-            )}
-          </div>
-        )}
-        {items.map((item) => renderItem(item, query))}
-        {chat.busy && chat.messages.at(-1)?.kind !== "assistant" && (
-          <div class="typing" aria-label={t("thinking")}>
-            <span />
-            <span />
-            <span />
-          </div>
-        )}
-        {chat.retry && (
-          <div class="notice warning" role="status">
-            <IconWarning />
-            {t("retrying", chat.retry.attempt, chat.retry.message)}
-          </div>
+    <StepControlContext.Provider value={stepControl}>
+      <div class="conversation-wrap">
+        <div
+          class="conversation"
+          ref={ref}
+          role="log"
+          aria-label={label ?? t("appName")}
+          aria-busy={chat.busy}
+          tabIndex={0}
+          onScroll={(e) => {
+            const el = e.currentTarget as HTMLDivElement;
+            const bottom = el.scrollHeight - el.scrollTop - el.clientHeight < 40;
+            stick.current = bottom;
+            setAtBottom((prev) => (prev === bottom ? prev : bottom));
+          }}
+          onClick={onClick}
+        >
+          {chat.messages.length === 0 &&
+            (error && SETUP_ERROR_KINDS.has(error.kind) ? (
+              <SetupWelcome error={error} />
+            ) : (
+              <div class="welcome">
+                <h2>{t("welcomeTitle")}</h2>
+                <p>{t("welcomeBody")}</p>
+                {(status === "error" || status === "reconnecting") && <p class="welcome-hint">{t("setupHint")}</p>}
+                {onSuggestedPrompt && (
+                  <>
+                    <p class="welcome-hint">{t("welcomeHint")}</p>
+                    <div class="welcome-starters" aria-label={t("welcomeStarters")}>
+                      <span class="welcome-starters-label">{t("welcomeStarters")}</span>
+                      {[
+                        { text: t("starterExplain"), enabled: !!hasActiveFile },
+                        { text: t("starterBugs"), enabled: !!hasSelection },
+                        { text: t("starterTests"), enabled: !!hasActiveFile },
+                        { text: t("starterPlan"), enabled: !!hasActiveFile },
+                      ]
+                        .filter((starter) => starter.enabled)
+                        .map((starter) => (
+                          <button type="button" class="welcome-starter" key={starter.text} onClick={() => onSuggestedPrompt(starter.text)}>
+                            {starter.text}
+                          </button>
+                        ))}
+                      {!hasActiveFile && !hasSelection && <p class="welcome-hint">{t("starterAvailabilityHint")}</p>}
+                    </div>
+                  </>
+                )}
+              </div>
+            ))}
+          {items.map((item) => renderItem(item, query))}
+          {chat.busy && chat.messages.at(-1)?.kind !== "assistant" && (
+            <div class="typing" aria-label={t("thinking")}>
+              <span />
+              <span />
+              <span />
+            </div>
+          )}
+          {chat.retry && (
+            <div class="notice warning" role="status">
+              <IconWarning />
+              {t("retrying", chat.retry.attempt, chat.retry.message)}
+            </div>
+          )}
+        </div>
+        {!atBottom && chat.messages.length > 0 && (
+          <button type="button" class="jump-latest" onClick={scrollToEnd}>
+            <IconChevron />
+            {t("jumpToLatest")}
+          </button>
         )}
       </div>
-      {!atBottom && chat.messages.length > 0 && (
-        <button type="button" class="jump-latest" onClick={scrollToEnd}>
-          <IconChevron />
-          {t("jumpToLatest")}
-        </button>
-      )}
-    </div>
+    </StepControlContext.Provider>
   );
 }
 
@@ -1939,16 +2154,47 @@ function SubagentModal({
   const closeRef = useRef(onClose);
   closeRef.current = onClose;
   useEffect(() => {
+    // Restore focus to the tool button that opened the dialog; without this, Tab starts again
+    // from the top of the hidden conversation behind the backdrop.
+    const previous = document.activeElement as HTMLElement | null;
     ref.current?.focus();
-    // Escape must work even if the user presses it before the focus effect above has run.
+    // Escape and Tab must work even before the focus effect above has run.
     const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key !== "Escape") return;
-      e.preventDefault();
-      e.stopPropagation();
-      closeRef.current();
+      if (e.key === "Escape") {
+        e.preventDefault();
+        e.stopPropagation();
+        closeRef.current();
+        return;
+      }
+      if (e.key !== "Tab") return;
+      const dialog = ref.current;
+      if (!dialog) return;
+      const focusable = Array.from(
+        dialog.querySelectorAll<HTMLElement>('button:not([disabled]), a[href], input, select, textarea, [tabindex]:not([tabindex="-1"])'),
+      ).filter((el) => el.getClientRects().length > 0);
+      if (focusable.length === 0) {
+        e.preventDefault();
+        dialog.focus();
+        return;
+      }
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (!dialog.contains(document.activeElement)) {
+        e.preventDefault();
+        first.focus();
+      } else if (e.shiftKey && document.activeElement === first) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && document.activeElement === last) {
+        e.preventDefault();
+        first.focus();
+      }
     };
     document.addEventListener("keydown", onKeyDown, true);
-    return () => document.removeEventListener("keydown", onKeyDown, true);
+    return () => {
+      document.removeEventListener("keydown", onKeyDown, true);
+      if (previous && document.contains(previous)) previous.focus();
+    };
   }, []);
   return (
     <div
@@ -2105,22 +2351,28 @@ function ChangesPanel({ files, onDismiss }: { files: FileDiff[]; onDismiss: () =
   const additions = files.reduce((n, f) => n + (Number(f.additions) || 0), 0);
   const deletions = files.reduce((n, f) => n + (Number(f.deletions) || 0), 0);
   return (
-    <details class="panel changes">
-      <summary>
-        <IconChevron class="chevron" />
-        {files.length === 1 ? t("changedFile", files.length) : t("changedFiles", files.length)}
+    // `<summary>` stays the only child of `<details>` that toggles it: nesting buttons inside a
+    // summary gives them unreliable keyboard/screen-reader semantics. The action row is a sibling.
+    <div class="changes-panel">
+      <details class="panel changes" open>
+        <summary>
+          <IconChevron class="chevron" />
+          {files.length === 1 ? t("changedFile", files.length) : t("changedFiles", files.length)}
+        </summary>
+        <FileList files={files} applied />
+      </details>
+      <div class="changes-actions">
         <button
           type="button"
           class="icon-button view-all-changes"
           aria-label={t("viewAllChanges")}
-          onClick={(e) => {
-            e.preventDefault();
-            e.stopPropagation();
+          data-tooltip={t("viewAllChanges")}
+          onClick={() =>
             post({
               type: "openDiffs",
               files: files.filter((f) => f.patch).map((f) => ({ file: f.file, patch: f.patch })),
-            });
-          }}
+            })
+          }
         >
           <span class="adds">+{additions}</span>
           {additions > 0 && deletions > 0 ? " " : ""}
@@ -2131,10 +2383,7 @@ function ChangesPanel({ files, onDismiss }: { files: FileDiff[]; onDismiss: () =
           class="icon-button tooltip-host refresh-changes"
           data-tooltip={t("refresh")}
           aria-label={t("refresh")}
-          onClick={(e) => {
-            e.preventDefault();
-            post({ type: "refreshChanges" });
-          }}
+          onClick={() => post({ type: "refreshChanges" })}
         >
           <IconRefresh />
         </button>
@@ -2143,16 +2392,11 @@ function ChangesPanel({ files, onDismiss }: { files: FileDiff[]; onDismiss: () =
           class="icon-button tooltip-host dismiss-changes"
           data-tooltip={t("dismissChanges")}
           aria-label={t("dismissChanges")}
-          onClick={(e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            onDismiss();
-          }}
+          onClick={onDismiss}
         >
           <IconCheck />
         </button>
-      </summary>
-      <FileList files={files} applied />
-    </details>
+      </div>
+    </div>
   );
 }

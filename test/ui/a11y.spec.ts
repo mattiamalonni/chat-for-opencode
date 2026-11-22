@@ -60,6 +60,38 @@ test.describe("accessibility tree", () => {
     }
   });
 
+  test("muted text keeps full opacity and high-contrast themes keep every border", async ({ page }) => {
+    await boot(page);
+    const hint = page.locator(".welcome-hint").first();
+    await expect(hint).toBeVisible();
+    expect(await hint.evaluate((el) => getComputedStyle(el).opacity)).toBe("1");
+
+    await page.evaluate(() => {
+      document.documentElement.style.setProperty("--vscode-contrastBorder", "rgb(255, 0, 0)");
+      document.body.classList.add("vscode-high-contrast");
+    });
+    for (const selector of [".composer-box", ".banner", ".welcome-starter"]) {
+      if ((await page.locator(selector).count()) === 0) continue;
+      // `.composer-box` transitions border-color, so poll until the high-contrast value settles.
+      await expect
+        .poll(() =>
+          page
+            .locator(selector)
+            .first()
+            .evaluate((el) => getComputedStyle(el).borderTopColor),
+        )
+        .toBe("rgb(255, 0, 0)");
+    }
+  });
+
+  test("the search toggle's tooltip does not cover the open search bar", async ({ page }) => {
+    await boot(page);
+    const toggle = page.getByRole("button", { name: STRINGS.searchMessages });
+    await toggle.click();
+    await toggle.hover();
+    expect(await toggle.evaluate((el) => getComputedStyle(el, "::after").display)).toBe("none");
+  });
+
   test("a permission card exposes its actions as labelled buttons", async ({ page }) => {
     await boot(page);
     await host(page, {

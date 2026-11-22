@@ -106,7 +106,9 @@ Press **F5** in this repository to launch an Extension Development Host.
 
 1. Open a folder. The chat opens automatically the first time; afterwards use `Cmd/Ctrl+Alt+O`,
    the OpenCode icon in the status bar (idle: view logins or sign in; running: stop the current
-   response; finished: open the chat), or the OpenCode icon in the Secondary Side Bar on the right.
+   response; **amber question mark: approval or answer needed — click to open the chat**; finished:
+   open the chat), or the OpenCode icon in the Secondary Side Bar on the right. New users can also
+   open **Help → Welcome → Get started with OpenCode** for a four-step setup walkthrough.
    On VS Code 1.99–1.103, which cannot contribute to the Secondary Side Bar, the chat appears in the Explorer;
    use _OpenCode: Move Chat View…_ to move it to the right.
 2. In a trusted folder the extension starts `opencode serve` in the background (status shown at the top).
@@ -138,6 +140,8 @@ loads the skill content.
 | Command                           | Default key                                                                                   |
 | --------------------------------- | --------------------------------------------------------------------------------------------- |
 | OpenCode: Focus Chat              | `Cmd/Ctrl+Alt+O`                                                                              |
+| OpenCode: Quick Switch Session    | `Cmd/Ctrl+Alt+S` (recent sessions first; typing searches all conversations)                   |
+| OpenCode: Install OpenCode…       | – (copy the install command, open platform instructions, retry the connection)                |
 | OpenCode: Ask OpenCode…           | `Cmd/Ctrl+Alt+Shift+O` (fill the composer from anywhere, with the current selection attached) |
 | OpenCode: Stop current response   | – (also click the status bar while a turn runs)                                               |
 | OpenCode: Open Chat in Editor     | – (toolbar, opens a second, wider chat view)                                                  |
@@ -169,16 +173,31 @@ loads the skill content.
 | `opencode.sessionPageSize`        | `10`                                       | Sessions shown per page in the session list; older ones are fetched with **Load more sessions**.                                                                                                          |
 | `opencode.notifyOnComplete`       | `false`                                    | Notify when a turn finishes while the chat is hidden, with an **Open chat** action.                                                                                                                       |
 | `opencode.notifyOnFailure`        | `true`                                     | Notify when a turn fails while the chat is hidden.                                                                                                                                                        |
+| `opencode.toolOutputLimit`        | `4000`                                     | Characters of tool output shown inline before the **output (n)** expander. Raise it to review long command output without opening every card.                                                             |
 
 **OpenCode: Search All Session Conversations** (`Cmd/Ctrl+Alt+F`) searches titles and message bodies
 across every session in the workspace, then opens the hit and highlights the matching message.
+Searching inside the chat (`Cmd/Ctrl+F`) keeps the conversation in place and dims non-matches; it
+jumps to the first hit while you type, remembers the last query per session, keeps Markdown rendered,
+and **Esc** closes the search and clears the query (restoring the normal text). All hits use the
+same theme find-match background colour, marking only the text background.
 
-On a fresh chat the welcome screen offers four starter prompts and a keyboard hint. With text
-selected in an editor, the context menu also offers **OpenCode: Explain / Find bugs / Write tests /
-Optimize Selection**: each opens the chat with the instruction pre-filled and the selection attached.
+On a fresh chat the welcome screen offers the starter prompts that the current editor context can
+satisfy (and explains what to select for the rest). If setup is incomplete it shows a short checklist
+instead — trust the workspace, install the CLI, sign in to a provider — with the missing action one
+click away. With text selected in an editor, the context menu also offers **OpenCode: Explain / Find
+bugs / Write tests / Optimize Selection**: each opens the chat with the instruction pre-filled and
+the selection attached.
 
-The status-bar item mirrors the current turn (`$(sync~spin)` while running, then a check/alert/stop
-badge), so you can see at a glance whether the agent is still working without opening the chat.
+The status-bar item mirrors the current turn (`$(sync~spin)` while running, an amber `$(question)`
+when the agent is waiting for an approval or an answer, then a check/alert/stop badge), so you can
+see at a glance whether the agent is still working, blocked on you, or done. Clicking while blocked
+opens the chat instead of stopping the turn.
+
+The latest finished turn keeps its steps expanded so its reasoning and tool calls are reviewable;
+one **Collapse all steps in this turn** control folds them again. The changed-files panel also opens
+by default, and **View all session changes** uses VS Code's native multi-file diff (full-file context)
+when a workspace folder is available.
 
 By default new sessions ask before editing files, running shell commands or accessing files outside
 the workspace: OpenCode's base policy (`{"action":"*","effect":"allow"}`) would otherwise approve

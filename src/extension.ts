@@ -98,6 +98,7 @@ export function activate(context: vscode.ExtensionContext): ExtensionApi {
       );
       if (choice === restart) await chat.resetServers();
     }),
+    vscode.commands.registerCommand("opencode.install", () => chat.runAction("install")),
     vscode.commands.registerCommand("opencode.openConfigFile", () => chat.openConfigFile()),
     vscode.commands.registerCommand("opencode.openSettings", () => chat.runAction("openSettings")),
     vscode.commands.registerCommand("opencode.compact", () => chat.compact()),
@@ -127,6 +128,71 @@ export function activate(context: vscode.ExtensionContext): ExtensionApi {
         matchOnDetail: true,
       });
       if (picked) await chat.openSearchResult(picked.hit);
+    }),
+    // Single-modal MRU switcher: recent sessions appear immediately, and typing extends the search
+    // to all conversations in place instead of opening a second dialog on top of the first.
+    vscode.commands.registerCommand("opencode.quickSwitchSession", () => {
+      type Pick = vscode.QuickPickItem & { sessionId: string; messageId?: string };
+      const picker = vscode.window.createQuickPick<Pick>();
+      const recent = chat.recentSessions();
+      const recentItems = (query: string): Pick[] =>
+        recent
+          .filter((s) => !query || s.title.toLowerCase().includes(query.toLowerCase()))
+          .map((s) => ({
+            label: s.title || vscode.l10n.t("Untitled session"),
+            description: s.needsInput
+              ? vscode.l10n.t("Needs your input")
+              : s.busy
+                ? vscode.l10n.t("Running")
+                : new Date(s.updated).toLocaleString(),
+            sessionId: s.id,
+          }));
+      const hitItems = (hits: SessionSearchResult[]): Pick[] =>
+        hits.map((hit) => ({
+          label: hit.title,
+          description: new Date(hit.updated).toLocaleString(),
+          detail: hit.snippet,
+          sessionId: hit.sessionId,
+          messageId: hit.messageId,
+        }));
+      picker.title = vscode.l10n.t("Switch OpenCode session");
+      picker.placeholder = vscode.l10n.t("Type to filter recent sessions, or search all conversations…");
+      picker.items = recentItems("");
+      let timer: ReturnType<typeof setTimeout> | undefined;
+      let token = 0;
+      picker.onDidChangeValue((value) => {
+        if (timer) clearTimeout(timer);
+        const query = value.trim();
+        const local = recentItems(query);
+        picker.items = local;
+        if (!query) return;
+        const current = ++token;
+        timer = setTimeout(() => {
+          void chat.searchSessions(query).then((hits) => {
+            if (current !== token) return;
+            const known = new Set(local.map((item) => item.sessionId));
+            picker.items = [...local, ...hitItems(hits).filter((hit) => !known.has(hit.sessionId))];
+          });
+        }, 250);
+      });
+      picker.onDidAccept(async () => {
+        const picked = picker.activeItems[0];
+        picker.hide();
+        if (!picked) return;
+        await chat.openSearchResult({
+          sessionId: picked.sessionId,
+          title: picked.label,
+          snippet: picked.detail ?? "",
+          updated: Date.now(),
+          messageId: picked.messageId,
+        });
+      });
+      picker.onDidHide(() => {
+        if (timer) clearTimeout(timer);
+        token++;
+        picker.dispose();
+      });
+      picker.show();
     }),
     vscode.commands.registerCommand("opencode.focus", async () => {
       await focusView();
@@ -246,6 +312,7 @@ export function activate(context: vscode.ExtensionContext): ExtensionApi {
   const statusDescriptions: Record<ExecutionStatus, string> = {
     idle: vscode.l10n.t("Idle"),
     running: vscode.l10n.t("Generating a response — click to stop"),
+    needsInput: vscode.l10n.t("Waiting for your approval or answer — click to open the chat"),
     succeeded: vscode.l10n.t("Response complete — click to open the chat"),
     failed: vscode.l10n.t("Response failed — click to open the chat"),
     interrupted: vscode.l10n.t("Response interrupted — click to open the chat"),
@@ -271,6 +338,7 @@ export function activate(context: vscode.ExtensionContext): ExtensionApi {
   const executionIcons: Record<ExecutionStatus, string> = {
     idle: "$(comment-discussion)",
     running: "$(sync~spin)",
+    needsInput: "$(question)",
     succeeded: "$(check)",
     failed: "$(alert)",
     interrupted: "$(stop)",
@@ -282,6 +350,7 @@ export function activate(context: vscode.ExtensionContext): ExtensionApi {
       status.text = executionIcons[state.status];
       executionStatus = state.status;
       status.command = state.status === "running" ? "opencode.stopTurn" : state.status === "idle" ? "opencode.account" : "opencode.focus";
+      status.color = state.status === "needsInput" ? new vscode.ThemeColor("charts.yellow") : undefined;
       updateStatusTooltip();
     }),
   );

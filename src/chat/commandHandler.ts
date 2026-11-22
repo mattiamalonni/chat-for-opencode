@@ -74,7 +74,7 @@ export interface CommandHandlerHooks {
   fileIcons: { resolve(paths: string[]): Promise<FileIconsResponse> };
   diffs: {
     open(root: vscode.Uri, file: string, patch: string, applied: boolean): Promise<void>;
-    openCombined(files: Array<{ file: string; patch: string }>): Promise<void>;
+    openCombined(files: Array<{ file: string; patch: string }>, root?: vscode.Uri): Promise<void>;
   };
   workspaceState: vscode.Memento;
   globalState: vscode.Memento;
@@ -251,8 +251,8 @@ export class ChatCommandHandler {
         if (h.getFolder()) await h.diffs.open(h.getFolder()!.uri, msg.file, msg.patch, msg.applied);
         return;
       case "openDiffs":
-        // Only changed hunks, in one read-only diff view (no files involved).
-        await h.diffs.openCombined(msg.files);
+        // Native per-file diffs when a folder is available; hunk-only patch view otherwise.
+        await h.diffs.openCombined(msg.files, h.getFolder()?.uri);
         return;
       case "openFile":
         return h.openFile(msg.path);

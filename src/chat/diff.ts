@@ -35,20 +35,27 @@ export class DiffService implements vscode.TextDocumentContentProvider {
     return uri;
   }
 
-  /**
-   * Opens a native diff for `patch`.
-   * `applied: true`  → the change is already on disk: left = reconstructed original, right = file.
-   * `applied: false` → proposed change (permission request): left = file, right = patched preview.
-   */
-  async open(root: vscode.Uri, file: string, patch: string, applied: boolean): Promise<void> {
+  /** Resolves an untrusted chat path inside the folder, or refuses it with a log line. */
+  private async resolveTarget(root: vscode.Uri, file: string): Promise<vscode.Uri | undefined> {
     const target = path.isAbsolute(file) ? vscode.Uri.file(file) : vscode.Uri.joinPath(root, file);
     // `file` comes from tool metadata produced by the model, i.e. untrusted chat content. Apply the
     // same workspace containment rule as the host's openFile(): no absolute path, `..` escape or
     // crafted tool output may make us read a file outside the folder and show it in a diff.
     if (!isWithinDirectory(target.fsPath, root.fsPath) || !(await isWithinDirectoryReal(target.fsPath, root.fsPath))) {
       this.warn(`[chat] blocked a diff for a file outside the workspace: ${target.fsPath}`);
-      return;
+      return undefined;
     }
+    return target;
+  }
+
+  /**
+   * Opens a native diff for `patch`.
+   * `applied: true`  → the change is already on disk: left = reconstructed original, right = file.
+   * `applied: false` → proposed change (permission request): left = file, right = patched preview.
+   */
+  async open(root: vscode.Uri, file: string, patch: string, applied: boolean): Promise<void> {
+    const target = await this.resolveTarget(root, file);
+    if (!target) return;
     let current: string | undefined;
     try {
       current = new TextDecoder().decode(await vscode.workspace.fs.readFile(target));
@@ -84,11 +91,39 @@ export class DiffService implements vscode.TextDocumentContentProvider {
   }
 
   /**
-   * Shows all the edits of a turn in one native VS Code diff editor. Only the changed hunks (with
-   * their context) are used for the two sides, so the view contains the differences, not the whole
-   * files. Both sides are virtual documents: nothing is read from or written to disk.
+   * Shows all the edits of a turn in a native multi-file diff. Each row compares the real file
+   * with its pre-edit content (reconstructed by reversing the patch), so the user gets full-file
+   * context and can navigate file by file. The synthetic hunk-only view remains as a fallback for
+   * sessions without a workspace or for files whose patch no longer applies.
    */
-  async openCombined(files: Array<{ file: string; patch: string }>): Promise<void> {
+  async openCombined(files: Array<{ file: string; patch: string }>, root?: vscode.Uri): Promise<void> {
+    if (root) {
+      // `vscode.changes` expects [resource, original, modified] triples: the first URI identifies
+      // the editor tab, the other two are the sides of the diff.
+      const changes: Array<[vscode.Uri, vscode.Uri, vscode.Uri]> = [];
+      for (const { file, patch } of files) {
+        if (!patch) continue;
+        const target = await this.resolveTarget(root, file);
+        if (!target) continue;
+        let current: string;
+        try {
+          current = new TextDecoder().decode(await vscode.workspace.fs.readFile(target));
+        } catch {
+          continue;
+        }
+        const original = applyPatch(current, patch, { reverse: true });
+        if (original === undefined) continue;
+        changes.push([target, this.virtual(file, "before", original), target]);
+      }
+      if (changes.length > 0) {
+        try {
+          await vscode.commands.executeCommand("vscode.changes", vscode.l10n.t("OpenCode changes"), changes);
+          return;
+        } catch (err) {
+          this.warn(`[chat] native multi-file diff unavailable, using the patch view: ${String(err)}`);
+        }
+      }
+    }
     const { before, after } = hunksSides(files);
     if (!before && !after) return;
     const left = this.virtual("changes", "before", before);

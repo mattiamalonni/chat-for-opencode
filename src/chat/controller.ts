@@ -40,6 +40,7 @@ import type {
   ContextItem,
   DroppedFile,
   HostMessage,
+  SessionSummary,
   UiError,
   UiErrorKind,
   WebviewMessage,
@@ -451,6 +452,7 @@ export class ChatController implements vscode.Disposable {
         if (e.affectsConfiguration("opencode.dropzone")) {
           this.post({ type: "dropzone", enabled: this.dropzoneEnabled() });
         }
+        if (e.affectsConfiguration("opencode.toolOutputLimit")) this.postInit();
         if (e.affectsConfiguration("workbench.iconTheme") || e.affectsConfiguration("files.associations")) {
           refreshFileIcons();
         }
@@ -470,6 +472,11 @@ export class ChatController implements vscode.Disposable {
 
   openChatInEditor(): void {
     this.chatViews.openChatInEditor();
+  }
+
+  /** Recently updated sessions for Ctrl/Cmd+Alt+S, without a second "search all" dialog. */
+  recentSessions(): SessionSummary[] {
+    return this.sessionList.recent();
   }
 
   /** Search session titles and message bodies across the workspace (delegated to the picker service). */
@@ -616,6 +623,7 @@ export class ChatController implements vscode.Disposable {
       activeFolder: this.folder?.uri.toString(),
       issuesUrl: (this.ctx.extension.packageJSON as { bugs?: { url?: string } }).bugs?.url,
       dropzone: this.dropzoneEnabled(),
+      toolOutputLimit: vscode.workspace.getConfiguration("opencode", this.folder?.uri).get<number>("toolOutputLimit", 4000),
     });
   }
 
@@ -1581,6 +1589,60 @@ export class ChatController implements vscode.Disposable {
     await this.resetServers();
   }
 
+  /**
+   * First-run help. A bare docs link used to be a dead end: now the command is visible and
+   * copyable, Windows users get platform-specific instructions, and the retry stays in the flow.
+   */
+  private async install(): Promise<void> {
+    const isWindows = process.platform === "win32";
+    const command = "curl -fsSL https://opencode.ai/v2/install | bash";
+    const copy = vscode.l10n.t("Copy install command");
+    const docs = vscode.l10n.t("Open install instructions");
+    const retry = vscode.l10n.t("Retry connection");
+    const message = isWindows
+      ? vscode.l10n.t(
+          "OpenCode is not installed or is not on PATH. Follow the Windows install instructions (PowerShell or WSL), then retry.",
+        )
+      : vscode.l10n.t("OpenCode is not installed or is not on PATH. Install it, then retry.\n\n{0}", command);
+    const choice = await vscode.window.showInformationMessage(message, { modal: true }, ...(isWindows ? [] : [copy]), docs, retry);
+    if (choice === copy) await vscode.env.clipboard.writeText(command);
+    else if (choice === docs) await vscode.env.openExternal(vscode.Uri.parse("https://opencode.ai/docs/#installation"));
+    else if (choice === retry) await this.reconnect();
+  }
+
+  /** Explain the terminal hand-off before it happens: sign-in is a prerequisite, not a side quest. */
+  private async login(): Promise<void> {
+    const openTerminal = vscode.l10n.t("Open terminal");
+    const learnMore = vscode.l10n.t("Learn more");
+    const choice = await vscode.window.showInformationMessage(
+      vscode.l10n.t(
+        "OpenCode needs a model provider before it can answer. This opens a VS Code terminal where you sign in with `opencode auth login`. Come back to the chat once sign-in finishes.",
+      ),
+      { modal: true },
+      openTerminal,
+      learnMore,
+    );
+    if (choice === learnMore) {
+      await vscode.env.openExternal(vscode.Uri.parse("https://opencode.ai/docs/providers/"));
+      return;
+    }
+    if (choice !== openTerminal) return;
+    const exe =
+      vscode.workspace.getConfiguration("opencode", this.folder?.uri).get<string>("executablePath", "opencode").trim() || "opencode";
+    let command: string;
+    try {
+      command = `${quoteForShell(exe)} auth login`;
+    } catch (err) {
+      void vscode.window.showErrorMessage(
+        vscode.l10n.t("Cannot run OpenCode sign-in: {0}", err instanceof Error ? err.message : String(err)),
+      );
+      return;
+    }
+    const terminal = vscode.window.createTerminal({ name: "OpenCode auth", cwd: this.folder?.uri });
+    terminal.show();
+    terminal.sendText(command);
+  }
+
   async runAction(id: ActionId): Promise<void> {
     switch (id) {
       case "reconnect":
@@ -1592,25 +1654,9 @@ export class ChatController implements vscode.Disposable {
         await vscode.commands.executeCommand("workbench.action.openSettings", "@ext:mattiamalonni.chat-for-opencode");
         return;
       case "install":
-        await vscode.env.openExternal(vscode.Uri.parse("https://opencode.ai/docs/"));
-        return;
-      case "login": {
-        const exe =
-          vscode.workspace.getConfiguration("opencode", this.folder?.uri).get<string>("executablePath", "opencode").trim() || "opencode";
-        let command: string;
-        try {
-          command = `${quoteForShell(exe)} auth login`;
-        } catch (err) {
-          void vscode.window.showErrorMessage(
-            vscode.l10n.t("Cannot run OpenCode sign-in: {0}", err instanceof Error ? err.message : String(err)),
-          );
-          return;
-        }
-        const terminal = vscode.window.createTerminal({ name: "OpenCode auth", cwd: this.folder?.uri });
-        terminal.show();
-        terminal.sendText(command);
-        return;
-      }
+        return this.install();
+      case "login":
+        return this.login();
       case "setPassword":
         return this.setPassword();
       case "openFolder":

@@ -29,6 +29,23 @@ describe("ExecutionStateService — one owner for turn state", () => {
     expect(service.state.status).toBe("succeeded");
   });
 
+  it("distinguishes a turn waiting on the user from one that is working", () => {
+    const service = new ExecutionStateService();
+    const seen: string[] = [];
+    service.onDidChange((s) => seen.push(s.status));
+    const token = service.start("s1");
+    service.observe("permission.asked", "s1", "s1");
+    expect(service.state.status).toBe("needsInput");
+    expect(service.is(token)).toBe(true); // answering must not invalidate the turn
+    service.observe("permission.replied", "s1", "s1");
+    expect(service.state.status).toBe("running");
+    service.observe("form.created", "s1", "s1");
+    expect(service.state.status).toBe("needsInput");
+    service.observe("session.execution.succeeded", "s1", "s1");
+    expect(service.state.status).toBe("succeeded");
+    expect(seen).toEqual(["idle", "running", "needsInput", "running", "needsInput", "succeeded"]);
+  });
+
   it("tracks a local idle with the same generation the resync guard uses", () => {
     const service = new ExecutionStateService();
     const token = service.start("s1");

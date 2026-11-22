@@ -1,11 +1,12 @@
 import { shouldIsolateKey, type Platform } from "../shared/keys";
 
-export const env: { platform: Platform } = {
+export const env: { platform: Platform; toolOutputLimit: number } = {
   platform: /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent)
     ? "mac"
     : /Win/.test(navigator.platform)
       ? "windows"
       : "linux",
+  toolOutputLimit: 4000,
 };
 
 /** Keeps typing keys inside text fields instead of letting VS Code run keybindings (see docs/DECISIONS.md D7). */

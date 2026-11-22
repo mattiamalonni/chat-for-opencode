@@ -19,7 +19,7 @@ import { formatTokens } from "../shared/format";
 import { isImeKey } from "../shared/keys";
 import type { ActionId } from "../shared/protocol";
 import { isSubagentTool, subagentChildId, subagentView, toolInputSummary, type SubagentActivity } from "../shared/subagents";
-import { isolateKeys } from "./env";
+import { env, isolateKeys } from "./env";
 import { FileTypeIcon } from "./fileIcons";
 import { useT } from "./i18n";
 import {
@@ -27,7 +27,6 @@ import {
   IconChevron,
   IconCopy,
   IconError,
-  IconFile,
   IconFork,
   IconInfo,
   IconOpen,
@@ -123,16 +122,12 @@ export function Highlight({ text, query }: { text: string; query: string }) {
 }
 
 /**
- * While a search is active, show the raw text with highlights instead of rendered Markdown:
- * rewriting `dangerouslySetInnerHTML` would mean parsing untrusted HTML a second time.
+ * Search marks the text *inside* the rendered Markdown, so bold/code/links keep their formatting.
+ * `renderMarkdown` sanitises first and marks text nodes afterwards; no untrusted HTML is reparsed.
  */
 function SearchableMarkdown({ text, query }: { text: string; query: string }) {
-  if (!query.trim()) return <Markdown text={text} />;
-  return (
-    <div class="md search-plain">
-      <Highlight text={text} query={query} />
-    </div>
-  );
+  const html = useMemo(() => renderMarkdown(text, query), [text, query]);
+  return <div class="md" dangerouslySetInnerHTML={{ __html: html }} />;
 }
 
 export function MessageView({
@@ -718,17 +713,27 @@ function SubagentToolCard({
                 {t("steps")} ({view.tools.length})
               </div>
               <ul class="subagent-steps">
-                {view.tools.map((tool, i) => (
-                  <li class={`subagent-step ${tool.status}`} key={`${tool.name}-${i}`}>
-                    <span class={`status-dot ${subagentDot(tool.status)}`} />
-                    <span class="step-name">{tool.name}</span>
-                    {tool.summary && (
-                      <span class="step-summary" title={tool.summary}>
-                        {tool.summary}
+                {view.tools.map((tool, i) => {
+                  const label = tool.status === "error" ? t("failed") : tool.status === "completed" ? t("completed") : t("running");
+                  return (
+                    <li class={`subagent-step ${tool.status}`} key={`${tool.name}-${i}`}>
+                      <span
+                        class={`status-dot ${subagentDot(tool.status)} tooltip-host`}
+                        role="img"
+                        aria-label={label}
+                        data-tooltip={label}
+                      >
+                        {tool.status === "error" ? <IconError /> : tool.status === "completed" ? <IconCheck /> : <IconTool />}
                       </span>
-                    )}
-                  </li>
-                ))}
+                      <span class="step-name">{tool.name}</span>
+                      {tool.summary && (
+                        <span class="step-summary" title={tool.summary}>
+                          {tool.summary}
+                        </span>
+                      )}
+                    </li>
+                  );
+                })}
               </ul>
             </div>
           )}
@@ -843,7 +848,7 @@ function GenericToolCard({
 
 function TruncatedPre({ text, query = "" }: { text: string; query?: string }) {
   const [full, setFull] = useState(false);
-  const limit = 4000;
+  const limit = env.toolOutputLimit;
   const t = useT();
   if (text.length <= limit || full)
     return (
@@ -895,15 +900,6 @@ export function FileList({ files, applied }: { files: ChangedFile[]; applied: bo
                 {label}
               </span>
             )}
-            <button
-              type="button"
-              class="file-open tooltip-host"
-              aria-label={t("openFile")}
-              data-tooltip={`${t("openFile")}: ${f.file}`}
-              onClick={() => post({ type: "openFile", path: f.file })}
-            >
-              <IconFile />
-            </button>
           </li>
         );
       })}

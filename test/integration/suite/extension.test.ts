@@ -67,6 +67,8 @@ describe("chat-for-opencode extension", () => {
       "opencode.setServerPassword",
       "opencode.stopServer",
       "opencode.moveView",
+      "opencode.install",
+      "opencode.quickSwitchSession",
     ]) {
       assert.ok(all.includes(c), `missing command ${c}`);
     }
@@ -935,5 +937,49 @@ describe("chat-for-opencode extension", () => {
     await controller.receive({ type: "send", text: "after stop", attachments: [], context: [] });
     await waitFor(() => controller.debugState.status === "connected" && controller.debugState.baseUrl !== oldUrl, "reconnected on send");
     await waitFor(() => eventPosted("session.execution.succeeded", afterStop), "prompt after the stop succeeded");
+  });
+
+  // The tests above are stateful (session/turn state), so the new-feature checks come last.
+  it("opens all changed files in VS Code's native multi-file diff", async () => {
+    const patch = (file: string, before: string, after: string) =>
+      `Index: ${file}\n===================================================================\n--- ${file}\n+++ ${file}\n@@ -1,1 +1,1 @@\n-${before}\n+${after}\n`;
+    await controller.receive({
+      type: "openDiffs",
+      files: [
+        { file: "src/a.txt", patch: patch("src/a.txt", "a", "b") },
+        { file: "src/app.ts", patch: patch("src/app.ts", "export const zero = 1;", "export const one = 1;") },
+      ],
+    });
+    const tab = await waitFor(() => vscode.window.tabGroups.activeTabGroup.activeTab, "multi-file diff tab");
+    // `TabInputTextMultiDiff` is not in the 1.99 typings yet, so check the shape at runtime.
+    const input = tab.input as { textDiffs?: Array<{ original: vscode.Uri; modified: vscode.Uri }> };
+    assert.equal(input.textDiffs?.length, 2, "two real files in one multi-diff editor");
+    assert.equal(normalizeFsPath(input.textDiffs![0].modified.fsPath), normalizeFsPath(path.join(workspace, "src", "a.txt")));
+    assert.equal(normalizeFsPath(input.textDiffs![1].modified.fsPath), normalizeFsPath(path.join(workspace, "src", "app.ts")));
+    await vscode.commands.executeCommand("workbench.action.closeAllEditors");
+  });
+
+  it("exposes recent sessions for the quick-switch command", async () => {
+    const id = controller.debugState.sessionId;
+    assert.ok(id, "a session is open");
+    await waitFor(() => (controller.recentSessions().some((s) => s.id === id) ? true : undefined), "open session in the quick-switch list");
+  });
+
+  it("publishes needsInput while a permission is pending, then returns to running", async () => {
+    const states: ExecutionState[] = [];
+    const subscription = controller.onDidChangeExecution((state) => states.push(state));
+    try {
+      const mark = posted.length;
+      await controller.receive({ type: "send", text: "[permission] status bar state", attachments: [], context: [] });
+      const asked = await waitFor(() => eventPosted("permission.asked", mark), "permission.asked");
+      assert.ok(asked.type === "event");
+      await waitFor(() => (states.some((s) => s.status === "needsInput") ? true : undefined), "needsInput state");
+      const data = asked.event.data as { id: string; sessionID: string };
+      await controller.receive({ type: "permissionReply", sessionId: data.sessionID, requestId: data.id, decision: "once" });
+      await waitFor(() => (states.some((s) => s.status === "running") ? true : undefined), "running after the reply");
+      await waitFor(() => eventPosted("session.execution.succeeded", mark), "execution succeeded");
+    } finally {
+      subscription.dispose();
+    }
   });
 });

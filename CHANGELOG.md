@@ -2,6 +2,31 @@
 
 ## Unreleased
 
+- **UI:** new first-run walkthrough (**Help → Welcome → Get started with OpenCode**) plus a setup-aware
+  empty state. The Install action shows a copyable, OS-aware command with a retry instead of a bare
+  docs link, provider sign-in explains the terminal hand-off before it happens, and setup-blocking
+  error details are shown inline instead of behind a collapsed _Details_ toggle.
+- **UI:** `Cmd/Ctrl+Alt+S` opens a single-modal quick switcher: recent sessions appear immediately,
+  typing searches all conversations in the same picker, and the chat search dims non-matches, jumps
+  to the first hit while typing and keeps its query per session.
+- **UI:** the status bar now distinguishes `$(question)` / amber _needs your input_ from a running
+  turn; clicking it opens the approval instead of stopping the turn. The latest finished turn keeps
+  its steps expanded with an expand/collapse-all control, the changed-files panel opens by default,
+  and _View all changes_ uses the native multi-file diff with a hunk-only fallback.
+- **UI:** the subagent dialog traps focus and restores it to its trigger; step status dots carry an
+  icon and accessible name. One `--opencode-border` token guarantees boundaries in high-contrast and
+  `prefers-contrast: more` themes, and muted text no longer relies on opacity below contrast limits.
+- **UI:** search hits all use the same theme find-match background colour and mark only the text
+  background — no outline or underline. Markdown stays fully rendered while
+  searching — matches are marked inside the parsed HTML, so `**bold**` is no longer shown raw — and
+  Escape now closes _and_ clears the query, restoring the undimmed conversation. Changed-file rows
+  now offer only the diff action: the extra "open file" icon was removed.
+- **Fix:** _View all session changes_ now really opens the native multi-file diff: `vscode.changes`
+  needs `[resource, original, modified]` triples, and the previous two-element pairs silently fell
+  back to the single hunk-only diff.
+- **Fix:** the search toggle's tooltip no longer covers the search input on narrow side bars.
+- **Setting:** `opencode.toolOutputLimit` (default `4000`) controls how much tool output is shown
+  inline before the _output (n)_ expander.
 - **UI:** _Ask OpenCode…_ now fills the composer with the current editor selection attached instead
   of sending a single-line prompt immediately; the text can be reviewed before it reaches the agent.
   _Copy response_ copies only the visible reply text, not tool I/O and reasoning.

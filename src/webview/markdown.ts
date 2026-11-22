@@ -96,13 +96,47 @@ function linkifyFileRefs(root: HTMLElement): void {
 }
 
 /**
- * Markdown → sanitised HTML. The cache helps when a message component remounts or the same text is
- * rendered again; streaming deltas are new strings each frame, so `Markdown`'s `useMemo([text])`
- * is what avoids re-rendering completed parts.
+ * Wraps query matches in `<mark>` inside already-sanitised HTML. Walking text nodes (instead of
+ * string-replacing the HTML) keeps Markdown formatting, links and code structure intact and never
+ * re-parses model-controlled markup a second time.
  */
-export function renderMarkdown(source: string): string {
-  const hit = cache.get(source);
-  if (hit !== undefined) return hit;
+function highlightTextNodes(root: HTMLElement, query: string): void {
+  const needle = query.toLowerCase();
+  if (!needle) return;
+  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+  const nodes: Text[] = [];
+  while (walker.nextNode()) nodes.push(walker.currentNode as Text);
+  for (const node of nodes) {
+    const value = node.nodeValue ?? "";
+    const lower = value.toLowerCase();
+    if (!lower.includes(needle)) continue;
+    const fragment = document.createDocumentFragment();
+    let from = 0;
+    let at = lower.indexOf(needle);
+    while (at !== -1) {
+      if (at > from) fragment.append(value.slice(from, at));
+      const mark = document.createElement("mark");
+      mark.dataset.searchMatch = "true";
+      mark.textContent = value.slice(at, at + needle.length);
+      fragment.append(mark);
+      from = at + needle.length;
+      at = lower.indexOf(needle, from);
+    }
+    fragment.append(value.slice(from));
+    node.parentNode?.replaceChild(fragment, node);
+  }
+}
+
+/**
+ * Markdown → sanitised HTML, optionally with search matches marked. The cache only holds the
+ * unmarked variant: a query changes far more often than a message and marking is cheap.
+ */
+export function renderMarkdown(source: string, query = ""): string {
+  const search = query.trim().toLowerCase();
+  if (!search) {
+    const hit = cache.get(source);
+    if (hit !== undefined) return hit;
+  }
   const raw = marked.parse(source, { async: false }) as string;
   // Sanitise the model's HTML *before* linkifying. DOMPurify keeps `data-*` attributes by default,
   // so adding our `data-file` links first would let a crafted `<a data-file="...">` in a reply
@@ -120,7 +154,9 @@ export function renderMarkdown(source: string): string {
     button.dataset.action = "copy-code";
   }
   linkifyFileRefs(dom.body);
+  highlightTextNodes(dom.body, search);
   const html = dom.body.innerHTML;
+  if (search) return html;
   cache.set(source, html);
   cacheChars += source.length + html.length;
   while (cache.size > MAX_CACHE_ENTRIES || cacheChars > MAX_CACHE_CHARS) {
