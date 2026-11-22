@@ -71,6 +71,11 @@ export interface UiNotice {
 
 export type UiMessage = UiUserMessage | UiAssistantMessage | UiNotice;
 
+/** Old history can carry `{ id: "", providerID: "" }`; treat that as "no model seen yet". */
+function usableModel(model: ModelRef | undefined): model is ModelRef {
+  return !!model && !!model.id && !!model.providerID;
+}
+
 export interface Todo {
   content: string;
   status: string;
@@ -87,6 +92,8 @@ export interface TurnStats {
   cost?: number;
   /** Number of LLM steps in the turn (one assistant message per step). */
   steps?: number;
+  /** Model that opened the turn (first step wins), kept for the end-of-turn summary. */
+  model?: ModelRef;
   /** Insertions/deletions reported by completed file edits in this turn (per-file, latest patch wins). */
   additions?: number;
   deletions?: number;
@@ -577,6 +584,8 @@ function turnsFromHistory(messages: SessionMessage[], alreadySorted = false, ope
     } else if (m.type === "assistant" && current) {
       current.tokens = addTokens(current.tokens, m.tokens);
       current.steps = (current.steps ?? 0) + 1;
+      // First step wins: a later `/model` switch must not change the model the turn started with.
+      if (!usableModel(current.model) && usableModel(m.model)) current.model = m.model;
       if (typeof m.cost === "number") current.cost = (current.cost ?? 0) + m.cost;
       if (m.time.completed !== undefined) lastCompleted = Math.max(lastCompleted ?? 0, m.time.completed);
       for (const c of m.content) {
@@ -669,7 +678,9 @@ function mergeTurns(current: TurnStats[], incoming: TurnStats[]): TurnStats[] {
     const additions = Math.max(previous.additions ?? 0, t.additions ?? 0);
     const deletions = Math.max(previous.deletions ?? 0, t.deletions ?? 0);
     const files = t.files?.length ? t.files : previous.files;
-    merged[at] = additions || deletions || files?.length ? { ...t, additions, deletions, files } : t;
+    // A tail can start mid-turn and only see a later step's model; keep the first one we captured.
+    const model = usableModel(previous.model) ? previous.model : t.model;
+    merged[at] = additions || deletions || files?.length || model ? { ...t, additions, deletions, files, model } : t;
   }
   return merged;
 }
@@ -993,7 +1004,16 @@ export function applyEvent(state: ChatState, event: ServerEvent): ChatState {
       const base: ChatState = state.turns.some((t) => t.ended === undefined)
         ? state
         : { ...state, turns: [...state.turns, { id: `turn-${created}`, started: created }] };
-      const counted: ChatState = { ...base, turns: withOpenTurn(base, (t) => ({ ...t, steps: (t.steps ?? 0) + 1 })) };
+      const stepModel = asModelRef(d.model);
+      const counted: ChatState = {
+        ...base,
+        turns: withOpenTurn(base, (t) => ({
+          ...t,
+          steps: (t.steps ?? 0) + 1,
+          // First step wins, even if this turn was opened before the first event arrived.
+          model: usableModel(t.model) ? t.model : usableModel(stepModel) ? stepModel : t.model,
+        })),
+      };
       return updateAssistant(
         counted,
         msgId,

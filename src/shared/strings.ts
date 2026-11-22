@@ -193,6 +193,7 @@ export const STRINGS = {
   turnDurationMinutes: "{0}m {1}s",
   turnStatsStarted: "Start: {0}",
   turnStatsEnded: "End: {0}",
+  turnStatsModel: "Model: {0}",
   turnStatsTooltip: "From input to the last step: {0} · Tokens (all steps): {1} · Cost: {2} · Steps: {3}",
   turnStatsChanges: "Insertions: {0} · Deletions: {1}",
   turnStatsOpenDiff: "Click to view all changes in a diff",

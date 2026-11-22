@@ -755,6 +755,7 @@ export function App() {
               {notice && <NoticeBanner error={notice} onDismiss={() => setNotice(undefined)} />}
               <Conversation
                 chat={chat}
+                models={catalog.models}
                 status={status.status}
                 error={status.error}
                 hasActiveFile={context.some((c) => c.kind === "file")}
@@ -829,6 +830,7 @@ export function App() {
                   labels={subagentLabels}
                   subagents={subagents}
                   parentTitle={title}
+                  models={catalog.models}
                   onNavigate={(depth) => setSubagentStack((prev) => truncateSubagentStack(prev, depth))}
                   onClose={() => setSubagentStack([])}
                 />
@@ -1833,6 +1835,7 @@ function StepBlock({
 
 function Conversation({
   chat,
+  models,
   status,
   error,
   hasActiveFile,
@@ -1845,6 +1848,7 @@ function Conversation({
   onSuggestedPrompt,
 }: {
   chat: ReturnType<typeof chatReducer>;
+  models: ModelInfo[];
   status?: ConnectionStatus;
   error?: UiError;
   hasActiveFile?: boolean;
@@ -2045,7 +2049,7 @@ function Conversation({
           />
         );
       case "turnStats":
-        return <TurnStatsRow key={item.key} stats={item.stats} />;
+        return <TurnStatsRow key={item.key} stats={item.stats} models={models} />;
       case "message":
         return (
           <MessageView
@@ -2145,6 +2149,7 @@ function SubagentModal({
   labels,
   subagents,
   parentTitle,
+  models,
   onNavigate,
   onClose,
 }: {
@@ -2153,6 +2158,7 @@ function SubagentModal({
   labels: Record<string, string>;
   subagents: SubagentState;
   parentTitle: string;
+  models: ModelInfo[];
   onNavigate: (depth: number) => void;
   onClose: () => void;
 }) {
@@ -2252,7 +2258,7 @@ function SubagentModal({
         <div class="subagent-modal-body">
           {entry ? (
             <>
-              <Conversation chat={entry.state} scrollToken={0} searchQuery="" label={t("subagentConversation")} />
+              <Conversation chat={entry.state} models={models} scrollToken={0} searchQuery="" label={t("subagentConversation")} />
               {/* The backdrop hides the chat's overlay, so a subagent waiting for approval needs its
                   own card here. Replies still carry the child's session id. */}
               <AttentionOverlay key={currentId} state={entry.state} subagents={subagents} />

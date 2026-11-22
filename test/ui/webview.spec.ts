@@ -2506,7 +2506,16 @@ test("a finished turn shows one total for all its steps", async ({ page }) => {
       data: { sessionID: "ses_turn", inboxID: "u1", item: { type: "user", payload: { text: "hi" } } },
     },
     { type: "session.execution.started", created: 1010, data: { sessionID: "ses_turn" } },
-    { type: "session.step.started", created: 1100, data: { sessionID: "ses_turn", assistantMessageID: "m1", agent: "build" } },
+    {
+      type: "session.step.started",
+      created: 1100,
+      data: {
+        sessionID: "ses_turn",
+        assistantMessageID: "m1",
+        agent: "build",
+        model: { id: "hy4-flash-free", providerID: "opencode" },
+      },
+    },
     { type: "session.text.delta", created: 1200, data: { sessionID: "ses_turn", assistantMessageID: "m1", ordinal: 0, delta: "one" } },
     {
       type: "session.step.ended",
@@ -2519,7 +2528,16 @@ test("a finished turn shows one total for all its steps", async ({ page }) => {
         tokens: { input: 100, output: 20, reasoning: 5, cache: { read: 200, write: 0 } },
       },
     },
-    { type: "session.step.started", created: 3100, data: { sessionID: "ses_turn", assistantMessageID: "m2", agent: "build" } },
+    {
+      type: "session.step.started",
+      created: 3100,
+      data: {
+        sessionID: "ses_turn",
+        assistantMessageID: "m2",
+        agent: "build",
+        model: { id: "claude-sonnet-5.5", providerID: "github-copilot" },
+      },
+    },
     { type: "session.text.delta", created: 3200, data: { sessionID: "ses_turn", assistantMessageID: "m2", ordinal: 0, delta: "two" } },
     {
       type: "session.step.ended",
@@ -2546,11 +2564,99 @@ test("a finished turn shows one total for all its steps", async ({ page }) => {
   await expect(stats).toContainText("505 tokens");
   await expect(stats).toContainText("$0.0030");
   await expect(stats).toContainText("2 steps");
+  // The friendly name comes from the catalog and stays the one the turn started with.
+  await expect(stats.locator(".turn-stats-model")).toHaveText("Hy4 flash Free");
+  await expect(stats).not.toContainText("Claude Sonnet 5.5");
   // Start/end clock times are pinned to the two ends of the footer (locale-aware, TZ-independent).
   const clock = new Intl.DateTimeFormat("en", { hour: "2-digit", minute: "2-digit", hourCycle: "h23" });
   await expect(stats.locator(".turn-stats-time")).toHaveText([clock.format(new Date(1000)), clock.format(new Date(6500))]);
   await expect(stats).not.toHaveClass(/tooltip-host/);
   await page.screenshot({ path: join(SHOTS, "13-turn-stats-dark.png") });
+});
+
+test("a finished turn loaded from history shows its footer with the first model", async ({ page }) => {
+  await boot(page);
+  const messages: SessionMessage[] = [
+    { id: "u1", type: "user", text: "hi", time: { created: 1000 } },
+    {
+      id: "m1",
+      type: "assistant",
+      agent: "build",
+      model: { id: "hy4-flash-free", providerID: "opencode" },
+      time: { created: 1100, completed: 1500 },
+      tokens: { input: 100, output: 20, reasoning: 5, cache: { read: 200, write: 0 } },
+      cost: 0.003,
+      content: [{ type: "text", text: "hello" }],
+    },
+    { id: "i1", type: "idle", outcome: "succeeded", time: { created: 1600 } },
+  ];
+  await host(page, { type: "session", session: { id: "ses_hist", busy: false, messages, permissions: [], forms: [] } });
+  const stats = page.locator(".turn-stats");
+  await expect(stats).toHaveCount(1);
+  await expect(stats.locator(".turn-stats-model")).toHaveText("Hy4 flash Free");
+});
+
+test("a narrow finished-turn footer stays visible without scrolling the chat", async ({ page }) => {
+  await boot(page);
+  await page.setViewportSize({ width: 220, height: 760 });
+  const sid = "ses_narrow";
+  await host(page, { type: "session", session: { id: sid, busy: false, messages: [], permissions: [], forms: [] } });
+  const events: ServerEvent[] = [
+    {
+      type: "session.inbox.enqueued",
+      created: 1000,
+      data: { sessionID: sid, inboxID: "u1", item: { type: "user", payload: { text: "hi" } } },
+    },
+    { type: "session.execution.started", created: 1010, data: { sessionID: sid } },
+    {
+      type: "session.step.started",
+      created: 1100,
+      data: { sessionID: sid, assistantMessageID: "m1", model: { id: "hy4-flash-free", providerID: "opencode" } },
+    },
+    {
+      type: "session.step.ended",
+      created: 1500,
+      data: {
+        sessionID: sid,
+        assistantMessageID: "m1",
+        finish: "stop",
+        cost: 0.003,
+        tokens: { input: 100, output: 20, reasoning: 5, cache: { read: 200, write: 0 } },
+      },
+    },
+    { type: "session.execution.succeeded", created: 1600, data: { sessionID: sid } },
+  ];
+  for (const event of events) await host(page, { type: "event", event });
+  await expect(page.locator(".turn-stats")).toHaveCount(1);
+
+  // The bar shrinks instead of widening the conversation's scroll area.
+  const overflow = await page.evaluate(() => {
+    const conversation = document.querySelector(".conversation") as HTMLElement;
+    const bar = document.querySelector(".turn-stats") as HTMLElement;
+    return {
+      document: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+      conversation: conversation.scrollWidth - conversation.clientWidth,
+      bar: bar.scrollWidth - bar.clientWidth,
+    };
+  });
+  expect(overflow).toEqual({ document: 0, conversation: 0, bar: 0 });
+
+  const stats = page.locator(".turn-stats");
+  await expect(stats).toBeVisible();
+  // Always a single line; the totals stay in the DOM (and the accessible label) even when clipped.
+  const nowrap = await page.locator(".turn-stats-text").evaluate((el) => getComputedStyle(el).whiteSpace);
+  expect(nowrap).toBe("nowrap");
+  for (const text of ["Hy4 flash Free", "1 step", "0.6s", "325 tokens", "$0.0030"]) await expect(stats).toContainText(text);
+
+  // Even an extremely narrow side bar keeps the footer on one line, without scroll.
+  await page.setViewportSize({ width: 140, height: 760 });
+  const tiny = await page.evaluate(() => {
+    const conversation = document.querySelector(".conversation") as HTMLElement;
+    return conversation.scrollWidth - conversation.clientWidth;
+  });
+  expect(tiny).toBe(0);
+  await expect(stats).toBeVisible();
+  await expect(stats).toContainText("Hy4 flash Free");
 });
 
 test("a finished turn shows insertions and deletions from its file edits", async ({ page }) => {

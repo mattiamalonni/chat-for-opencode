@@ -1,6 +1,6 @@
 import type { ComponentChildren } from "preact";
 import { useEffect, useMemo, useState } from "preact/hooks";
-import type { FormField, FormRequest, FormValue, PermissionRequest } from "../shared/api";
+import type { FormField, FormRequest, FormValue, ModelInfo, PermissionRequest } from "../shared/api";
 import {
   formsForTool,
   permissionsForTool,
@@ -297,13 +297,13 @@ function formatClock(ts: number): string {
 }
 
 /** Wall-clock time and total usage for a whole user turn, from input to the last step. */
-export function TurnStatsRow({ stats }: { stats: TurnStats }) {
+export function TurnStatsRow({ stats, models }: { stats: TurnStats; models: ModelInfo[] }) {
   if (stats.ended === undefined) return null;
-  return <StatsRow stats={stats} ended={stats.ended} />;
+  return <StatsRow stats={stats} ended={stats.ended} models={models} />;
 }
 
 /** Has to be a component: `useT` is a hook. The guard above keeps unfinished turns invisible. */
-function StatsRow({ stats, ended }: { stats: TurnStats; ended: number }) {
+function StatsRow({ stats, ended, models }: { stats: TurnStats; ended: number; models: ModelInfo[] }) {
   const t = useT();
   const total =
     stats.tokens && stats.tokens.input + stats.tokens.output + stats.tokens.reasoning + stats.tokens.cache.read + stats.tokens.cache.write;
@@ -323,6 +323,12 @@ function StatsRow({ stats, ended }: { stats: TurnStats; ended: number }) {
   }
   const startedAt = formatClock(stats.started);
   const endedAt = formatClock(ended);
+  const usedModel = stats.model;
+  const modelName =
+    usedModel && usedModel.id && usedModel.providerID
+      ? (models.find((m) => m.id === usedModel.id && m.providerID === usedModel.providerID)?.name ??
+        `${usedModel.providerID}/${usedModel.id}`)
+      : undefined;
   const steps = stats.steps && stats.steps > 0 ? t("stepCount", stats.steps) : undefined;
   const tokens = total && total > 0 ? t("tokens", formatTokens(total)) : undefined;
   const cost = stats.cost !== undefined && stats.cost > 0 ? `$${stats.cost.toFixed(stats.cost < 0.01 ? 4 : 2)}` : undefined;
@@ -335,6 +341,7 @@ function StatsRow({ stats, ended }: { stats: TurnStats; ended: number }) {
   const summaryLabel = [
     t("turnStatsStarted", startedAt),
     t("turnStatsEnded", endedAt),
+    modelName ? t("turnStatsModel", modelName) : undefined,
     t("turnStatsTooltip", duration, tokens ?? t("turnStatsUnknown"), cost ?? t("turnStatsUnknown"), steps ?? t("turnStatsUnknown")),
     hasChanges ? t("turnStatsChanges", additions, deletions) : undefined,
     openable.length > 0 ? t("turnStatsOpenDiff") : undefined,
@@ -355,10 +362,18 @@ function StatsRow({ stats, ended }: { stats: TurnStats; ended: number }) {
       </span>
       <span class="turn-stats-line" aria-hidden="true" />
       <span class="turn-stats-text">
+        {modelName !== undefined && (
+          <>
+            <span class="turn-stats-model" title={modelName}>
+              {modelName}
+            </span>
+            {shown.length > 0 ? " · " : ""}
+          </>
+        )}
         {shown.join(" · ")}
         {hasChanges && (
           <>
-            {shown.length > 0 ? " · " : ""}
+            {shown.length > 0 || modelName !== undefined ? " · " : ""}
             {openable.length > 0 ? (
               <button
                 type="button"

@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+- **UI:** the finished-turn footer leads with the friendly name of the model that started the turn
+  (the first step's model, so a later switch does not change it).
+- **Fix:** in narrow panels the finished-turn footer stays on one line and ellipsizes instead of
+  widening the conversation's horizontal scroll area; the clock times drop out below 180px.
+
 ## 0.3.21 — 2026-11-22
 
 - **UI:** the finished-turn footer now shows the turn's start and end times (`HH:mm`, local time) at

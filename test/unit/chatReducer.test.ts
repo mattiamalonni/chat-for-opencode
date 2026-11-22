@@ -427,6 +427,69 @@ describe("turn metrics", () => {
     expect(state.turns[2]).toMatchObject({ id: "u3", started: 5000, ended: 5300 });
   });
 
+  it("keeps the first model of each turn from history", () => {
+    const assistant = (id: string, created: number, model: { id: string; providerID: string }): SessionMessage => ({
+      id,
+      type: "assistant",
+      agent: "build",
+      model,
+      time: { created, completed: created + 200 },
+      tokens: first,
+      content: [{ type: "text", text: "ok" }],
+    });
+    const state = open("s", [
+      { id: "u1", type: "user", text: "hi", time: { created: 1000 } },
+      assistant("m1", 1100, { id: "fast", providerID: "acme" }),
+      assistant("m2", 1400, { id: "slow", providerID: "acme" }),
+      { id: "i1", type: "idle", outcome: "succeeded", time: { created: 2000 } },
+      { id: "u2", type: "user", text: "again", time: { created: 3000 } },
+      assistant("m3", 3100, { id: "other", providerID: "vendor" }),
+      { id: "i2", type: "idle", outcome: "succeeded", time: { created: 4000 } },
+    ]);
+    expect(state.turns[0].model).toEqual({ id: "fast", providerID: "acme" });
+    expect(state.turns[1].model).toEqual({ id: "other", providerID: "vendor" });
+  });
+
+  it("captures the first step's model live and keeps it across a resync", () => {
+    const events: ServerEvent[] = [
+      {
+        type: "session.inbox.enqueued",
+        created: 1000,
+        data: { sessionID: S1, inboxID: "u1", item: { type: "user", payload: { text: "hi" } } },
+      },
+      {
+        type: "session.step.started",
+        created: 1100,
+        data: { sessionID: S1, assistantMessageID: "m1", model: { id: "fast", providerID: "acme" } },
+      },
+      { type: "session.step.ended", created: 1200, data: { sessionID: S1, assistantMessageID: "m1", tokens: first } },
+      {
+        type: "session.step.started",
+        created: 1300,
+        data: { sessionID: S1, assistantMessageID: "m2", model: { id: "slow", providerID: "acme" } },
+      },
+      { type: "session.step.ended", created: 1400, data: { sessionID: S1, assistantMessageID: "m2", tokens: second } },
+    ];
+    const live = chatReducer(open(S1), { type: "events", events });
+    expect(live.turns[0].model).toEqual({ id: "fast", providerID: "acme" });
+
+    // The tail only sees the later step; rebuilding must not overwrite the first model.
+    const messages: SessionMessage[] = [
+      { id: "u1", type: "user", text: "hi", time: { created: 1000 } },
+      {
+        id: "m2",
+        type: "assistant",
+        agent: "build",
+        model: { id: "slow", providerID: "acme" },
+        time: { created: 1300, completed: 1400 },
+        tokens: second,
+        content: [{ type: "text", text: "two" }],
+      },
+    ];
+    const resynced = chatReducer(live, { type: "append", delta: { sessionId: S1, messages, permissions: [], forms: [] } });
+    expect(resynced.turns.find((t) => t.id === "u1")?.model).toEqual({ id: "fast", providerID: "acme" });
+  });
+
   it("emits exactly one summary per execution in a real recorded stream", () => {
     const events = fixture("real-sse1.jsonl");
     const state = chatReducer(open(S1), { type: "events", events });

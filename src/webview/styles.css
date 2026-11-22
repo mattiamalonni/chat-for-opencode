@@ -942,6 +942,7 @@ details[open] > summary > .chevron,
   align-items: center;
   gap: 8px;
   width: 100%;
+  min-width: 0;
   margin: 6px 0 2px;
   color: var(--vscode-descriptionForeground);
   font-size: 0.8em;
@@ -961,10 +962,30 @@ details[open] > summary > .chevron,
   white-space: nowrap;
 }
 
+/* One line at any width: shrink and ellipsize instead of wrapping or widening the chat. */
 .turn-stats-text {
-  flex: none;
+  flex: 0 1 auto;
+  min-width: 0;
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
   color: var(--vscode-descriptionForeground);
+}
+
+/* In a very narrow sidebar the clock times eat the room the totals need. */
+@media (max-width: 180px) {
+  .turn-stats-time {
+    display: none;
+  }
+}
+
+/* A friendly model name can be long: keep the one-line footer inside narrow panels. */
+.turn-stats-model {
+  display: inline-block;
+  max-width: 18ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  vertical-align: bottom;
 }
 
 /* Insertion/deletion counts double as a button that opens the relevant diffs. */
