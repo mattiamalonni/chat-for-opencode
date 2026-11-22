@@ -25,6 +25,11 @@ concurrency:
 jobs:
   ci:
     uses: ./.github/workflows/ci.yml
+    # ci.yml's contract job writes the contract-drift issue; called workflows can only
+    # downgrade the caller's permissions, so the caller must grant this scope explicitly.
+    permissions:
+      contents: read
+      issues: write
 
   release:
     needs: ci
