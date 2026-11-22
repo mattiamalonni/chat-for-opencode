@@ -167,3 +167,15 @@ per concern (`connectGen`, `loadGen`, `childGen`, `executionGen`) plus client id
 `loadedConnection` records that `loadAll()` actually completed, so a failed first load on an external
 server cannot make later reconnects no-ops. The first prompt uses a `fast` load path that skips the
 catalog/session-list/diff round-trips on the critical path and runs them fire-and-forget instead.
+
+## D18 — Reach the user on the squiggle, not only in the sidebar
+
+The chat participant API is deprecated (D15) and the Secondary Side Bar can be collapsed, so a chat
+that only lives in a view is invisible until the user decides to open it. A `CodeActionProvider` and
+an editor title button put OpenCode where an editor problem already has the user's attention. Both
+commands **prefill** the composer with the offending code attached instead of sending immediately:
+this stays consistent with the existing Explain/Find bugs/Optimize selection commands, honours the
+"nothing without review" policy of the permission cards, and keeps the feature testable as a posted
+`prefillDraft` message. The provider's diagnostic-to-arguments logic is a pure function with an
+injected action factory, so the integration test can drive the real `vscode.executeCodeActionProvider`
+while the unit tests stay host-free.

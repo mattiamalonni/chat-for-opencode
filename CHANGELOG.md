@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- **Editor:** `vscode.languages.registerCodeActionsProvider` adds _Fix with OpenCode_ (preferred) and
+  _Explain with OpenCode_ Quick Fixes for diagnostics that touch the cursor/selection, up to three
+  at a time. Each one selects the offending lines and prefills the chat with the diagnostic message —
+  it never sends on its own. A new editor title button, _Ask OpenCode About This File_, attaches the
+  whole file with a starter prompt. Verified with a real diagnostic collection and
+  `vscode.executeCodeActionProvider` in the integration suite.
 - **UI:** the finished-turn footer leads with the friendly name of the model that started the turn
   (the first step's model, so a later switch does not change it).
 - **Fix:** in narrow panels the finished-turn footer stays on one line and ellipsizes instead of

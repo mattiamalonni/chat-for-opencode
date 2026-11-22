@@ -69,6 +69,9 @@ describe("chat-for-opencode extension", () => {
       "opencode.moveView",
       "opencode.install",
       "opencode.quickSwitchSession",
+      "opencode.askAboutFile",
+      "opencode.fixDiagnostic",
+      "opencode.explainDiagnostic",
     ]) {
       assert.ok(all.includes(c), `missing command ${c}`);
     }
@@ -981,5 +984,54 @@ describe("chat-for-opencode extension", () => {
     } finally {
       subscription.dispose();
     }
+  });
+
+  async function waitForAsync<T>(fn: () => Promise<T | undefined>, what: string, timeoutMs = 20_000): Promise<T> {
+    const start = Date.now();
+    for (;;) {
+      const value = await fn();
+      if (value) return value;
+      if (Date.now() - start > timeoutMs) throw new Error(`Timed out waiting for ${what}`);
+      await new Promise((r) => setTimeout(r, 100));
+    }
+  }
+
+  it("offers OpenCode Quick Fixes on a real diagnostic and prefills from one", async () => {
+    const uri = vscode.Uri.file(path.join(workspace, "src", "app.ts"));
+    const range = new vscode.Range(0, 0, 0, 5);
+    const collection = vscode.languages.createDiagnosticCollection("opencode-it");
+    try {
+      collection.set(uri, [new vscode.Diagnostic(range, "Integration diagnostic", vscode.DiagnosticSeverity.Error)]);
+      const actions = await waitForAsync(async () => {
+        const found = (await vscode.commands.executeCommand<vscode.CodeAction[]>("vscode.executeCodeActionProvider", uri, range)) ?? [];
+        const ours = found.filter(
+          (a) => a.command?.command === "opencode.fixDiagnostic" || a.command?.command === "opencode.explainDiagnostic",
+        );
+        return ours.length >= 2 ? ours : undefined;
+      }, "OpenCode code actions");
+      assert.equal(actions.length, 2);
+      assert.equal(actions[0].isPreferred, true, "the fix is the preferred Quick Fix");
+      assert.match(actions[0].title!, /Fix with OpenCode/);
+      assert.match(actions[1].title!, /Explain with OpenCode/);
+
+      const mark = posted.length;
+      await vscode.commands.executeCommand(actions[0].command!.command!, actions[0].command!.arguments![0]);
+      const prefill = await waitFor(() => lastPosted("prefillDraft", mark), "prefillDraft from the Quick Fix");
+      assert.match(prefill.text, /Integration diagnostic/);
+      assert.equal(prefill.attachments[0].kind, "selection");
+    } finally {
+      collection.dispose();
+    }
+  });
+
+  it("prefills a prompt with the active file from the editor title action", async () => {
+    const document = await vscode.workspace.openTextDocument(path.join(workspace, "src", "app.ts"));
+    await vscode.window.showTextDocument(document);
+    const mark = posted.length;
+    await vscode.commands.executeCommand("opencode.askAboutFile");
+    const prefill = await waitFor(() => lastPosted("prefillDraft", mark), "prefillDraft from the editor title action");
+    assert.equal(prefill.attachments[0].kind, "file");
+    assert.equal(prefill.attachments[0].name, "app.ts");
+    await vscode.commands.executeCommand("workbench.action.closeAllEditors");
   });
 });

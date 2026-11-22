@@ -43,6 +43,7 @@ sends **no telemetry**.
 - A **contract smoke test** on connect names the features that a non-2.2.7 server cannot support, instead of only warning about the version number.
 - **Editor context**: the active file and selection are attached automatically as chips you can remove before sending. File chips use the icons of your active VS Code file icon theme, the same as the Explorer (including dark/light/high-contrast variants and glyph fonts such as Seti).
 - **`@` mentions** with fuzzy workspace file search: picking a file attaches it as a chip and removes the `@query` from the input, so only the chip is sent with the message. **Add Selection to Chat** / **Add File to Chat** in the editor and explorer context menus work the same way.
+- **Quick Fixes on errors**: VS Code's squiggles now offer _Fix with OpenCode_ and _Explain with OpenCode_ (up to three diagnostics at a time), which select the offending lines and prefill the chat with the diagnostic message. The editor title bar also has an **Ask OpenCode About This File** button that attaches the whole file. As with the other editor commands, nothing is sent until you press Enter.
 - **Attach external files** by dragging them into the chat (**hold Shift**: VS Code otherwise opens the file in an editor), by pasting an image or other file into the prompt, or with the folder button, which opens a native file picker. Files outside the workspace are sent **inline** so the model receives their content instead of only a path to look for. The same applies to local files when you connect to an external `opencode.endpoint`: OpenCode reads `file:` paths from its own filesystem, which may not be yours, so their contents are embedded in the message instead.
 - **Clickable file references**: `src/app.ts:42` in a reply, a tool's input path, a permission resource or a changed-file row opens the file at that line in the editor.
 - **Skills**: type `/` to search skills discovered by OpenCode, including global skills; selecting one
@@ -138,27 +139,30 @@ loads the skill content.
 
 ### Commands
 
-| Command                           | Default key                                                                                   |
-| --------------------------------- | --------------------------------------------------------------------------------------------- |
-| OpenCode: Focus Chat              | `Cmd/Ctrl+Alt+O`                                                                              |
-| OpenCode: Quick Switch Session    | `Cmd/Ctrl+Alt+S` (recent sessions first; typing searches all conversations)                   |
-| OpenCode: Install OpenCode…       | – (copy the install command, open platform instructions, retry the connection)                |
-| OpenCode: Ask OpenCode…           | `Cmd/Ctrl+Alt+Shift+O` (fill the composer from anywhere, with the current selection attached) |
-| OpenCode: Stop current response   | – (also click the status bar while a turn runs)                                               |
-| OpenCode: Open Chat in Editor     | – (toolbar, opens a second, wider chat view)                                                  |
-| OpenCode: Add Selection to Chat   | `Cmd/Ctrl+Alt+L` (editor with selection)                                                      |
-| OpenCode: Add File to Chat        | – (editor / explorer context menu)                                                            |
-| OpenCode: New Session             | `Cmd/Ctrl+N` (chat focused)                                                                   |
-| Search messages in the chat       | `Cmd/Ctrl+F`, then `F3`/`Shift+F3` for next/previous match                                    |
-| Sync the current session          | `Cmd/Ctrl+R` (chat focused)                                                                   |
-| OpenCode: Compact Conversation    | –                                                                                             |
-| OpenCode: Restart Server…         | – (toolbar, with confirmation)                                                                |
-| OpenCode: Open Config File        | – (toolbar file icon)                                                                         |
-| OpenCode: Open Extension Settings | – (toolbar gear icon)                                                                         |
-| OpenCode: Move Chat View…         | – (left/right side bar or panel)                                                              |
-| OpenCode: Show Logs               | –                                                                                             |
-| OpenCode: Set Server Password…    | – (external server only)                                                                      |
-| OpenCode: Stop Server             | –                                                                                             |
+| Command                                | Default key                                                                                   |
+| -------------------------------------- | --------------------------------------------------------------------------------------------- |
+| OpenCode: Focus Chat                   | `Cmd/Ctrl+Alt+O`                                                                              |
+| OpenCode: Quick Switch Session         | `Cmd/Ctrl+Alt+S` (recent sessions first; typing searches all conversations)                   |
+| OpenCode: Install OpenCode…            | – (copy the install command, open platform instructions, retry the connection)                |
+| OpenCode: Ask OpenCode…                | `Cmd/Ctrl+Alt+Shift+O` (fill the composer from anywhere, with the current selection attached) |
+| OpenCode: Stop current response        | – (also click the status bar while a turn runs)                                               |
+| OpenCode: Open Chat in Editor          | – (toolbar, opens a second, wider chat view)                                                  |
+| OpenCode: Add Selection to Chat        | `Cmd/Ctrl+Alt+L` (editor with selection)                                                      |
+| OpenCode: Add File to Chat             | – (editor / explorer context menu)                                                            |
+| OpenCode: Ask OpenCode About This File | – (editor title button / command palette)                                                     |
+| OpenCode: Fix with OpenCode            | – (Quick Fix on a diagnostic; also the command behind the lightbulb)                          |
+| OpenCode: Explain with OpenCode        | – (Quick Fix on a diagnostic)                                                                 |
+| OpenCode: New Session                  | `Cmd/Ctrl+N` (chat focused)                                                                   |
+| Search messages in the chat            | `Cmd/Ctrl+F`, then `F3`/`Shift+F3` for next/previous match                                    |
+| Sync the current session               | `Cmd/Ctrl+R` (chat focused)                                                                   |
+| OpenCode: Compact Conversation         | –                                                                                             |
+| OpenCode: Restart Server…              | – (toolbar, with confirmation)                                                                |
+| OpenCode: Open Config File             | – (toolbar file icon)                                                                         |
+| OpenCode: Open Extension Settings      | – (toolbar gear icon)                                                                         |
+| OpenCode: Move Chat View…              | – (left/right side bar or panel)                                                              |
+| OpenCode: Show Logs                    | –                                                                                             |
+| OpenCode: Set Server Password…         | – (external server only)                                                                      |
+| OpenCode: Stop Server                  | –                                                                                             |
 
 ### Settings
 

@@ -244,9 +244,32 @@
         "command": "opencode.quickSwitchSession",
         "title": "%command.quickSwitchSession%",
         "category": "OpenCode"
+      },
+      {
+        "command": "opencode.askAboutFile",
+        "title": "%command.askAboutFile%",
+        "category": "OpenCode",
+        "icon": "$(question)"
+      },
+      {
+        "command": "opencode.fixDiagnostic",
+        "title": "%command.fixDiagnostic%",
+        "category": "OpenCode"
+      },
+      {
+        "command": "opencode.explainDiagnostic",
+        "title": "%command.explainDiagnostic%",
+        "category": "OpenCode"
       }
     ],
     "menus": {
+      "editor/title": [
+        {
+          "command": "opencode.askAboutFile",
+          "when": "resourceScheme == file",
+          "group": "navigation@5"
+        }
+      ],
       "view/title": [
         {
           "command": "opencode.openConfigFile",
@@ -358,6 +381,9 @@
         },
         {
           "command": "opencode.openChatInEditor"
+        },
+        {
+          "command": "opencode.askAboutFile"
         }
       ]
     },

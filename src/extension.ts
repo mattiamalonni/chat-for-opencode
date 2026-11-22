@@ -4,7 +4,8 @@ import { promisify } from "node:util";
 import * as vscode from "vscode";
 import { ChatController, ServerRegistry, type ExecutionStatus, type SessionSearchResult } from "./chat/controller";
 import { DIFF_SCHEME, DiffService } from "./chat/diff";
-import { selectionAttachment } from "./chat/context";
+import { fileAttachment, selectionAttachment } from "./chat/context";
+import { diagnosticCodeActions, EXPLAIN_DIAGNOSTIC_COMMAND, FIX_DIAGNOSTIC_COMMAND, type DiagnosticCommandArgs } from "./chat/codeActions";
 import { ChatViewProvider } from "./chat/viewProvider";
 import { cleanupOrphanServers } from "./server/orphans";
 
@@ -66,6 +67,31 @@ export function activate(context: vscode.ExtensionContext): ExtensionApi {
     return parseAuthLogins(stdout);
   };
 
+  /** A Quick Fix selects the offending lines, then opens the chat with them attached. */
+  const prefillDiagnostic = async (value: unknown, intent: "fix" | "explain") => {
+    if (!value || typeof value !== "object") return;
+    const args = value as Partial<DiagnosticCommandArgs>;
+    if (
+      typeof args.uri !== "string" ||
+      typeof args.startLine !== "number" ||
+      typeof args.endLine !== "number" ||
+      typeof args.message !== "string"
+    ) {
+      return;
+    }
+    const document = await vscode.workspace.openTextDocument(vscode.Uri.parse(args.uri));
+    const editor = await vscode.window.showTextDocument(document);
+    const lastLine = Math.max(0, editor.document.lineCount - 1);
+    const start = new vscode.Position(Math.min(lastLine, Math.max(0, args.startLine - 1)), 0);
+    const endLine = Math.min(lastLine, Math.max(0, args.endLine - 1));
+    editor.selection = new vscode.Selection(start, editor.document.lineAt(endLine).range.end);
+    const attachment = selectionAttachment(editor);
+    const prompt =
+      intent === "fix" ? vscode.l10n.t("Fix this error: {0}", args.message) : vscode.l10n.t("Explain this error: {0}", args.message);
+    await focusView();
+    chat.prefillDraft(prompt, attachment ? [attachment] : []);
+  };
+
   context.subscriptions.push(
     output,
     vscode.workspace.registerTextDocumentContentProvider(DIFF_SCHEME, diffs),
@@ -75,6 +101,25 @@ export function activate(context: vscode.ExtensionContext): ExtensionApi {
         chat.attachPanel(panel);
       },
     }),
+    // OpenCode's chat meets the user where the problem already is: on the squiggle. These are
+    // Quick Fixes only — the prompt is prefilled so nothing is sent without a review.
+    vscode.languages.registerCodeActionsProvider(
+      { scheme: "file" },
+      {
+        provideCodeActions(document, range, context) {
+          return diagnosticCodeActions(document, range, context.diagnostics, {
+            t: (message) => vscode.l10n.t(message),
+            create: (title, command, args, preferred) => {
+              const action = new vscode.CodeAction(title, vscode.CodeActionKind.QuickFix);
+              action.command = { command, title, arguments: [args] };
+              action.isPreferred = preferred;
+              return action;
+            },
+          });
+        },
+      },
+      { providedCodeActionKinds: [vscode.CodeActionKind.QuickFix] },
+    ),
     // 1.99 exposes only the "granted" event: untrusting a workspace requires a window reload, so
     // there is nothing to react to there. Reconnect/prompt paths re-check `isTrusted` themselves.
     vscode.workspace.onDidGrantWorkspaceTrust(() => void chat.onWorkspaceTrustChanged(true)),
@@ -215,6 +260,18 @@ export function activate(context: vscode.ExtensionContext): ExtensionApi {
       // Fill the composer instead of sending straight away: the selection must travel with the
       // prompt and the user gets to review (or extend) it before it reaches the agent.
       chat.prefillDraft(text.trim(), attachment ? [attachment] : []);
+    }),
+    vscode.commands.registerCommand(FIX_DIAGNOSTIC_COMMAND, (args: unknown) => void prefillDiagnostic(args, "fix")),
+    vscode.commands.registerCommand(EXPLAIN_DIAGNOSTIC_COMMAND, (args: unknown) => void prefillDiagnostic(args, "explain")),
+    vscode.commands.registerCommand("opencode.askAboutFile", async () => {
+      const uri = vscode.window.activeTextEditor?.document.uri;
+      const attachment = uri && fileAttachment(uri);
+      if (!attachment) {
+        void vscode.window.showInformationMessage(vscode.l10n.t("Open a file in the editor first."));
+        return;
+      }
+      await focusView();
+      chat.prefillDraft(vscode.l10n.t("What does this file do? How could it be improved?"), [attachment]);
     }),
     vscode.commands.registerCommand("opencode.account", async () => {
       let logins: vscode.QuickPickItem[];

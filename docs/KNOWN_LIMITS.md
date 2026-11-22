@@ -65,6 +65,11 @@ test or a manual probe actually ran.
 
 ## Behaviour limits
 
+- **Quick Fixes depend on other extensions' diagnostics.** The Code Actions only see diagnostics
+  published by a language server or another VS Code extension for the open file — OpenCode itself
+  does not publish diagnostics. With no diagnostic on the line there is no lightbulb (the editor title
+  button still works). The two actions prefill the composer; they never apply a patch automatically.
+
 - **Queued prompts cannot be edited in place.** OpenCode's inbox `PATCH` only accepts `delivery`
   (`queue` or `steer`): the panel can promote an item to _send now_, but _Put back in composer to
   edit_ cancels the item and restores its text in the composer instead of patching it. The API also
