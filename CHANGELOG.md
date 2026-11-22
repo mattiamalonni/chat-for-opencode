@@ -2,6 +2,10 @@
 
 ## 0.3.19 — 2026-11-22
 
+- **Fix:** a locally posted idle (Stop, rejecting a permission, dismissing a question) now also
+  finishes the partial assistant message and its turn in the webview, instead of only unlocking the
+  composer. Without a server terminal event those cards kept shimmering with a disabled copy button.
+  A reconciliation is scheduled to replace the local snapshot with the server history.
 - **Fix:** switching sessions (or starting a new one) now closes a turn that was still running on
   the previous session. Terminal events of the old session cannot arrive for the new id, so the
   status bar used to keep spinning; `ensureSession()` invalidates the token and publishes `idle`.

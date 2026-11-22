@@ -942,13 +942,20 @@ export function applyEvent(state: ChatState, event: ServerEvent): ChatState {
       return { ...state, busy: true, lastError: undefined, retry: undefined, turns };
     }
     case "session.status": {
-      const status = d.status as { type?: string; attempt?: number; message?: string; next?: number } | undefined;
+      const status = d.status as { type?: string; local?: boolean; attempt?: number; message?: string; next?: number } | undefined;
       if (status?.type === "retry") {
         return {
           ...state,
           busy: true,
           retry: { attempt: status.attempt ?? 0, message: status.message ?? "", next: status.next },
         };
+      }
+      if (status?.type === "idle" && status.local) {
+        // A locally-posted idle (interrupt/cancel/dismissed question) has no server terminal event.
+        // Close the partial assistant messages and the turn as well as the composer, otherwise the
+        // card keeps shimmering and its copy button stays disabled until a manual sync.
+        const finished = finishAll(state);
+        return { ...finished, busy: false, retry: undefined, turns: endTurn(state, created) };
       }
       const busy = status?.type === "busy";
       // Reattaching mid-turn can deliver `busy` without `execution.started`. Open a turn here too,

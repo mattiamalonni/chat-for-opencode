@@ -41,6 +41,7 @@ function base(extra: Record<string, unknown> = {}) {
     sessionId: "s1",
     execution: new ExecutionStateService(),
     post: vi.fn(),
+    scheduleReconcile: vi.fn(),
     output: { warn: vi.fn(), info: vi.fn(), error: vi.fn() },
     ctx: { globalState: { get: vi.fn(() => undefined), update: vi.fn() } },
     lifecycle: { generations: gens, schedule: vi.fn(), cancel: vi.fn(), clearAll: vi.fn() },
@@ -73,8 +74,9 @@ describe("ChatController state machine", () => {
     call("postLocalIdle", current, "s1", 7);
     expect(current.post).toHaveBeenCalledWith({
       type: "event",
-      event: { type: "session.status", data: { sessionID: "s1", status: { type: "idle" } } },
+      event: { type: "session.status", data: { sessionID: "s1", status: { type: "idle", local: true } } },
     });
+    expect(current.scheduleReconcile).toHaveBeenCalled();
   });
 
   it("stops servers and posts an untrusted notice when trust is revoked", async () => {

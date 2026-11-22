@@ -1021,6 +1021,29 @@ describe("incremental resync", () => {
     expect(a.parts.map((p) => (p.kind === "text" ? p.text : ""))).toEqual(["done"]);
   });
 
+  it("finishes a streaming card and its turn on a local idle, but not on a network idle", () => {
+    const streaming = chatReducer(open("s"), {
+      type: "event",
+      event: { type: "session.step.started", data: { sessionID: "s", assistantMessageID: "a1", agent: "build" } },
+    });
+    expect(assistants(streaming)[0].done).toBe(false);
+    expect(streaming.turns.some((t) => t.ended === undefined)).toBe(true);
+
+    const networkIdle = chatReducer(streaming, {
+      type: "event",
+      event: { type: "session.status", data: { sessionID: "s", status: { type: "idle" } } },
+    });
+    expect(assistants(networkIdle)[0].done).toBe(false);
+
+    const localIdle = chatReducer(streaming, {
+      type: "event",
+      event: { type: "session.status", data: { sessionID: "s", status: { type: "idle", local: true } } },
+    });
+    expect(assistants(localIdle)[0].done).toBe(true);
+    expect(localIdle.busy).toBe(false);
+    expect(localIdle.turns.every((t) => t.ended !== undefined)).toBe(true);
+  });
+
   it("does not duplicate a live failure notice when the resynced history reports the same outcome", () => {
     let state = chatReducer(open("s"), {
       type: "event",

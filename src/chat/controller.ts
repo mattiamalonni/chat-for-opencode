@@ -491,11 +491,15 @@ export class ChatController implements vscode.Disposable {
     if (sid !== this.sessionId || !this.execution.markLocalIdle(sid, generation)) return;
     this.post({
       type: "event",
-      event: { type: "session.status", data: { sessionID: sid, status: { type: "idle" } } } as ServerEvent,
+      // `local` tells the webview to also finish the partial assistant message and its turn: the
+      // server emits no terminal event in these cases, so nothing else would close the streaming
+      // card (shimmer + disabled copy button forever).
+      event: { type: "session.status", data: { sessionID: sid, status: { type: "idle", local: true } } } as ServerEvent,
     });
     // The server may emit no terminal event for a local idle, and `onEvent` is the only other
-    // place that refreshes the list — so schedule it here or session rows stay "running" forever.
+    // place that refreshes the list and replaces the partial message with server history.
     this.scheduleSessions();
+    this.scheduleReconcile();
   }
 
   private pickFolder(): vscode.WorkspaceFolder | undefined {
