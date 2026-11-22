@@ -11,5 +11,5 @@ export const DEFAULT_HTTP_TIMEOUT_MS = 30_000;
  * every restart. The average delay stays the same.
  */
 export function jitteredDelay(baseMs: number): number {
-  return Math.round(baseMs * (0.5 + Math.random() * 0.5));
+  return Math.round(baseMs * (0.5 + Math.random()));
 }

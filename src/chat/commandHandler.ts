@@ -6,7 +6,7 @@
  * decides *which* action a message means, the controller owns *how* that action is carried out. A
  * fake hooks object can exercise every command without an Extension Development Host.
  */
-import * as vscode from "vscode";
+import type * as vscode from "vscode";
 import type { FileDiff, ModelRef, SessionInfo } from "../shared/api";
 import type { ActionId, Attachment, ContextItem, DroppedFile, HostMessage, WebviewMessage } from "../shared/protocol";
 import type { OpenCodeClient } from "../client/http";
@@ -78,6 +78,11 @@ export interface CommandHandlerHooks {
   };
   workspaceState: vscode.Memento;
   globalState: vscode.Memento;
+  /** Host-only services. The handler itself must stay importable without the VS Code runtime. */
+  t(message: string, ...args: (string | number)[]): string;
+  confirmDanger(opts: { title: string; detail: string; choices: string[] }): Promise<string | undefined>;
+  copyToClipboard(text: string): Promise<void>;
+  getWorkspaces(): readonly vscode.WorkspaceFolder[];
   log(line: string): void;
 }
 
@@ -131,15 +136,12 @@ export class ChatCommandHandler {
         else await h.refreshSessions();
         return;
       case "deleteAllSessions": {
-        const answer = await vscode.window.showWarningMessage(
-          vscode.l10n.t("Delete all sessions?"),
-          {
-            modal: true,
-            detail: vscode.l10n.t("Every session in this workspace will be permanently removed. This cannot be undone."),
-          },
-          vscode.l10n.t("Delete all"),
-        );
-        if (answer === undefined) return;
+        const answer = await h.confirmDanger({
+          title: h.t("Delete all sessions?"),
+          detail: h.t("Every session in this workspace will be permanently removed. This cannot be undone."),
+          choices: [h.t("Delete all")],
+        });
+        if (answer !== h.t("Delete all")) return;
         return h.deleteAllSessions();
       }
       case "renameSession": {
@@ -150,7 +152,8 @@ export class ChatCommandHandler {
         // Optimistic update: the header/list react even when the live event is missed.
         h.sessionList.rename(msg.id, title);
         if (msg.id === h.getSessionId())
-          h.post({ type: "event", event: { type: "session.renamed", data: { sessionID: msg.id, title } } } as never);
+          // Both fields come from the already-validated webview message; the shape matches ServerEvent.
+          h.post({ type: "event", event: { type: "session.renamed", data: { sessionID: msg.id, title } } });
         return;
       }
       case "refreshSessions":
@@ -258,12 +261,12 @@ export class ChatCommandHandler {
       case "openLink":
         return h.openLink(msg.href);
       case "copy":
-        await vscode.env.clipboard.writeText(msg.text);
+        await h.copyToClipboard(msg.text);
         return;
       case "action":
         return h.runAction(msg.id);
       case "selectFolder":
-        return h.switchFolder(vscode.workspace.workspaceFolders?.find((f) => f.uri.toString() === msg.uri));
+        return h.switchFolder(h.getWorkspaces().find((f) => f.uri.toString() === msg.uri));
       case "refreshChanges":
         return void (await h.refreshChanges());
       case "sync":
@@ -275,20 +278,15 @@ export class ChatCommandHandler {
         return h.compact();
       case "revertTo": {
         if (!h.getClient() || !h.getSessionId() || msg.sessionId !== h.getSessionId()) return;
-        const rollback = vscode.l10n.t("Roll back");
-        const messagesOnly = vscode.l10n.t("Messages only");
-        const choice = await vscode.window.showWarningMessage(
-          vscode.l10n.t("Roll back to this turn?"),
-          {
-            modal: true,
-            detail: vscode.l10n.t(
-              "The selected prompt, its reply and every later turn will be removed from the conversation. 'Roll back' also restores file changes made after that point; 'Messages only' keeps the current files. The prompt returns to the composer so you can edit and resend it.",
-            ),
-          },
-          rollback,
-          messagesOnly,
-          vscode.l10n.t("Cancel"),
-        );
+        const rollback = h.t("Roll back");
+        const messagesOnly = h.t("Messages only");
+        const choice = await h.confirmDanger({
+          title: h.t("Roll back to this turn?"),
+          detail: h.t(
+            "The selected prompt, its reply and every later turn will be removed from the conversation. 'Roll back' also restores file changes made after that point; 'Messages only' keeps the current files. The prompt returns to the composer so you can edit and resend it.",
+          ),
+          choices: [rollback, messagesOnly, h.t("Cancel")],
+        });
         if (choice !== rollback && choice !== messagesOnly) return;
         return h.revertToTurn(msg.sessionId, msg.messageID, msg.text, choice === rollback);
       }
@@ -296,18 +294,14 @@ export class ChatCommandHandler {
         return h.forkToTurn(msg.sessionId, msg.messageID);
       case "regenerate": {
         if (!h.getClient() || !h.getSessionId() || msg.sessionId !== h.getSessionId()) return;
-        const regenerate = vscode.l10n.t("Regenerate");
-        const choice = await vscode.window.showWarningMessage(
-          vscode.l10n.t("Regenerate this response?"),
-          {
-            modal: true,
-            detail: vscode.l10n.t(
-              "The reply and every later turn will be removed and your prompt sent again. Your files stay untouched. Use Roll back if you want to restore files too.",
-            ),
-          },
-          regenerate,
-          vscode.l10n.t("Cancel"),
-        );
+        const regenerate = h.t("Regenerate");
+        const choice = await h.confirmDanger({
+          title: h.t("Regenerate this response?"),
+          detail: h.t(
+            "The reply and every later turn will be removed and your prompt sent again. Your files stay untouched. Use Roll back if you want to restore files too.",
+          ),
+          choices: [regenerate, h.t("Cancel")],
+        });
         if (choice !== regenerate) return;
         return h.regenerateTurn(msg.sessionId, msg.messageID, msg.text, msg.attachments);
       }

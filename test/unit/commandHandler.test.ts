@@ -1,13 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
 
-vi.mock("vscode", () => ({
-  l10n: { t: (s: string) => s },
-  env: { clipboard: { writeText: vi.fn(async () => undefined) } },
-  workspace: { workspaceFolders: [], getConfiguration: () => ({ get: () => undefined }) },
-  window: { showWarningMessage: vi.fn(() => Promise.resolve(undefined)) },
-  commands: { executeCommand: vi.fn(async () => undefined) },
-}));
-
 import type { WebviewMessage } from "../../src/shared/protocol";
 import { ChatCommandHandler, type CommandHandlerHooks } from "../../src/chat/commandHandler";
 import { ExecutionStateService } from "../../src/chat/executionState";
@@ -69,6 +61,10 @@ function setup(overrides: Partial<CommandHandlerHooks> = {}) {
     diffs: { open: vi.fn(async () => undefined), openCombined: vi.fn(async () => undefined) },
     workspaceState: { get: vi.fn(() => ({})), update } as never,
     globalState: { get: vi.fn(), update } as never,
+    t: (message: string) => message,
+    confirmDanger: vi.fn(async () => undefined),
+    copyToClipboard: vi.fn(async () => undefined),
+    getWorkspaces: () => [],
     log: vi.fn(),
     ...overrides,
   };
@@ -125,5 +121,24 @@ describe("ChatCommandHandler", () => {
     expect(hooks.runAction).toHaveBeenCalledWith("retry");
     expect(hooks.openFile).toHaveBeenCalledWith("a.txt");
     expect(hooks.syncNow).toHaveBeenCalledTimes(1);
+  });
+
+  it("runs the host boundary through hooks (confirmation, clipboard, workspaces)", async () => {
+    const confirmed = setup({ confirmDanger: vi.fn(async () => "Delete all") });
+    await confirmed.handler.handle(msg({ type: "deleteAllSessions" }));
+    expect(confirmed.hooks.deleteAllSessions).toHaveBeenCalledTimes(1);
+
+    const cancelled = setup();
+    await cancelled.handler.handle(msg({ type: "deleteAllSessions" }));
+    expect(cancelled.hooks.deleteAllSessions).not.toHaveBeenCalled();
+
+    const { handler, hooks } = setup();
+    await handler.handle(msg({ type: "copy", text: "hello" }));
+    expect(hooks.copyToClipboard).toHaveBeenCalledWith("hello");
+
+    const folder = { uri: { toString: () => "file:///ws" } } as never;
+    const selected = setup({ getWorkspaces: () => [folder] });
+    await selected.handler.handle(msg({ type: "selectFolder", uri: "file:///ws" }));
+    expect(selected.hooks.switchFolder).toHaveBeenCalledWith(folder);
   });
 });

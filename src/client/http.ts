@@ -276,8 +276,8 @@ export class OpenCodeClient {
    * the newer messages in chronological order. `undefined` means the overlap is unknown — history
    * was trimmed or compacted — so callers must fall back to a full `messages()` fetch.
    */
-  async messagesNewerThan(id: string, lastId: string, limit = 200): Promise<SessionMessage[] | undefined> {
-    const res = await this.requestEndpoint<unknown>(ENDPOINTS.messages, { sessionID: id }, { query: { order: "desc", limit } });
+  async messagesNewerThan(id: string, lastId: string, limit = 200, signal?: AbortSignal): Promise<SessionMessage[] | undefined> {
+    const res = await this.requestEndpoint<unknown>(ENDPOINTS.messages, { sessionID: id }, { query: { order: "desc", limit }, signal });
     const page = this.dataArray<SessionMessage>(res, "session history");
     const index = page.findIndex((m) => !!m && typeof m === "object" && m.id === lastId);
     return index < 0 ? undefined : page.slice(0, index).reverse();
@@ -318,8 +318,8 @@ export class OpenCodeClient {
   }
 
   /** Prompts still waiting in the inbox, oldest first (the server keeps insertion order). */
-  async inbox(id: string): Promise<InboxItem[]> {
-    const res = await this.requestEndpoint<unknown>(ENDPOINTS.inbox, { sessionID: id });
+  async inbox(id: string, signal?: AbortSignal): Promise<InboxItem[]> {
+    const res = await this.requestEndpoint<unknown>(ENDPOINTS.inbox, { sessionID: id }, { signal });
     return this.dataArray<InboxItem>(res, "inbox");
   }
 
@@ -424,18 +424,18 @@ export class OpenCodeClient {
     return this.dataArray<FileDiff>(res, "diff");
   }
 
-  async models(): Promise<ModelInfo[]> {
-    const res = await this.requestEndpoint<unknown>(ENDPOINTS.models, {}, { query: { types: "chat" } });
+  async models(signal?: AbortSignal): Promise<ModelInfo[]> {
+    const res = await this.requestEndpoint<unknown>(ENDPOINTS.models, {}, { query: { types: "chat" }, signal });
     return this.dataArray<ModelInfo>(res, "model list");
   }
 
-  async defaultModel(): Promise<ModelInfo | null> {
-    const res = await this.requestEndpoint<unknown>(ENDPOINTS.modelDefault);
+  async defaultModel(signal?: AbortSignal): Promise<ModelInfo | null> {
+    const res = await this.requestEndpoint<unknown>(ENDPOINTS.modelDefault, {}, { signal });
     return this.data<ModelInfo | null>(res, "default model");
   }
 
-  async agents(): Promise<AgentInfo[]> {
-    const res = await this.requestEndpoint<unknown>(ENDPOINTS.agents);
+  async agents(signal?: AbortSignal): Promise<AgentInfo[]> {
+    const res = await this.requestEndpoint<unknown>(ENDPOINTS.agents, {}, { signal });
     return this.dataArray<AgentInfo>(res, "agent list");
   }
 

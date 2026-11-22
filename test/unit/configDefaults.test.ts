@@ -24,9 +24,9 @@ describe("shared runtime defaults", () => {
       random.mockReturnValue(0);
       expect(jitteredDelay(1000)).toBe(500);
       random.mockReturnValue(0.5);
-      expect(jitteredDelay(1000)).toBe(750);
-      random.mockReturnValue(1);
       expect(jitteredDelay(1000)).toBe(1000);
+      random.mockReturnValue(1);
+      expect(jitteredDelay(1000)).toBe(1500);
     } finally {
       random.mockRestore();
     }

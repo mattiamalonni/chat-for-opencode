@@ -173,6 +173,35 @@ describe("EventStream", () => {
     expect(statuses).toContain("reconnecting");
   });
 
+  it("does not let a closed loop schedule a retry after a restart", async () => {
+    let connects = 0;
+    const fetchImpl = ((_url: string, init?: RequestInit) => {
+      connects++;
+      // The first fetch hangs; the one started after close() stays connected without retrying.
+      if (connects > 1) return Promise.resolve(new Response(new ReadableStream<Uint8Array>({ start() {} }), { status: 200 }));
+      return new Promise<Response>((_resolve, reject) => {
+        init?.signal?.addEventListener("abort", () => reject(new Error("aborted")), { once: true });
+      });
+    }) as typeof fetch;
+    stream = new EventStream({
+      url: "http://localhost/api/event",
+      headers: {},
+      onEvent: () => {},
+      fetchImpl,
+      connectTimeoutMs: 1000,
+      minBackoffMs: 10,
+      maxBackoffMs: 20,
+    });
+    stream.start();
+    await waitUntil(() => connects === 1);
+    stream.close();
+    stream.start();
+    await waitUntil(() => connects === 2);
+    await new Promise((r) => setTimeout(r, 80));
+    // The stale loop saw the aborted fetch but must not have started a parallel reconnect chain.
+    expect(connects).toBe(2);
+  });
+
   it("aborts and reconnects when idle longer than the watchdog", async () => {
     mock = await startMockServer({ password: "pw" });
     let connects = 0;

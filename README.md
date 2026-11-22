@@ -65,7 +65,9 @@ sends **no telemetry**.
   agent asks several questions at once, they appear one at a time with **Next question** and a
   single reply collects all the answers.
 - **Todo list** when the agent uses OpenCode's (experimental) `todowrite` tool.
-- **Export the conversation as Markdown** and **search messages** in the current session from the header.
+- **Export the conversation as Markdown** and **search messages** in the current session from the header. Matches are
+  highlighted in prompts, replies and tool cards; use `Enter`/`F3` (`Shift+Enter`/`Shift+F3` backwards) or the ↑/↓
+  buttons to walk them, with a live “N of M” counter. The session list has its own title filter and ↑/↓/Enter navigation.
 - Clear **error states** with action buttons (OpenCode missing, no provider, connection lost, interrupted response…).
 - Keyboard friendly and screen-reader labelled; works with IMEs; English UI.
 
@@ -103,8 +105,8 @@ Press **F5** in this repository to launch an Extension Development Host.
 ## Usage
 
 1. Open a folder. The chat opens automatically the first time; afterwards use `Cmd/Ctrl+Alt+O`,
-   the OpenCode icon in the status bar (click it to view saved logins or sign in), or the
-   OpenCode icon in the Secondary Side Bar on the right.
+   the OpenCode icon in the status bar (idle: view logins or sign in; running: stop the current
+   response; finished: open the chat), or the OpenCode icon in the Secondary Side Bar on the right.
    On VS Code 1.99–1.103, which cannot contribute to the Secondary Side Bar, the chat appears in the Explorer;
    use _OpenCode: Move Chat View…_ to move it to the right.
 2. In a trusted folder the extension starts `opencode serve` in the background (status shown at the top).
@@ -133,24 +135,25 @@ loads the skill content.
 
 ### Commands
 
-| Command                           | Default key                                          |
-| --------------------------------- | ---------------------------------------------------- |
-| OpenCode: Focus Chat              | `Cmd/Ctrl+Alt+O`                                     |
-| OpenCode: Ask OpenCode…           | `Cmd/Ctrl+Alt+Shift+O` (send a prompt from anywhere) |
-| OpenCode: Open Chat in Editor     | – (toolbar, opens a second, wider chat view)         |
-| OpenCode: Add Selection to Chat   | `Cmd/Ctrl+Alt+L` (editor with selection)             |
-| OpenCode: Add File to Chat        | – (editor / explorer context menu)                   |
-| OpenCode: New Session             | `Cmd/Ctrl+N` (chat focused)                          |
-| Search messages in the chat       | `Cmd/Ctrl+F` (chat focused)                          |
-| Sync the current session          | `Cmd/Ctrl+R` (chat focused)                          |
-| OpenCode: Compact Conversation    | –                                                    |
-| OpenCode: Restart Server…         | – (toolbar, with confirmation)                       |
-| OpenCode: Open Config File        | – (toolbar file icon)                                |
-| OpenCode: Open Extension Settings | – (toolbar gear icon)                                |
-| OpenCode: Move Chat View…         | – (left/right side bar or panel)                     |
-| OpenCode: Show Logs               | –                                                    |
-| OpenCode: Set Server Password…    | – (external server only)                             |
-| OpenCode: Stop Server             | –                                                    |
+| Command                           | Default key                                                                                   |
+| --------------------------------- | --------------------------------------------------------------------------------------------- |
+| OpenCode: Focus Chat              | `Cmd/Ctrl+Alt+O`                                                                              |
+| OpenCode: Ask OpenCode…           | `Cmd/Ctrl+Alt+Shift+O` (fill the composer from anywhere, with the current selection attached) |
+| OpenCode: Stop current response   | – (also click the status bar while a turn runs)                                               |
+| OpenCode: Open Chat in Editor     | – (toolbar, opens a second, wider chat view)                                                  |
+| OpenCode: Add Selection to Chat   | `Cmd/Ctrl+Alt+L` (editor with selection)                                                      |
+| OpenCode: Add File to Chat        | – (editor / explorer context menu)                                                            |
+| OpenCode: New Session             | `Cmd/Ctrl+N` (chat focused)                                                                   |
+| Search messages in the chat       | `Cmd/Ctrl+F`, then `F3`/`Shift+F3` for next/previous match                                    |
+| Sync the current session          | `Cmd/Ctrl+R` (chat focused)                                                                   |
+| OpenCode: Compact Conversation    | –                                                                                             |
+| OpenCode: Restart Server…         | – (toolbar, with confirmation)                                                                |
+| OpenCode: Open Config File        | – (toolbar file icon)                                                                         |
+| OpenCode: Open Extension Settings | – (toolbar gear icon)                                                                         |
+| OpenCode: Move Chat View…         | – (left/right side bar or panel)                                                              |
+| OpenCode: Show Logs               | –                                                                                             |
+| OpenCode: Set Server Password…    | – (external server only)                                                                      |
+| OpenCode: Stop Server             | –                                                                                             |
 
 ### Settings
 

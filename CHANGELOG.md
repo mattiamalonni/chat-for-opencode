@@ -1,5 +1,33 @@
 # Changelog
 
+## Unreleased
+
+- **UI:** _Ask OpenCode…_ now fills the composer with the current editor selection attached instead
+  of sending a single-line prompt immediately; the text can be reviewed before it reaches the agent.
+  _Copy response_ copies only the visible reply text, not tool I/O and reasoning.
+- **UI:** chat search now highlights matches in replies and tool cards, with next/previous navigation
+  (`Enter`, `F3`, `Shift+F3`) and an “N of M” counter. The session list can be filtered by title and
+  navigated with ↑/↓/Enter.
+- **UI:** the status bar is actionable: click it to stop a running turn, open the chat when it ends,
+  or manage logins when idle; the tooltip reflects the current state.
+- **Robustness:** disposing the controller now uses the hard detach, invalidating the connect
+  generation so an in-flight `server.ensure()` can no longer reopen an SSE stream and poll timer
+  after teardown. Folder switches clear the pending connect too.
+- **Robustness:** one invalidation path now covers every connection/session change (generations,
+  timers, abort controllers, permissions, execution and picker). All long history/catalog fetches
+  carry a connection-scoped `AbortSignal`, so switching folder or session stops the requests instead
+  of only discarding their results.
+- **Robustness:** `EventStream` is safe to close and restart while a fetch is in flight: a stale
+  read loop can no longer schedule a second reconnect chain or duplicate events.
+- **Architecture:** `ChatCommandHandler` no longer imports the VS Code runtime. Confirmations,
+  clipboard and workspace lookup go through host hooks, and the synthetic events no longer use
+  `as never` / `as ServerEvent` casts.
+- **DX:** integration tests are typechecked with the same strict settings as the rest of the repo;
+  Vitest and its coverage provider are pinned to the same version; Dependabot now proposes major
+  updates as well. CI no longer reruns the contract snapshot on every matrix runner, and the
+  production smoke test now asserts that the shipped artefact really is minified and map-free.
+- **Fix:** retry jitter is now symmetric (−50%…+50%) as documented, instead of −50%…0%.
+
 ## 0.3.20 — 2026-11-22
 
 - **Architecture:** webview command dispatch moved out of `ChatController` into `ChatCommandHandler`.

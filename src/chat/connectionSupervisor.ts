@@ -186,6 +186,9 @@ export class ConnectionSupervisor {
 
   /** Unsubscribe from a folder's server without disposing the registry (used when switching folders). */
   detachServerOnly(): void {
+    // A connect() in flight from the previous folder must not be reused by the next one. Its
+    // generation is bumped by the caller, so the stale onReady guard still applies.
+    this.connecting = undefined;
     this.closeStream();
     this.clearLoaded();
     this.wasDisconnected = false;

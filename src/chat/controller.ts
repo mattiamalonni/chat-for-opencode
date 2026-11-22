@@ -422,6 +422,11 @@ export class ChatController implements vscode.Disposable {
       diffs: this.diffs,
       workspaceState: ctx.workspaceState,
       globalState: ctx.globalState,
+      t: (message, ...args) => vscode.l10n.t(message, ...args),
+      confirmDanger: (opts) =>
+        Promise.resolve(vscode.window.showWarningMessage(opts.title, { modal: true, detail: opts.detail }, ...opts.choices)),
+      copyToClipboard: (text) => Promise.resolve(vscode.env.clipboard.writeText(text)),
+      getWorkspaces: () => vscode.workspace.workspaceFolders ?? [],
       log: (line) => output.warn(line),
     });
     const refreshFileIcons = () => {
@@ -493,6 +498,9 @@ export class ChatController implements vscode.Disposable {
   private readonly deleteGeneration = new Generation();
   /** Cancels an in-flight bulk delete when the folder changes or the controller is disposed. */
   private deleteAllAbort?: AbortController;
+  /** Cancels large history/catalog fetches of the current connection epoch (generation guards only
+   * stopped their *results* from being published, not the requests themselves). */
+  private connectionAbort: AbortController | undefined;
   /** The last prompt the server refused, kept so the "Retry" action can resend the exact payload. */
   private failedPrompt?: {
     text: string;
@@ -541,6 +549,11 @@ export class ChatController implements vscode.Disposable {
     this.chatViews.post(msg);
   }
 
+  private abortConnectionRequests(): void {
+    this.connectionAbort?.abort();
+    this.connectionAbort = undefined;
+  }
+
   /** Best-effort fetches degrade to a fallback, but the reason must still reach the output channel. */
   private async bestEffort<T>(label: string, promise: Promise<T>, fallback: T): Promise<T> {
     try {
@@ -578,7 +591,8 @@ export class ChatController implements vscode.Disposable {
       // `local` tells the webview to also finish the partial assistant message and its turn: the
       // server emits no terminal event in these cases, so nothing else would close the streaming
       // card (shimmer + disabled copy button forever).
-      event: { type: "session.status", data: { sessionID: sid, status: { type: "idle", local: true } } } as ServerEvent,
+      // A synthetic event still has the same structural shape as a real one (type + data).
+      event: { type: "session.status", data: { sessionID: sid, status: { type: "idle", local: true } } },
     });
     // The server may emit no terminal event for a local idle, and `onEvent` is the only other
     // place that refreshes the list and replaces the partial message with server history.
@@ -687,6 +701,9 @@ export class ChatController implements vscode.Disposable {
     }
     if (this.supervisor.matches(conn)) return;
     this.supervisor.clearLoaded();
+    // Every fetch below belongs to this connection; a later folder/session change must cancel it.
+    this.abortConnectionRequests();
+    this.connectionAbort = new AbortController();
     this.catalog.resetWarmUp();
     this.fileIndex?.dispose();
     this.fileIndex = this.folder ? new FileIndex(this.folder, this.ctx.workspaceState) : undefined;
@@ -708,14 +725,15 @@ export class ChatController implements vscode.Disposable {
     this.contractObservations = {};
     this.contract = emptyContract;
     let catalogError: string | undefined;
+    const signal = this.connectionAbort?.signal;
     const [models, defaultModel, agents] = await Promise.all([
-      client.models().catch((err: unknown) => {
+      client.models(signal).catch((err: unknown) => {
         catalogError = err instanceof Error ? err.message : String(err);
         this.output.warn(`[chat] failed to load models: ${catalogError}`);
         return [] as ModelInfo[];
       }),
-      client.defaultModel().catch(() => null),
-      client.agents().catch((err: unknown) => {
+      client.defaultModel(signal).catch(() => null),
+      client.agents(signal).catch((err: unknown) => {
         this.output.warn(`[chat] failed to load agents: ${String(err)}`);
         return [] as AgentInfo[];
       }),
@@ -727,7 +745,7 @@ export class ChatController implements vscode.Disposable {
     const sessionId = this.sessionId ?? this.ctx.workspaceState.get<string>(SESSION_KEY(this.folder.uri.toString()));
     let session: SessionInfo | undefined;
     if (sessionId) {
-      session = await this.bestEffort("load stored session", client.getSession(sessionId), undefined);
+      session = await this.bestEffort("load stored session", client.getSession(sessionId, signal), undefined);
       if (stale()) return;
     }
     // Plugin skills/commands are registered only once a session exists. With no session yet
@@ -816,11 +834,13 @@ export class ChatController implements vscode.Disposable {
   ): Promise<boolean> {
     const client = this.client;
     if (!client || this.lastKnownMessage?.sessionId !== sid) return false;
-    const rawNewer = prefetched ?? (await client.messagesNewerThan(sid, this.lastKnownMessage.id).catch(() => undefined));
+    const signal = this.connectionAbort?.signal;
+    const rawNewer =
+      prefetched ?? (await client.messagesNewerThan(sid, this.lastKnownMessage.id, undefined, signal).catch(() => undefined));
     if (rawNewer === undefined || stale()) return false;
     const [rawPermissions, rawForms] = await Promise.all([
-      client.permissions(sid).catch(() => [] as PermissionRequest[]),
-      client.forms(sid).catch(() => [] as FormRequest[]),
+      client.permissions(sid, signal).catch(() => [] as PermissionRequest[]),
+      client.forms(sid, signal).catch(() => [] as FormRequest[]),
     ]);
     if (stale()) return true;
     const info = normalizeSessionInfo(rawInfo) ?? rawInfo;
@@ -1098,7 +1118,7 @@ export class ChatController implements vscode.Disposable {
   private async reconcileSession(sid: string, generation: number): Promise<void> {
     if (!this.client || sid !== this.sessionId) return;
     try {
-      const info = await this.client.getSession(sid);
+      const info = await this.client.getSession(sid, this.connectionAbort?.signal);
       if (sid !== this.sessionId || !this.execution.generation.is(generation)) return;
       // If the composer was cleared locally and no new turn has started, the server's timestamps
       // are stale (a dismissed question can leave `busy` newer than `idle` with no idle message).
@@ -1317,16 +1337,17 @@ export class ChatController implements vscode.Disposable {
   private async loadSession(rawInfo: SessionInfo, stale?: () => boolean, busyOverride?: boolean, fast = false): Promise<void> {
     const client = this.client;
     if (!client || !this.folder) return;
+    const signal = this.connectionAbort?.signal;
     const [rawMessages, rawPermissions, rawForms, rawInbox] = await Promise.all([
       // The other fetches degrade to empty lists; history must too. `send()` awaits loadSession
       // before posting, so a transient history error must not silently swallow the user's prompt.
-      client.messages(rawInfo.id).catch((err) => {
+      client.messages(rawInfo.id, 2000, signal).catch((err) => {
         this.output.warn(`[chat] could not load session history: ${String(err)}`);
         return [];
       }),
-      client.permissions(rawInfo.id).catch(() => []),
-      client.forms(rawInfo.id).catch(() => []),
-      client.inbox(rawInfo.id).catch(() => [] as InboxItem[]),
+      client.permissions(rawInfo.id, signal).catch(() => []),
+      client.forms(rawInfo.id, signal).catch(() => []),
+      client.inbox(rawInfo.id, signal).catch(() => [] as InboxItem[]),
     ]);
     // A newer prompt may have started while history was loading; its events are fresher.
     if (stale?.()) return;
@@ -1411,19 +1432,41 @@ export class ChatController implements vscode.Disposable {
 
   // ---- commands ---------------------------------------------------------------------------
 
-  async newSession(): Promise<void> {
+  /**
+   * One teardown path for "the current work no longer matters". Callers used to repeat a different
+   * subset of these steps in a different order; forgetting one was the source of stale-state races.
+   */
+  private invalidateSessionState(): void {
     this.announcedHiddenAttention.clear();
     this.failedPrompt = undefined;
     this.lifecycle.generations.load.bump();
+    this.abortConnectionRequests();
     this.clearTimers();
-    this.execution.reset();
-    // No session is open any more: polling its tail would be a no-op every two seconds until the
-    // next load. Loading that session starts the poll again.
     this.stopLivePoll();
-    this.sessionId = undefined;
-    this.subagents.reset();
     this.lastKnownMessage = undefined;
     this.permissions.setPending(undefined);
+    this.execution.reset();
+  }
+
+  /** A folder switch, server reset or dispose also ends the connection epoch and the picker. */
+  private invalidateConnection(): void {
+    this.lifecycle.generations.connect.bump();
+    this.lifecycle.generations.sessions.bump();
+    // A bulk delete belongs to one folder/connection; a new session within the same connection must
+    // not cancel it (server events can legitimately open a session while the walk is in progress).
+    this.deleteGeneration.bump();
+    this.deleteAllAbort?.abort();
+    this.sessionList.reset();
+    this.sessionList.cancelSearch();
+    this.invalidateSessionState();
+  }
+
+  async newSession(): Promise<void> {
+    this.invalidateSessionState();
+    // No session is open any more: polling its tail would be a no-op every two seconds until the
+    // next load. Loading that session starts the poll again.
+    this.sessionId = undefined;
+    this.subagents.reset();
     if (this.folder) await this.ctx.workspaceState.update(SESSION_KEY(this.folder.uri.toString()), undefined);
     this.post({ type: "session", session: null });
     this.post({ type: "changedFiles", files: [] });
@@ -1439,17 +1482,13 @@ export class ChatController implements vscode.Disposable {
       this.postUntrusted();
       return;
     }
-    this.lifecycle.generations.load.bump();
-    this.clearTimers();
-    this.lastKnownMessage = undefined;
-    this.stopLivePoll();
+    this.invalidateSessionState();
     await this.supervisor.reconnect();
   }
 
   /** Tears down the server/stream/client without binding a new connection. */
   private async detachServers(): Promise<void> {
-    this.announcedHiddenAttention.clear();
-    this.lifecycle.generations.load.bump();
+    this.invalidateConnection();
     await this.supervisor.detach();
   }
 
@@ -1466,23 +1505,11 @@ export class ChatController implements vscode.Disposable {
 
   async switchFolder(folder: vscode.WorkspaceFolder | undefined): Promise<void> {
     if (folder?.uri.toString() === this.folder?.uri.toString()) return;
-    this.announcedHiddenAttention.clear();
-    this.failedPrompt = undefined;
-    this.lifecycle.generations.connect.bump();
-    this.lifecycle.generations.load.bump();
-    this.clearTimers();
+    this.invalidateConnection();
     this.sessionId = undefined;
-    this.lastKnownMessage = undefined;
-    this.stopLivePoll();
     // Detach the old server before connecting to the new folder: its late state notifications must
     // not race the new connection (the supervisor still re-checks ownership when it installs one).
     this.supervisor.detachServerOnly();
-    this.permissions.setPending(undefined);
-    this.lifecycle.generations.sessions.bump();
-    this.deleteGeneration.bump();
-    this.deleteAllAbort?.abort();
-    this.execution.reset();
-    this.sessionList.reset();
     this.folder = folder;
     this.postInit();
     this.post({ type: "session", session: null });
@@ -1833,15 +1860,13 @@ export class ChatController implements vscode.Disposable {
   }
 
   async dispose(): Promise<void> {
-    this.execution.reset();
-    this.deleteGeneration.bump();
-    this.deleteAllAbort?.abort();
-    this.sessionList.cancelSearch();
+    // Use the hard detach: `detachServerOnly()` left `connecting` alive, so a `server.ensure()` still
+    // in flight could complete after teardown, pass its stale check and open a fresh SSE stream +
+    // poll interval against a disposed controller. The hard path bumps the connect generation.
+    this.invalidateConnection();
     await this.attachments.dispose();
-    this.supervisor.detachServerOnly();
+    await this.supervisor.detach();
     this.fileIndex?.dispose();
-    this.stopLivePoll();
-    this.clearTimers();
     this.chatViews.dispose();
     for (const d of this.disposables) d.dispose();
   }

@@ -155,6 +155,8 @@ export class EventStream {
   private controller: AbortController | undefined;
   private closed = false;
   private started = false;
+  /** Bumped by close() and by a restart so an old read loop can never schedule a retry. */
+  private generation = 0;
   private attempt = 0;
   private watchdog: NodeJS.Timeout | undefined;
   private retryTimer: NodeJS.Timeout | undefined;
@@ -168,11 +170,13 @@ export class EventStream {
     if (this.started && !this.closed) return;
     this.started = true;
     this.closed = false;
-    void this.connect();
+    ++this.generation;
+    void this.connect(this.generation);
   }
 
   close(): void {
     this.closed = true;
+    ++this.generation;
     this.clearTimers();
     this.controller?.abort();
     this.setStatus("closed");
@@ -193,14 +197,18 @@ export class EventStream {
     this.connectTimer = undefined;
   }
 
-  private kick(): void {
+  private kick(generation: number, controller: AbortController): void {
+    if (generation !== this.generation) return;
     if (this.watchdog) clearTimeout(this.watchdog);
     const timeout = this.opts.idleTimeoutMs ?? 60_000;
-    this.watchdog = setTimeout(() => this.controller?.abort(), timeout);
+    this.watchdog = setTimeout(() => {
+      // An old watchdog must not abort the socket opened by a newer start().
+      if (generation === this.generation) controller.abort();
+    }, timeout);
   }
 
-  private async connect(): Promise<void> {
-    if (this.closed) return;
+  private async connect(generation: number): Promise<void> {
+    if (this.closed || generation !== this.generation) return;
     const controller = new AbortController();
     this.controller = controller;
     const fetchImpl = this.opts.fetchImpl ?? fetch;
@@ -219,7 +227,7 @@ export class EventStream {
       if (!res.ok || !res.body) throw new Error(`Event stream failed: HTTP ${res.status}`);
       this.attempt = 0;
       this.setStatus("connected");
-      this.kick();
+      this.kick(generation, controller);
       const parser = new SseParser(
         (msg) => {
           const event = parseServerEvent(msg);
@@ -232,7 +240,7 @@ export class EventStream {
       for (;;) {
         const { value, done } = await reader.read();
         if (done) break;
-        this.kick();
+        this.kick(generation, controller);
         parser.feed(decoder.decode(value, { stream: true }));
       }
       // Flush any bytes of a split multi-byte character still held by the decoder.
@@ -244,7 +252,9 @@ export class EventStream {
     if (this.watchdog) clearTimeout(this.watchdog);
     if (this.connectTimer) clearTimeout(this.connectTimer);
     this.connectTimer = undefined;
-    if (this.closed) return;
+    // A close() followed by start() while this fetch was still in flight would otherwise reset
+    // `closed` and let this stale loop schedule a second, parallel reconnect chain.
+    if (this.closed || generation !== this.generation) return;
     this.setStatus("reconnecting", failure);
     const min = this.opts.minBackoffMs ?? 500;
     const max = this.opts.maxBackoffMs ?? 10_000;
@@ -252,7 +262,7 @@ export class EventStream {
     this.attempt++;
     this.retryTimer = setTimeout(() => {
       this.retryTimer = undefined;
-      void this.connect();
+      void this.connect(generation);
     }, delay);
   }
 }
