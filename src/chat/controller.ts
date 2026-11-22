@@ -5,6 +5,7 @@ import { CatalogService } from "./catalogService";
 import { ConnectionSupervisor } from "./connectionSupervisor";
 import { FileIconThemeService, type LanguageContribution } from "./fileIconTheme";
 import { ChatLifecycle } from "./lifecycle";
+import { Generation } from "./generation";
 import { describeServerError, ExternalServer, ManagedServer, ServerError, type ServerHandle, type ServerState } from "../server/server";
 import type {
   AgentInfo,
@@ -68,6 +69,9 @@ const PASSWORD_KEY = (endpoint: string) => `opencode.password:${endpoint}`;
 const SESSION_KEY = (folder: string) => `opencode.session:${folder}`;
 const COMPAT_DISMISSED_KEY = "opencode.compatibilityDismissedFor";
 const CONTRACT_DISMISSED_KEY = "opencode.contractDismissedFor";
+/** Bounds for the bulk-delete walk: a broken server must not keep the extension host busy forever. */
+const MAX_DELETE_PAGES = 100;
+const MAX_DELETE_IDS = 10_000;
 const DRAFTS_KEY = (folder: string) => `opencode.drafts:${folder}`;
 
 /**
@@ -411,6 +415,10 @@ export class ChatController implements vscode.Disposable {
   /** Serializes webview messages: a late `ready`/loadAll must not race a prompt and drop its events. */
   private messageQueue: Promise<unknown> = Promise.resolve();
 
+  /** Dedicated token: ordinary session refreshes must not cancel a bulk delete. */
+  private readonly deleteGeneration = new Generation();
+  /** Cancels an in-flight bulk delete when the folder changes or the controller is disposed. */
+  private deleteAllAbort?: AbortController;
   /** The last prompt the server refused, kept so the "Retry" action can resend the exact payload. */
   private failedPrompt?: {
     text: string;
@@ -1186,49 +1194,68 @@ export class ChatController implements vscode.Disposable {
     const folder = this.folder;
     if (!client || !folder) return;
     const directory = folder.uri.fsPath;
+    this.deleteAllAbort?.abort();
+    const abort = new AbortController();
+    this.deleteAllAbort = abort;
+    const token = this.deleteGeneration.current();
+    const stale = () => abort.signal.aborted || !this.deleteGeneration.is(token) || this.folder !== folder || this.client !== client;
     const ids = new Set<string>();
     const seenCursors = new Set<string>();
     let cursor: string | undefined;
-    for (;;) {
-      const { items, next } = await client.listSessionsPage(directory, 100, cursor);
-      for (const info of items) ids.add(info.id);
-      if (!next || seenCursors.has(next)) break;
-      seenCursors.add(next);
-      cursor = next;
-    }
-
-    const currentId = this.sessionId;
-    const deleted: string[] = [];
-    for (const id of ids) {
-      try {
-        await client.deleteSession(id);
-        deleted.push(id);
-        await this.permissions.write(id, undefined);
-      } catch (err) {
-        // A child already removed with its parent (or a stale session) must not abort the cleanup.
-        this.output.warn(`[chat] failed to delete session ${id}: ${String(err)}`);
+    try {
+      let exhausted = false;
+      for (let page = 0; page < MAX_DELETE_PAGES; page++) {
+        if (stale()) return;
+        const { items, next } = await client.listSessionsPage(directory, 100, cursor, abort.signal);
+        if (stale()) return;
+        for (const info of items) ids.add(info.id);
+        if (ids.size > MAX_DELETE_IDS) throw new Error("Too many sessions to delete");
+        if (!next || seenCursors.has(next)) {
+          exhausted = true;
+          break;
+        }
+        seenCursors.add(next);
+        cursor = next;
       }
-    }
+      if (!exhausted) throw new Error("Too many session pages to delete");
 
-    this.sessionList.forget(deleted);
-    if (deleted.length > 0) {
-      const key = DRAFTS_KEY(folder.uri.toString());
-      const saved = this.ctx.workspaceState.get<{ drafts?: Record<string, string> }>(key) ?? {};
-      if (saved.drafts) {
-        const drafts = { ...saved.drafts };
-        for (const id of deleted) delete drafts[id];
-        await this.ctx.workspaceState.update(key, { ...saved, drafts });
+      const currentId = this.sessionId;
+      const deleted: string[] = [];
+      for (const id of ids) {
+        if (stale()) return;
+        try {
+          await client.deleteSession(id);
+          deleted.push(id);
+          await this.permissions.write(id, undefined);
+        } catch (err) {
+          // A child already removed with its parent (or a stale session) must not abort the cleanup.
+          this.output.warn(`[chat] failed to delete session ${id}: ${String(err)}`);
+        }
       }
-    }
+      if (stale()) return;
 
-    if (ids.size > 0 && deleted.length === 0) {
-      // Nothing could be removed; keep the chat as it is and let the list re-sync from the server.
-      await this.refreshSessions();
-      throw new Error(translatedStrings()["error.requestFailed"]);
+      this.sessionList.forget(deleted);
+      if (deleted.length > 0) {
+        const key = DRAFTS_KEY(folder.uri.toString());
+        const saved = this.ctx.workspaceState.get<{ drafts?: Record<string, string> }>(key) ?? {};
+        if (saved.drafts) {
+          const drafts = { ...saved.drafts };
+          for (const id of deleted) delete drafts[id];
+          await this.ctx.workspaceState.update(key, { ...saved, drafts });
+        }
+      }
+
+      if (ids.size > 0 && deleted.length === 0) {
+        // Nothing could be removed; keep the chat as it is and let the list re-sync from the server.
+        await this.refreshSessions();
+        throw new Error(translatedStrings()["error.requestFailed"]);
+      }
+      // Clear the current chat when its session was among the deleted ones (also covers "no session").
+      if (!currentId || ids.has(currentId)) await this.newSession();
+      else await this.refreshSessions();
+    } finally {
+      if (this.deleteAllAbort === abort) this.deleteAllAbort = undefined;
     }
-    // Clear the current chat when its session was among the deleted ones (also covers "no session").
-    if (!currentId || ids.has(currentId)) await this.newSession();
-    else await this.refreshSessions();
   }
 
   async refreshChanges(): Promise<FileDiff[]> {
@@ -1521,6 +1548,8 @@ export class ChatController implements vscode.Disposable {
     this.supervisor.detachServerOnly();
     this.permissions.setPending(undefined);
     this.lifecycle.generations.sessions.bump();
+    this.deleteGeneration.bump();
+    this.deleteAllAbort?.abort();
     this.execution.reset();
     this.sessionList.reset();
     this.folder = folder;
@@ -2135,6 +2164,8 @@ export class ChatController implements vscode.Disposable {
 
   async dispose(): Promise<void> {
     this.execution.reset();
+    this.deleteGeneration.bump();
+    this.deleteAllAbort?.abort();
     this.sessionList.cancelSearch();
     await this.attachments.dispose();
     this.supervisor.detachServerOnly();

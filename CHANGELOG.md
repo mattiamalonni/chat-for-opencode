@@ -2,6 +2,10 @@
 
 ## 0.3.19 — 2026-11-22
 
+- **Robustness:** _Delete all sessions_ is now bounded (100 pages / 10 000 ids), abortable and
+  guarded by the folder generation. A broken or malicious cursor sequence can no longer keep the
+  extension host busy forever, and switching folders/trust during the walk stops it before it
+  deletes sessions from the old folder. Unit tests cover both the bound and the stale generation.
 - **Security:** userinfo embedded in `opencode.endpoint` (`https://user:token@host`) is stripped
   before the endpoint is used as a SecretStorage key, written to the Output channel or shown in an
   error banner. The password becomes a fallback credential, and redaction also masks URL userinfo as
