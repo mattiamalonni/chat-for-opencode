@@ -539,13 +539,22 @@ test("keeps thoughts and tools in production order and groups adjacent calls", a
   await expect(standalone).toHaveCount(1);
   await expect(standalone.locator(".tool-name")).toHaveText("shell");
 
-  const firstThought = await page.locator(".reasoning").first().boundingBox();
-  const narration = await page.locator(".md").filter({ hasText: "checking files" }).boundingBox();
-  const groupBox = await group.boundingBox();
-  const standaloneBox = await standalone.boundingBox();
-  expect(firstThought!.y).toBeLessThan(narration!.y);
-  expect(narration!.y).toBeLessThan(groupBox!.y);
-  expect(groupBox!.y).toBeLessThan(standaloneBox!.y);
+  // Measure all four in one task: expanding cards can scroll the conversation, and separate
+  // boundingBox() awaits could otherwise straddle that scroll and produce a false ordering failure.
+  const y = await page.evaluate(() => {
+    const at = (el: Element | null | undefined) => (el ? el.getBoundingClientRect().y : Number.POSITIVE_INFINITY);
+    const byText = (selector: string, text: string) =>
+      [...document.querySelectorAll(selector)].find((el) => el.textContent?.includes(text));
+    return {
+      thought: at(document.querySelector(".reasoning")),
+      narration: at(byText(".md", "checking files")),
+      group: at(document.querySelector(".tool-group")),
+      standalone: at(byText(".tool", "shell")),
+    };
+  });
+  expect(y.thought).toBeLessThan(y.narration);
+  expect(y.narration).toBeLessThan(y.group);
+  expect(y.group).toBeLessThan(y.standalone);
 });
 
 test("a finished turn folds its intermediate steps and can expand them", async ({ page }) => {
@@ -3144,19 +3153,31 @@ test("an authoritative inbox list drops a queued prompt whose delivery event was
     type: "inbox",
     items: [{ id: "q1", sessionID: S1, time: { created: 1 }, type: "user", delivery: "queue", payload: { text: "queued prompt" } }],
   });
-  await host(page, {
-    type: "event",
-    event: {
-      type: "session.inbox.enqueued",
-      data: { sessionID: S1, inboxID: "q1", item: { type: "user", payload: { text: "queued prompt" }, delivery: "queue" } },
-    },
-  });
   await expect(page.locator(".panel.inbox .inbox-item")).toHaveCount(1);
 
-  // A resync fetched the server's inbox: the item is already gone, but its event never arrived.
-  await host(page, { type: "inbox", items: [] });
+  // The race: the enqueued event, the authoritative (empty) inbox and the turn start all arrive
+  // before the rAF that normally applies events. The snapshot must flush the queue first, or the
+  // optimistic prompt is recreated after it was removed and delivered by `execution.started`.
+  await page.evaluate(
+    (messages) => {
+      for (const message of messages) window.dispatchEvent(new MessageEvent("message", { data: message }));
+    },
+    [
+      {
+        type: "event",
+        event: {
+          type: "session.inbox.enqueued",
+          data: { sessionID: S1, inboxID: "q1", item: { type: "user", payload: { text: "queued prompt" }, delivery: "queue" } },
+        },
+      },
+      { type: "inbox", items: [] },
+      { type: "event", event: { type: "session.execution.started", data: { sessionID: S1 } } },
+    ],
+  );
+  // A delta forces any still-queued events to be applied synchronously, so the assertion cannot
+  // pass just because the rAF flush has not happened yet.
+  await host(page, { type: "sessionDelta", delta: { sessionId: S1, messages: [], busy: false } });
   await expect(page.locator(".panel.inbox .inbox-item")).toHaveCount(0);
-  await host(page, { type: "event", event: { type: "session.execution.started", data: { sessionID: S1 } } });
   await expect(page.locator(".msg.user")).toHaveCount(0);
 });
 

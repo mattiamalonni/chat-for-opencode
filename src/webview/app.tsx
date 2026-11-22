@@ -325,6 +325,15 @@ export function App() {
           setChanges(msg.files);
           break;
         case "inbox":
+          // A snapshot is authoritative over the events queued before it. Apply those first,
+          // otherwise an `inbox.enqueued` still in the rAF queue would recreate a prompt that this
+          // very snapshot just removed, and the next `execution.started` would deliver it twice.
+          if (frame.current !== undefined) {
+            cancelAnimationFrame(frame.current);
+            frame.current = undefined;
+          }
+          if (queue.current.length > 0) dispatch({ type: "events", events: queue.current });
+          queue.current = [];
           setInbox(msg.items);
           dispatch({ type: "inbox", items: msg.items });
           break;
