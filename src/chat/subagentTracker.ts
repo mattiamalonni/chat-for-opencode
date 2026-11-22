@@ -2,13 +2,7 @@ import type { OpenCodeClient } from "../client/http";
 import type { FormRequest, PermissionRequest, ServerEvent, SessionInfo, SessionMessage } from "../shared/api";
 import { sessionIsBusy } from "../shared/chatReducer";
 import type { HostMessage } from "../shared/protocol";
-import {
-  normalizeForm,
-  normalizeList,
-  normalizePermission,
-  normalizeSessionInfo,
-  normalizeSessionMessage,
-} from "../shared/adapter";
+import { normalizeForm, normalizeList, normalizePermission, normalizeSessionInfo, normalizeSessionMessage } from "../shared/adapter";
 import type { Generation } from "./generation";
 
 export interface SubagentCreated {

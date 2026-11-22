@@ -10,7 +10,8 @@
 const SHAPE = /^(?:[A-Za-z]:)?(?:\.{0,2}[/\\])?(?:[\w@.-]+[/\\])*[\w@.-]+\.[A-Za-z][A-Za-z0-9]{1,7}$/;
 
 /** Leading delimiter kept outside the link, then the reference itself. */
-const IN_TEXT = /(^|[\s("'`[{])((?:[A-Za-z]:)?(?:\.{0,2}[/\\])?(?:[\w@.-]+[/\\])*[\w@.-]+\.[A-Za-z][A-Za-z0-9]{1,7}(?::\d+(?::\d+)?)?(?:#L\d+)?)/g;
+const IN_TEXT =
+  /(^|[\s("'`[{])((?:[A-Za-z]:)?(?:\.{0,2}[/\\])?(?:[\w@.-]+[/\\])*[\w@.-]+\.[A-Za-z][A-Za-z0-9]{1,7}(?::\d+(?::\d+)?)?(?:#L\d+)?)/g;
 
 const NOT_A_FILE = /^(?:[a-z][a-z0-9+.-]*:\/\/|mailto:)/i;
 

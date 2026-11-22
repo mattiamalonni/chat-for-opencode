@@ -22,8 +22,24 @@ const S2 = "ses_e1a6c6a18ffeykSYEWYa5gpP3I";
 const S3 = "ses_e1a69c3cbffe81j4RaR5lg6YJH";
 
 const MODELS = [
-  { id: "hy4-flash-free", modelID: "hy4-flash-free", providerID: "opencode", name: "Hy4 flash Free", enabled: true, variants: [{ id: "none" }, { id: "high" }], limit: { context: 1048576, output: 65536 } },
-  { id: "claude-sonnet-5.5", modelID: "claude-sonnet-5.5", providerID: "github-copilot", name: "Claude Sonnet 5.5", enabled: true, variants: [], limit: { context: 200000, output: 64000 } },
+  {
+    id: "hy4-flash-free",
+    modelID: "hy4-flash-free",
+    providerID: "opencode",
+    name: "Hy4 flash Free",
+    enabled: true,
+    variants: [{ id: "none" }, { id: "high" }],
+    limit: { context: 1048576, output: 65536 },
+  },
+  {
+    id: "claude-sonnet-5.5",
+    modelID: "claude-sonnet-5.5",
+    providerID: "github-copilot",
+    name: "Claude Sonnet 5.5",
+    enabled: true,
+    variants: [],
+    limit: { context: 200000, output: 64000 },
+  },
 ];
 const AGENTS = [
   { id: "build", name: "Build", description: "The default agent.", mode: "primary", hidden: false },
@@ -52,16 +68,39 @@ async function boot(page: Page, theme: "dark" | "light" = "dark"): Promise<strin
   await page.goto(HARNESS);
   if (theme === "light") await page.evaluate(() => document.getElementById("theme")!.setAttribute("href", "theme-light.css"));
   await expect.poll(async () => (await posted(page)).some((m) => m.type === "ready")).toBe(true);
-  await host(page, { type: "init", strings: { ...STRINGS }, platform: "windows", folders: [{ uri: "file:///work", name: "work" }], activeFolder: "file:///work", issuesUrl: ISSUES_URL });
+  await host(page, {
+    type: "init",
+    strings: { ...STRINGS },
+    platform: "windows",
+    folders: [{ uri: "file:///work", name: "work" }],
+    activeFolder: "file:///work",
+    issuesUrl: ISSUES_URL,
+  });
   await host(page, { type: "connection", status: "connected" });
-  await host(page, { type: "catalog", models: MODELS as never, agents: AGENTS as never, skills: [], selectedModel: { id: "hy4-flash-free", providerID: "opencode" }, selectedAgent: "build" });
-  await host(page, { type: "sessions", items: [{ id: S1, title: "Hello world reply", updated: Date.now() - 120_000, busy: false, needsInput: false }] });
+  await host(page, {
+    type: "catalog",
+    models: MODELS as never,
+    agents: AGENTS as never,
+    skills: [],
+    selectedModel: { id: "hy4-flash-free", providerID: "opencode" },
+    selectedAgent: "build",
+  });
+  await host(page, {
+    type: "sessions",
+    items: [{ id: S1, title: "Hello world reply", updated: Date.now() - 120_000, busy: false, needsInput: false }],
+  });
   await host(page, { type: "session", session: null });
   await host(page, {
     type: "context",
     items: [
       { id: "file:///work/src/app.ts", kind: "file", uri: "file:///work/src/app.ts", label: "app.ts", detail: "src/app.ts" },
-      { id: "file:///work/src/app.ts?start=3&end=9", kind: "selection", uri: "file:///work/src/app.ts?start=3&end=9", label: "app.ts:3-9", detail: "src/app.ts" },
+      {
+        id: "file:///work/src/app.ts?start=3&end=9",
+        kind: "selection",
+        uri: "file:///work/src/app.ts?start=3&end=9",
+        label: "app.ts:3-9",
+        detail: "src/app.ts",
+      },
     ],
   });
   return cspErrors;
@@ -89,10 +128,12 @@ async function bootWithOwnedChanges(page: Page, files: string[]): Promise<void> 
 test("file chips use the icon resolved by the host from the user's file icon theme", async ({ page }) => {
   const csp = await boot(page);
   // The webview asks for the paths it renders, in one batch.
-  await expect.poll(async () => (await posted(page)).filter((m) => m.type === "fileIcons").at(-1)).toEqual({
-    type: "fileIcons",
-    paths: ["app.ts"],
-  });
+  await expect
+    .poll(async () => (await posted(page)).filter((m) => m.type === "fileIcons").at(-1))
+    .toEqual({
+      type: "fileIcons",
+      paths: ["app.ts"],
+    });
 
   const svg = `data:image/svg+xml;base64,${Buffer.from('<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16"><rect width="16" height="16" fill="#f00"/></svg>').toString("base64")}`;
   await host(page, {
@@ -107,8 +148,8 @@ test("file chips use the icon resolved by the host from the user's file icon the
 
   const themed = page.locator(".chip .file-icon.themed");
   await expect(themed).toHaveCount(2);
-  await expect(page.locator('.chip img.file-icon.code')).toHaveAttribute("src", svg);
-  const font = page.locator('.chip span.file-icon.markdown');
+  await expect(page.locator(".chip img.file-icon.code")).toHaveAttribute("src", svg);
+  const font = page.locator(".chip span.file-icon.markdown");
   await expect(font).toHaveText("");
   expect(await font.evaluate((el) => getComputedStyle(el).color)).toBe("rgb(0, 255, 0)");
 
@@ -123,9 +164,7 @@ test("changed-files rows use the themed file icon instead of the diff glyph", as
   await bootWithOwnedChanges(page, ["src/app.ts"]);
   await host(page, { type: "changedFiles", files: [{ file: "src/app.ts", patch: "@@", additions: 1, deletions: 1, status: "modified" }] });
   await page.locator(".panel.changes > summary").click();
-  await expect
-    .poll(async () => (await posted(page)).some((m) => m.type === "fileIcons" && m.paths.includes("src/app.ts")))
-    .toBe(true);
+  await expect.poll(async () => (await posted(page)).some((m) => m.type === "fileIcons" && m.paths.includes("src/app.ts"))).toBe(true);
 
   const svg = `data:image/svg+xml;base64,${Buffer.from('<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16"/>').toString("base64")}`;
   await host(page, { type: "fileIcons", icons: { "src/app.ts": { kind: "svg", src: svg } }, fonts: {} });
@@ -200,9 +239,11 @@ test("dropping a file from outside shows an overlay and attaches it", async ({ p
   });
   await expect(page.locator(".drop-overlay")).toHaveCount(0);
   // The drop handler is async (it reads file content), so wait for the post instead of reading once.
-  await expect.poll(async () => (await lastPosted(page, "dropFiles")) as unknown).toMatchObject({
-    files: [{ name: "notes.txt", uri: "file:///Users/me/notes.txt" }],
-  });
+  await expect
+    .poll(async () => (await lastPosted(page, "dropFiles")) as unknown)
+    .toMatchObject({
+      files: [{ name: "notes.txt", uri: "file:///Users/me/notes.txt" }],
+    });
   await expect(page.locator(".chip").filter({ hasText: "notes.txt" })).toHaveCount(1);
 
   const input = page.getByRole("textbox", { name: STRINGS.inputLabel });
@@ -220,7 +261,9 @@ test("a dropped file without a path is sent to the host as content", async ({ pa
     window.dispatchEvent(new DragEvent("drop", { bubbles: true, cancelable: true, dataTransfer: dt }));
   });
   // Reading a File's bytes is async, so the dropFiles post can land after this evaluate.
-  await expect.poll(async () => (await lastPosted(page, "dropFiles")) as unknown).toMatchObject({ files: [{ name: "clip.txt", base64: "aGVsbG8=" }] });
+  await expect
+    .poll(async () => (await lastPosted(page, "dropFiles")) as unknown)
+    .toMatchObject({ files: [{ name: "clip.txt", base64: "aGVsbG8=" }] });
   await expect(page.locator(".chip").filter({ hasText: "clip.txt" })).toHaveCount(1);
 });
 
@@ -229,14 +272,16 @@ test("pasting an image into the prompt attaches it", async ({ page }) => {
   await page.evaluate(() => {
     const dt = new DataTransfer();
     dt.items.add(new File([new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10])], "shot.png", { type: "image/png" }));
-    document.querySelector("textarea.input")!.dispatchEvent(
-      new ClipboardEvent("paste", { bubbles: true, cancelable: true, clipboardData: dt }),
-    );
+    document
+      .querySelector("textarea.input")!
+      .dispatchEvent(new ClipboardEvent("paste", { bubbles: true, cancelable: true, clipboardData: dt }));
   });
   // Reading the File's bytes is async, so the dropFiles post can land after this evaluate.
-  await expect.poll(async () => (await lastPosted(page, "dropFiles")) as unknown).toMatchObject({
-    files: [{ name: "shot.png", base64: "iVBORw0KGgo=", mime: "image/png" }],
-  });
+  await expect
+    .poll(async () => (await lastPosted(page, "dropFiles")) as unknown)
+    .toMatchObject({
+      files: [{ name: "shot.png", base64: "iVBORw0KGgo=", mime: "image/png" }],
+    });
   await expect(page.locator(".chip").filter({ hasText: "shot.png" })).toHaveCount(1);
 
   const input = page.getByRole("textbox", { name: STRINGS.inputLabel });
@@ -321,9 +366,9 @@ test("pasting plain text is not treated as a file", async ({ page }) => {
   const notCancelled = await page.evaluate(() => {
     const dt = new DataTransfer();
     dt.setData("text/plain", "hello world");
-    return document.querySelector("textarea.input")!.dispatchEvent(
-      new ClipboardEvent("paste", { bubbles: true, cancelable: true, clipboardData: dt }),
-    );
+    return document
+      .querySelector("textarea.input")!
+      .dispatchEvent(new ClipboardEvent("paste", { bubbles: true, cancelable: true, clipboardData: dt }));
   });
   expect(notCancelled).toBe(true);
   expect(await lastPosted(page, "dropFiles")).toBeUndefined();
@@ -580,10 +625,26 @@ test("a running turn keeps following its steps after switching to another chat a
   await expect(page.locator(".turn-stats")).toHaveCount(0);
 
   // New steps keep expanding too, instead of folding as if the turn had ended.
-  await host(page, { type: "event", event: { type: "session.step.started", created: 1200, data: { ...base, assistantMessageID: "m2", agent: "build" } } });
-  await host(page, { type: "event", event: { type: "session.reasoning.ended", created: 1210, data: { ...base, assistantMessageID: "m2", ordinal: 0, text: "thinking two" } } });
-  await host(page, { type: "event", event: { type: "session.text.ended", created: 1220, data: { ...base, assistantMessageID: "m2", ordinal: 0, text: "second step" } } });
-  await host(page, { type: "event", event: { type: "session.step.ended", created: 1230, data: { ...base, assistantMessageID: "m2", finish: "tool-calls" } } });
+  await host(page, {
+    type: "event",
+    event: { type: "session.step.started", created: 1200, data: { ...base, assistantMessageID: "m2", agent: "build" } },
+  });
+  await host(page, {
+    type: "event",
+    event: {
+      type: "session.reasoning.ended",
+      created: 1210,
+      data: { ...base, assistantMessageID: "m2", ordinal: 0, text: "thinking two" },
+    },
+  });
+  await host(page, {
+    type: "event",
+    event: { type: "session.text.ended", created: 1220, data: { ...base, assistantMessageID: "m2", ordinal: 0, text: "second step" } },
+  });
+  await host(page, {
+    type: "event",
+    event: { type: "session.step.ended", created: 1230, data: { ...base, assistantMessageID: "m2", finish: "tool-calls" } },
+  });
   await expect(headers).toHaveCount(2);
   await expect(headers.nth(1)).toHaveAttribute("aria-expanded", "true");
 
@@ -644,16 +705,26 @@ test("a thought emitted after a sentence stays below it, also once tools arrive"
     { type: "session.reasoning.ended", created: 1130, data: { ...base, assistantMessageID: "m1", ordinal: 0, text: "LATE_THOUGHT" } },
   ]);
   const order = async () =>
-    (await page.locator(".conversation").evaluate(
-      (el) => [...(el as HTMLElement).children].map((c) => (c.textContent ?? "").trim().replace(/\s+/g, " ")),
-    )) as string[];
+    (await page
+      .locator(".conversation")
+      .evaluate((el) => [...(el as HTMLElement).children].map((c) => (c.textContent ?? "").trim().replace(/\s+/g, " ")))) as string[];
   let blocks = await order();
   expect(blocks[1]).toContain("ANSWER_ONE");
   expect(blocks[2]).toContain("LATE_THOUGHT");
 
   // The tool joins the same step: the answer must stay above its thought/tool fold.
-  await host(page, { type: "event", event: { type: "session.tool.input.started", created: 1140, data: { ...base, assistantMessageID: "m1", id: "t1", name: "shell" } } });
-  await host(page, { type: "event", event: { type: "session.tool.success", created: 1150, data: { ...base, assistantMessageID: "m1", id: "t1", content: [], metadata: {} } } });
+  await host(page, {
+    type: "event",
+    event: { type: "session.tool.input.started", created: 1140, data: { ...base, assistantMessageID: "m1", id: "t1", name: "shell" } },
+  });
+  await host(page, {
+    type: "event",
+    event: {
+      type: "session.tool.success",
+      created: 1150,
+      data: { ...base, assistantMessageID: "m1", id: "t1", content: [], metadata: {} },
+    },
+  });
   blocks = await order();
   expect(blocks[1]).toContain("ANSWER_ONE");
   expect(blocks[2]).toContain("LATE_THOUGHT");
@@ -664,7 +735,7 @@ test("folds past steps while streaming and keeps the accordion open as new steps
   const sid = "ses_stream_fold";
   const base = { sessionID: sid };
   const ev = (type: ServerEvent["type"], created: number, data: Record<string, unknown>): ServerEvent =>
-    ({ type, created, data } as ServerEvent);
+    ({ type, created, data }) as ServerEvent;
   const step = (id: string, created: number, text: string, done: boolean): ServerEvent[] => {
     const m = { ...base, assistantMessageID: id };
     return [
@@ -709,8 +780,14 @@ test("folds past steps while streaming and keeps the accordion open as new steps
   // Finishing the current step and starting the next one moves the live fold forward.
   await host(page, { type: "event", event: ev("session.step.ended", 1350, { ...base, assistantMessageID: "m3", finish: "tool-calls" }) });
   await host(page, { type: "event", event: ev("session.step.started", 1400, { ...base, assistantMessageID: "m4", agent: "build" }) });
-  await host(page, { type: "event", event: ev("session.reasoning.ended", 1405, { ...base, assistantMessageID: "m4", ordinal: 0, text: "thought four" }) });
-  await host(page, { type: "event", event: ev("session.text.delta", 1410, { ...base, assistantMessageID: "m4", ordinal: 0, delta: "four" }) });
+  await host(page, {
+    type: "event",
+    event: ev("session.reasoning.ended", 1405, { ...base, assistantMessageID: "m4", ordinal: 0, text: "thought four" }),
+  });
+  await host(page, {
+    type: "event",
+    event: ev("session.text.delta", 1410, { ...base, assistantMessageID: "m4", ordinal: 0, delta: "four" }),
+  });
 
   await expect(blocks).toHaveCount(4);
   await expect(fold(2)).toHaveAttribute("aria-expanded", "false");
@@ -822,9 +899,7 @@ test("a live prompt with a file attachment renders without crashing", async ({ p
           payload: {
             text: "What is in this file?",
             // Live attachments carry the location under `source`, not at the top level.
-            files: [
-              { data: "YQo=", mime: "text/plain", source: { type: "uri", uri: "file:///work/src/app.ts" }, name: "app.ts" },
-            ],
+            files: [{ data: "YQo=", mime: "text/plain", source: { type: "uri", uri: "file:///work/src/app.ts" }, name: "app.ts" }],
           },
         },
       },
@@ -839,7 +914,10 @@ test("renders markdown with highlighted code and copies code via the host", asyn
   await boot(page);
   const md = "Here:\n\n```ts\nconst answer: number = 42;\n```\n\n<img src=x onerror=alert(1)> [docs](https://opencode.ai)";
   await openSession(page, "ses_md", [
-    { type: "session.step.started", data: { sessionID: "ses_md", assistantMessageID: "m1", agent: "build", model: { id: "x", providerID: "y" } } },
+    {
+      type: "session.step.started",
+      data: { sessionID: "ses_md", assistantMessageID: "m1", agent: "build", model: { id: "x", providerID: "y" } },
+    },
     { type: "session.text.started", data: { sessionID: "ses_md", assistantMessageID: "m1", ordinal: 0 } },
     { type: "session.text.delta", data: { sessionID: "ses_md", assistantMessageID: "m1", ordinal: 0, delta: md } },
     { type: "session.step.ended", data: { sessionID: "ses_md", assistantMessageID: "m1", finish: "stop" } },
@@ -861,12 +939,15 @@ test("sanitises crafted HTML without smuggling fake actions or file links", asyn
     '<button data-action="copy-code">fake copy</button>',
     '<a href="javascript:alert(1)">js link</a>',
     "<svg><script>alert(1)</script></svg>",
-    "<form><input type=\"text\"></form>",
+    '<form><input type="text"></form>',
     '<img src=x onerror="alert(1)">',
     "legit.ts:12",
   ].join("\n\n");
   await openSession(page, sid, [
-    { type: "session.step.started", data: { sessionID: sid, assistantMessageID: "m1", agent: "build", model: { id: "x", providerID: "y" } } },
+    {
+      type: "session.step.started",
+      data: { sessionID: sid, assistantMessageID: "m1", agent: "build", model: { id: "x", providerID: "y" } },
+    },
     { type: "session.text.started", data: { sessionID: sid, assistantMessageID: "m1", ordinal: 0 } },
     { type: "session.text.delta", data: { sessionID: sid, assistantMessageID: "m1", ordinal: 0, delta: md } },
     { type: "session.step.ended", data: { sessionID: sid, assistantMessageID: "m1", finish: "stop" } },
@@ -1023,9 +1104,7 @@ test("pending requests are shown one at a time with a counter and navigation", a
         { id: "per_a", sessionID: S2, action: "edit", resources: ["a.txt"], save: ["*"], metadata: {} },
         { id: "per_b", sessionID: S2, action: "shell", resources: ["ls"], save: ["*"], metadata: {} },
       ],
-      forms: [
-        { id: "frm_a", sessionID: S2, title: "Question", fields: [{ key: "q0", title: "Color", type: "string" }], metadata: {} },
-      ],
+      forms: [{ id: "frm_a", sessionID: S2, title: "Question", fields: [{ key: "q0", title: "Color", type: "string" }], metadata: {} }],
     },
   });
   const overlay = page.locator(".attention-overlay");
@@ -1143,19 +1222,26 @@ test("a required multiselect question needs at least one choice before submit", 
       busy: true,
       messages: [],
       permissions: [],
-      forms: [{
-        id: "frm_required_multi",
-        sessionID: "ses_required_multi",
-        title: "Questions",
-        metadata: { kind: "question" },
-        fields: [{
-          key: "q0",
-          type: "multiselect",
-          title: "Pick at least one",
-          required: true,
-          options: [{ value: "a", label: "Alpha" }, { value: "b", label: "Beta" }],
-        }],
-      }],
+      forms: [
+        {
+          id: "frm_required_multi",
+          sessionID: "ses_required_multi",
+          title: "Questions",
+          metadata: { kind: "question" },
+          fields: [
+            {
+              key: "q0",
+              type: "multiselect",
+              title: "Pick at least one",
+              required: true,
+              options: [
+                { value: "a", label: "Alpha" },
+                { value: "b", label: "Beta" },
+              ],
+            },
+          ],
+        },
+      ],
     },
   });
   const form = page.locator(".attention-overlay form.card.question");
@@ -1176,16 +1262,34 @@ test("multi-question forms are asked one at a time and answered with a single re
       busy: true,
       messages: [],
       permissions: [],
-      forms: [{
-        id: "frm_multi",
-        sessionID: "ses_multi",
-        title: "Questions",
-        metadata: { kind: "question" },
-        fields: [
-          { key: "q0", type: "string", title: "First", options: [{ value: "a", label: "A" }, { value: "b", label: "B" }] },
-          { key: "q1", type: "string", title: "Second", options: [{ value: "x", label: "X" }, { value: "y", label: "Y" }] },
-        ],
-      }],
+      forms: [
+        {
+          id: "frm_multi",
+          sessionID: "ses_multi",
+          title: "Questions",
+          metadata: { kind: "question" },
+          fields: [
+            {
+              key: "q0",
+              type: "string",
+              title: "First",
+              options: [
+                { value: "a", label: "A" },
+                { value: "b", label: "B" },
+              ],
+            },
+            {
+              key: "q1",
+              type: "string",
+              title: "Second",
+              options: [
+                { value: "x", label: "X" },
+                { value: "y", label: "Y" },
+              ],
+            },
+          ],
+        },
+      ],
     },
   });
   const overlay = page.locator(".attention-overlay");
@@ -1275,7 +1379,14 @@ test("Cmd/Ctrl+N starts a new session only while the chat has focus", async ({ p
   expect((await posted(page)).filter((m) => m.type === "newSession")).toHaveLength(1);
 
   // Same behaviour with Cmd on macOS.
-  await host(page, { type: "init", strings: { ...STRINGS }, platform: "mac", folders: [{ uri: "file:///work", name: "work" }], activeFolder: "file:///work", issuesUrl: ISSUES_URL });
+  await host(page, {
+    type: "init",
+    strings: { ...STRINGS },
+    platform: "mac",
+    folders: [{ uri: "file:///work", name: "work" }],
+    activeFolder: "file:///work",
+    issuesUrl: ISSUES_URL,
+  });
   await input.click();
   await page.evaluate(() => ((window as unknown as { __windowKeys: string[] }).__windowKeys.length = 0));
   await page.keyboard.press("Meta+n");
@@ -1323,7 +1434,14 @@ test("Cmd/Ctrl+F opens and focuses the chat message search without reaching the 
   expect(await windowKeys()).toContain("Ctrl+f");
 
   // Same behaviour with Cmd on macOS.
-  await host(page, { type: "init", strings: { ...STRINGS }, platform: "mac", folders: [{ uri: "file:///work", name: "work" }], activeFolder: "file:///work", issuesUrl: ISSUES_URL });
+  await host(page, {
+    type: "init",
+    strings: { ...STRINGS },
+    platform: "mac",
+    folders: [{ uri: "file:///work", name: "work" }],
+    activeFolder: "file:///work",
+    issuesUrl: ISSUES_URL,
+  });
   await input.click();
   await page.evaluate(() => ((window as unknown as { __windowKeys: string[] }).__windowKeys.length = 0));
   await page.keyboard.press("Meta+f");
@@ -1363,7 +1481,14 @@ test("Cmd/Ctrl+R syncs the session without reaching the workbench", async ({ pag
   // Same behaviour with Cmd on macOS.
   await host(page, { type: "synced" });
   await expect(sync).toBeEnabled();
-  await host(page, { type: "init", strings: { ...STRINGS }, platform: "mac", folders: [{ uri: "file:///work", name: "work" }], activeFolder: "file:///work", issuesUrl: ISSUES_URL });
+  await host(page, {
+    type: "init",
+    strings: { ...STRINGS },
+    platform: "mac",
+    folders: [{ uri: "file:///work", name: "work" }],
+    activeFolder: "file:///work",
+    issuesUrl: ISSUES_URL,
+  });
   await input.click();
   await page.evaluate(() => ((window as unknown as { __windowKeys: string[] }).__windowKeys.length = 0));
   await page.keyboard.press("Meta+r");
@@ -1493,7 +1618,11 @@ test("known /commands and /skills are highlighted like links in the input", asyn
 
 test("keyboard navigation keeps the active suggestion scrolled into view", async ({ page }) => {
   await boot(page);
-  const many = Array.from({ length: 30 }, (_, i) => ({ id: `skill-${i}`, name: `Skill ${String(i).padStart(2, "0")}`, description: "A description long enough to fill the row." }));
+  const many = Array.from({ length: 30 }, (_, i) => ({
+    id: `skill-${i}`,
+    name: `Skill ${String(i).padStart(2, "0")}`,
+    description: "A description long enough to fill the row.",
+  }));
   await host(page, {
     type: "catalog",
     models: MODELS as never,
@@ -1532,17 +1661,38 @@ test("build/plan mode picker defaults to build and switches agents", async ({ pa
   // The host echoes the new selection; until then the trigger still shows Build.
   await expect(page.getByRole("button", { name: `${STRINGS.mode}: ${STRINGS.build}` })).toBeVisible();
 
-  await host(page, { type: "catalog", models: MODELS as never, agents: AGENTS as never, skills: [], selectedModel: { id: "hy4-flash-free", providerID: "opencode" }, selectedAgent: "plan" });
+  await host(page, {
+    type: "catalog",
+    models: MODELS as never,
+    agents: AGENTS as never,
+    skills: [],
+    selectedModel: { id: "hy4-flash-free", providerID: "opencode" },
+    selectedAgent: "plan",
+  });
   await expect(page.getByRole("button", { name: `${STRINGS.mode}: ${STRINGS.plan}` })).toBeVisible();
 
   await page.getByRole("button", { name: `${STRINGS.mode}: ${STRINGS.plan}` }).click();
   await page.getByRole("listbox", { name: STRINGS.mode }).getByRole("option", { name: /Build/ }).click();
   expect(await lastPosted(page, "setAgent")).toEqual({ type: "setAgent", agent: "build" });
-  await host(page, { type: "catalog", models: MODELS as never, agents: AGENTS as never, skills: [], selectedModel: { id: "hy4-flash-free", providerID: "opencode" }, selectedAgent: "build" });
+  await host(page, {
+    type: "catalog",
+    models: MODELS as never,
+    agents: AGENTS as never,
+    skills: [],
+    selectedModel: { id: "hy4-flash-free", providerID: "opencode" },
+    selectedAgent: "build",
+  });
   await expect(page.getByRole("button", { name: `${STRINGS.mode}: ${STRINGS.build}` })).toBeVisible();
 
   // Servers without /api/agent have no agent picker, but the built-in mode picker must still work.
-  await host(page, { type: "catalog", models: MODELS as never, agents: [] as never, skills: [], selectedModel: { id: "hy4-flash-free", providerID: "opencode" }, selectedAgent: "build" });
+  await host(page, {
+    type: "catalog",
+    models: MODELS as never,
+    agents: [] as never,
+    skills: [],
+    selectedModel: { id: "hy4-flash-free", providerID: "opencode" },
+    selectedAgent: "build",
+  });
   await expect(page.getByRole("button", { name: `${STRINGS.mode}: ${STRINGS.build}` })).toBeVisible();
   await expect(page.getByRole("button", { name: `${STRINGS.agent}: Build` })).toHaveCount(0);
   await page.getByRole("button", { name: `${STRINGS.mode}: ${STRINGS.build}` }).click();
@@ -1573,7 +1723,10 @@ test("custom pickers: agent, variant and searchable model (mouse + keyboard)", a
   await page.keyboard.press("ArrowDown");
   await page.keyboard.press("ArrowDown");
   await page.keyboard.press("Enter");
-  expect(await lastPosted(page, "setModel")).toEqual({ type: "setModel", model: { providerID: "opencode", id: "hy4-flash-free", variant: "high" } });
+  expect(await lastPosted(page, "setModel")).toEqual({
+    type: "setModel",
+    model: { providerID: "opencode", id: "hy4-flash-free", variant: "high" },
+  });
   await expect(variant).toBeFocused();
   await page.keyboard.press("ArrowDown");
   await page.keyboard.press("Escape");
@@ -1585,7 +1738,10 @@ test("custom pickers: agent, variant and searchable model (mouse + keyboard)", a
   await page.waitForTimeout(150);
   await page.screenshot({ path: join(SHOTS, "10-model-picker-dark.png") });
   await models.getByRole("option", { name: /Claude Sonnet/ }).click();
-  expect(await lastPosted(page, "setModel")).toEqual({ type: "setModel", model: { providerID: "github-copilot", id: "claude-sonnet-5.5" } });
+  expect(await lastPosted(page, "setModel")).toEqual({
+    type: "setModel",
+    model: { providerID: "github-copilot", id: "claude-sonnet-5.5" },
+  });
 
   // Clicking outside closes.
   await page.getByRole("button", { name: `${STRINGS.agent}: Build` }).click();
@@ -1595,9 +1751,23 @@ test("custom pickers: agent, variant and searchable model (mouse + keyboard)", a
 
 test("model picker search filters when there are many models", async ({ page }) => {
   await boot(page);
-  const many = Array.from({ length: 12 }, (_, i) => ({ id: `m${i}`, modelID: `m${i}`, providerID: i % 2 ? "alpha" : "beta", name: `Model ${i}`, enabled: true, variants: [] }));
+  const many = Array.from({ length: 12 }, (_, i) => ({
+    id: `m${i}`,
+    modelID: `m${i}`,
+    providerID: i % 2 ? "alpha" : "beta",
+    name: `Model ${i}`,
+    enabled: true,
+    variants: [],
+  }));
   many.push({ id: "gpt-x", modelID: "gpt-x", providerID: "alpha", name: "GPT X", enabled: true, variants: [] });
-  await host(page, { type: "catalog", models: many as never, agents: AGENTS as never, skills: [], selectedModel: { id: "m0", providerID: "beta" }, selectedAgent: "build" });
+  await host(page, {
+    type: "catalog",
+    models: many as never,
+    agents: AGENTS as never,
+    skills: [],
+    selectedModel: { id: "m0", providerID: "beta" },
+    selectedAgent: "build",
+  });
   await page.getByRole("button", { name: `${STRINGS.model}: Model 0` }).click();
   const search = page.getByRole("combobox", { name: STRINGS.searchModels });
   await expect(search).toBeFocused();
@@ -1700,7 +1870,10 @@ test("session list: delete all follows the list being empty or not", async ({ pa
   const dialog = page.getByRole("dialog", { name: STRINGS.sessions });
   await expect(dialog.getByText(STRINGS.noSessions)).toBeVisible();
   await expect(dialog.getByRole("button", { name: STRINGS.deleteAllSessions })).toHaveCount(0);
-  await host(page, { type: "sessions", items: [{ id: S1, title: "Hello world reply", updated: Date.now(), busy: false, needsInput: false }] });
+  await host(page, {
+    type: "sessions",
+    items: [{ id: S1, title: "Hello world reply", updated: Date.now(), busy: false, needsInput: false }],
+  });
   await expect(dialog.getByRole("button", { name: STRINGS.deleteAllSessions })).toBeVisible();
 });
 
@@ -1732,7 +1905,10 @@ test("session list: busy and waiting-for-input sessions show distinct indicators
   await expect(busyItem).toContainText(STRINGS.needsInput);
   await expect(idleItem.locator(".status-dot.session-busy")).toHaveCount(0);
 
-  await host(page, { type: "sessions", items: [{ id: S1, title: "Hello world reply", updated: Date.now(), busy: false, needsInput: false }] });
+  await host(page, {
+    type: "sessions",
+    items: [{ id: S1, title: "Hello world reply", updated: Date.now(), busy: false, needsInput: false }],
+  });
   await expect(dialog.locator(".status-dot.session-busy")).toHaveCount(0);
 });
 
@@ -2062,7 +2238,12 @@ test("errors show actionable banners (server missing, provider, interrupted stre
   await host(page, {
     type: "connection",
     status: "error",
-    error: { kind: "notInstalled", message: STRINGS["error.notInstalled"], detail: '"opencode" was not found.', actions: ["install", "openSettings", "showLogs"] },
+    error: {
+      kind: "notInstalled",
+      message: STRINGS["error.notInstalled"],
+      detail: '"opencode" was not found.',
+      actions: ["install", "openSettings", "showLogs"],
+    },
   });
   const alert = page.getByRole("alert");
   await expect(alert).toContainText(STRINGS["error.notInstalled"]);
@@ -2077,7 +2258,11 @@ test("errors show actionable banners (server missing, provider, interrupted stre
   await host(page, { type: "connection", status: "connected" });
   await openSession(page, "ses_err", [
     { type: "session.execution.started", data: { sessionID: "ses_err" } },
-    { id: "e1", type: "session.execution.failed", data: { sessionID: "ses_err", error: { type: "provider_auth", message: "Missing API key for provider" } } },
+    {
+      id: "e1",
+      type: "session.execution.failed",
+      data: { sessionID: "ses_err", error: { type: "provider_auth", message: "Missing API key for provider" } },
+    },
   ]);
   const failure = page.locator(".notice.error");
   await expect(failure).toContainText("Missing API key for provider");
@@ -2101,7 +2286,13 @@ test("light theme rendering", async ({ page }) => {
 
 test("localized strings from the host are used", async ({ page }) => {
   await boot(page);
-  await host(page, { type: "init", strings: { ...STRINGS, send: "Invia", inputLabel: "Messaggio per OpenCode" }, platform: "mac", folders: [], activeFolder: undefined });
+  await host(page, {
+    type: "init",
+    strings: { ...STRINGS, send: "Invia", inputLabel: "Messaggio per OpenCode" },
+    platform: "mac",
+    folders: [],
+    activeFolder: undefined,
+  });
   await expect(page.getByRole("button", { name: "Invia" })).toBeVisible();
   await expect(page.getByRole("textbox", { name: "Messaggio per OpenCode" })).toBeVisible();
 });
@@ -2154,15 +2345,38 @@ test("model picker shows context windows and the meter shows context usage", asy
   await page.keyboard.press("Escape");
 
   // One step of a real session, then a big one against the 200K model.
-  await host(page, { type: "catalog", models: MODELS as never, agents: AGENTS as never, skills: [], selectedModel: { id: "claude-sonnet-5.5", providerID: "github-copilot" }, selectedAgent: "build" });
+  await host(page, {
+    type: "catalog",
+    models: MODELS as never,
+    agents: AGENTS as never,
+    skills: [],
+    selectedModel: { id: "claude-sonnet-5.5", providerID: "github-copilot" },
+    selectedAgent: "build",
+  });
   await openSession(page, "ses_ctx", [
-    { type: "session.step.ended", data: { sessionID: "ses_ctx", assistantMessageID: "m1", finish: "stop", tokens: { input: 324, output: 3, reasoning: 17, cache: { read: 8192, write: 0 } } } },
+    {
+      type: "session.step.ended",
+      data: {
+        sessionID: "ses_ctx",
+        assistantMessageID: "m1",
+        finish: "stop",
+        tokens: { input: 324, output: 3, reasoning: 17, cache: { read: 8192, write: 0 } },
+      },
+    },
   ]);
   await expect(meter).toHaveAttribute("aria-label", "Context: 8.5K of 200K tokens used (4%)");
   await expect(meter.locator(".context-percent")).toHaveText("4%");
   await host(page, {
     type: "event",
-    event: { type: "session.step.ended", data: { sessionID: "ses_ctx", assistantMessageID: "m2", finish: "stop", tokens: { input: 2000, output: 1000, reasoning: 0, cache: { read: 180000, write: 0 } } } },
+    event: {
+      type: "session.step.ended",
+      data: {
+        sessionID: "ses_ctx",
+        assistantMessageID: "m2",
+        finish: "stop",
+        tokens: { input: 2000, output: 1000, reasoning: 0, cache: { read: 180000, write: 0 } },
+      },
+    },
   });
   await expect(meter).toHaveClass(/critical/);
   await expect(meter.locator(".context-percent")).toHaveText("92%");
@@ -2174,14 +2388,38 @@ test("a finished turn shows one total for all its steps", async ({ page }) => {
   await boot(page);
   await host(page, { type: "session", session: { id: "ses_turn", busy: false, messages: [], permissions: [], forms: [] } });
   const events: ServerEvent[] = [
-    { type: "session.inbox.enqueued", created: 1000, data: { sessionID: "ses_turn", inboxID: "u1", item: { type: "user", payload: { text: "hi" } } } },
+    {
+      type: "session.inbox.enqueued",
+      created: 1000,
+      data: { sessionID: "ses_turn", inboxID: "u1", item: { type: "user", payload: { text: "hi" } } },
+    },
     { type: "session.execution.started", created: 1010, data: { sessionID: "ses_turn" } },
     { type: "session.step.started", created: 1100, data: { sessionID: "ses_turn", assistantMessageID: "m1", agent: "build" } },
     { type: "session.text.delta", created: 1200, data: { sessionID: "ses_turn", assistantMessageID: "m1", ordinal: 0, delta: "one" } },
-    { type: "session.step.ended", created: 3000, data: { sessionID: "ses_turn", assistantMessageID: "m1", finish: "tool-use", cost: 0.001, tokens: { input: 100, output: 20, reasoning: 5, cache: { read: 200, write: 0 } } } },
+    {
+      type: "session.step.ended",
+      created: 3000,
+      data: {
+        sessionID: "ses_turn",
+        assistantMessageID: "m1",
+        finish: "tool-use",
+        cost: 0.001,
+        tokens: { input: 100, output: 20, reasoning: 5, cache: { read: 200, write: 0 } },
+      },
+    },
     { type: "session.step.started", created: 3100, data: { sessionID: "ses_turn", assistantMessageID: "m2", agent: "build" } },
     { type: "session.text.delta", created: 3200, data: { sessionID: "ses_turn", assistantMessageID: "m2", ordinal: 0, delta: "two" } },
-    { type: "session.step.ended", created: 6000, data: { sessionID: "ses_turn", assistantMessageID: "m2", finish: "stop", cost: 0.002, tokens: { input: 50, output: 10, reasoning: 0, cache: { read: 100, write: 20 } } } },
+    {
+      type: "session.step.ended",
+      created: 6000,
+      data: {
+        sessionID: "ses_turn",
+        assistantMessageID: "m2",
+        finish: "stop",
+        cost: 0.002,
+        tokens: { input: 50, output: 10, reasoning: 0, cache: { read: 100, write: 20 } },
+      },
+    },
   ];
   for (const event of events) await host(page, { type: "event", event });
   const stats = page.locator(".turn-stats");
@@ -2206,7 +2444,11 @@ test("a finished turn shows insertions and deletions from its file edits", async
   const sid = "ses_edits";
   const base = { sessionID: sid, assistantMessageID: "m1" };
   const events: ServerEvent[] = [
-    { type: "session.inbox.enqueued", created: 1000, data: { sessionID: sid, inboxID: "u1", item: { type: "user", payload: { text: "edit files" } } } },
+    {
+      type: "session.inbox.enqueued",
+      created: 1000,
+      data: { sessionID: sid, inboxID: "u1", item: { type: "user", payload: { text: "edit files" } } },
+    },
     { type: "session.execution.started", created: 1010, data: { sessionID: sid } },
     { type: "session.step.started", created: 1100, data: { ...base, agent: "build" } },
     { type: "session.tool.input.started", created: 1200, data: { ...base, id: "t1", name: "edit" } },
@@ -2226,7 +2468,11 @@ test("a finished turn shows insertions and deletions from its file edits", async
         },
       },
     },
-    { type: "session.step.ended", created: 1500, data: { ...base, finish: "stop", tokens: { input: 10, output: 5, reasoning: 0, cache: { read: 0, write: 0 } } } },
+    {
+      type: "session.step.ended",
+      created: 1500,
+      data: { ...base, finish: "stop", tokens: { input: 10, output: 5, reasoning: 0, cache: { read: 0, write: 0 } } },
+    },
   ];
   for (const event of events) await host(page, { type: "event", event });
   const stats = page.locator(".turn-stats");
@@ -2236,7 +2482,13 @@ test("a finished turn shows insertions and deletions from its file edits", async
   await expect(stats.locator(".adds")).toHaveText("+7");
   await expect(stats.locator(".dels")).toHaveText("-2");
   await expect(stats).not.toHaveClass(/tooltip-host/);
-  const openDiffs = { type: "openDiffs" as const, files: [{ file: "a.ts", patch: "@@" }, { file: "b.ts", patch: "@@" }] };
+  const openDiffs = {
+    type: "openDiffs" as const,
+    files: [
+      { file: "a.ts", patch: "@@" },
+      { file: "b.ts", patch: "@@" },
+    ],
+  };
   await stats.locator(".change-counts").click();
   expect(await lastPosted(page, "openDiffs")).toEqual(openDiffs);
 
@@ -2254,7 +2506,14 @@ test("a finished turn shows insertions and deletions from its file edits", async
           agent: "build",
           model: { id: "m", providerID: "p" },
           time: { created: 1100, completed: 1500 },
-          content: [{ type: "tool", id: "t1", name: "edit", state: { status: "completed", input: {}, content: [], metadata: { status: "completed", truncated: false } } }],
+          content: [
+            {
+              type: "tool",
+              id: "t1",
+              name: "edit",
+              state: { status: "completed", input: {}, content: [], metadata: { status: "completed", truncated: false } },
+            },
+          ],
         },
         { id: "idle1", type: "idle", outcome: "succeeded", time: { created: 1600 } },
       ],
@@ -2282,9 +2541,21 @@ test("question options stack title above description in one column", async ({ pa
         description: "Quale famiglia di nomi vuoi per i cinque mondi?",
         custom: true,
         options: [
-          { value: "a", label: "Parole · Numeri · Suoni · Ore · Forme (Recommended)", description: "Cinque sostantivi plurali, italiani, concreti: dicono cosa trovi dentro, restano corti nella nav." },
-          { value: "b", label: "Parla! · Conta! · Scrivi! · Tic Tac! · Pensa!", description: "Nomi-azione, giocosi e da gridare: più personalità, ma meno espliciti sul contenuto." },
-          { value: "c", label: "Solo togliere 'Little'", description: "English · Math · Italiano · Orologio · Logica. Rischio zero, ma nessun nome nuovo." },
+          {
+            value: "a",
+            label: "Parole · Numeri · Suoni · Ore · Forme (Recommended)",
+            description: "Cinque sostantivi plurali, italiani, concreti: dicono cosa trovi dentro, restano corti nella nav.",
+          },
+          {
+            value: "b",
+            label: "Parla! · Conta! · Scrivi! · Tic Tac! · Pensa!",
+            description: "Nomi-azione, giocosi e da gridare: più personalità, ma meno espliciti sul contenuto.",
+          },
+          {
+            value: "c",
+            label: "Solo togliere 'Little'",
+            description: "English · Math · Italiano · Orologio · Logica. Rischio zero, ma nessun nome nuovo.",
+          },
         ],
       },
     ],
@@ -2317,9 +2588,7 @@ test("long chip tooltips do not create horizontal scroll", async ({ page }) => {
   }));
   await host(page, { type: "context", items });
   await expect(page.locator(".chip")).toHaveCount(6);
-  await expect.poll(async () => page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(
-    page.viewportSize()!.width,
-  );
+  await expect.poll(async () => page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(page.viewportSize()!.width);
   // The rightmost chip's tooltip must be anchored to the left, where there is room.
   const dirs = await page.locator(".chip .tooltip-host").evaluateAll((els) => els.map((el) => (el as HTMLElement).dataset.tipDir));
   expect(dirs).toContain("left");
@@ -2335,7 +2604,11 @@ test("subagent progress stays one line until the tool card is expanded", async (
   // card is visible instead of being folded away with the finished turn's steps.
   const mark = events.findIndex((e) => e.type === "session.tool.progress" && (e.data as { sessionID?: string }).sessionID === parent);
   expect(mark).toBeGreaterThan(0);
-  await openSession(page, parent, events.slice(0, mark + 1).filter((e) => (e.data as { sessionID?: string }).sessionID === parent));
+  await openSession(
+    page,
+    parent,
+    events.slice(0, mark + 1).filter((e) => (e.data as { sessionID?: string }).sessionID === parent),
+  );
 
   // Mid-run: the child's current tool is visible in the single collapsed line.
   const called = childEvents.findIndex((e) => e.type === "session.tool.called");
@@ -2361,7 +2634,11 @@ test("a subagent card opens a read-only conversation modal with breadcrumbs", as
   const parent = "ses_e0d1a594affeRHT5ks6SqFzeKs";
   const child = "ses_e0d1a3fbaffewFAJSNZEYUBF3e";
   const mark = events.findIndex((e) => e.type === "session.tool.progress" && (e.data as { sessionID?: string }).sessionID === parent);
-  await openSession(page, parent, events.slice(0, mark + 1).filter((e) => (e.data as { sessionID?: string }).sessionID === parent));
+  await openSession(
+    page,
+    parent,
+    events.slice(0, mark + 1).filter((e) => (e.data as { sessionID?: string }).sessionID === parent),
+  );
   for (const event of events.filter((e) => (e.data as { sessionID?: string }).sessionID === child)) {
     await host(page, { type: "subagentEvent", sessionId: child, event });
   }
@@ -2424,7 +2701,11 @@ test("a subagent's permission stays answerable inside its conversation modal", a
   const parent = "ses_e0d1a594affeRHT5ks6SqFzeKs";
   const child = "ses_e0d1a3fbaffewFAJSNZEYUBF3e";
   const mark = events.findIndex((e) => e.type === "session.tool.progress" && (e.data as { sessionID?: string }).sessionID === parent);
-  await openSession(page, parent, events.slice(0, mark + 1).filter((e) => (e.data as { sessionID?: string }).sessionID === parent));
+  await openSession(
+    page,
+    parent,
+    events.slice(0, mark + 1).filter((e) => (e.data as { sessionID?: string }).sessionID === parent),
+  );
   await host(page, {
     type: "subagentEvent",
     sessionId: child,
@@ -2452,7 +2733,11 @@ test("a subagent waiting for approval is marked as such in the parent thread", a
   const parent = "ses_e0d1a594affeRHT5ks6SqFzeKs";
   const child = "ses_e0d1a3fbaffewFAJSNZEYUBF3e";
   const mark = events.findIndex((e) => e.type === "session.tool.progress" && (e.data as { sessionID?: string }).sessionID === parent);
-  await openSession(page, parent, events.slice(0, mark + 1).filter((e) => (e.data as { sessionID?: string }).sessionID === parent));
+  await openSession(
+    page,
+    parent,
+    events.slice(0, mark + 1).filter((e) => (e.data as { sessionID?: string }).sessionID === parent),
+  );
 
   const card = page.locator(".tool.subagent").first();
   await expect(card).toHaveClass(/running/);
@@ -2493,15 +2778,23 @@ test("a background subagent's report shows up when it completes", async ({ page 
   const parent = "ses_e0cfd7ffaffem5qaFtNbJsTQHB";
   const mark = events.findIndex((e) => e.type === "session.tool.progress" && (e.data as { sessionID?: string }).sessionID === parent);
   expect(mark).toBeGreaterThan(0);
-  await openSession(page, parent, events.slice(0, mark + 1).filter((e) => (e.data as { sessionID?: string }).sessionID === parent));
+  await openSession(
+    page,
+    parent,
+    events.slice(0, mark + 1).filter((e) => (e.data as { sessionID?: string }).sessionID === parent),
+  );
 
   // Background children report after the parent turn has ended, via a synthetic notification.
-  const notice = events.find((e) => e.type === "session.inbox.enqueued" && (e.data as { item?: { type?: string } }).item?.type === "synthetic");
+  const notice = events.find(
+    (e) => e.type === "session.inbox.enqueued" && (e.data as { item?: { type?: string } }).item?.type === "synthetic",
+  );
   expect(notice).toBeDefined();
   await host(page, { type: "event", event: notice! });
 
   const card = page.locator(".tool.subagent").first();
-  await expect.poll(async () => (await card.locator(".tool-summary").getAttribute("title")) ?? "").toContain("Project Structure Analysis Report");
+  await expect
+    .poll(async () => (await card.locator(".tool-summary").getAttribute("title")) ?? "")
+    .toContain("Project Structure Analysis Report");
   await card.locator(".tool-header").click();
   await expect(card.locator(".tool-label").filter({ hasText: STRINGS.report })).toBeVisible();
   await expect(card).toContainText("# Project Structure Analysis Report");
@@ -2541,7 +2834,7 @@ test("crafted copy-code HTML in a reply is not a clickable copy button", async (
           '<div><button type="button" data-action="copy-code">Fake copy</button><code>secret</code></div>' +
           '<div class="code-block"><div class="code-header">' +
           '<button type="button" class="code-copy">Forged copy</button></div>' +
-          '<pre><code>attacker-controlled</code></pre></div>',
+          "<pre><code>attacker-controlled</code></pre></div>",
       },
     },
   ]);
@@ -2597,9 +2890,11 @@ test("a flood of live events is bounded and requests a single resync", async ({ 
   // webview whose rAF is suspended.
   await page.evaluate((sid) => {
     for (let i = 0; i < 700; i++) {
-      window.dispatchEvent(new MessageEvent("message", {
-        data: { type: "event", event: { type: "session.status", created: i, data: { sessionID: sid, status: { type: "idle" } } } },
-      }));
+      window.dispatchEvent(
+        new MessageEvent("message", {
+          data: { type: "event", event: { type: "session.status", created: i, data: { sessionID: sid, status: { type: "idle" } } } },
+        }),
+      );
     }
   }, S1);
   expect((await posted(page)).filter((m) => m.type === "sync")).toHaveLength(1);
@@ -2694,7 +2989,10 @@ test("the queued-messages panel can promote, edit and remove pending prompts", a
 
   await panel.locator(".inbox-item").first().getByRole("button", { name: STRINGS.inboxSendNow }).click();
   expect(await lastPosted(page, "setInboxDelivery")).toEqual({
-    type: "setInboxDelivery", sessionId: S1, inboxId: "q1", delivery: "steer",
+    type: "setInboxDelivery",
+    sessionId: S1,
+    inboxId: "q1",
+    delivery: "steer",
   });
 
   await panel.locator(".inbox-item").first().getByRole("button", { name: STRINGS.inboxEdit }).click();
@@ -2757,7 +3055,16 @@ test("a reveal is consumed once and CSS-special ids cannot break the selector", 
     type: "sessionDelta",
     delta: {
       sessionId: S1,
-      messages: [{ id: "tail", type: "assistant", agent: "build", model: { id: "m", providerID: "p" }, content: [{ type: "text", text: "more" }], time: { created: 3000 } }],
+      messages: [
+        {
+          id: "tail",
+          type: "assistant",
+          agent: "build",
+          model: { id: "m", providerID: "p" },
+          content: [{ type: "text", text: "more" }],
+          time: { created: 3000 },
+        },
+      ],
     },
   });
   await expect.poll(() => conversation.evaluate((el) => el.scrollTop)).toBe(0);

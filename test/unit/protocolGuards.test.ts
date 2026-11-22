@@ -6,12 +6,14 @@ describe("webview → host boundary", () => {
   it("accepts the messages the chat actually sends", () => {
     expect(isWebviewMessage({ type: "ready" })).toBe(true);
     expect(isWebviewMessage({ type: "send", text: "hello", attachments: [], context: [], delivery: "queue" })).toBe(true);
-    expect(isWebviewMessage({
-      type: "send",
-      text: "with files",
-      attachments: [{ uri: "file:///a.txt", name: "a.txt", kind: "file" }],
-      context: [{ id: "c1", uri: "file:///a.txt", label: "a.txt", kind: "file" }],
-    })).toBe(true);
+    expect(
+      isWebviewMessage({
+        type: "send",
+        text: "with files",
+        attachments: [{ uri: "file:///a.txt", name: "a.txt", kind: "file" }],
+        context: [{ id: "c1", uri: "file:///a.txt", label: "a.txt", kind: "file" }],
+      }),
+    ).toBe(true);
     expect(isWebviewMessage({ type: "permissionReply", sessionId: "s1", requestId: "r1", decision: "once" })).toBe(true);
     expect(isWebviewMessage({ type: "formReply", sessionId: "s1", formId: "f1", answer: { a: "x", b: ["y"], c: 2, d: true } })).toBe(true);
     expect(isWebviewMessage({ type: "openDiff", file: "a.txt", patch: "@@", applied: true })).toBe(true);
@@ -66,6 +68,8 @@ describe("host → webview boundary", () => {
     expect(isHostMessage({ type: "session", session: { id: "s1", busy: false, messages: "nope" } })).toBe(false);
     expect(isHostMessage({ type: "notice", error: { kind: "nope", message: "x", actions: [] } })).toBe(false);
     expect(isHostMessage({ type: "revealMessage", messageId: 7 })).toBe(false);
-    expect(isHostMessage({ type: "sessions", items: [{ id: "s1", title: "t", updated: "yesterday", busy: false, needsInput: false }] })).toBe(false);
+    expect(
+      isHostMessage({ type: "sessions", items: [{ id: "s1", title: "t", updated: "yesterday", busy: false, needsInput: false }] }),
+    ).toBe(false);
   });
 });

@@ -102,7 +102,8 @@ const SKILLS = [
 
 const COMMANDS = [{ name: "mock-init", description: "Set up the project." }];
 
-const PATCH = "Index: src/a.txt\n===================================================================\n--- src/a.txt\n+++ src/a.txt\n@@ -1,1 +1,1 @@\n-a\n+b\n";
+const PATCH =
+  "Index: src/a.txt\n===================================================================\n--- src/a.txt\n+++ src/a.txt\n@@ -1,1 +1,1 @@\n-a\n+b\n";
 
 export function startMockServer(opts: MockOptions = {}): Promise<MockServer> {
   const password = opts.password ?? randomBytes(12).toString("hex");
@@ -124,7 +125,8 @@ export function startMockServer(opts: MockOptions = {}): Promise<MockServer> {
 
   if (opts.stateFile && fs.existsSync(opts.stateFile)) {
     const saved = JSON.parse(fs.readFileSync(opts.stateFile, "utf8")) as Pick<MockSession, "info" | "messages" | "files" | "inbox">[];
-    for (const s of saved) sessions.set(s.info.id, { ...s, permissions: [], forms: [], inbox: s.inbox ?? [], interrupted: false, waiters: new Map() });
+    for (const s of saved)
+      sessions.set(s.info.id, { ...s, permissions: [], forms: [], inbox: s.inbox ?? [], interrupted: false, waiters: new Map() });
   }
   function persist(): void {
     if (!opts.stateFile) return;
@@ -201,7 +203,10 @@ export function startMockServer(opts: MockOptions = {}): Promise<MockServer> {
     const userMsg: Json = { id: userId, type: "user", text, time: { created: startTime } };
     if (files && files.length > 0) userMsg.files = files;
     s.messages.push(userMsg);
-    emit({ type: "session.inbox.enqueued", data: { sessionID: sid, inboxID: userId, item: { type: "user", payload: { text, files }, delivery: "steer" } } });
+    emit({
+      type: "session.inbox.enqueued",
+      data: { sessionID: sid, inboxID: userId, item: { type: "user", payload: { text, files }, delivery: "steer" } },
+    });
     emit({ type: "session.execution.started", data: { sessionID: sid } });
     emit({ type: "session.inbox.delivered", data: { sessionID: sid, inboxID: userId } });
 
@@ -234,7 +239,14 @@ export function startMockServer(opts: MockOptions = {}): Promise<MockServer> {
       (m.time as Json).completed = Date.now();
       emit({
         type: "session.step.ended",
-        data: { sessionID: sid, assistantMessageID: msgId, finish: finishReason, cost: 0, tokens: { input: 10, output: 5, reasoning: 0, cache: { read: 0, write: 0 } }, files: changed },
+        data: {
+          sessionID: sid,
+          assistantMessageID: msgId,
+          finish: finishReason,
+          cost: 0,
+          tokens: { input: 10, output: 5, reasoning: 0, cache: { read: 0, write: 0 } },
+          files: changed,
+        },
       });
     };
     const streamText = async (kind: "text" | "reasoning", full: string, ordinal: number): Promise<boolean> => {
@@ -268,7 +280,17 @@ export function startMockServer(opts: MockOptions = {}): Promise<MockServer> {
     const toolDone = (part: Json, output: string, metadata: Json = {}) => {
       const input = (part.state as Json).input;
       part.state = { status: "completed", input, content: [{ type: "text", text: output }], metadata };
-      emit({ type: "session.tool.success", data: { sessionID: sid, assistantMessageID: msgId, id: part.id, content: [{ type: "text", text: output }], metadata, executed: false } });
+      emit({
+        type: "session.tool.success",
+        data: {
+          sessionID: sid,
+          assistantMessageID: msgId,
+          id: part.id,
+          content: [{ type: "text", text: output }],
+          metadata,
+          executed: false,
+        },
+      });
     };
     const toolFail = (part: Json, message: string) => {
       const input = (part.state as Json).input;
@@ -285,7 +307,15 @@ export function startMockServer(opts: MockOptions = {}): Promise<MockServer> {
       const part = await tool("edit", { path: "src/a.txt", oldString: "a", newString: "b" });
       const reqId = id("per");
       const files = [{ file: "src/a.txt", patch: PATCH, status: "modified", additions: 1, deletions: 1 }];
-      const request = { id: reqId, sessionID: sid, action: "edit", resources: ["src/a.txt"], save: ["*"], metadata: { files }, source: { type: "tool", messageID: msgId, id: part.id } };
+      const request = {
+        id: reqId,
+        sessionID: sid,
+        action: "edit",
+        resources: ["src/a.txt"],
+        save: ["*"],
+        metadata: { files },
+        source: { type: "tool", messageID: msgId, id: part.id },
+      };
       s.permissions.push(request);
       emit({ type: "permission.asked", data: request });
       const decision = await waitFor(reqId);
@@ -355,12 +385,19 @@ export function startMockServer(opts: MockOptions = {}): Promise<MockServer> {
       : `**Echo:** ${text.replace(/\[[a-z]+\]/g, "").trim() || "(empty)"}\n\n\`\`\`ts\nconst answer: number = 42;\n\`\`\`\n\n- item one\n- item two\n`;
     if (!(await streamText("text", reply, 0))) return interrupted(s, msgId);
     stepEnd("stop");
-    emit({ type: "session.usage.updated", data: { sessionID: sid, cost: 0.001, tokens: { input: 20, output: 10, reasoning: 2, cache: { read: 0, write: 0 } } } });
+    emit({
+      type: "session.usage.updated",
+      data: { sessionID: sid, cost: 0.001, tokens: { input: 20, output: 10, reasoning: 2, cache: { read: 0, write: 0 } } },
+    });
     s.messages.push({ id: id("msg"), type: "idle", outcome: "succeeded", time: { created: Date.now() } });
     emit({ type: "session.execution.succeeded", data: { sessionID: sid } });
     finish(s);
     if (!s.info.title) {
-      s.info.title = text.replace(/\[[a-z]+\]/g, "").trim().slice(0, 40) || "Mock session";
+      s.info.title =
+        text
+          .replace(/\[[a-z]+\]/g, "")
+          .trim()
+          .slice(0, 40) || "Mock session";
       emit({ type: "session.renamed", data: { sessionID: sid, title: s.info.title } });
     }
   }
@@ -386,7 +423,10 @@ export function startMockServer(opts: MockOptions = {}): Promise<MockServer> {
   function interrupted(s: MockSession, msgId: string): void {
     const m = s.messages.find((x) => x.id === msgId) as Json | undefined;
     if (m) (m.time as Json).completed = Date.now();
-    emit({ type: "session.step.failed", data: { sessionID: s.info.id, assistantMessageID: msgId, error: { type: "aborted", message: "Step interrupted" } } });
+    emit({
+      type: "session.step.failed",
+      data: { sessionID: s.info.id, assistantMessageID: msgId, error: { type: "aborted", message: "Step interrupted" } },
+    });
     s.messages.push({ id: id("msg"), type: "idle", outcome: "interrupted", time: { created: Date.now() } });
     emit({ type: "session.execution.interrupted", data: { sessionID: s.info.id, reason: "user" } });
     finish(s);
@@ -525,7 +565,7 @@ export function startMockServer(opts: MockOptions = {}): Promise<MockServer> {
       const list = [...sessions.values()]
         .map((s) => s.info)
         .filter((i) => !dir || (i.location as Json).directory === dir)
-        .filter((i) => parent === "null" ? !i.parentID : (!parent || i.parentID === parent))
+        .filter((i) => (parent === "null" ? !i.parentID : !parent || i.parentID === parent))
         .sort((a, b) => ((b.time as Json).updated as number) - ((a.time as Json).updated as number));
       const pageSize = (opts.sessionPageSize ?? Number(url.searchParams.get("limit") ?? 50)) || 50;
       const start = Number(url.searchParams.get("cursor") ?? 0) || 0;
@@ -663,8 +703,7 @@ export function startMockServer(opts: MockOptions = {}): Promise<MockServer> {
 
       // Staged revert: stage records the boundary, commit drops it and every later message.
       if (rest === "revert/stage" && req.method === "POST") {
-        if (typeof b.messageID !== "string" || !s.messages.some((x) => x.id === b.messageID))
-          return notFound(res, "MessageNotFoundError");
+        if (typeof b.messageID !== "string" || !s.messages.some((x) => x.id === b.messageID)) return notFound(res, "MessageNotFoundError");
         const revert: Json = { messageID: b.messageID };
         if (typeof b.files === "boolean") revert.files = b.files;
         s.info.revert = revert;

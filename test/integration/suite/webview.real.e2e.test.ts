@@ -25,7 +25,13 @@ describe("real webview + real opencode serve", () => {
       const pages = browser?.contexts().flatMap((context) => context.pages()) ?? [];
       for (const page of pages) {
         for (const frame of page.frames()) {
-          if (await frame.locator(inputSelector).count().catch(() => 0)) return frame;
+          if (
+            await frame
+              .locator(inputSelector)
+              .count()
+              .catch(() => 0)
+          )
+            return frame;
         }
       }
       await new Promise((resolve) => setTimeout(resolve, 250));

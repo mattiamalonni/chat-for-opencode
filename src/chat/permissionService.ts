@@ -43,7 +43,7 @@ export class PermissionService {
 
   private overrides(): StoredOverrides {
     const key = this.key();
-    return key ? this.ctx.workspaceState.get<StoredOverrides>(key) ?? {} : {};
+    return key ? (this.ctx.workspaceState.get<StoredOverrides>(key) ?? {}) : {};
   }
 
   enabled(sessionId?: string): boolean {

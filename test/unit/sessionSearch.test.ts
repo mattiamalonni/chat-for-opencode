@@ -40,9 +40,12 @@ describe("cross-session search", () => {
 
   it("aborts an obsolete search instead of leaving history fetches running", async () => {
     const client = {
-      listSessionsPage: vi.fn().mockImplementation((_dir: string, _limit: number, _cursor?: string, signal?: AbortSignal) =>
-        new Promise((_resolve, reject) => signal?.addEventListener("abort", () => reject(new Error("aborted")))),
-      ),
+      listSessionsPage: vi
+        .fn()
+        .mockImplementation(
+          (_dir: string, _limit: number, _cursor?: string, signal?: AbortSignal) =>
+            new Promise((_resolve, reject) => signal?.addEventListener("abort", () => reject(new Error("aborted")))),
+        ),
       messages: vi.fn(),
     };
     const s = new SessionListService(

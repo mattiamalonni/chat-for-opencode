@@ -28,9 +28,7 @@ export class DiffService implements vscode.TextDocumentContentProvider {
     this.contents.set(uri.toString(), content);
     // Keep memory bounded, but never blank a diff tab that is still open.
     if (this.contents.size > MAX_VIRTUAL_DOCS) {
-      const open = new Set(
-        vscode.workspace.textDocuments.filter((d) => d.uri.scheme === DIFF_SCHEME).map((d) => d.uri.toString()),
-      );
+      const open = new Set(vscode.workspace.textDocuments.filter((d) => d.uri.scheme === DIFF_SCHEME).map((d) => d.uri.toString()));
       const victim = evictableKey(this.contents, open);
       if (victim) this.contents.delete(victim);
     }
@@ -47,7 +45,7 @@ export class DiffService implements vscode.TextDocumentContentProvider {
     // `file` comes from tool metadata produced by the model, i.e. untrusted chat content. Apply the
     // same workspace containment rule as the host's openFile(): no absolute path, `..` escape or
     // crafted tool output may make us read a file outside the folder and show it in a diff.
-    if (!isWithinDirectory(target.fsPath, root.fsPath) || !await isWithinDirectoryReal(target.fsPath, root.fsPath)) {
+    if (!isWithinDirectory(target.fsPath, root.fsPath) || !(await isWithinDirectoryReal(target.fsPath, root.fsPath))) {
       this.warn(`[chat] blocked a diff for a file outside the workspace: ${target.fsPath}`);
       return;
     }

@@ -99,10 +99,7 @@ describe("PermissionService.approveOnce", () => {
     const replyPermission = vi.fn(async () => {});
     const client = { replyPermission } as unknown as OpenCodeClient;
 
-    await Promise.all([
-      permissions.approveOnce(client, "sessionA", "shared"),
-      permissions.approveOnce(client, "sessionB", "shared"),
-    ]);
+    await Promise.all([permissions.approveOnce(client, "sessionA", "shared"), permissions.approveOnce(client, "sessionB", "shared")]);
 
     expect(replyPermission).toHaveBeenCalledTimes(2);
     expect(replyPermission).toHaveBeenCalledWith("sessionA", "shared", "once");
@@ -112,7 +109,11 @@ describe("PermissionService.approveOnce", () => {
   it("logs the composite session/request key on failure", async () => {
     const log = vi.fn();
     const permissions = service(log);
-    const client = { replyPermission: vi.fn(async () => { throw new Error("nope"); }) } as unknown as OpenCodeClient;
+    const client = {
+      replyPermission: vi.fn(async () => {
+        throw new Error("nope");
+      }),
+    } as unknown as OpenCodeClient;
 
     expect(await permissions.approveOnce(client, "sessionA", "p1")).toBe(false);
     expect(log).toHaveBeenCalledWith(expect.stringContaining("sessionA:p1"));

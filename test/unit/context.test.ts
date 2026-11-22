@@ -234,14 +234,28 @@ describe("context usage", () => {
     let state = chatReducer(initialChatState, { type: "load", sessionId: "s", messages: [], permissions: [], forms: [] });
     state = chatReducer(state, {
       type: "event",
-      event: { type: "session.step.ended", data: { sessionID: "s", assistantMessageID: "m1", finish: "stop", tokens: tokens(1000, 4000, 200) } },
+      event: {
+        type: "session.step.ended",
+        data: { sessionID: "s", assistantMessageID: "m1", finish: "stop", tokens: tokens(1000, 4000, 200) },
+      },
     });
     expect(state.contextTokens).toBe(5200);
-    state = chatReducer(state, { type: "event", event: { type: "session.compaction.ended", data: { sessionID: "s", reason: "auto", text: "" } } });
+    state = chatReducer(state, {
+      type: "event",
+      event: { type: "session.compaction.ended", data: { sessionID: "s", reason: "auto", text: "" } },
+    });
     expect(state.contextTokens).toBeUndefined();
   });
 
   it("formats token counts compactly", () => {
-    expect([950, 8496, 128000, 200000, 1000000, 1048576, 1500000].map(formatTokens)).toEqual(["950", "8.5K", "128K", "200K", "1M", "1M", "1.5M"]);
+    expect([950, 8496, 128000, 200000, 1000000, 1048576, 1500000].map(formatTokens)).toEqual([
+      "950",
+      "8.5K",
+      "128K",
+      "200K",
+      "1M",
+      "1M",
+      "1.5M",
+    ]);
   });
 });

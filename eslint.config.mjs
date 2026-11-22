@@ -2,7 +2,18 @@ import js from "@eslint/js";
 import tseslint from "typescript-eslint";
 
 export default tseslint.config(
-  { ignores: ["dist/**", "out/**", "node_modules/**", ".vscode-test/**", "test-results/**", "playwright-report/**", "esbuild.mjs", "scripts/**/*.mjs"] },
+  {
+    ignores: [
+      "dist/**",
+      "out/**",
+      "node_modules/**",
+      ".vscode-test/**",
+      "test-results/**",
+      "playwright-report/**",
+      "esbuild.mjs",
+      "scripts/**/*.mjs",
+    ],
+  },
   js.configs.recommended,
   ...tseslint.configs.recommended,
   {

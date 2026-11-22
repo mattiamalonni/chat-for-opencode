@@ -40,9 +40,7 @@ export interface FileAttachment {
   description?: string;
 }
 
-export type ToolContent =
-  | { type: "text"; text: string }
-  | { type: "file"; uri: string; mime: string; name?: string | null };
+export type ToolContent = { type: "text"; text: string } | { type: "file"; uri: string; mime: string; name?: string | null };
 
 export type ToolState =
   | { status: "streaming"; input: string }

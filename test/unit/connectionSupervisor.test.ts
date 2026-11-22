@@ -19,22 +19,22 @@ function hooks(overrides: Partial<SupervisorHooks> = {}) {
     state: { status: "running", version: "2.2.7" },
   };
   const h = {
-      registry: { get: vi.fn(() => server), reset: vi.fn().mockResolvedValue(undefined) },
-      log: vi.fn(),
-      getFolder: () => folder,
-      setFolder: vi.fn(),
-      pickFolder: () => folder,
-      trustBlocked: () => false,
-      postUntrusted: vi.fn(),
-      setStatus: vi.fn(),
-      getStatus: () => "idle" as const,
-      generation: new Generation(),
-      onReady: vi.fn().mockResolvedValue(undefined),
-      onStreamReconnect: vi.fn(),
-      onDetached: vi.fn(),
-      toUiError: vi.fn((err: unknown) => ({ kind: "requestFailed" as const, message: String(err), actions: [] })),
-      ...overrides,
-    } as unknown as SupervisorHooks;
+    registry: { get: vi.fn(() => server), reset: vi.fn().mockResolvedValue(undefined) },
+    log: vi.fn(),
+    getFolder: () => folder,
+    setFolder: vi.fn(),
+    pickFolder: () => folder,
+    trustBlocked: () => false,
+    postUntrusted: vi.fn(),
+    setStatus: vi.fn(),
+    getStatus: () => "idle" as const,
+    generation: new Generation(),
+    onReady: vi.fn().mockResolvedValue(undefined),
+    onStreamReconnect: vi.fn(),
+    onDetached: vi.fn(),
+    toUiError: vi.fn((err: unknown) => ({ kind: "requestFailed" as const, message: String(err), actions: [] })),
+    ...overrides,
+  } as unknown as SupervisorHooks;
   return { server, hooks: h };
 }
 

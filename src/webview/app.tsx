@@ -20,14 +20,34 @@ import { estimateDataUrlTokens } from "../shared/format";
 import { isFindKey, isNewSessionKey, isSyncKey } from "../shared/keys";
 import { contractSignature, emptyContract, type ContractReport } from "../shared/contract";
 import type { Attachment, ConnectionStatus, ContextItem, FolderInfo, HostMessage, SessionSummary, UiError } from "../shared/protocol";
-import { initialSubagentState, pushSubagentSession, subagentReducer, truncateSubagentStack, type SubagentEvent, type SubagentState } from "../shared/subagents";
+import {
+  initialSubagentState,
+  pushSubagentSession,
+  subagentReducer,
+  truncateSubagentStack,
+  type SubagentEvent,
+  type SubagentState,
+} from "../shared/subagents";
 import { format, STRINGS, type Strings } from "../shared/strings";
 import { AttentionOverlay } from "./attentionOverlay";
 import { Composer } from "./composer";
 import { collectDroppedFiles, hasFiles, readFileAsBase64, type DragData } from "./dropFiles";
 import { env, isolateKeys } from "./env";
 import { StringsContext, useT } from "./i18n";
-import { IconCheck, IconChevron, IconClose, IconEdit, IconError, IconFileMarkdown, IconHistory, IconPlus, IconRefresh, IconSend, IconTrash, IconWarning } from "./icons";
+import {
+  IconCheck,
+  IconChevron,
+  IconClose,
+  IconEdit,
+  IconError,
+  IconFileMarkdown,
+  IconHistory,
+  IconPlus,
+  IconRefresh,
+  IconSend,
+  IconTrash,
+  IconWarning,
+} from "./icons";
 import { setCopyLabel } from "./markdown";
 import { Picker } from "./picker";
 import { clearReplyFailures, markReplyFailed } from "./replyFeedback";
@@ -152,7 +172,14 @@ export function App() {
           setContract({ report: msg.contract ?? emptyContract, dismissed: !!msg.contractDismissed });
           break;
         case "catalog":
-          setCatalog({ models: msg.models, agents: msg.agents, skills: msg.skills, commands: msg.commands ?? [], selectedModel: msg.selectedModel, selectedAgent: msg.selectedAgent });
+          setCatalog({
+            models: msg.models,
+            agents: msg.agents,
+            skills: msg.skills,
+            commands: msg.commands ?? [],
+            selectedModel: msg.selectedModel,
+            selectedAgent: msg.selectedAgent,
+          });
           break;
         case "sessions":
           setSessions(msg.items);
@@ -354,9 +381,12 @@ export function App() {
       for (const { el, dir } of updates) el.dataset.tipDir = dir;
     });
   });
-  useEffect(() => () => {
-    if (tooltipFrame.current !== undefined) cancelAnimationFrame(tooltipFrame.current);
-  }, []);
+  useEffect(
+    () => () => {
+      if (tooltipFrame.current !== undefined) cancelAnimationFrame(tooltipFrame.current);
+    },
+    [],
+  );
 
   // Cmd/Ctrl+N creates a new session, Cmd/Ctrl+F opens the message search and Cmd/Ctrl+R re-syncs
   // the session while the chat has focus. The VS Code webview preload forwards every keydown that
@@ -410,9 +440,12 @@ export function App() {
       prev.length === next.length &&
       prev.every((p, i) => {
         const n = next[i];
-        return p.file === n.file && p.status === n.status && p.additions === n.additions && p.deletions === n.deletions && p.patch === n.patch;
+        return (
+          p.file === n.file && p.status === n.status && p.additions === n.additions && p.deletions === n.deletions && p.patch === n.patch
+        );
       })
-    ) return prev;
+    )
+      return prev;
     lastChangedFiles.current = next;
     return next;
   }, [changes, chat.messages, chat.touchedFiles]);
@@ -437,9 +470,10 @@ export function App() {
     const skillCommand = /(^|\s)\/(\S+)(?=\s|$)/.exec(text);
     const isCommand = skillCommand && catalog.commands.some((item) => item.name === skillCommand[2]);
     const skill = !isCommand && skillCommand && catalog.skills.find((item) => item.id === skillCommand[2]);
-    const prompt = skillCommand && skill
-      ? `${text.slice(0, skillCommand.index)}${skillCommand[1]}@${skill.id}${text.slice(skillCommand.index + skillCommand[0].length)}`
-      : text;
+    const prompt =
+      skillCommand && skill
+        ? `${text.slice(0, skillCommand.index)}${skillCommand[1]}@${skill.id}${text.slice(skillCommand.index + skillCommand[0].length)}`
+        : text;
     post({ type: "send", text: prompt, attachments, context: ctx, delivery });
     setAttachments([]);
     setNotice(undefined);
@@ -565,136 +599,129 @@ export function App() {
   return (
     <StringsContext.Provider value={strings}>
       <SubagentsContext.Provider value={subagentEntries}>
-      <SubagentNavContext.Provider value={openSubagent}>
-      <WebviewErrorBoundary>
-        <div class="app">
-        <Header
-          title={chat.sessionId ? title : strings.untitled}
-          folders={folders}
-          showSessions={showSessions}
-          onToggleSessions={() => {
-            if (!showSessions) post({ type: "refreshSessions" });
-            setShowSessions(!showSessions);
-          }}
-          onExport={exportConversation}
-          onSync={syncNow}
-          onNewSession={() => post({ type: "newSession" })}
-          syncing={syncing}
-          searchOpen={searchOpen}
-          onToggleSearch={() => setSearchOpen((open) => !open)}
-          searchFocusToken={searchFocusToken}
-          searchQuery={searchQuery}
-          onSearchChange={setSearchQuery}
-          searchCount={searchCount}
-        />
-        {showSessions && (
-          <SessionList
-            sessions={sessions}
-            currentId={chat.sessionId}
-            hasMore={sessionsHasMore}
-            onLoadMore={() => post({ type: "loadMoreSessions" })}
-            onClose={() => setShowSessions(false)}
-          />
-        )}
-        <StatusBanner status={status.status} error={status.error} />
-        {(compatibility.status === "untested" || compatibility.status === "unsupported") && !compatibility.dismissed && (
-          <CompatibilityBanner
-            key={`${compatibility.status}:${compatibility.version ?? "?"}`}
-            status={compatibility.status}
-            version={compatibility.version}
-            issuesUrl={issuesUrl}
-          />
-        )}
-        {contract.report.failures.length > 0 && !contract.dismissed && (
-          <ContractBanner failures={contract.report.failures} issuesUrl={issuesUrl} />
-        )}
-        {notice && <NoticeBanner error={notice} onDismiss={() => setNotice(undefined)} />}
-        <Conversation
-          chat={chat}
-          scrollToken={scrollToken}
-          searchQuery={searchQuery}
-          revealMessageId={revealMessageId}
-          onRevealed={() => setRevealMessageId(undefined)}
-          onSuggestedPrompt={(text) => {
-            setDraft(text, chat.sessionId ?? undefined);
-            setDraftToken((n) => n + 1);
-            setFocusToken((n) => n + 1);
-            post({ type: "saveDraft", sessionId: chat.sessionId ?? undefined, text });
-          }}
-        />
-        <div class="sr-only" role="status" aria-live="polite">
-          {announcement.text + "\u200b".repeat(announcement.seq % 2)}
-        </div>
-        {todos && todos.length > 0 && <TodoPanel todos={todos} />}
-        {changedFiles.length > 0 && !changesDismissed && (
-          <ChangesPanel files={changedFiles} onDismiss={() => setDismissedChanges(changesSignature)} />
-        )}
-        {/* When the subagent modal is open it renders its own overlay; passing the child requests
+        <SubagentNavContext.Provider value={openSubagent}>
+          <WebviewErrorBoundary>
+            <div class="app">
+              <Header
+                title={chat.sessionId ? title : strings.untitled}
+                folders={folders}
+                showSessions={showSessions}
+                onToggleSessions={() => {
+                  if (!showSessions) post({ type: "refreshSessions" });
+                  setShowSessions(!showSessions);
+                }}
+                onExport={exportConversation}
+                onSync={syncNow}
+                onNewSession={() => post({ type: "newSession" })}
+                syncing={syncing}
+                searchOpen={searchOpen}
+                onToggleSearch={() => setSearchOpen((open) => !open)}
+                searchFocusToken={searchFocusToken}
+                searchQuery={searchQuery}
+                onSearchChange={setSearchQuery}
+                searchCount={searchCount}
+              />
+              {showSessions && (
+                <SessionList
+                  sessions={sessions}
+                  currentId={chat.sessionId}
+                  hasMore={sessionsHasMore}
+                  onLoadMore={() => post({ type: "loadMoreSessions" })}
+                  onClose={() => setShowSessions(false)}
+                />
+              )}
+              <StatusBanner status={status.status} error={status.error} />
+              {(compatibility.status === "untested" || compatibility.status === "unsupported") && !compatibility.dismissed && (
+                <CompatibilityBanner
+                  key={`${compatibility.status}:${compatibility.version ?? "?"}`}
+                  status={compatibility.status}
+                  version={compatibility.version}
+                  issuesUrl={issuesUrl}
+                />
+              )}
+              {contract.report.failures.length > 0 && !contract.dismissed && (
+                <ContractBanner failures={contract.report.failures} issuesUrl={issuesUrl} />
+              )}
+              {notice && <NoticeBanner error={notice} onDismiss={() => setNotice(undefined)} />}
+              <Conversation
+                chat={chat}
+                scrollToken={scrollToken}
+                searchQuery={searchQuery}
+                revealMessageId={revealMessageId}
+                onRevealed={() => setRevealMessageId(undefined)}
+                onSuggestedPrompt={(text) => {
+                  setDraft(text, chat.sessionId ?? undefined);
+                  setDraftToken((n) => n + 1);
+                  setFocusToken((n) => n + 1);
+                  post({ type: "saveDraft", sessionId: chat.sessionId ?? undefined, text });
+                }}
+              />
+              <div class="sr-only" role="status" aria-live="polite">
+                {announcement.text + "\u200b".repeat(announcement.seq % 2)}
+              </div>
+              {todos && todos.length > 0 && <TodoPanel todos={todos} />}
+              {changedFiles.length > 0 && !changesDismissed && (
+                <ChangesPanel files={changedFiles} onDismiss={() => setDismissedChanges(changesSignature)} />
+              )}
+              {/* When the subagent modal is open it renders its own overlay; passing the child requests
             here too would duplicate the same cards (and the same DOM ids) behind the backdrop. */}
-        <AttentionOverlay key={chat.sessionId ?? "new"} state={chat} subagents={subagentStack.length === 0 ? subagents : undefined} />
-        {inbox.length > 0 && (
-          <InboxPanel
-            items={inbox}
-            onSendNow={sendQueuedNow}
-            onEdit={editQueued}
-            onRemove={removeQueued}
-          />
-        )}
-        <Composer
-          sessionId={chat.sessionId ?? undefined}
-          draftToken={draftToken}
-          restoredDraft={restoredDraft}
-          busy={chat.busy}
-          contextTokens={chat.contextTokens === undefined ? undefined : chat.contextTokens + attachmentTokens}
-          contextEstimated={attachmentTokens > 0}
-          disabled={!connected}
-          models={catalog.models}
-          agents={catalog.agents}
-          skills={catalog.skills}
-          commands={catalog.commands}
-          selectedModel={catalog.selectedModel}
-          selectedAgent={catalog.selectedAgent}
-          autoApprove={autoApprove}
-          cost={chat.usage?.cost}
-          onToggleAutoApprove={(enabled) => post({ type: "setAutoApprove", enabled })}
-          context={context}
-          selectedContext={selectedContext}
-          onToggleContext={(id) =>
-            setContextChoice((prev) => {
-              const next = new Map(prev);
-              const item = context.find((c) => c.id === id);
-              next.set(id, !(prev.get(id) ?? item?.kind === "selection"));
-              return next;
-            })
-          }
-          attachments={attachments}
-          onRemoveAttachment={(uri) => setAttachments((prev) => prev.filter((a) => a.uri !== uri))}
-          onAddAttachment={(a) => setAttachments((prev) => (prev.some((x) => x.uri === a.uri) ? prev : [...prev, a]))}
-          fileResults={fileResults}
-          onSend={send}
-          promptHistory={promptHistory}
-          focusToken={focusToken}
-          canCompact={!!chat.sessionId && !chat.busy && connected}
-        />
-        {dropping && (
-          <div class="drop-overlay" aria-hidden="true">
-            <div class="drop-overlay-inner">{strings.dropFilesOverlay}</div>
-          </div>
-        )}
-        {subagentStack.length > 0 && (
-          <SubagentModal
-            stack={subagentStack}
-            entries={subagentEntries}
-            labels={subagentLabels}
-            subagents={subagents}
-            parentTitle={title}
-            onNavigate={(depth) => setSubagentStack((prev) => truncateSubagentStack(prev, depth))}
-            onClose={() => setSubagentStack([])}
-          />
-        )}
-        </div>
-      </WebviewErrorBoundary>
-      </SubagentNavContext.Provider>
+              <AttentionOverlay key={chat.sessionId ?? "new"} state={chat} subagents={subagentStack.length === 0 ? subagents : undefined} />
+              {inbox.length > 0 && <InboxPanel items={inbox} onSendNow={sendQueuedNow} onEdit={editQueued} onRemove={removeQueued} />}
+              <Composer
+                sessionId={chat.sessionId ?? undefined}
+                draftToken={draftToken}
+                restoredDraft={restoredDraft}
+                busy={chat.busy}
+                contextTokens={chat.contextTokens === undefined ? undefined : chat.contextTokens + attachmentTokens}
+                contextEstimated={attachmentTokens > 0}
+                disabled={!connected}
+                models={catalog.models}
+                agents={catalog.agents}
+                skills={catalog.skills}
+                commands={catalog.commands}
+                selectedModel={catalog.selectedModel}
+                selectedAgent={catalog.selectedAgent}
+                autoApprove={autoApprove}
+                cost={chat.usage?.cost}
+                onToggleAutoApprove={(enabled) => post({ type: "setAutoApprove", enabled })}
+                context={context}
+                selectedContext={selectedContext}
+                onToggleContext={(id) =>
+                  setContextChoice((prev) => {
+                    const next = new Map(prev);
+                    const item = context.find((c) => c.id === id);
+                    next.set(id, !(prev.get(id) ?? item?.kind === "selection"));
+                    return next;
+                  })
+                }
+                attachments={attachments}
+                onRemoveAttachment={(uri) => setAttachments((prev) => prev.filter((a) => a.uri !== uri))}
+                onAddAttachment={(a) => setAttachments((prev) => (prev.some((x) => x.uri === a.uri) ? prev : [...prev, a]))}
+                fileResults={fileResults}
+                onSend={send}
+                promptHistory={promptHistory}
+                focusToken={focusToken}
+                canCompact={!!chat.sessionId && !chat.busy && connected}
+              />
+              {dropping && (
+                <div class="drop-overlay" aria-hidden="true">
+                  <div class="drop-overlay-inner">{strings.dropFilesOverlay}</div>
+                </div>
+              )}
+              {subagentStack.length > 0 && (
+                <SubagentModal
+                  stack={subagentStack}
+                  entries={subagentEntries}
+                  labels={subagentLabels}
+                  subagents={subagents}
+                  parentTitle={title}
+                  onNavigate={(depth) => setSubagentStack((prev) => truncateSubagentStack(prev, depth))}
+                  onClose={() => setSubagentStack([])}
+                />
+              )}
+            </div>
+          </WebviewErrorBoundary>
+        </SubagentNavContext.Provider>
       </SubagentsContext.Provider>
     </StringsContext.Provider>
   );
@@ -743,7 +770,16 @@ function CrashFallback() {
 /** Magnifier drawn locally so no new icon file/dependency is needed. */
 function IconSearch() {
   return (
-    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true" focusable="false">
+    <svg
+      width="16"
+      height="16"
+      viewBox="0 0 16 16"
+      fill="none"
+      stroke="currentColor"
+      stroke-width="1.5"
+      aria-hidden="true"
+      focusable="false"
+    >
       <circle cx="6.8" cy="6.8" r="4.6" />
       <path d="m10.2 10.2 3.5 3.5" stroke-linecap="round" />
     </svg>
@@ -769,9 +805,7 @@ function conversationMarkdown(messages: ReturnType<typeof chatReducer>["messages
       if (p.kind === "tool") {
         lines.push(`> **${text("tool")}:** \`${p.name}\`${p.status === "error" ? ` (${text("failed")})` : ""}`);
         for (const l of p.inputText.split("\n")) lines.push(`> ${l}`);
-        const output = p.output
-          .map((c) => (c.type === "text" ? c.text : `[${c.mime}] ${c.name ?? c.uri}`))
-          .join("\n");
+        const output = p.output.map((c) => (c.type === "text" ? c.text : `[${c.mime}] ${c.name ?? c.uri}`)).join("\n");
         for (const l of output.split("\n")) if (l) lines.push(`> ${l}`);
         lines.push("");
       } else if (p.kind === "text") {
@@ -1041,7 +1075,9 @@ function SessionList(props: {
                   <IconWarning class="inline-icon" />
                   <div class="inline-text">
                     <span class="inline-question">{t("confirmDelete")}</span>
-                    <span class="inline-session" title={s.title || t("untitled")}>{s.title || t("untitled")}</span>
+                    <span class="inline-session" title={s.title || t("untitled")}>
+                      {s.title || t("untitled")}
+                    </span>
                   </div>
                 </div>
                 <div class="inline-actions">
@@ -1062,7 +1098,12 @@ function SessionList(props: {
               </div>
             ) : (
               <>
-                <button type="button" class="session-item" aria-current={s.id === props.currentId} onClick={() => post({ type: "selectSession", id: s.id })}>
+                <button
+                  type="button"
+                  class="session-item"
+                  aria-current={s.id === props.currentId}
+                  onClick={() => post({ type: "selectSession", id: s.id })}
+                >
                   {(s.busy || s.needsInput) && (
                     <span class={`status-dot session-busy ${s.needsInput ? "waiting" : "running"}`} aria-hidden="true" />
                   )}
@@ -1136,7 +1177,13 @@ function ErrorBlock({ error, onDismiss }: { error: UiError; onDismiss?: () => vo
         <IconError />
         <strong>{error.message}</strong>
         {onDismiss && (
-          <button type="button" class="icon-button dismiss tooltip-host" data-tooltip={t("dismiss")} aria-label={t("dismiss")} onClick={onDismiss}>
+          <button
+            type="button"
+            class="icon-button dismiss tooltip-host"
+            data-tooltip={t("dismiss")}
+            aria-label={t("dismiss")}
+            onClick={onDismiss}
+          >
             <IconClose />
           </button>
         )}
@@ -1172,11 +1219,17 @@ function CompatibilityBanner(props: { status: "untested" | "unsupported"; versio
             ? t("unsupportedVersion", version ?? "?", SUPPORTED_SERVER_VERSION)
             : t("untestedVersion", version ?? "?", SUPPORTED_SERVER_VERSION)}
         </strong>
-        <button type="button" class="icon-button dismiss tooltip-host" data-tooltip={t("dismiss")} aria-label={t("dismiss")} onClick={() => {
+        <button
+          type="button"
+          class="icon-button dismiss tooltip-host"
+          data-tooltip={t("dismiss")}
+          aria-label={t("dismiss")}
+          onClick={() => {
             setDismissed(true);
             // Remembered by the host so the banner stays hidden for this version across reloads.
             if (version) post({ type: "dismissCompatibility", version });
-          }}>
+          }}
+        >
           <IconClose />
         </button>
       </div>
@@ -1444,7 +1497,11 @@ function itemSearchText(item: ConversationItem): string {
     case "assistant":
       return item.parts.map((p) => p.text).join(" ");
     case "tool":
-      return [item.part.name, item.part.inputText, ...item.part.output.map((c) => (c.type === "text" ? c.text : `[${c.mime}] ${c.name ?? c.uri}`))].join(" ");
+      return [
+        item.part.name,
+        item.part.inputText,
+        ...item.part.output.map((c) => (c.type === "text" ? c.text : `[${c.mime}] ${c.name ?? c.uri}`)),
+      ].join(" ");
     case "tools":
       return item.parts.map((p) => [p.name, p.inputText].join(" ")).join(" ");
     case "status":
@@ -1485,7 +1542,13 @@ function StepBlock({
           <IconChevron class="chevron" />
           <span>{label}</span>
         </button>
-        {expanded && <div class="step-fold-body">{details.map((d, i) => <div key={`${(d as { key?: string }).key ?? i}`}>{render(d, "")}</div>)}</div>}
+        {expanded && (
+          <div class="step-fold-body">
+            {details.map((d, i) => (
+              <div key={`${(d as { key?: string }).key ?? i}`}>{render(d, "")}</div>
+            ))}
+          </div>
+        )}
       </div>
     </section>
   );
@@ -1545,9 +1608,12 @@ function Conversation({
   // streamed token re-ran this effect, scrolled the user back to the old hit and fought auto-scroll.
   const consumedReveal = useRef<string | undefined>(undefined);
   const revealTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
-  useEffect(() => () => {
-    if (revealTimer.current) clearTimeout(revealTimer.current);
-  }, []);
+  useEffect(
+    () => () => {
+      if (revealTimer.current) clearTimeout(revealTimer.current);
+    },
+    [],
+  );
   useEffect(() => {
     if (!revealMessageId) {
       consumedReveal.current = undefined;
@@ -1558,8 +1624,9 @@ function Conversation({
     if (!container) return;
     // Compare `dataset` instead of interpolating the id into a CSS selector: message ids come from
     // the server, so quotes/brackets in one used to throw a SyntaxError and take down the webview.
-    const el = Array.from(container.querySelectorAll<HTMLElement>("[data-message-id]"))
-      .find((candidate) => candidate.dataset.messageId === revealMessageId);
+    const el = Array.from(container.querySelectorAll<HTMLElement>("[data-message-id]")).find(
+      (candidate) => candidate.dataset.messageId === revealMessageId,
+    );
     if (!el) return; // Not rendered yet (e.g. still loading): retry when messages change.
     consumedReveal.current = revealMessageId;
     // Scroll only the chat container: `scrollIntoView` would also scroll the surrounding webview
@@ -1678,39 +1745,39 @@ function Conversation({
         }}
         onClick={onClick}
       >
-      {chat.messages.length === 0 && (
-        <div class="welcome">
-          <h2>{t("welcomeTitle")}</h2>
-          <p>{t("welcomeBody")}</p>
-          {onSuggestedPrompt && (
-            <>
-              <p class="welcome-hint">{t("welcomeHint")}</p>
-              <div class="welcome-starters" aria-label={t("welcomeStarters")}>
-                <span class="welcome-starters-label">{t("welcomeStarters")}</span>
-                {[t("starterExplain"), t("starterBugs"), t("starterTests"), t("starterPlan")].map((text) => (
-                  <button type="button" class="welcome-starter" key={text} onClick={() => onSuggestedPrompt(text)}>
-                    {text}
-                  </button>
-                ))}
-              </div>
-            </>
-          )}
-        </div>
-      )}
-      {items.map((item) => renderItem(item, query))}
-      {chat.busy && chat.messages.at(-1)?.kind !== "assistant" && (
-        <div class="typing" aria-label={t("thinking")}>
-          <span />
-          <span />
-          <span />
-        </div>
-      )}
-      {chat.retry && (
-        <div class="notice warning" role="status">
-          <IconWarning />
-          {t("retrying", chat.retry.attempt, chat.retry.message)}
-        </div>
-      )}
+        {chat.messages.length === 0 && (
+          <div class="welcome">
+            <h2>{t("welcomeTitle")}</h2>
+            <p>{t("welcomeBody")}</p>
+            {onSuggestedPrompt && (
+              <>
+                <p class="welcome-hint">{t("welcomeHint")}</p>
+                <div class="welcome-starters" aria-label={t("welcomeStarters")}>
+                  <span class="welcome-starters-label">{t("welcomeStarters")}</span>
+                  {[t("starterExplain"), t("starterBugs"), t("starterTests"), t("starterPlan")].map((text) => (
+                    <button type="button" class="welcome-starter" key={text} onClick={() => onSuggestedPrompt(text)}>
+                      {text}
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
+          </div>
+        )}
+        {items.map((item) => renderItem(item, query))}
+        {chat.busy && chat.messages.at(-1)?.kind !== "assistant" && (
+          <div class="typing" aria-label={t("thinking")}>
+            <span />
+            <span />
+            <span />
+          </div>
+        )}
+        {chat.retry && (
+          <div class="notice warning" role="status">
+            <IconWarning />
+            {t("retrying", chat.retry.attempt, chat.retry.message)}
+          </div>
+        )}
       </div>
       {!atBottom && chat.messages.length > 0 && (
         <button type="button" class="jump-latest" onClick={scrollToEnd}>
@@ -1802,13 +1869,7 @@ function SubagentModal({
               );
             })}
           </nav>
-          <button
-            type="button"
-            class="icon-button tooltip-host"
-            data-tooltip={t("dismiss")}
-            aria-label={t("dismiss")}
-            onClick={onClose}
-          >
+          <button type="button" class="icon-button tooltip-host" data-tooltip={t("dismiss")} aria-label={t("dismiss")} onClick={onClose}>
             <IconClose />
           </button>
         </header>
@@ -1845,13 +1906,13 @@ function InboxPanel(props: {
       </summary>
       <ul>
         {props.items.map((item) => {
-          const text = item.type === "user"
-            ? item.payload.text ?? ""
-            : item.payload.description ?? item.payload.text ?? item.type;
+          const text = item.type === "user" ? (item.payload.text ?? "") : (item.payload.description ?? item.payload.text ?? item.type);
           const editable = item.type === "user" && typeof item.payload.text === "string";
           return (
             <li class="inbox-item" key={item.id}>
-              <span class="inbox-text" title={text}>{text}</span>
+              <span class="inbox-text" title={text}>
+                {text}
+              </span>
               {item.delivery === "queue" && <span class="inbox-delivery">{t("inboxDeliveryQueue")}</span>}
               <span class="inbox-actions">
                 {item.delivery === "queue" && (

@@ -21,16 +21,13 @@ export function ContextMeter({ used, limit, cost, estimated }: { used?: number; 
     <span class={`context-meter ${level} tooltip-host tooltip-above`} role="img" aria-label={label} data-tooltip={label}>
       <svg width="16" height="16" viewBox="0 0 18 18" aria-hidden="true">
         <circle class="track" cx="9" cy="9" r={R} />
-        <circle
-          class="fill"
-          cx="9"
-          cy="9"
-          r={R}
-          stroke-dasharray={`${C * ratio} ${C}`}
-          transform="rotate(-90 9 9)"
-        />
+        <circle class="fill" cx="9" cy="9" r={R} stroke-dasharray={`${C * ratio} ${C}`} transform="rotate(-90 9 9)" />
       </svg>
-      {known && <span class="context-percent" aria-hidden="true">{percent}%</span>}
+      {known && (
+        <span class="context-percent" aria-hidden="true">
+          {percent}%
+        </span>
+      )}
     </span>
   );
 }

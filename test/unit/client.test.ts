@@ -18,7 +18,11 @@ describe("OpenCodeClient against the mock server", () => {
   });
 
   it("creates, lists, renames and deletes sessions", async () => {
-    const s = await client.createSession({ directory: "/work", agent: "plan", model: { id: "mock-smart", providerID: "mock", variant: "high" } });
+    const s = await client.createSession({
+      directory: "/work",
+      agent: "plan",
+      model: { id: "mock-smart", providerID: "mock", variant: "high" },
+    });
     expect(s.id).toMatch(/^ses_/);
     expect(mock.requests.at(-1)?.body).toEqual({
       location: { directory: "/work" },
@@ -151,8 +155,7 @@ describe("OpenCodeClient against the mock server", () => {
 
   it("caps an oversized error body before it can reach the chat UI", async () => {
     const huge = "x".repeat(50_000);
-    const fetchImpl = (async () =>
-      new Response(JSON.stringify({ message: huge }), { status: 500 })) as typeof fetch;
+    const fetchImpl = (async () => new Response(JSON.stringify({ message: huge }), { status: 500 })) as typeof fetch;
     const bounded = new OpenCodeClient({ baseUrl: "http://localhost:1", password: "secret" }, fetchImpl);
     let error: ApiError | undefined;
     try {
@@ -263,7 +266,10 @@ describe("OpenCodeClient against the mock server", () => {
 });
 
 describe("OpenCodeClient at the trust boundary", () => {
-  const fetchText = (text: string, status = 200): typeof fetch => async () => new Response(text, { status });
+  const fetchText =
+    (text: string, status = 200): typeof fetch =>
+    async () =>
+      new Response(text, { status });
 
   it("turns a malformed 200 body into an ApiError instead of a SyntaxError", async () => {
     const client = new OpenCodeClient({ baseUrl: "http://localhost/" }, fetchText("<html>proxy error</html>"));

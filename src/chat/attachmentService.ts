@@ -86,7 +86,7 @@ export class AttachmentService {
     const label = name || path.basename(uri.fsPath);
     const detail = vscode.workspace.asRelativePath(uri, false);
     const folder = vscode.workspace.getWorkspaceFolder(uri);
-    if (folder && await isWithinDirectoryReal(uri.fsPath, folder.uri.fsPath)) {
+    if (folder && (await isWithinDirectoryReal(uri.fsPath, folder.uri.fsPath))) {
       // The server can read project files itself, preserving line ranges on @-mentions. A link that
       // resolves outside the folder is staged inline instead of being treated as a project file.
       this.onAttachment({ uri: uri.toString(), name: label, kind: "file", detail });
@@ -168,8 +168,8 @@ export class AttachmentService {
     const target = parsed.with({ query: "", fragment: "" });
     const file = normalizePathKey(target.fsPath);
     const folder = vscode.workspace.getWorkspaceFolder(target);
-    const tempCopy = this.isTempCopy(target) && await isWithinDirectoryReal(target.fsPath, this.tempDir);
-    const projectFile = !!folder && await isWithinDirectoryReal(target.fsPath, folder.uri.fsPath);
+    const tempCopy = this.isTempCopy(target) && (await isWithinDirectoryReal(target.fsPath, this.tempDir));
+    const projectFile = !!folder && (await isWithinDirectoryReal(target.fsPath, folder.uri.fsPath));
     if (!tempCopy && !projectFile) {
       this.log(`[chat] blocked an attempt to open an attachment outside the workspace: ${file}`);
       return;

@@ -189,9 +189,7 @@ export class OpenCodeClient {
   ): Promise<{ items: SessionInfo[]; next?: string }> {
     const res = await this.request<{ data: SessionInfo[]; cursor?: { next?: string | null } }>("GET", "api/session", {
       // `order` only applies to the first page; the cursor continues that ordering.
-      query: cursor
-        ? { directory, limit, parentID: "null", cursor }
-        : { directory, limit, order: "desc", parentID: "null" },
+      query: cursor ? { directory, limit, parentID: "null", cursor } : { directory, limit, order: "desc", parentID: "null" },
       signal,
     });
     return { items: this.dataArray<SessionInfo>(res, "session list"), next: res.cursor?.next ?? undefined };
@@ -257,11 +255,7 @@ export class OpenCodeClient {
    * was trimmed or compacted — so callers must fall back to a full `messages()` fetch.
    */
   async messagesNewerThan(id: string, lastId: string, limit = 200): Promise<SessionMessage[] | undefined> {
-    const res = await this.request<unknown>(
-      "GET",
-      `api/session/${encodeURIComponent(id)}/message`,
-      { query: { order: "desc", limit } },
-    );
+    const res = await this.request<unknown>("GET", `api/session/${encodeURIComponent(id)}/message`, { query: { order: "desc", limit } });
     const page = this.dataArray<SessionMessage>(res, "session history");
     const index = page.findIndex((m) => !!m && typeof m === "object" && m.id === lastId);
     return index < 0 ? undefined : page.slice(0, index).reverse();
@@ -341,10 +335,7 @@ export class OpenCodeClient {
   }
 
   async interrupt(id: string): Promise<boolean> {
-    const res = await this.request<{ interrupted: boolean }>(
-      "POST",
-      `api/session/${encodeURIComponent(id)}/interrupt`,
-    );
+    const res = await this.request<{ interrupted: boolean }>("POST", `api/session/${encodeURIComponent(id)}/interrupt`);
     return res?.interrupted ?? false;
   }
 
@@ -357,20 +348,14 @@ export class OpenCodeClient {
   }
 
   async permissions(id: string, signal?: AbortSignal): Promise<PermissionRequest[]> {
-    const res = await this.request<unknown>(
-      "GET",
-      `api/session/${encodeURIComponent(id)}/permission`,
-      { signal },
-    );
+    const res = await this.request<unknown>("GET", `api/session/${encodeURIComponent(id)}/permission`, { signal });
     return this.dataArray<PermissionRequest>(res, "permission list");
   }
 
   async replyPermission(sessionId: string, requestId: string, decision: PermissionDecision): Promise<void> {
-    await this.request(
-      "POST",
-      `api/session/${encodeURIComponent(sessionId)}/permission/${encodeURIComponent(requestId)}/reply`,
-      { body: { decision } },
-    );
+    await this.request("POST", `api/session/${encodeURIComponent(sessionId)}/permission/${encodeURIComponent(requestId)}/reply`, {
+      body: { decision },
+    });
   }
 
   async forms(id: string, signal?: AbortSignal): Promise<FormRequest[]> {
@@ -379,18 +364,13 @@ export class OpenCodeClient {
   }
 
   async replyForm(sessionId: string, formId: string, answer: Record<string, FormValue>): Promise<void> {
-    await this.request(
-      "POST",
-      `api/session/${encodeURIComponent(sessionId)}/form/${encodeURIComponent(formId)}/reply`,
-      { body: { answer } },
-    );
+    await this.request("POST", `api/session/${encodeURIComponent(sessionId)}/form/${encodeURIComponent(formId)}/reply`, {
+      body: { answer },
+    });
   }
 
   async cancelForm(sessionId: string, formId: string): Promise<void> {
-    await this.request(
-      "DELETE",
-      `api/session/${encodeURIComponent(sessionId)}/form/${encodeURIComponent(formId)}`,
-    );
+    await this.request("DELETE", `api/session/${encodeURIComponent(sessionId)}/form/${encodeURIComponent(formId)}`);
   }
 
   async diff(id: string): Promise<FileDiff[]> {

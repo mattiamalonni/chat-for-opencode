@@ -117,7 +117,9 @@ function normalizeToolState(raw: unknown): ToolState {
   const rawInput = obj(o.input);
   const input: Obj = rawInput ?? {};
   const metadata = obj(o.metadata);
-  const content = arr(o.content).map(normalizeToolContent).filter((c): c is ToolContent => !!c);
+  const content = arr(o.content)
+    .map(normalizeToolContent)
+    .filter((c): c is ToolContent => !!c);
   if (status === "streaming") return { status, input: str(o.input) ?? (rawInput ? JSON.stringify(rawInput) : "") };
   const error = normalizeError(o.error);
   if (status === "error") return { status: "error", input, error: error ?? { type: "unknown", message: "" }, content, metadata };
@@ -189,7 +191,11 @@ export function normalizeSessionMessage(raw: unknown): SessionMessage | undefine
           const file = obj(f);
           if (!file) return undefined;
           const source = obj(file.source) ?? {};
-          return { uri: str(file.uri) ?? str(source.uri), name: str(file.name), source: str(source.type) ? source as { type: string; uri?: string } : undefined };
+          return {
+            uri: str(file.uri) ?? str(source.uri),
+            name: str(file.name),
+            source: str(source.type) ? (source as { type: string; uri?: string }) : undefined,
+          };
         })
         .filter((f) => f !== undefined),
     };
@@ -200,7 +206,9 @@ export function normalizeSessionMessage(raw: unknown): SessionMessage | undefine
       type: "assistant",
       agent: str(o.agent) ?? "",
       model: normalizeModelRef(o.model) ?? { id: "", providerID: "" },
-      content: arr(o.content).map(normalizeAssistantContent).filter((c): c is AssistantContent => !!c),
+      content: arr(o.content)
+        .map(normalizeAssistantContent)
+        .filter((c): c is AssistantContent => !!c),
       time: { created, completed: num(time.completed) },
       finish: str(o.finish),
       error: normalizeError(o.error),
@@ -264,13 +272,18 @@ export function normalizeModel(raw: unknown): ModelInfo | undefined {
     type: str(o.type),
     enabled: bool(o.enabled) ?? true,
     status: str(o.status),
-    variants: arr(o.variants).map((v) => ({ id: str(obj(v)?.id) ?? "" })).filter((v) => v.id),
+    variants: arr(o.variants)
+      .map((v) => ({ id: str(obj(v)?.id) ?? "" }))
+      .filter((v) => v.id),
     capabilities: {
       tools: bool(capabilities.tools) ?? false,
       input: arr(capabilities.input).filter((v): v is string => typeof v === "string"),
       output: arr(capabilities.output).filter((v): v is string => typeof v === "string"),
     },
-    limit: num(limit.context) === undefined ? undefined : { context: num(limit.context) as number, input: num(limit.input), output: num(limit.output) ?? 0 },
+    limit:
+      num(limit.context) === undefined
+        ? undefined
+        : { context: num(limit.context) as number, input: num(limit.input), output: num(limit.output) ?? 0 },
   };
 }
 
@@ -323,7 +336,12 @@ export function normalizePermission(raw: unknown): PermissionRequest | undefined
     action: str(o.action) ?? "",
     resources: arr(o.resources).filter((v): v is string => typeof v === "string"),
     save: arr(o.save).filter((v): v is string => typeof v === "string"),
-    metadata: { ...metadata, files: arr(metadata.files).map(normalizeFileDiff).filter((f): f is FileDiff => !!f) },
+    metadata: {
+      ...metadata,
+      files: arr(metadata.files)
+        .map(normalizeFileDiff)
+        .filter((f): f is FileDiff => !!f),
+    },
     source: str(source.type) === "tool" ? { type: "tool", messageID: str(source.messageID) ?? "", id: str(source.id) ?? "" } : undefined,
     message: str(o.message),
   };
@@ -364,7 +382,9 @@ export function normalizeForm(raw: unknown): FormRequest | undefined {
     sessionID,
     title: str(o.title) ?? "",
     metadata: obj(o.metadata),
-    fields: arr(o.fields).map(normalizeFormField).filter((f): f is FormField => !!f),
+    fields: arr(o.fields)
+      .map(normalizeFormField)
+      .filter((f): f is FormField => !!f),
   };
 }
 
@@ -392,7 +412,9 @@ export function normalizeServerInfo(raw: unknown): ServerInfo | undefined {
 
 /** Applies a normaliser to an array, dropping entries that do not match the expected shape. */
 export function normalizeList<T>(items: unknown, normalize: (raw: unknown) => T | undefined): T[] {
-  return arr(items).map(normalize).filter((item): item is T => item !== undefined);
+  return arr(items)
+    .map(normalize)
+    .filter((item): item is T => item !== undefined);
 }
 
 // Keep FormValue referenced so a schema change that swaps its shape is caught at compile time.

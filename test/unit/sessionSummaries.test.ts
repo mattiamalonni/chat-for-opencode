@@ -59,9 +59,11 @@ describe("session list summaries", () => {
       messages: vi.fn().mockResolvedValue([]),
       permissions: vi.fn().mockResolvedValue([]),
       forms: vi.fn().mockResolvedValue([]),
-      listSessionsPage: vi.fn().mockImplementation((_dir: string, _limit: number, cursor?: string) =>
-        Promise.resolve(cursor ? { items: [second], next: undefined } : { items: [busy], next: "cursor-1" }),
-      ),
+      listSessionsPage: vi
+        .fn()
+        .mockImplementation((_dir: string, _limit: number, cursor?: string) =>
+          Promise.resolve(cursor ? { items: [second], next: undefined } : { items: [busy], next: "cursor-1" }),
+        ),
     };
     const s = new SessionListService(
       () => client as never,

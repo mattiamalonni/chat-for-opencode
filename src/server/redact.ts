@@ -40,8 +40,10 @@ export function redactSecrets(text: string, secret?: string): string {
   out = out.replace(/("authorization"\s*:\s*")([^"]+)(")/gi, `$1${REDACTED}$3`);
   // Plain `Authorization: Basic <token>` / `Basic <token>` lines, including external servers whose
   // password this process never sees.
-  out = out.replace(/(authorization\s*:\s*)?(Basic|Bearer)\s+([A-Za-z0-9+/=_-]{8,})/gi, (_match, prefix: string | undefined, scheme: string) =>
-    `${prefix ?? ""}${scheme} ${REDACTED}`);
+  out = out.replace(
+    /(authorization\s*:\s*)?(Basic|Bearer)\s+([A-Za-z0-9+/=_-]{8,})/gi,
+    (_match, prefix: string | undefined, scheme: string) => `${prefix ?? ""}${scheme} ${REDACTED}`,
+  );
   // Managed server's human-readable startup line.
   out = out.replace(/(server password\s+)\S+/gi, `$1${REDACTED}`);
   return out;

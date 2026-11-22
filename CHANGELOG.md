@@ -2,6 +2,10 @@
 
 ## 0.3.19 — 2026-11-22
 
+- **Contributing:** added `CONTRIBUTING.md` (setup, test matrix, definition of done), issue/PR
+  templates and a documentation index; fixed the drifted password-size and a11y status notes.
+  Prettier, `.editorconfig` and `.gitattributes` now define formatting and LF endings, with
+  `format:check` in both `npm test` and CI.
 - **Architecture:** turn state has a single owner (`ExecutionStateService`). Generation tokens, the
   optimistic `running` state, terminal events, locally-posted idles and the resync grace period now
   live in one class instead of three fields in the controller; the status bar and every deferred
@@ -37,10 +41,10 @@
   transition and the stale-generation guard.
 - **Trust and views:** the extension now declares limited support for untrusted workspaces. Before
   starting `opencode serve`, reading saved logins or using `opencode.executablePath` /
-  `opencode.endpoint`, it checks Workspace Trust and shows an actionable *Trust workspace* banner
+  `opencode.endpoint`, it checks Workspace Trust and shows an actionable _Trust workspace_ banner
   instead of silently degrading; trusting the folder reconnects without a reload. A new
-  *OpenCode: Open Chat in Editor* command (also in the chat toolbar, with a valid `$(link-external)`
-  codicon) opens a second, wider view of the same session, and *OpenCode: Ask OpenCode…*
+  _OpenCode: Open Chat in Editor_ command (also in the chat toolbar, with a valid `$(link-external)`
+  codicon) opens a second, wider view of the same session, and _OpenCode: Ask OpenCode…_
   (`Cmd/Ctrl+Alt+Shift+O`) sends a prompt from anywhere in VS Code. New approval cards now take
   keyboard focus, so `1` / `2` / `3` work immediately when a permission arrives.
 - **Fix:** opening a long session now lands at the very bottom of the conversation. The chat cards
@@ -71,7 +75,7 @@
 - **Architecture:** attachment handling (drops, native picker, inline staging, temp-file eviction and
   the `file:` URI allowlist) moved into `AttachmentService`, with unit tests for the path allowlist.
   The controller now delegates those commands; prompt building still uses `resolveAttachment`.
-- **Search:** *OpenCode: Search All Session Conversations* (Cmd/Ctrl+Alt+F) searches titles and
+- **Search:** _OpenCode: Search All Session Conversations_ (Cmd/Ctrl+Alt+F) searches titles and
   message bodies across the workspace, shows hits with snippets in a Quick Pick, opens the chosen
   session and scrolls to — and briefly highlights — the matching message. Inside the chat,
   `Cmd/Ctrl+F` now opens the message search and `Cmd/Ctrl+R` reloads the current session from the
@@ -82,11 +86,11 @@
   cache invalidation and the open-session exception.
 - **Onboarding:** the empty chat now shows a short keyboard hint and four clickable starter prompts
   (explain, find bugs, write tests, plan a refactor) that fill the composer and focus it.
-- **Editor integration:** *Explain / Find bugs / Write tests / Optimize Selection* commands in the
+- **Editor integration:** _Explain / Find bugs / Write tests / Optimize Selection_ commands in the
   editor context menu and palette prefill the chat with the intent and attach the current selection,
   so a one-click action no longer requires typing the instruction yourself.
-- **Turn actions:** a finished response now has a *Copy this response* button (plain text, including
-  tool text) and every prompt has a *Try again* button that drops the old reply without touching
+- **Turn actions:** a finished response now has a _Copy this response_ button (plain text, including
+  tool text) and every prompt has a _Try again_ button that drops the old reply without touching
   files and resends the original prompt with its files. Both reuse the existing revert boundary and
   ask for confirmation before regenerating, so a retry can never silently rewrite file changes.
 - **Architecture:** view bookkeeping moved out of the controller into `ChatViews` (one owner for the
@@ -97,7 +101,7 @@
   remaining 2,300-line controller into cohesive services.
 - **Notifications:** the status-bar item now mirrors the current turn (spinner while running,
   check/alert/stop when it settles), and a hidden chat can announce finished or failed turns with an
-  *Open chat* action. Failures notify by default; successes are opt-in via `opencode.notifyOnComplete`
+  _Open chat_ action. Failures notify by default; successes are opt-in via `opencode.notifyOnComplete`
   (`opencode.notifyOnFailure` turns failures off). Announcements are deduplicated per turn, so a
   resync replays nothing twice.
 - **CI:** coverage floors are now enforced (`npm run test:coverage` on Linux) and the production
@@ -144,7 +148,7 @@
   `content-visibility: auto` with a remembered intrinsic size, instead of paying for every turn on
   each streamed frame. `KNOWN_LIMITS.md` no longer claims DOM windowing, which the renderer never
   implemented; the full history is still attached to the DOM.
-- **Security:** a reply can no longer smuggle in a fake *Copy* button on a code block. DOMPurify
+- **Security:** a reply can no longer smuggle in a fake _Copy_ button on a code block. DOMPurify
   already strips `data-action` from model HTML, but kept `class`, so crafted
   `.code-block .code-header .code-copy` markup regained the handler and could put attacker-chosen
   text on the clipboard. Renderer-generated buttons now carry a random per-page marker that forged
@@ -158,7 +162,7 @@
   rebind the chat to its old endpoint. Server state notifications are now tagged with the server that
   emitted them and ignored once detached, and the async reconnect carries a staleness token.
 - **Robustness:** a transient failure while loading the model catalog is no longer reported as
-  *"No model provider is configured"*. It now shows a request error with a **Reconnect** action and
+  _"No model provider is configured"_. It now shows a request error with a **Reconnect** action and
   retries automatically a couple of times; only a successful but empty catalog shows the provider
   banner (with the sign-in action).
 - **Robustness:** a prompt the server refuses is no longer lost. Its text goes back into the composer
@@ -204,12 +208,12 @@
   view filtered to this extension (`opencode.openSettings`). **Restart Server…** asks for confirmation in a native modal
   before tearing down the server; VS Code already supplies the modal's Cancel button, so there is
   only one. The `opencode.reconnect` command is replaced by `opencode.restart`.
-- **Fork a turn**: every prompt now has a *Fork conversation from this turn* action next to the
+- **Fork a turn**: every prompt now has a _Fork conversation from this turn_ action next to the
   rollback button. It creates a new sibling session with the history up to that prompt, opens it and
   keeps the original conversation intact. Forks are child sessions on the server, so they are kept
   visible at the top of the session list instead of being filtered out with subagents.
 - **Queued messages panel**: prompts accepted by the server but not delivered yet now appear above
-  the composer. Each item can be promoted to *send now* (interrupting the current reply), moved back
+  the composer. Each item can be promoted to _send now_ (interrupting the current reply), moved back
   into the composer to edit its text, or removed from the queue. The list is re-read on connect,
   sync and on inbox events, so prompts queued from other clients are visible too. A queued prompt no
   longer shows up in the conversation before it is actually delivered — it lives only in the panel
@@ -222,13 +226,13 @@
   jump to the referenced line, and inline attachments with no path stay non-clickable.
 - Fixed **a running subagent's permission request becoming unreachable after a session switch**.
   OpenCode persists a running `subagent` tool without the child id, so the child was no longer
-  discovered on reload: its pending *ask* card never appeared and the turn could hang. Children are
+  discovered on reload: its pending _ask_ card never appeared and the turn could hang. Children are
   now rediscovered via the API's `parentID` filter, their pending permissions are restored in the
-  attention overlay, and the child id is linked back to the tool card so *Open subagent conversation*
+  attention overlay, and the child id is linked back to the tool card so _Open subagent conversation_
   works while it is still running. The link also survives a manual Sync and live tail resyncs, which
   rebuild the cards from history where the running tool has no id yet.
-- Fixed **past subagents disappearing after a session switch**, which left the *Open subagent
-  conversation* modal stuck on "Loading subagent…". The child history was fetched before the new
+- Fixed **past subagents disappearing after a session switch**, which left the _Open subagent
+  conversation_ modal stuck on "Loading subagent…". The child history was fetched before the new
   session was published, so every snapshot failed its own staleness check; snapshots are now loaded
   after the session is posted, when the webview is ready to receive them.
 - Known `/command` and `/skill` tokens are now **highlighted like links** in the composer, so you can
@@ -244,7 +248,7 @@
   now applies to children too — including requests already pending when the toggle is turned on —
   and hidden-chat notifications cover them.
 - A subagent waiting for user input is now **marked in the parent thread** with an amber pulsing dot,
-  a *Needs your input* badge and a "waiting for your input" activity line, instead of the misleading
+  a _Needs your input_ badge and a "waiting for your input" activity line, instead of the misleading
   running spinner. The actionable card remains only in the overlay.
 - Fixed **`@name` left in the composer after attaching a file from the `@` picker**. The file was
   already added as a chip and sent separately as an attachment, so selecting it now removes the
@@ -284,12 +288,12 @@
   the OS temp folder (cleared on reboot) with the right extension, so there is a real file to open;
   the prompt still sends their bytes inline to an external server. Clicking the chip does not select
   the file name. Chips whose content is only a `data:` URL are not clickable.
-- **Roll back to any turn**: every prompt now has a discreet *Roll back to this turn* button. Pick the
+- **Roll back to any turn**: every prompt now has a discreet _Roll back to this turn_ button. Pick the
   first, the last or any intermediate turn: OpenCode restores the files changed after it and removes
   that prompt, its reply and all later turns, while the prompt returns to the composer so you can edit
-  and resend it. A confirmation lets you keep the current files (*Messages only*).
+  and resend it. A confirmation lets you keep the current files (_Messages only_).
 - Tool cards for the **question** tool now show the question headers as their label (e.g.
-  *Tipo di modifica*) instead of falling back to an empty summary.
+  _Tipo di modifica_) instead of falling back to an empty summary.
 - Subagent cards now have an **Open subagent conversation** action that shows the child session in
   a read-only modal, rendered with the same conversation view as the main chat (steps, thoughts,
   tools and report). Breadcrumbs let you navigate nested subagents and return to the parent chat;
@@ -329,7 +333,7 @@
   and the file picker, so files outside the workspace are inlined there too.
 - Permission requests and questions now appear in a dedicated panel **docked above the composer**
   instead of inside tool cards. A request stays visible even when its step is folded, and when
-  several are pending the newest is shown first with a counter and *Previous*/*Next* navigation.
+  several are pending the newest is shown first with a counter and _Previous_/_Next_ navigation.
   The panel and its forms are styled only with VS Code theme variables (no custom colours or
   nested card borders). When a question tool bundles several questions in one form, each question
   is now asked on its own with **Next question**; the answers are collected and sent as one reply.
@@ -459,7 +463,7 @@
 
 - The `/` picker now includes OpenCode **commands** alongside skills and runs them through the
   server's command endpoint.
-- **Slash suggestions** are populated on a fresh window or right after *New session*, and refresh
+- **Slash suggestions** are populated on a fresh window or right after _New session_, and refresh
   when OpenCode registers or removes skills/commands while the chat is open. The highlighted row
   stays visible while navigating a long list with the keyboard.
 
@@ -491,7 +495,7 @@
   line, instead of being copied by hand. Numbers, version strings and IP addresses are no longer
   mistaken for paths.
 - Tooltips on icon buttons now appear instantly instead of after the native delay, and the
-  changed-files **Refresh** control is clearer (renamed *Refresh changed files*, new icon).
+  changed-files **Refresh** control is clearer (renamed _Refresh changed files_, new icon).
 - Added a runtime **contract smoke test**: on connect the extension checks the shape of the data it
   actually receives (server version, models, agents, skills, history, context window, diff) and a
   dismissible banner names the features that will not work with the connected server.
@@ -508,7 +512,7 @@
 ## 0.3.5 — 2026-11-18
 
 - The UI is now **English-only**: removed the Italian translation bundles. The VS Code localization layer is kept for future translations.
-- **Sessions** can be renamed from the session menu, and *Load more sessions* reaches older ones
+- **Sessions** can be renamed from the session menu, and _Load more sessions_ reaches older ones
   beyond the first page of 50.
 - The session list shows live status: a pulsing green dot for a running session and an amber
   **Needs your input** dot when it is paused on a question or permission request.
@@ -607,7 +611,7 @@
 - The chat view now lives in the **Secondary Side Bar** (right, like Copilot Chat) on VS Code 1.104+.
 - Activates on startup, reveals the chat on first run and adds an **OpenCode** status bar entry
   (the Secondary Side Bar is closed by default, so the view was easy to miss).
-- New command *OpenCode: Move Chat View…* (also in the view's `…` menu).
+- New command _OpenCode: Move Chat View…_ (also in the view's `…` menu).
 - Custom themed pickers for agent, model (searchable, grouped by provider), reasoning effort and
   workspace folder, replacing native `<select>`s; composer redesigned as a single input box.
 
@@ -620,7 +624,7 @@ Initial release.
   generic tool cards.
 - Sessions: list, create, switch, resume (persisted per folder), delete.
 - Model / reasoning-effort / agent selectors from the server catalog; stop button.
-- Active file + selection context chips, `@` file mentions, *Add Selection/File to Chat* commands.
+- Active file + selection context chips, `@` file mentions, _Add Selection/File to Chat_ commands.
 - Native diff editor for proposed and applied changes; changed-files panel.
 - Inline permission requests and question forms (never auto-approved); todo list from `todowrite`.
 - Actionable error banners, keyboard isolation from VS Code shortcuts, IME-safe input, ARIA labels.

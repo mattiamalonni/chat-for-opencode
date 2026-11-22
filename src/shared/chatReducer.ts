@@ -182,14 +182,16 @@ export function chatReducer(state: ChatState, action: ChatAction): ChatState {
       const target = candidates.find((c) => action.title && description(c.part) === action.title) ?? candidates[0];
       if (!target) return state;
       const messages = state.messages.map((m, mi) =>
-        m.kind !== "assistant" ? m : {
-          ...m,
-          parts: m.parts.map((p, pi) =>
-            mi * 1000 + pi === target.index && p.kind === "tool"
-              ? { ...p, metadata: { ...(p.metadata ?? {}), sessionID: action.sessionId } }
-              : p,
-          ),
-        },
+        m.kind !== "assistant"
+          ? m
+          : {
+              ...m,
+              parts: m.parts.map((p, pi) =>
+                mi * 1000 + pi === target.index && p.kind === "tool"
+                  ? { ...p, metadata: { ...(p.metadata ?? {}), sessionID: action.sessionId } }
+                  : p,
+              ),
+            },
       );
       return { ...state, messages };
     }
@@ -204,10 +206,17 @@ type DeltaTarget = "text" | "reasoning" | "tool-input";
 function deltaTarget(event: ServerEvent): string | undefined {
   let kind: DeltaTarget;
   switch (event.type) {
-    case "session.text.delta": kind = "text"; break;
-    case "session.reasoning.delta": kind = "reasoning"; break;
-    case "session.tool.input.delta": kind = "tool-input"; break;
-    default: return undefined;
+    case "session.text.delta":
+      kind = "text";
+      break;
+    case "session.reasoning.delta":
+      kind = "reasoning";
+      break;
+    case "session.tool.input.delta":
+      kind = "tool-input";
+      break;
+    default:
+      return undefined;
   }
   const d = event.data as Data | undefined;
   if (!d) return undefined;
@@ -340,7 +349,13 @@ function loadHistory(action: Extract<ChatAction, { type: "load" }>, previous: Ch
  */
 function appendDelta(state: ChatState, delta: SessionDelta): ChatState {
   const sorted = [...delta.messages].sort((a, b) => a.time.created - b.time.created || cmp(a.id, b.id));
-  if (sorted.length === 0 && delta.permissions === undefined && delta.forms === undefined && delta.usage === undefined && delta.busy === undefined) {
+  if (
+    sorted.length === 0 &&
+    delta.permissions === undefined &&
+    delta.forms === undefined &&
+    delta.usage === undefined &&
+    delta.busy === undefined
+  ) {
     return state;
   }
   const byId = new Map(state.messages.map((m) => [m.id, m]));
@@ -597,9 +612,7 @@ function fromHistory(m: SessionMessage): UiMessage | undefined {
         id: m.id,
         created: m.time.created,
         text: m.text,
-        files: (m.files ?? [])
-          .map((f) => ({ uri: f.uri ?? f.source?.uri ?? "", name: f.name }))
-          .filter((f) => f.uri || f.name),
+        files: (m.files ?? []).map((f) => ({ uri: f.uri ?? f.source?.uri ?? "", name: f.name })).filter((f) => f.uri || f.name),
       };
     case "assistant":
       return fromAssistant(m);
@@ -711,9 +724,7 @@ function asForm(raw: unknown): FormRequest | undefined {
     id,
     sessionID,
     title: str(d, "title"),
-    fields: Array.isArray(d.fields)
-      ? (d.fields as FormRequest["fields"]).filter((f) => !!f && typeof f.key === "string")
-      : [],
+    fields: Array.isArray(d.fields) ? (d.fields as FormRequest["fields"]).filter((f) => !!f && typeof f.key === "string") : [],
   };
 }
 
@@ -765,11 +776,7 @@ function deliverQueued(state: ChatState, id: string): ChatState {
   return { ...state, messages: insertSorted(state.messages, pending), queuedMessages };
 }
 
-function updatePart(
-  m: UiAssistantMessage,
-  key: string,
-  update: (p: UiPart | undefined) => UiPart,
-): UiAssistantMessage {
+function updatePart(m: UiAssistantMessage, key: string, update: (p: UiPart | undefined) => UiPart): UiAssistantMessage {
   const idx = m.parts.findIndex((p) => p.key === key);
   const parts = m.parts.slice();
   if (idx === -1) parts.push(update(undefined));
@@ -782,9 +789,7 @@ function textPart(kind: "text" | "reasoning", key: string, p: UiPart | undefined
 }
 
 function toolPart(id: string, p: UiPart | undefined): ToolPart {
-  return p && p.kind === "tool"
-    ? p
-    : { kind: "tool", key: `tool:${id}`, id, name: "tool", status: "streaming", inputText: "", output: [] };
+  return p && p.kind === "tool" ? p : { kind: "tool", key: `tool:${id}`, id, name: "tool", status: "streaming", inputText: "", output: [] };
 }
 
 /** Events that mutate an assistant part. Without a message id they would create a phantom card. */
@@ -839,9 +844,7 @@ export function applyEvent(state: ChatState, event: ServerEvent): ChatState {
         created,
         text: item.payload?.text ?? "",
         // Attachments delivered by the live stream carry their location in `source`, like history.
-        files: (item.payload?.files ?? [])
-          .map((f) => ({ uri: f.uri ?? f.source?.uri ?? "", name: f.name }))
-          .filter((f) => f.uri || f.name),
+        files: (item.payload?.files ?? []).map((f) => ({ uri: f.uri ?? f.source?.uri ?? "", name: f.name })).filter((f) => f.uri || f.name),
       };
       // A queued prompt is only accepted now, not sent: keep it in the inbox panel until the server
       // delivers it. Opening a turn here would also close the running one early, showing its summary
@@ -902,9 +905,10 @@ export function applyEvent(state: ChatState, event: ServerEvent): ChatState {
       const busy = status?.type === "busy";
       // Reattaching mid-turn can deliver `busy` without `execution.started`. Open a turn here too,
       // otherwise `step.ended` has nowhere to put tokens/cost and silently drops them.
-      const turns = busy && !state.turns.some((t) => t.ended === undefined)
-        ? [...state.turns, { id: `turn-${created}`, started: created }]
-        : state.turns;
+      const turns =
+        busy && !state.turns.some((t) => t.ended === undefined)
+          ? [...state.turns, { id: `turn-${created}`, started: created }]
+          : state.turns;
       return { ...state, busy, retry: undefined, turns };
     }
     case "session.step.started": {
@@ -943,9 +947,7 @@ export function applyEvent(state: ChatState, event: ServerEvent): ChatState {
       const kind = event.type === "session.text.ended" ? "text" : "reasoning";
       const key = `${kind}:${String(d.ordinal ?? 0)}`;
       const text = str(d, "text");
-      return updateAssistant(state, msgId, (m) =>
-        updatePart(m, key, (p) => ({ ...textPart(kind, key, p), text, done: true })),
-      );
+      return updateAssistant(state, msgId, (m) => updatePart(m, key, (p) => ({ ...textPart(kind, key, p), text, done: true })));
     }
     case "session.tool.input.started": {
       const id = str(d, "id");
@@ -965,9 +967,7 @@ export function applyEvent(state: ChatState, event: ServerEvent): ChatState {
     }
     case "session.tool.input.ended": {
       const id = str(d, "id");
-      return updateAssistant(state, msgId, (m) =>
-        updatePart(m, `tool:${id}`, (p) => ({ ...toolPart(id, p), inputText: str(d, "text") })),
-      );
+      return updateAssistant(state, msgId, (m) => updatePart(m, `tool:${id}`, (p) => ({ ...toolPart(id, p), inputText: str(d, "text") })));
     }
     case "session.tool.called": {
       const id = str(d, "id");
@@ -1029,19 +1029,22 @@ export function applyEvent(state: ChatState, event: ServerEvent): ChatState {
     }
     case "session.step.failed": {
       const error = d.error as StructuredError | undefined;
-      return withTouchedFiles(updateAssistant(state, msgId, (m) => ({
-        ...m,
-        done: true,
-        retry: undefined,
-        error: error && error.type !== "aborted" ? error : m.error,
-        parts: m.parts.map((p) =>
-          p.kind === "tool"
-            ? p.status === "streaming" || p.status === "running"
-              ? { ...p, status: "error", error: error ?? { type: "aborted", message: "" } }
-              : p
-            : { ...p, done: true },
-        ),
-      })), d.files);
+      return withTouchedFiles(
+        updateAssistant(state, msgId, (m) => ({
+          ...m,
+          done: true,
+          retry: undefined,
+          error: error && error.type !== "aborted" ? error : m.error,
+          parts: m.parts.map((p) =>
+            p.kind === "tool"
+              ? p.status === "streaming" || p.status === "running"
+                ? { ...p, status: "error", error: error ?? { type: "aborted", message: "" } }
+                : p
+              : { ...p, done: true },
+          ),
+        })),
+        d.files,
+      );
     }
     case "session.retry.scheduled": {
       const error = d.error as StructuredError | undefined;
@@ -1092,7 +1095,11 @@ export function applyEvent(state: ChatState, event: ServerEvent): ChatState {
       return { ...state, model };
     }
     case "session.compaction.ended":
-      return { ...state, contextTokens: undefined, messages: [...state.messages, notice(event.id ?? `cmp-${created}`, created, "info", "compaction", "")] };
+      return {
+        ...state,
+        contextTokens: undefined,
+        messages: [...state.messages, notice(event.id ?? `cmp-${created}`, created, "info", "compaction", "")],
+      };
     case "permission.asked": {
       const req = asPermission(d);
       if (!req || state.permissions.some((p) => p.id === req.id)) return state;
@@ -1262,7 +1269,8 @@ export function selectToolFiles(part: ToolPart): ChangedFile[] {
   const files = part.metadata?.files;
   if (!Array.isArray(files)) return [];
   return files.filter(
-    (f): f is ChangedFile => !!f && typeof f === "object" && typeof (f as ChangedFile).file === "string" && typeof (f as ChangedFile).patch === "string",
+    (f): f is ChangedFile =>
+      !!f && typeof f === "object" && typeof (f as ChangedFile).file === "string" && typeof (f as ChangedFile).patch === "string",
   );
 }
 
@@ -1292,4 +1300,3 @@ export function orphanForms(state: ChatState): FormRequest[] {
     return !id || !toolIds.has(id);
   });
 }
-

@@ -12,7 +12,7 @@
   --vscode-editor-background: #1f1f1f;
   --vscode-editorWidget-background: #202020;
   --vscode-widget-border: #313131;
-  --vscode-widget-shadow: rgba(0,0,0,0.36);
+  --vscode-widget-shadow: rgba(0, 0, 0, 0.36);
   --vscode-input-background: #313131;
   --vscode-input-foreground: #cccccc;
   --vscode-input-border: #3c3c3c;
@@ -32,7 +32,7 @@
   --vscode-textCodeBlock-background: #2b2b2b;
   --vscode-textBlockQuote-background: #2b2b2b;
   --vscode-textBlockQuote-border: #616161;
-  --vscode-toolbar-hoverBackground: rgba(90,93,94,0.31);
+  --vscode-toolbar-hoverBackground: rgba(90, 93, 94, 0.31);
   --vscode-list-hoverBackground: #2a2d2e;
   --vscode-list-inactiveSelectionBackground: #37373d;
   --vscode-list-activeSelectionBackground: #04395e;
@@ -57,4 +57,8 @@
   --vscode-progressBar-background: #0078d4;
   --vscode-chat-requestBackground: #262626;
 }
-:root { --vscode-quickInputList-focusBackground: #04395e; --vscode-quickInputList-focusForeground: #ffffff; --vscode-disabledForeground: rgba(204,204,204,0.5); }
+:root {
+  --vscode-quickInputList-focusBackground: #04395e;
+  --vscode-quickInputList-focusForeground: #ffffff;
+  --vscode-disabledForeground: rgba(204, 204, 204, 0.5);
+}

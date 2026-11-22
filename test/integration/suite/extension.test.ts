@@ -27,7 +27,10 @@ async function waitFor<T>(fn: () => T | undefined | false, what: string, timeout
 }
 
 function lastPosted<K extends HostMessage["type"]>(type: K, since = 0): Extract<HostMessage, { type: K }> | undefined {
-  return posted.slice(since).filter((m): m is Extract<HostMessage, { type: K }> => m.type === type).at(-1);
+  return posted
+    .slice(since)
+    .filter((m): m is Extract<HostMessage, { type: K }> => m.type === type)
+    .at(-1);
 }
 
 function eventPosted(type: string, since: number) {
@@ -72,7 +75,10 @@ describe("chat-for-opencode extension", () => {
   it("opens the OpenCode config file from the toolbar command", async () => {
     await vscode.commands.executeCommand("opencode.openConfigFile");
     const opened = await waitFor(
-      () => (vscode.window.activeTextEditor?.document.fileName.endsWith("opencode.json") ? vscode.window.activeTextEditor.document.fileName : undefined),
+      () =>
+        vscode.window.activeTextEditor?.document.fileName.endsWith("opencode.json")
+          ? vscode.window.activeTextEditor.document.fileName
+          : undefined,
       "config file opened",
     );
     try {
@@ -87,12 +93,24 @@ describe("chat-for-opencode extension", () => {
     await waitFor(() => controller.debugState.status === "connected", "connected");
     assert.match(controller.debugState.baseUrl ?? "", /^http:\/\/127\.0\.0\.1:\d+$/);
     const catalog = await waitFor(() => lastPosted("catalog"), "catalog");
-    assert.deepEqual(catalog.models.map((m) => m.id), ["mock-fast", "mock-smart"]);
-    assert.deepEqual(catalog.agents.map((a) => a.id), ["build", "plan"]);
+    assert.deepEqual(
+      catalog.models.map((m) => m.id),
+      ["mock-fast", "mock-smart"],
+    );
+    assert.deepEqual(
+      catalog.agents.map((a) => a.id),
+      ["build", "plan"],
+    );
     // The extension warms up the catalog with a throwaway session so `/` works before the first
     // prompt; that session must be deleted again, leaving no stray session in the list.
-    assert.deepEqual(catalog.skills.map((s) => s.id), ["mock-review"]);
-    assert.deepEqual(catalog.commands?.map((c) => c.name), ["mock-init"]);
+    assert.deepEqual(
+      catalog.skills.map((s) => s.id),
+      ["mock-review"],
+    );
+    assert.deepEqual(
+      catalog.commands?.map((c) => c.name),
+      ["mock-init"],
+    );
     assert.deepEqual(catalog.selectedModel, { id: "mock-fast", providerID: "mock" });
     const sessions = await waitFor(() => lastPosted("sessions"), "sessions");
     assert.deepEqual(sessions.items, []);
@@ -163,9 +181,17 @@ describe("chat-for-opencode extension", () => {
     await controller.pollNow();
     // Any delta since the mark counts, not just the newest one: a reconnect resync can post an
     // empty delta afterwards and hide the update that actually folded the external prompt in.
-    const delta = await waitFor(() => posted.slice(mark).find((m): m is Extract<HostMessage, { type: "sessionDelta" }> =>
-      m.type === "sessionDelta" && m.delta.messages.some((x) => x.type === "user" && x.text === "from the tui"),
-    ), "external prompt folded into the conversation", 12_000);
+    const delta = await waitFor(
+      () =>
+        posted
+          .slice(mark)
+          .find(
+            (m): m is Extract<HostMessage, { type: "sessionDelta" }> =>
+              m.type === "sessionDelta" && m.delta.messages.some((x) => x.type === "user" && x.text === "from the tui"),
+          ),
+      "external prompt folded into the conversation",
+      12_000,
+    );
     assert.ok(delta);
   });
 
@@ -236,7 +262,8 @@ describe("chat-for-opencode extension", () => {
   });
 
   it("opens an applied change in the native diff editor with the reconstructed original", async () => {
-    const patch = "Index: src/a.txt\n===================================================================\n--- src/a.txt\n+++ src/a.txt\n@@ -1,1 +1,1 @@\n-a\n+b\n";
+    const patch =
+      "Index: src/a.txt\n===================================================================\n--- src/a.txt\n+++ src/a.txt\n@@ -1,1 +1,1 @@\n-a\n+b\n";
     await controller.receive({ type: "openDiff", file: "src/a.txt", patch, applied: true });
     const tab = await waitFor(() => {
       const t = vscode.window.tabGroups.activeTabGroup.activeTab;
@@ -262,7 +289,10 @@ describe("chat-for-opencode extension", () => {
       const c = lastPosted("context", mark);
       return c && c.items.length === 2 && c;
     }, "context with file + selection");
-    assert.deepEqual(ctx.items.map((i) => i.kind), ["file", "selection"]);
+    assert.deepEqual(
+      ctx.items.map((i) => i.kind),
+      ["file", "selection"],
+    );
     await vscode.commands.executeCommand("workbench.action.closeAllEditors");
   });
 
@@ -315,10 +345,7 @@ describe("chat-for-opencode extension", () => {
     const uri = `${vscode.Uri.file(file).toString()}?start=2&end=2`;
     await controller.receive({ type: "openAttachment", uri });
     const editor = await waitFor(
-      () =>
-        vscode.window.visibleTextEditors.find(
-          (e) => normalizeFsPath(e.document.uri.fsPath) === normalizeFsPath(file),
-        ),
+      () => vscode.window.visibleTextEditors.find((e) => normalizeFsPath(e.document.uri.fsPath) === normalizeFsPath(file)),
       "project attachment editor",
     );
     assert.equal(editor.document.getText(), "export const one = 1;\nexport const two = 2;\n");
@@ -331,7 +358,10 @@ describe("chat-for-opencode extension", () => {
     writeFileSync(external, "not allowed");
     await controller.receive({ type: "openAttachment", uri: vscode.Uri.file(external).toString() });
     await new Promise((r) => setTimeout(r, 100));
-    assert.equal(vscode.window.visibleTextEditors.some((e) => e.document.uri.fsPath === external), false);
+    assert.equal(
+      vscode.window.visibleTextEditors.some((e) => e.document.uri.fsPath === external),
+      false,
+    );
   });
 
   it("does not follow a symlink that escapes the workspace", async function () {
@@ -515,7 +545,10 @@ describe("chat-for-opencode extension", () => {
       const restored = await waitFor(() => lastPosted("draftRestored", mark), "restored draft");
       assert.equal(restored.text, "do not lose me");
       assert.equal(restored.force, undefined);
-      assert.ok(states.some((s) => s.status === "running"), "the optimistic running state was published");
+      assert.ok(
+        states.some((s) => s.status === "running"),
+        "the optimistic running state was published",
+      );
       assert.equal(states.at(-1)?.status, "failed", "execution state is terminal, not stuck on running");
 
       await controller.receive({ type: "action", id: "retry" });
@@ -524,7 +557,10 @@ describe("chat-for-opencode extension", () => {
       subscription.dispose();
     }
     const cleared = await waitFor(
-      () => posted.slice(mark).find((m): m is Extract<HostMessage, { type: "draftRestored" }> => m.type === "draftRestored" && m.force === true),
+      () =>
+        posted
+          .slice(mark)
+          .find((m): m is Extract<HostMessage, { type: "draftRestored" }> => m.type === "draftRestored" && m.force === true),
       "composer cleared after retry",
     );
     assert.equal(cleared.text, "");
@@ -553,7 +589,8 @@ describe("chat-for-opencode extension", () => {
 
     await controller.receive({ type: "ready" });
     const failed = await waitFor(
-      () => posted.slice(mark).find((m): m is Extract<HostMessage, { type: "connection" }> => m.type === "connection" && m.status === "error"),
+      () =>
+        posted.slice(mark).find((m): m is Extract<HostMessage, { type: "connection" }> => m.type === "connection" && m.status === "error"),
       "catalog request error",
     );
     assert.equal(failed.error?.kind, "requestFailed");
@@ -562,7 +599,10 @@ describe("chat-for-opencode extension", () => {
 
     const from = posted.indexOf(failed) + 1;
     await waitFor(
-      () => posted.slice(from).find((m): m is Extract<HostMessage, { type: "connection" }> => m.type === "connection" && m.status === "connected"),
+      () =>
+        posted
+          .slice(from)
+          .find((m): m is Extract<HostMessage, { type: "connection" }> => m.type === "connection" && m.status === "connected"),
       "automatic catalog retry",
     );
   });
@@ -734,7 +774,10 @@ describe("chat-for-opencode extension", () => {
       const s = lastPosted("sessions", mark);
       return s?.items.some((i) => i.id === sid) ? s : undefined;
     }, "original session still listed");
-    assert.ok(sessions.items.some((i) => i.id === forked.sessionId), "fork listed too");
+    assert.ok(
+      sessions.items.some((i) => i.id === forked.sessionId),
+      "fork listed too",
+    );
   });
 
   it("publishes the server inbox and applies promote/cancel from the webview", async () => {
@@ -758,7 +801,10 @@ describe("chat-for-opencode extension", () => {
     const mark = posted.length;
     await controller.receive({ type: "sync" });
     const inbox = await waitFor(() => lastPosted("inbox", mark), "inbox after sync");
-    assert.deepEqual(inbox.items.map((i) => i.id), [item.id]);
+    assert.deepEqual(
+      inbox.items.map((i) => i.id),
+      [item.id],
+    );
 
     await controller.receive({ type: "setInboxDelivery", sessionId: sid, inboxId: item.id, delivery: "steer" });
     const promoted = await waitFor(() => {
@@ -830,11 +876,17 @@ describe("chat-for-opencode extension", () => {
     const session = await waitFor(() => lastPosted("session", mark), "session post for the switched chat", 10_000);
     assert.equal(session.session?.id, parent);
     const snapshot = await waitFor(
-      () => posted.slice(mark).find((m): m is Extract<HostMessage, { type: "subagent" }> => m.type === "subagent" && m.snapshot.sessionId === child),
+      () =>
+        posted
+          .slice(mark)
+          .find((m): m is Extract<HostMessage, { type: "subagent" }> => m.type === "subagent" && m.snapshot.sessionId === child),
       "running subagent rediscovered from the session list",
       10_000,
     );
-    assert.ok(snapshot.snapshot.permissions.some((p) => p.action === "edit"), "child's pending permission restored");
+    assert.ok(
+      snapshot.snapshot.permissions.some((p) => p.action === "edit"),
+      "child's pending permission restored",
+    );
     // The webview clears child state on a session switch, so the snapshot must come afterwards.
     const sessionIndex = posted.findIndex((m, i) => i >= mark && m.type === "session" && m.session?.id === parent);
     const snapshotIndex = posted.indexOf(snapshot);

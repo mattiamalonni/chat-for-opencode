@@ -115,7 +115,9 @@ describe.skipIf(!available)("real opencode serve", () => {
     const session = await client.createSession({ directory: dir, agent: "build", model });
     const mark = events.length;
     const uri = `${pathToFileURL(join(dir, "lines.txt")).toString()}?start=2&end=2`;
-    await client.prompt(session.id, "Reply with only the word contained in the attached file excerpt. No tools.", [{ uri, name: "lines.txt" }]);
+    await client.prompt(session.id, "Reply with only the word contained in the attached file excerpt. No tools.", [
+      { uri, name: "lines.txt" },
+    ]);
     const end = await waitForEvent(session.id, ["session.execution.succeeded", "session.execution.failed"], mark);
     expect(end.type).toBe("session.execution.succeeded");
     expect(text(fold(session.id, mark)).toLowerCase()).toContain("bravo");

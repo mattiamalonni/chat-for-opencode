@@ -36,20 +36,34 @@ const MAX_LIST = 2_000;
 
 type Check = (value: unknown) => boolean;
 
-const obj = (value: unknown): value is Record<string, unknown> =>
-  typeof value === "object" && value !== null && !Array.isArray(value);
+const obj = (value: unknown): value is Record<string, unknown> => typeof value === "object" && value !== null && !Array.isArray(value);
 
-const str = (max = MAX_ID): Check => (value) => typeof value === "string" && value.length <= max;
+const str =
+  (max = MAX_ID): Check =>
+  (value) =>
+    typeof value === "string" && value.length <= max;
 const bool: Check = (value) => typeof value === "boolean";
-const opt = (check: Check): Check => (value) => value === undefined || check(value);
-const arr = (check: Check, max = MAX_LIST): Check =>
-  (value) => Array.isArray(value) && value.length <= max && value.every(check);
-const rec = (check: Check): Check => (value) => obj(value) && Object.values(value).every(check);
-const shape = (fields: Record<string, Check>): Check =>
-  (value) => obj(value) && Object.entries(fields).every(([key, check]) => check(value[key]));
+const opt =
+  (check: Check): Check =>
+  (value) =>
+    value === undefined || check(value);
+const arr =
+  (check: Check, max = MAX_LIST): Check =>
+  (value) =>
+    Array.isArray(value) && value.length <= max && value.every(check);
+const rec =
+  (check: Check): Check =>
+  (value) =>
+    obj(value) && Object.values(value).every(check);
+const shape =
+  (fields: Record<string, Check>): Check =>
+  (value) =>
+    obj(value) && Object.entries(fields).every(([key, check]) => check(value[key]));
 
-const oneOf = <T extends string>(values: readonly T[]): Check =>
-  (value) => typeof value === "string" && (values as readonly string[]).includes(value);
+const oneOf =
+  <T extends string>(values: readonly T[]): Check =>
+  (value) =>
+    typeof value === "string" && (values as readonly string[]).includes(value);
 
 const isAttachment: Check = shape({
   uri: str(MAX_URI),

@@ -94,9 +94,7 @@ export type { SessionSearchResult } from "./sessionListService";
 let cachedStrings: Strings | undefined;
 /** Locale and the string table are static for a session: translate once, not on every error/reconnect. */
 export function translatedStrings(): Strings {
-  return (cachedStrings ??= Object.fromEntries(
-    Object.entries(STRINGS).map(([k, v]) => [k, vscode.l10n.t(v)]),
-  ) as Strings);
+  return (cachedStrings ??= Object.fromEntries(Object.entries(STRINGS).map(([k, v]) => [k, vscode.l10n.t(v)])) as Strings);
 }
 
 /** One server per workspace folder, created lazily. */
@@ -151,13 +149,28 @@ function toUiError(err: unknown, fallback: UiErrorKind = "requestFailed"): UiErr
   if (err instanceof ServerError) {
     switch (err.kind) {
       case "notInstalled":
-        return { kind: "notInstalled", message: s["error.notInstalled"], detail: err.detail ?? err.message, actions: ["install", "openSettings", "showLogs"] };
+        return {
+          kind: "notInstalled",
+          message: s["error.notInstalled"],
+          detail: err.detail ?? err.message,
+          actions: ["install", "openSettings", "showLogs"],
+        };
       case "unauthorized":
         return { kind: "unauthorized", message: s["error.unauthorized"], detail: err.message, actions: ["setPassword", "openSettings"] };
       case "unreachable":
-        return { kind: "connectionLost", message: s["error.connectionLost"], detail: err.detail ?? err.message, actions: ["reconnect", "openSettings", "showLogs"] };
+        return {
+          kind: "connectionLost",
+          message: s["error.connectionLost"],
+          detail: err.detail ?? err.message,
+          actions: ["reconnect", "openSettings", "showLogs"],
+        };
       default:
-        return { kind: "startFailed", message: s["error.startFailed"], detail: [err.message, err.detail].filter(Boolean).join("\n"), actions: ["reconnect", "showLogs", "openSettings"] };
+        return {
+          kind: "startFailed",
+          message: s["error.startFailed"],
+          detail: [err.message, err.detail].filter(Boolean).join("\n"),
+          actions: ["reconnect", "showLogs", "openSettings"],
+        };
     }
   }
   if (err instanceof ApiError && err.status === 401) {
@@ -237,7 +250,9 @@ export class ChatController implements vscode.Disposable {
       registry,
       log: (line) => output.info(line),
       getFolder: () => this.folder,
-      setFolder: (folder) => { this.folder = folder; },
+      setFolder: (folder) => {
+        this.folder = folder;
+      },
       pickFolder: () => this.pickFolder() as vscode.WorkspaceFolder,
       trustBlocked: () => this.trustBlocked(),
       postUntrusted: () => this.postUntrusted(),
@@ -248,7 +263,9 @@ export class ChatController implements vscode.Disposable {
         this.version = version;
         return this.useConnection(conn, stale);
       },
-      onStreamReconnect: () => { void this.resync(); },
+      onStreamReconnect: () => {
+        void this.resync();
+      },
       onDetached: () => {
         this.lastKnownMessage = undefined;
         this.stopLivePoll();
@@ -290,8 +307,17 @@ export class ChatController implements vscode.Disposable {
       },
     );
     this.context = new ContextTracker((items) => this.post({ type: "context", items }));
-    this.permissions = new PermissionService(ctx, () => this.folder, (line) => output.info(line));
-    this.catalog = new CatalogService(ctx, (msg) => this.post(msg), (line) => output.info(line), () => this.chatViews.size > 0);
+    this.permissions = new PermissionService(
+      ctx,
+      () => this.folder,
+      (line) => output.info(line),
+    );
+    this.catalog = new CatalogService(
+      ctx,
+      (msg) => this.post(msg),
+      (line) => output.info(line),
+      () => this.chatViews.size > 0,
+    );
     this.fileIcons = new FileIconThemeService({
       themeId: () => vscode.workspace.getConfiguration("workbench").get<string | null>("iconTheme") ?? undefined,
       variant: () => {
@@ -649,13 +675,22 @@ export class ChatController implements vscode.Disposable {
     if (catalogError !== undefined) {
       // An empty array from a *failed* request is not evidence that the user has no provider.
       const s = translatedStrings();
-      this.setStatus("error", { kind: "requestFailed", message: s["error.requestFailed"], detail: catalogError, actions: ["reconnect", "showLogs"] });
+      this.setStatus("error", {
+        kind: "requestFailed",
+        message: s["error.requestFailed"],
+        detail: catalogError,
+        actions: ["reconnect", "showLogs"],
+      });
       if (this.catalogRetries < 2 && !stale()) {
         this.catalogRetries++;
         const wait = jitteredDelay(500 * this.catalogRetries);
-        this.lifecycle.schedule("catalogRetry", () => {
-          if (!stale()) void this.loadAll();
-        }, wait);
+        this.lifecycle.schedule(
+          "catalogRetry",
+          () => {
+            if (!stale()) void this.loadAll();
+          },
+          wait,
+        );
       }
     } else {
       this.catalogRetries = 0;
@@ -945,16 +980,15 @@ export class ChatController implements vscode.Disposable {
       const key = `execution.terminal:${sid}:${this.execution.generation.current()}`;
       if (!this.isVisible && !this.announcedHiddenAttention.has(key)) {
         const cfg = vscode.workspace.getConfiguration("opencode", this.folder?.uri);
-        const enabled = status === "failed"
-          ? cfg.get<boolean>("notifyOnFailure", true)
-          : cfg.get<boolean>("notifyOnComplete", false);
+        const enabled = status === "failed" ? cfg.get<boolean>("notifyOnFailure", true) : cfg.get<boolean>("notifyOnComplete", false);
         if (enabled) {
           this.announcedHiddenAttention.add(key);
-          const message = status === "failed"
-            ? vscode.l10n.t("OpenCode turn failed.")
-            : status === "interrupted"
-              ? vscode.l10n.t("OpenCode turn was interrupted.")
-              : vscode.l10n.t("OpenCode turn finished.");
+          const message =
+            status === "failed"
+              ? vscode.l10n.t("OpenCode turn failed.")
+              : status === "interrupted"
+                ? vscode.l10n.t("OpenCode turn was interrupted.")
+                : vscode.l10n.t("OpenCode turn finished.");
           const open = vscode.l10n.t("Open chat");
           void vscode.window.showInformationMessage(message, open).then((choice) => {
             if (choice === open) void vscode.commands.executeCommand("opencode.chatView.focus");
@@ -970,9 +1004,8 @@ export class ChatController implements vscode.Disposable {
       if (files && files.length > 0) this.scheduleChanges();
     }
     if (sid && this.subagents.isTracked(sid) && (event.type === "permission.asked" || event.type === "form.created") && !this.isVisible) {
-      const id = event.type === "permission.asked"
-        ? (event.data as { id?: string }).id
-        : (event.data as { form?: { id?: string } }).form?.id;
+      const id =
+        event.type === "permission.asked" ? (event.data as { id?: string }).id : (event.data as { form?: { id?: string } }).form?.id;
       const key = `${event.type}:${id}`;
       // A resync re-posts the same pending request; announce it only once, not on every event.
       if (id && !this.announcedHiddenAttention.has(key)) {
@@ -1002,7 +1035,9 @@ export class ChatController implements vscode.Disposable {
   /** Drafts live in workspaceState so they survive a window reload (vscode.setState does not). */
   private postDrafts(): void {
     if (!this.folder) return;
-    const saved = this.ctx.workspaceState.get<{ drafts?: Record<string, string>; globalDraft?: string }>(DRAFTS_KEY(this.folder.uri.toString()));
+    const saved = this.ctx.workspaceState.get<{ drafts?: Record<string, string>; globalDraft?: string }>(
+      DRAFTS_KEY(this.folder.uri.toString()),
+    );
     this.post({ type: "drafts", drafts: saved?.drafts ?? {}, globalDraft: saved?.globalDraft });
   }
 
@@ -1088,10 +1123,14 @@ export class ChatController implements vscode.Disposable {
   private scheduleReconcile(): void {
     const sid = this.sessionId;
     const generation = this.execution.generation.current();
-    this.lifecycle.schedule("reconcile", () => {
-      if (!sid || sid !== this.sessionId || !this.execution.generation.is(generation)) return;
-      void this.reconcileSession(sid, generation);
-    }, 350);
+    this.lifecycle.schedule(
+      "reconcile",
+      () => {
+        if (!sid || sid !== this.sessionId || !this.execution.generation.is(generation)) return;
+        void this.reconcileSession(sid, generation);
+      },
+      350,
+    );
   }
 
   private async reconcileSession(sid: string, generation: number): Promise<void> {
@@ -1480,7 +1519,10 @@ export class ChatController implements vscode.Disposable {
 
   private noticeUnreadable(name: string, detail: string): void {
     const s = translatedStrings();
-    this.post({ type: "notice", error: { kind: "requestFailed", message: s["error.attachmentUnreadable"], detail, actions: ["showLogs"] } });
+    this.post({
+      type: "notice",
+      error: { kind: "requestFailed", message: s["error.attachmentUnreadable"], detail, actions: ["showLogs"] },
+    });
     this.output.warn(`[chat] skipped unreadable attachment ${name}: ${detail}`);
   }
 
@@ -1510,7 +1552,9 @@ export class ChatController implements vscode.Disposable {
     const endpoint = vscode.workspace.getConfiguration("opencode", this.folder?.uri).get<string>("endpoint", "").trim();
     if (!endpoint) {
       void vscode.window.showInformationMessage(
-        vscode.l10n.t("A password is only needed for an external server (setting opencode.endpoint). The managed server uses a random password automatically."),
+        vscode.l10n.t(
+          "A password is only needed for an external server (setting opencode.endpoint). The managed server uses a random password automatically.",
+        ),
       );
       return;
     }
@@ -1539,12 +1583,15 @@ export class ChatController implements vscode.Disposable {
         await vscode.env.openExternal(vscode.Uri.parse("https://opencode.ai/docs/"));
         return;
       case "login": {
-        const exe = vscode.workspace.getConfiguration("opencode", this.folder?.uri).get<string>("executablePath", "opencode").trim() || "opencode";
+        const exe =
+          vscode.workspace.getConfiguration("opencode", this.folder?.uri).get<string>("executablePath", "opencode").trim() || "opencode";
         let command: string;
         try {
           command = `${quoteForShell(exe)} auth login`;
         } catch (err) {
-          void vscode.window.showErrorMessage(vscode.l10n.t("Cannot run OpenCode sign-in: {0}", err instanceof Error ? err.message : String(err)));
+          void vscode.window.showErrorMessage(
+            vscode.l10n.t("Cannot run OpenCode sign-in: {0}", err instanceof Error ? err.message : String(err)),
+          );
           return;
         }
         const terminal = vscode.window.createTerminal({ name: "OpenCode auth", cwd: this.folder?.uri });
@@ -1851,7 +1898,10 @@ export class ChatController implements vscode.Disposable {
     this.execution.fail(sid, generation);
     this.post({ type: "draftRestored", sessionId: sid, text });
     const s = translatedStrings();
-    this.post({ type: "notice", error: { kind: "promptFailed", message: s["error.promptFailed"], detail, actions: ["retry", "reconnect", "showLogs"] } });
+    this.post({
+      type: "notice",
+      error: { kind: "promptFailed", message: s["error.promptFailed"], detail, actions: ["retry", "reconnect", "showLogs"] },
+    });
   }
 
   /** Returns false when the prompt never reached the server (no notice is posted for stale loads). */
@@ -1862,7 +1912,15 @@ export class ChatController implements vscode.Disposable {
     if (!this.client) await this.connect();
     const client = this.client;
     if (!client || !this.folder) {
-      await this.restoreFailedPrompt(text, attachments, context, delivery, this.sessionId, translatedStrings()["error.connectionLost"], generation);
+      await this.restoreFailedPrompt(
+        text,
+        attachments,
+        context,
+        delivery,
+        this.sessionId,
+        translatedStrings()["error.connectionLost"],
+        generation,
+      );
       return false;
     }
     const files: FileAttachment[] = [];
@@ -1958,7 +2016,12 @@ export class ChatController implements vscode.Disposable {
         const s = translatedStrings();
         this.post({
           type: "notice",
-          error: { kind: "requestFailed", message: s["error.requestFailed"], detail: err instanceof Error ? err.message : String(err), actions: ["showLogs"] },
+          error: {
+            kind: "requestFailed",
+            message: s["error.requestFailed"],
+            detail: err instanceof Error ? err.message : String(err),
+            actions: ["showLogs"],
+          },
         });
       }
     }
@@ -1976,7 +2039,7 @@ export class ChatController implements vscode.Disposable {
         : vscode.Uri.joinPath(this.folder.uri, file);
     // Rendered chat content is untrusted model output. Never open a path outside the workspace,
     // even through `../` or a symlink that lexically points inside but resolves elsewhere.
-    if (!isWithinDirectory(uri.fsPath, this.folder.uri.fsPath) || !await isWithinDirectoryReal(uri.fsPath, this.folder.uri.fsPath)) {
+    if (!isWithinDirectory(uri.fsPath, this.folder.uri.fsPath) || !(await isWithinDirectoryReal(uri.fsPath, this.folder.uri.fsPath))) {
       this.output.warn(`[chat] blocked an attempt to open a file outside the workspace: ${uri.fsPath}`);
       return;
     }

@@ -70,19 +70,14 @@ function commandTokenRanges(text: string, names: Set<string>): TokenRange[] {
 }
 
 type MentionItem =
-  | { kind: "file"; item: Attachment }
-  | { kind: "skill"; item: SkillSuggestion }
-  | { kind: "command"; item: CommandSuggestion };
+  { kind: "file"; item: Attachment } | { kind: "skill"; item: SkillSuggestion } | { kind: "command"; item: CommandSuggestion };
 type Mention = { query: string; start: number; kind: "file" | "skill" };
 
 /**
  * Compact dropdown for OpenCode's built-in `build` and `plan` agents. It is always shown: older
  * servers may not expose `/api/agent`, but both agents still exist and can be selected on a session.
  */
-function ModePicker(props: {
-  selectedAgent?: string;
-  onSelect: (agent: string) => void;
-}) {
+function ModePicker(props: { selectedAgent?: string; onSelect: (agent: string) => void }) {
   const t = useT();
   return (
     <Picker
@@ -206,15 +201,21 @@ export function Composer(props: ComposerProps) {
   const fileResults = mention?.kind === "file" && props.fileResults.query === mention.query ? props.fileResults.items : [];
   const mentionQuery = mention?.kind === "skill" ? mention.query.trim().toLowerCase() : "";
   const skillResults: SkillSuggestion[] = useMemo(
-    () => mention?.kind === "skill"
-      ? props.skills.filter((skill) => `${skill.id} ${skill.name} ${skill.description ?? ""}`.toLowerCase().includes(mentionQuery)).slice(0, 30)
-      : [],
+    () =>
+      mention?.kind === "skill"
+        ? props.skills
+            .filter((skill) => `${skill.id} ${skill.name} ${skill.description ?? ""}`.toLowerCase().includes(mentionQuery))
+            .slice(0, 30)
+        : [],
     [mention?.kind, mentionQuery, props.skills],
   );
   const commandResults: CommandSuggestion[] = useMemo(
-    () => mention?.kind === "skill"
-      ? props.commands.filter((command) => `${command.name} ${command.description ?? ""}`.toLowerCase().includes(mentionQuery)).slice(0, 30)
-      : [],
+    () =>
+      mention?.kind === "skill"
+        ? props.commands
+            .filter((command) => `${command.name} ${command.description ?? ""}`.toLowerCase().includes(mentionQuery))
+            .slice(0, 30)
+        : [],
     [mention?.kind, mentionQuery, props.commands],
   );
   const results: MentionItem[] = [
@@ -267,11 +268,12 @@ export function Composer(props: ComposerProps) {
     const caret = el?.selectionStart ?? text.length;
     // Skills and slash commands stay in the text as `@skill` / `/command`. Files are attached as
     // chips and sent separately as `files`, so drop the `@query` instead of leaving it in the input.
-    const label = item.kind === "command"
-      ? `/${item.item.name} `
-      : item.kind === "skill"
-        ? `${mention.kind === "skill" ? "/" : "@"}${item.item.id} `
-        : "";
+    const label =
+      item.kind === "command"
+        ? `/${item.item.name} `
+        : item.kind === "skill"
+          ? `${mention.kind === "skill" ? "/" : "@"}${item.item.id} `
+          : "";
     const next = text.slice(0, mention.start) + label + text.slice(caret);
     setText(next);
     setMention(undefined);
@@ -399,7 +401,11 @@ export function Composer(props: ComposerProps) {
     let cursor = 0;
     tokenRanges.forEach((r, i) => {
       nodes.push(<span key={`before-${i}`}>{text.slice(cursor, r.start)}</span>);
-      nodes.push(<span class="command-token" key={`token-${i}`}>{text.slice(r.start, r.end)}</span>);
+      nodes.push(
+        <span class="command-token" key={`token-${i}`}>
+          {text.slice(r.start, r.end)}
+        </span>,
+      );
       cursor = r.end;
     });
     nodes.push(<span key="rest">{text.slice(cursor)}</span>);
@@ -411,230 +417,235 @@ export function Composer(props: ComposerProps) {
   return (
     <div class="composer">
       <div class="composer-box">
-      {(props.context.length > 0 || props.attachments.length > 0) && (
-        <ul class="chips" aria-label={t("context")}>
-          {props.context.map((c) => {
-            const selected = props.selectedContext.has(c.id);
-            return (
-              <li class={`chip ${c.kind === "file" ? "implicit" : ""} ${selected ? "" : "off"}`} key={c.id} title={c.detail ?? c.uri}>
-                {c.kind === "selection" ? <IconSelection /> : <FileTypeIcon path={c.label} />}
-                <span>{c.label}</span>
-                <span class="chip-kind">{c.kind === "file" ? t("currentFile") : t("selection")}</span>
-                {selected ? (
+        {(props.context.length > 0 || props.attachments.length > 0) && (
+          <ul class="chips" aria-label={t("context")}>
+            {props.context.map((c) => {
+              const selected = props.selectedContext.has(c.id);
+              return (
+                <li class={`chip ${c.kind === "file" ? "implicit" : ""} ${selected ? "" : "off"}`} key={c.id} title={c.detail ?? c.uri}>
+                  {c.kind === "selection" ? <IconSelection /> : <FileTypeIcon path={c.label} />}
+                  <span>{c.label}</span>
+                  <span class="chip-kind">{c.kind === "file" ? t("currentFile") : t("selection")}</span>
+                  {selected ? (
+                    <button
+                      type="button"
+                      class="chip-remove tooltip-host"
+                      data-tooltip={`${t("removeContext")}: ${c.label}`}
+                      aria-label={`${t("removeContext")}: ${c.label}`}
+                      onClick={() => props.onToggleContext(c.id)}
+                    >
+                      <IconClose />
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      class="chip-add tooltip-host"
+                      aria-label={`${t("addContext")}: ${c.label}`}
+                      data-tooltip={`${t("addContext")}: ${c.label}`}
+                      onClick={() => props.onToggleContext(c.id)}
+                    >
+                      <IconPlus />
+                    </button>
+                  )}
+                </li>
+              );
+            })}
+            {props.attachments.map((a) => {
+              const openable = a.uri.startsWith("file:");
+              const open = () => {
+                if (openable) post({ type: "openAttachment", uri: a.uri });
+              };
+              return (
+                <li class="chip" key={a.uri} title={a.detail ?? a.uri}>
+                  <span
+                    class="chip-open"
+                    data-openable={openable ? "true" : "false"}
+                    role={openable ? "button" : undefined}
+                    tabIndex={openable ? 0 : undefined}
+                    aria-label={openable ? `${t("openFile")}: ${a.name}` : undefined}
+                    onClick={open}
+                    onKeyDown={(e) => {
+                      if (openable && e.key === "Enter") {
+                        e.preventDefault();
+                        open();
+                      }
+                    }}
+                  >
+                    {a.kind === "selection" ? <IconSelection /> : <FileTypeIcon path={a.name} />}
+                    <span>{a.kind === "selection" ? (a.detail ?? a.name) : a.name}</span>
+                  </span>
                   <button
                     type="button"
                     class="chip-remove tooltip-host"
-                    data-tooltip={`${t("removeContext")}: ${c.label}`}
-                    aria-label={`${t("removeContext")}: ${c.label}`}
-                    onClick={() => props.onToggleContext(c.id)}
+                    data-tooltip={`${t("removeContext")}: ${a.name}`}
+                    aria-label={`${t("removeContext")}: ${a.name}`}
+                    onClick={() => props.onRemoveAttachment(a.uri)}
                   >
                     <IconClose />
                   </button>
-                ) : (
-                  <button
-                    type="button"
-                    class="chip-add tooltip-host"
-                    aria-label={`${t("addContext")}: ${c.label}`}
-                    data-tooltip={`${t("addContext")}: ${c.label}`}
-                    onClick={() => props.onToggleContext(c.id)}
-                  >
-                    <IconPlus />
-                  </button>
-                )}
-              </li>
-            );
-          })}
-          {props.attachments.map((a) => {
-            const openable = a.uri.startsWith("file:");
-            const open = () => {
-              if (openable) post({ type: "openAttachment", uri: a.uri });
-            };
-            return (
-              <li class="chip" key={a.uri} title={a.detail ?? a.uri}>
-                <span
-                  class="chip-open"
-                  data-openable={openable ? "true" : "false"}
-                  role={openable ? "button" : undefined}
-                  tabIndex={openable ? 0 : undefined}
-                  aria-label={openable ? `${t("openFile")}: ${a.name}` : undefined}
-                  onClick={open}
-                  onKeyDown={(e) => {
-                    if (openable && e.key === "Enter") {
-                      e.preventDefault();
-                      open();
-                    }
-                  }}
-                >
-                  {a.kind === "selection" ? <IconSelection /> : <FileTypeIcon path={a.name} />}
-                  <span>{a.kind === "selection" ? (a.detail ?? a.name) : a.name}</span>
-                </span>
-                <button
-                  type="button"
-                  class="chip-remove tooltip-host"
-                  data-tooltip={`${t("removeContext")}: ${a.name}`}
-                  aria-label={`${t("removeContext")}: ${a.name}`}
-                  onClick={() => props.onRemoveAttachment(a.uri)}
-                >
-                  <IconClose />
-                </button>
-              </li>
-            );
-          })}
-        </ul>
-      )}
-      <div class="input-wrap">
-        <div class="input-highlight" ref={highlightRef} aria-hidden="true">{highlightNodes()}</div>
-        {mention && (
-          <ul class="mention-popup" role="listbox" id={listId} aria-label={t("suggestions")}>
-            {results.length === 0 ? (
-              <li class="mention-empty" role="option" aria-disabled="true" aria-selected="false">
-                {t("noFilesOrSkillsFound")}
-              </li>
-            ) : (
-              results.map((r, i) => (
-                <li
-                  key={r.kind === "file" ? r.item.uri : r.kind === "command" ? `command:${r.item.name}` : `skill:${r.item.id}`}
-                  id={`mention-${i}`}
-                  role="option"
-                  aria-selected={i === active}
-                  class={i === active ? "active" : ""}
-                  onMouseDown={(e) => {
-                    e.preventDefault();
-                    pick(r);
-                  }}
-                >
-                  {r.kind === "file" ? <FileTypeIcon path={r.item.detail ?? r.item.name} /> : <IconTool />}
-                  <span class="mention-name">{r.item.name}</span>
-                  <span class="mention-path">
-                    {r.kind === "file"
-                      ? r.item.detail
-                      : r.kind === "command"
-                        ? `/${r.item.name}${r.item.description ? ` · ${r.item.description}` : ""}`
-                        : `@${r.item.id}${r.item.description ? ` · ${r.item.description}` : ""}`}
-                  </span>
                 </li>
-              ))
-            )}
+              );
+            })}
           </ul>
         )}
-        <textarea
-          ref={ref}
-          class="input"
-          rows={2}
-          value={text}
-          placeholder={t("inputPlaceholder")}
-          aria-label={t("inputLabel")}
-          aria-autocomplete="list"
-          aria-expanded={!!mention}
-          aria-controls={mention ? listId : undefined}
-          aria-activedescendant={mention && results.length > 0 ? `mention-${activeIndex}` : undefined}
-          disabled={props.disabled}
-          onFocus={cancelBlurClose}
-          onScroll={() => {
-            const hl = highlightRef.current;
-            if (hl && ref.current) hl.scrollTop = ref.current.scrollTop;
-          }}
-          onInput={(e) => {
-            cancelBlurClose();
-            const el = e.currentTarget as HTMLTextAreaElement;
-            setText(el.value);
-            // Editing a recalled prompt starts a fresh draft; a new Up begins from the latest one.
-            if (historyIndex !== null) setHistoryIndex(null);
-            if (!composing.current) updateMention(el.value, el.selectionStart);
-          }}
-          onKeyDown={onKeyDown}
-          onKeyUp={(e) => {
-            isolateKeys(e);
-            const el = e.currentTarget as HTMLTextAreaElement;
-            if ((e.key === "ArrowLeft" || e.key === "ArrowRight" || e.key === "Home" || e.key === "End") && !composing.current) {
+        <div class="input-wrap">
+          <div class="input-highlight" ref={highlightRef} aria-hidden="true">
+            {highlightNodes()}
+          </div>
+          {mention && (
+            <ul class="mention-popup" role="listbox" id={listId} aria-label={t("suggestions")}>
+              {results.length === 0 ? (
+                <li class="mention-empty" role="option" aria-disabled="true" aria-selected="false">
+                  {t("noFilesOrSkillsFound")}
+                </li>
+              ) : (
+                results.map((r, i) => (
+                  <li
+                    key={r.kind === "file" ? r.item.uri : r.kind === "command" ? `command:${r.item.name}` : `skill:${r.item.id}`}
+                    id={`mention-${i}`}
+                    role="option"
+                    aria-selected={i === active}
+                    class={i === active ? "active" : ""}
+                    onMouseDown={(e) => {
+                      e.preventDefault();
+                      pick(r);
+                    }}
+                  >
+                    {r.kind === "file" ? <FileTypeIcon path={r.item.detail ?? r.item.name} /> : <IconTool />}
+                    <span class="mention-name">{r.item.name}</span>
+                    <span class="mention-path">
+                      {r.kind === "file"
+                        ? r.item.detail
+                        : r.kind === "command"
+                          ? `/${r.item.name}${r.item.description ? ` · ${r.item.description}` : ""}`
+                          : `@${r.item.id}${r.item.description ? ` · ${r.item.description}` : ""}`}
+                    </span>
+                  </li>
+                ))
+              )}
+            </ul>
+          )}
+          <textarea
+            ref={ref}
+            class="input"
+            rows={2}
+            value={text}
+            placeholder={t("inputPlaceholder")}
+            aria-label={t("inputLabel")}
+            aria-autocomplete="list"
+            aria-expanded={!!mention}
+            aria-controls={mention ? listId : undefined}
+            aria-activedescendant={mention && results.length > 0 ? `mention-${activeIndex}` : undefined}
+            disabled={props.disabled}
+            onFocus={cancelBlurClose}
+            onScroll={() => {
+              const hl = highlightRef.current;
+              if (hl && ref.current) hl.scrollTop = ref.current.scrollTop;
+            }}
+            onInput={(e) => {
+              cancelBlurClose();
+              const el = e.currentTarget as HTMLTextAreaElement;
+              setText(el.value);
+              // Editing a recalled prompt starts a fresh draft; a new Up begins from the latest one.
+              if (historyIndex !== null) setHistoryIndex(null);
+              if (!composing.current) updateMention(el.value, el.selectionStart);
+            }}
+            onKeyDown={onKeyDown}
+            onKeyUp={(e) => {
+              isolateKeys(e);
+              const el = e.currentTarget as HTMLTextAreaElement;
+              if ((e.key === "ArrowLeft" || e.key === "ArrowRight" || e.key === "Home" || e.key === "End") && !composing.current) {
+                updateMention(el.value, el.selectionStart);
+              }
+            }}
+            onPaste={(e) => {
+              const clipboard = e.clipboardData as DragData | null;
+              if (!clipboard || !hasFiles(clipboard)) return; // Plain text keeps the browser's default paste.
+              e.preventDefault();
+              void collectPastedFiles(clipboard, readFileAsBase64).then((files) => {
+                if (files.length > 0) post({ type: "dropFiles", files });
+              });
+            }}
+            onCompositionStart={() => (composing.current = true)}
+            onCompositionEnd={(e) => {
+              // WebKit fires compositionend before the Enter keydown that confirms the IME candidate.
+              setTimeout(() => (composing.current = false), 0);
+              const el = e.currentTarget as HTMLTextAreaElement;
               updateMention(el.value, el.selectionStart);
-            }
-          }}
-          onPaste={(e) => {
-            const clipboard = e.clipboardData as DragData | null;
-            if (!clipboard || !hasFiles(clipboard)) return; // Plain text keeps the browser's default paste.
-            e.preventDefault();
-            void collectPastedFiles(clipboard, readFileAsBase64).then((files) => {
-              if (files.length > 0) post({ type: "dropFiles", files });
-            });
-          }}
-          onCompositionStart={() => (composing.current = true)}
-          onCompositionEnd={(e) => {
-            // WebKit fires compositionend before the Enter keydown that confirms the IME candidate.
-            setTimeout(() => (composing.current = false), 0);
-            const el = e.currentTarget as HTMLTextAreaElement;
-            updateMention(el.value, el.selectionStart);
-          }}
-          onBlur={() => {
-            cancelBlurClose();
-            blurTimer.current = setTimeout(() => {
-              blurTimer.current = undefined;
-              // A mention opened after a quick focus round-trip must not be closed by this timer.
-              if (document.activeElement !== ref.current) setMention(undefined);
-            }, 150);
-          }}
-        />
-      </div>
-      <div class="toolbar">
-        <ModePicker
-          selectedAgent={props.selectedAgent}
-          onSelect={(agent) => post({ type: "setAgent", agent })}
-        />
-        {hasExtraAgents && (
-          <Picker
-            label={t("agent")}
-            class="agent"
-            items={props.agents.map((a) => ({ value: a.id, label: a.name, description: a.description }))}
-            value={props.selectedAgent}
-            onChange={(agent) => post({ type: "setAgent", agent })}
-          />
-        )}
-        {props.models.length > 0 && (
-          <Picker
-            label={t("model")}
-            class="model"
-            searchable={props.models.length > 6}
-            searchPlaceholder={t("searchModels")}
-            emptyText={t("noModelsFound")}
-            placeholder={t("model")}
-            items={modelItems}
-            value={modelKey}
-            onChange={(key) => {
-              const [providerID, ...rest] = key.split("/");
-              post({ type: "setModel", model: { providerID, id: rest.join("/") } });
+            }}
+            onBlur={() => {
+              cancelBlurClose();
+              blurTimer.current = setTimeout(() => {
+                blurTimer.current = undefined;
+                // A mention opened after a quick focus round-trip must not be closed by this timer.
+                if (document.activeElement !== ref.current) setMention(undefined);
+              }, 150);
             }}
           />
-        )}
-        {currentModel && currentModel.variants.length > 0 && (
-          <Picker
-            label={t("variant")}
-            class="variant"
-            items={[{ value: "", label: t("defaultVariant") }, ...currentModel.variants.map((v) => ({ value: v.id, label: v.id }))]}
-            value={props.selectedModel?.variant ?? ""}
-            onChange={(v) =>
-              post({
-                type: "setModel",
-                model: { providerID: currentModel.providerID, id: currentModel.id, ...(v ? { variant: v } : {}) },
-              })
-            }
-          />
-        )}
-        {props.busy && (
-          <button type="button" class="send stop tooltip-host tooltip-above" data-tooltip={`${t("stop")} (Esc)`} aria-label={t("stop")} onClick={() => post({ type: "abort" })}>
-            <IconStop />
+        </div>
+        <div class="toolbar">
+          <ModePicker selectedAgent={props.selectedAgent} onSelect={(agent) => post({ type: "setAgent", agent })} />
+          {hasExtraAgents && (
+            <Picker
+              label={t("agent")}
+              class="agent"
+              items={props.agents.map((a) => ({ value: a.id, label: a.name, description: a.description }))}
+              value={props.selectedAgent}
+              onChange={(agent) => post({ type: "setAgent", agent })}
+            />
+          )}
+          {props.models.length > 0 && (
+            <Picker
+              label={t("model")}
+              class="model"
+              searchable={props.models.length > 6}
+              searchPlaceholder={t("searchModels")}
+              emptyText={t("noModelsFound")}
+              placeholder={t("model")}
+              items={modelItems}
+              value={modelKey}
+              onChange={(key) => {
+                const [providerID, ...rest] = key.split("/");
+                post({ type: "setModel", model: { providerID, id: rest.join("/") } });
+              }}
+            />
+          )}
+          {currentModel && currentModel.variants.length > 0 && (
+            <Picker
+              label={t("variant")}
+              class="variant"
+              items={[{ value: "", label: t("defaultVariant") }, ...currentModel.variants.map((v) => ({ value: v.id, label: v.id }))]}
+              value={props.selectedModel?.variant ?? ""}
+              onChange={(v) =>
+                post({
+                  type: "setModel",
+                  model: { providerID: currentModel.providerID, id: currentModel.id, ...(v ? { variant: v } : {}) },
+                })
+              }
+            />
+          )}
+          {props.busy && (
+            <button
+              type="button"
+              class="send stop tooltip-host tooltip-above"
+              data-tooltip={`${t("stop")} (Esc)`}
+              aria-label={t("stop")}
+              onClick={() => post({ type: "abort" })}
+            >
+              <IconStop />
+            </button>
+          )}
+          <button
+            type="button"
+            class={`send ${props.busy ? "steer" : ""} tooltip-host tooltip-above`}
+            data-tooltip={props.busy ? t("steerTooltip") : `${t("send")} (Enter)`}
+            aria-label={props.busy ? t("steerTooltip") : t("send")}
+            disabled={props.disabled || !text.trim()}
+            onClick={() => (props.busy ? send("steer") : send())}
+          >
+            <IconSend />
           </button>
-        )}
-        <button
-          type="button"
-          class={`send ${props.busy ? "steer" : ""} tooltip-host tooltip-above`}
-          data-tooltip={props.busy ? t("steerTooltip") : `${t("send")} (Enter)`}
-          aria-label={props.busy ? t("steerTooltip") : t("send")}
-          disabled={props.disabled || !text.trim()}
-          onClick={() => (props.busy ? send("steer") : send())}
-        >
-          <IconSend />
-        </button>
-      </div>
+        </div>
       </div>
       <div class="drop-hint">
         <button
@@ -671,7 +682,12 @@ export function Composer(props: ComposerProps) {
             <IconCompact />
           </button>
           {currentModel?.limit?.context ? (
-            <ContextMeter used={props.contextTokens} estimated={props.contextEstimated} limit={currentModel.limit.context} cost={props.cost} />
+            <ContextMeter
+              used={props.contextTokens}
+              estimated={props.contextEstimated}
+              limit={currentModel.limit.context}
+              cost={props.cost}
+            />
           ) : props.cost !== undefined ? (
             <span
               class="context-meter cost-only tooltip-host tooltip-above"

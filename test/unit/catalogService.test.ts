@@ -13,7 +13,12 @@ function service(posted: HostMessage[]) {
   const ctx = { globalState } as unknown as vscode.ExtensionContext;
   return {
     globalState,
-    catalog: new CatalogService(ctx, (m) => posted.push(m), () => {}, () => true),
+    catalog: new CatalogService(
+      ctx,
+      (m) => posted.push(m),
+      () => {},
+      () => true,
+    ),
   };
 }
 

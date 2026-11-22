@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { attachmentFileName, evictOldestAttachments, extensionForMime, isWithinDirectory, normalizePathKey } from "../../src/chat/tempAttachments";
+import {
+  attachmentFileName,
+  evictOldestAttachments,
+  extensionForMime,
+  isWithinDirectory,
+  normalizePathKey,
+} from "../../src/chat/tempAttachments";
 
 describe("tempAttachments", () => {
   it("derives a safe file name and keeps an existing extension", () => {

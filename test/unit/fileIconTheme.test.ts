@@ -118,9 +118,18 @@ describe("file icon theme resolver", () => {
     });
     const service = new FileIconThemeService(env);
     const result = await service.resolve(["src/special.ts", "src/other.ts", "yarn.lock", "README"]);
-    expect(result.icons["src/special.ts"]).toEqual({ kind: "svg", src: `data:image/svg+xml;base64,${Buffer.from("<svg>special</svg>").toString("base64")}` });
-    expect(result.icons["src/other.ts"]).toEqual({ kind: "svg", src: `data:image/svg+xml;base64,${Buffer.from("<svg>ts</svg>").toString("base64")}` });
-    expect(result.icons["yarn.lock"]).toEqual({ kind: "svg", src: `data:image/svg+xml;base64,${Buffer.from("<svg>lock</svg>").toString("base64")}` });
+    expect(result.icons["src/special.ts"]).toEqual({
+      kind: "svg",
+      src: `data:image/svg+xml;base64,${Buffer.from("<svg>special</svg>").toString("base64")}`,
+    });
+    expect(result.icons["src/other.ts"]).toEqual({
+      kind: "svg",
+      src: `data:image/svg+xml;base64,${Buffer.from("<svg>ts</svg>").toString("base64")}`,
+    });
+    expect(result.icons["yarn.lock"]).toEqual({
+      kind: "svg",
+      src: `data:image/svg+xml;base64,${Buffer.from("<svg>lock</svg>").toString("base64")}`,
+    });
     expect(result.icons["README"]).toEqual({ kind: "svg", src: `data:image/svg+xml;base64,${Buffer.from("<svg/>").toString("base64")}` });
   });
 

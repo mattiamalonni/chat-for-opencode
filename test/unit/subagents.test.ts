@@ -163,9 +163,7 @@ describe("subagents", () => {
       (e) => e.type === "session.inbox.enqueued" && (e.data as { item?: { type?: string } }).item?.type === "synthetic",
     );
     expect(noticeIndex).toBeGreaterThan(0);
-    const parsed = parseSubagentReport(
-      (bg[noticeIndex].data as { item: { payload: { text: string } } }).item.payload.text,
-    );
+    const parsed = parseSubagentReport((bg[noticeIndex].data as { item: { payload: { text: string } } }).item.payload.text);
     expect(parsed?.sessionId).toBe(bgChild);
     expect(parsed?.state).toBe("completed");
     expect(parsed?.report).toContain("# Project Structure Analysis Report");

@@ -189,7 +189,10 @@ export class FileIndex implements vscode.Disposable {
   private readonly storage: vscode.Memento | undefined;
   private readonly cacheKey: string | undefined;
 
-  constructor(private readonly folder: vscode.WorkspaceFolder, storage?: vscode.Memento) {
+  constructor(
+    private readonly folder: vscode.WorkspaceFolder,
+    storage?: vscode.Memento,
+  ) {
     const config = vscode.workspace.getConfiguration(undefined, folder.uri);
     this.exclude = excludeGlobs(config.get("search.exclude"), config.get("files.exclude"));
     this.storage = storage;
@@ -222,7 +225,11 @@ export class FileIndex implements vscode.Disposable {
           const cached = deserializeFileCache(this.storage.get(this.cacheKey), this.exclude);
           if (cached) return cached.map((value) => vscode.Uri.parse(value));
         }
-        const files = await vscode.workspace.findFiles(new vscode.RelativePattern(this.folder, "**/*"), asGlobPattern(this.exclude), 20_000);
+        const files = await vscode.workspace.findFiles(
+          new vscode.RelativePattern(this.folder, "**/*"),
+          asGlobPattern(this.exclude),
+          20_000,
+        );
         // An invalidation may have happened while `findFiles` was in flight: never persist a
         // snapshot that is already known to be stale.
         if (generation === this.generation && this.storage && this.cacheKey) {

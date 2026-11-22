@@ -1,0 +1,5 @@
+# Keep line endings stable across the three OSes in CI.
+* text=auto eol=lf
+
+*.png binary
+*.vsix binary

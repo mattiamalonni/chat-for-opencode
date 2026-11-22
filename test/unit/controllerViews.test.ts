@@ -24,7 +24,13 @@ function fakeView(kind: "sidebar" | "panel") {
   const listeners = new Map<string, Array<() => void>>();
   const on = (name: string) => (cb: () => void) => {
     listeners.set(name, [...(listeners.get(name) ?? []), cb]);
-    return { dispose: () => listeners.set(name, (listeners.get(name) ?? []).filter((f) => f !== cb)) };
+    return {
+      dispose: () =>
+        listeners.set(
+          name,
+          (listeners.get(name) ?? []).filter((f) => f !== cb),
+        ),
+    };
   };
   return {
     webview: {
@@ -83,7 +89,9 @@ describe("chat view handle lifecycle", () => {
 
   it("only calls the shown callback while the view is still attached and visible", () => {
     let calls = 0;
-    const views = makeViews(() => { calls++; });
+    const views = makeViews(() => {
+      calls++;
+    });
     const view = fakeView("sidebar");
     views.attachView(view as never);
     view.fire("shown");
@@ -125,11 +133,7 @@ describe("loadSession staleness", () => {
       startLivePoll: vi.fn(),
     };
     const proto = ChatController.prototype as unknown as Record<string, (...args: unknown[]) => unknown>;
-    const fn = proto["loadSession"] as unknown as (
-      this: typeof c,
-      info: unknown,
-      stale: () => boolean,
-    ) => Promise<void>;
+    const fn = proto["loadSession"] as unknown as (this: typeof c, info: unknown, stale: () => boolean) => Promise<void>;
 
     await fn.call(c, { id: "new", time: {} }, () => stale);
 

@@ -17,16 +17,7 @@ const fileSvg = (glyph?: string): FunctionComponent<P> =>
     return (
       <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true" focusable="false" {...props}>
         <path d="M3 1h6.4L13 4.6V15H3zm1 1v12h8V5H9V2zm6 .4V4h1.6z" />
-        {glyph && (
-          <path
-            d={glyph}
-            fill="none"
-            stroke="currentColor"
-            stroke-width="1.1"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-          />
-        )}
+        {glyph && <path d={glyph} fill="none" stroke="currentColor" stroke-width="1.1" stroke-linecap="round" stroke-linejoin="round" />}
       </svg>
     );
   };
@@ -40,7 +31,9 @@ export const IconFile = svg("M3 1h6.4L13 4.6V15H3zm1 1v12h8V5H9V2zm6 .4V4h1.6z")
 export const IconFolder = svg("M1.5 2.5h4.2l1.6 1.8h7.2V14H1.5zm1 1.3v8.9h10.5V5.6H6.5z");
 export const IconFileCode = fileSvg("M6.3 8 4.8 9.5 6.3 11M9.7 8l1.5 1.5-1.5 1.5M8.6 7.4 7.4 12.6");
 export const IconFileMarkdown = fileSvg("M4.9 12V8.6l1.3 1.8 1.3-1.8V12M9.5 12V8.6M9.5 10.2l2-1.6M9.5 10.2l2 1.8");
-export const IconFileJson = fileSvg("M6.5 8.2c-.8 0-1.2.4-1.2 1.1v.7c0 .6-.2.9-.6 1.1.4.2.6.5.6 1.1v.7c0 .7.4 1.1 1.2 1.1M9.5 8.2c.8 0 1.2.4 1.2 1.1v.7c0 .6.2.9.6 1.1-.4.2-.6.5-.6 1.1v.7c0 .7-.4 1.1-1.2 1.1");
+export const IconFileJson = fileSvg(
+  "M6.5 8.2c-.8 0-1.2.4-1.2 1.1v.7c0 .6-.2.9-.6 1.1.4.2.6.5.6 1.1v.7c0 .7.4 1.1 1.2 1.1M9.5 8.2c.8 0 1.2.4 1.2 1.1v.7c0 .6.2.9.6 1.1-.4.2-.6.5-.6 1.1v.7c0 .7-.4 1.1-1.2 1.1",
+);
 export const IconFileImage = fileSvg("M4.9 12.4l2-2.3 1.3 1.4 1-1.1 1.2 2M6.3 8.4a.7.7 0 1 0 0 1.4.7.7 0 0 0 0-1.4");
 export const IconFileStyle = fileSvg("M6.5 8 5.9 12M9.1 8l-.6 4M5.2 9.3h6M5 10.8h6");
 export const IconFileShell = fileSvg("M5.2 8.6 6.8 10l-1.6 1.4M7.9 11.6H11");
@@ -53,7 +46,17 @@ export const IconCheck = svg("M6.3 11.3 2.7 7.7l-1 1 4.6 4.6 8-8-1-1z");
 export const IconCopy = svg("M5.5 2h7.5v9h-1.5V3.5H5.5zm-3 3h7.5v9H2.5zm1.5 1.5v6h4.5v-6z");
 export const IconShield = function IconShield(props: P) {
   return (
-    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.2" aria-hidden="true" focusable="false" {...props}>
+    <svg
+      width="16"
+      height="16"
+      viewBox="0 0 16 16"
+      fill="none"
+      stroke="currentColor"
+      stroke-width="1.2"
+      aria-hidden="true"
+      focusable="false"
+      {...props}
+    >
       <path d="M8 1.6 3 3.4v4c0 3.1 2 5.7 5 6.9 3-1.2 5-3.8 5-6.9v-4z" stroke-linejoin="round" />
       <path d="m5.9 7.9 1.4 1.4 2.8-3" stroke-linecap="round" stroke-linejoin="round" />
     </svg>
@@ -68,7 +71,19 @@ export const IconDiff = svg("M4 1h1v3h3v1H5v3H4V5H1V4h3zm-3 10h7v1H1zm9-10 5 5-5
 /** Two circular arrows: reads as "refresh" even at 16px. */
 export const IconRefresh = function IconRefresh(props: P) {
   return (
-    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false" {...props}>
+    <svg
+      width="16"
+      height="16"
+      viewBox="0 0 16 16"
+      fill="none"
+      stroke="currentColor"
+      stroke-width="1.5"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+      aria-hidden="true"
+      focusable="false"
+      {...props}
+    >
       <path d="M13.3 7.3a5.4 5.4 0 0 0-10.3-1.3M2.7 3.3v2.7h2.7" />
       <path d="M2.7 8.7a5.4 5.4 0 0 0 10.3 1.3M13.3 12.7V10h-2.7" />
     </svg>
@@ -78,7 +93,19 @@ export const IconCompact = svg("M2 3h4v1H3v3H2zm12 0v4h-1V4h-3V3zm0 10h-4v-1h3V9
 /** Counterclockwise arrow: "take this turn back" / rollback. */
 export const IconRevert = function IconRevert(props: P) {
   return (
-    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false" {...props}>
+    <svg
+      width="16"
+      height="16"
+      viewBox="0 0 16 16"
+      fill="none"
+      stroke="currentColor"
+      stroke-width="1.5"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+      aria-hidden="true"
+      focusable="false"
+      {...props}
+    >
       <path d="M2.7 6.7h6.4a3.4 3.4 0 0 1 0 6.8H7" />
       <path d="M5.4 4 2.7 6.7 5.4 9.4" />
     </svg>
@@ -87,12 +114,26 @@ export const IconRevert = function IconRevert(props: P) {
 /** Branching arrows: "split a new session off this turn". */
 export const IconFork = function IconFork(props: P) {
   return (
-    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false" {...props}>
+    <svg
+      width="16"
+      height="16"
+      viewBox="0 0 16 16"
+      fill="none"
+      stroke="currentColor"
+      stroke-width="1.5"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+      aria-hidden="true"
+      focusable="false"
+      {...props}
+    >
       <path d="M8 13V8M8 8 3.5 3.5M8 8l4.5-4.5" />
       <path d="M2.5 5.4V2.5h2.9M13.5 5.4V2.5h-2.9" />
     </svg>
   );
 };
-export const IconHistory = svg("M8 1a7 7 0 1 1-6.6 9.3l1.3-.4A5.6 5.6 0 1 0 3 5H5v1.3H1V2.3h1.3v1.5A7 7 0 0 1 8 1zm-.7 3h1.4v3.7l2.8 1.7-.7 1.2-3.5-2.1z");
+export const IconHistory = svg(
+  "M8 1a7 7 0 1 1-6.6 9.3l1.3-.4A5.6 5.6 0 1 0 3 5H5v1.3H1V2.3h1.3v1.5A7 7 0 0 1 8 1zm-.7 3h1.4v3.7l2.8 1.7-.7 1.2-3.5-2.1z",
+);
 /** Diagonal arrow out of a box: "open this in its own view". */
 export const IconOpen = svg("M9 2h5v5h-1.5V4.6L9.2 8 8.1 6.9l3.4-3.4H9zM3 3h4.5v1.5H4.5v8h8V8.5H14V13H3z");

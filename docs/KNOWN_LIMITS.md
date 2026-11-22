@@ -46,11 +46,26 @@ test or a manual probe actually ran.
   removing trust takes effect in VS Code after a window reload. The extension re-checks `isTrusted`
   on every connect/reconnect, so no process is started or secret read in the meantime.
 
+## Architectural debt
+
+- **`ChatController` is still the orchestrator for many concerns.** Connection supervision, session
+  listing, subagents, attachments, diffs, permissions and turn state already live in dedicated
+  services (`ConnectionSupervisor`, `SessionListService`, `SubagentTracker`, `AttachmentService`,
+  `DiffService`, `PermissionService`, `ExecutionStateService`). The remaining large blocks are
+  `onEvent()` (event routing) and `handle()` (webview command dispatch). Splitting those into an
+  event router and a command handler is the next refactor: it needs a dependency-injection boundary
+  wide enough that unit tests can exercise them without a VS Code host. Turn state itself is no
+  longer duplicated — see `src/chat/executionState.ts`.
+- **The webview's `busy` flag is still derived from server events**, not from the host's execution
+  status. This is deliberate: it renders per-step history and queued turns. The two state machines
+  can still disagree briefly during a resync, but the host-side one (status bar, composer unlocking)
+  has a single owner and generation guard.
+
 ## Behaviour limits
 
 - **Queued prompts cannot be edited in place.** OpenCode's inbox `PATCH` only accepts `delivery`
-  (`queue` or `steer`): the panel can promote an item to *send now*, but *Put back in composer to
-  edit* cancels the item and restores its text in the composer instead of patching it. The API also
+  (`queue` or `steer`): the panel can promote an item to _send now_, but _Put back in composer to
+  edit_ cancels the item and restores its text in the composer instead of patching it. The API also
   exposes no reordering, and non-`user` items (subagent reports, compaction, moves) have no edit
   action.
 - **Subagent conversations are read-only in the modal.** It renders the child's steps, thoughts,
@@ -68,7 +83,7 @@ test or a manual probe actually ran.
   client that started the turn.
 
 - **VS Code 1.99–1.103** cannot contribute to the Secondary Side Bar: the chat opens in the Explorer
-  there (move it with *OpenCode: Move Chat View…*). VS Code remembers a view moved by the user, so
+  there (move it with _OpenCode: Move Chat View…_). VS Code remembers a view moved by the user, so
   users upgrading from such a setup keep their custom location.
 - **Open Chat in Editor** is a second view of the same session, not an independent conversation:
   switching sessions in either view switches both. The tab is restored after a window reload via a
@@ -77,7 +92,7 @@ test or a manual probe actually ran.
 - **Orphaned servers if VS Code crashes.** Managed servers are stopped on `deactivate` and a PID
   record (no password) is written on start, keyed by folder **and** owning extension-host PID, so
   two windows on the same folder keep separate records. On the next activation, records whose owner
-  is gone are reaped only if the HTTP probe matches the recorded PID *and* the OS confirms that PID
+  is gone are reaped only if the HTTP probe matches the recorded PID _and_ the OS confirms that PID
   listens on the recorded port (`lsof` on macOS/Linux, `netstat` on Windows). If that tool is
   unavailable, the reap is skipped on purpose: leaking a server is safer than killing a process
   whose PID was reused. A server that dies before the record is written is still not covered.
@@ -122,7 +137,7 @@ test or a manual probe actually ran.
   raw wire types are generated from the snapshot with `npm run gen:types`, but neither can adapt to
   changed endpoints or event semantics. Supporting a new version means extending the adapter.
 - **Context meter is an estimate** from the last step's token usage (see API_NOTES). It is unknown
-  until the first reply and after a compaction, it is computed against the *selected* model (the
+  until the first reply and after a compaction, it is computed against the _selected_ model (the
   one the next message will use), and whether reasoning tokens stay in context depends on the
   provider.
 - **Todo list** requires OpenCode's experimental flag `experimental.todo` (tool `todowrite`);

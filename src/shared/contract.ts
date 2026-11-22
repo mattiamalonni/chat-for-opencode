@@ -4,15 +4,7 @@
  * These checks run on the data the extension already fetches (no extra requests) and name the
  * capabilities whose response shape does not match what the webview expects.
  */
-export type CapabilityId =
-  | "serverInfo"
-  | "models"
-  | "agents"
-  | "skills"
-  | "history"
-  | "contextMeter"
-  | "changedFiles"
-  | "inbox";
+export type CapabilityId = "serverInfo" | "models" | "agents" | "skills" | "history" | "contextMeter" | "changedFiles" | "inbox";
 
 export interface ContractFailure {
   id: CapabilityId;
@@ -36,8 +28,7 @@ export interface ContractObservations {
 
 const isObj = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null && !Array.isArray(v);
 
-const hasIds = (v: unknown): boolean =>
-  Array.isArray(v) && v.every((item) => isObj(item) && typeof item.id === "string");
+const hasIds = (v: unknown): boolean => Array.isArray(v) && v.every((item) => isObj(item) && typeof item.id === "string");
 
 export const emptyContract: ContractReport = { checked: 0, failures: [] };
 
@@ -65,7 +56,8 @@ export function checkContract(o: ContractObservations): ContractReport {
   check("skills", hasIds(o.skills), "GET /api/skill did not return skills with an id.");
   check(
     "history",
-    Array.isArray(o.messages) && o.messages.every((m) => isObj(m) && typeof m.type === "string" && isObj(m.time) && typeof m.time.created === "number"),
+    Array.isArray(o.messages) &&
+      o.messages.every((m) => isObj(m) && typeof m.type === "string" && isObj(m.time) && typeof m.time.created === "number"),
     "GET /api/session/{id}/message did not return messages with type and time.created.",
   );
 
@@ -88,7 +80,9 @@ export function checkContract(o: ContractObservations): ContractReport {
   if (Array.isArray(o.inbox) && o.inbox.length > 0) {
     check(
       "inbox",
-      o.inbox.every((i) => isObj(i) && typeof i.id === "string" && typeof i.type === "string" && (i.delivery === "queue" || i.delivery === "steer")),
+      o.inbox.every(
+        (i) => isObj(i) && typeof i.id === "string" && typeof i.type === "string" && (i.delivery === "queue" || i.delivery === "steer"),
+      ),
       "GET /api/session/{id}/inbox did not return items with id, type and delivery.",
     );
   }

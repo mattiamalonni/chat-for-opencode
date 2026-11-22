@@ -109,8 +109,7 @@ export interface FolderInfo {
 
 /** A file icon resolved from the user's active VS Code file icon theme. */
 export type FileIconData =
-  | { kind: "svg"; src: string }
-  | { kind: "font"; fontFamily: string; glyph: string; color?: string; size?: string };
+  { kind: "svg"; src: string } | { kind: "font"; fontFamily: string; glyph: string; color?: string; size?: string };
 
 /** A glyph font used by one or more resolved icons, ready to be registered in the webview. */
 export interface FileIconFont {

@@ -52,7 +52,7 @@ export function setPersisted(state: PersistedState): void {
 /** Read the composer draft for a session; without a session id, use the legacy global field. */
 export function getDraft(sessionId?: string): string {
   const state = getPersisted();
-  return sessionId === undefined ? state.draft ?? "" : state.drafts?.[sessionId] ?? "";
+  return sessionId === undefined ? (state.draft ?? "") : (state.drafts?.[sessionId] ?? "");
 }
 
 /** Persist a composer draft for a session, preserving the rest of the saved state. */

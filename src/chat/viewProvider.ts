@@ -26,7 +26,14 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
   }
 }
 
-export function renderHtml(opts: { cspSource: string; scriptUri: string; styleUri: string; lang: string; title: string; e2e?: boolean }): string {
+export function renderHtml(opts: {
+  cspSource: string;
+  scriptUri: string;
+  styleUri: string;
+  lang: string;
+  title: string;
+  e2e?: boolean;
+}): string {
   const nonce = randomBytes(16).toString("base64");
   const csp = [
     "default-src 'none'",

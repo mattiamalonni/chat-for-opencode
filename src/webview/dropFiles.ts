@@ -69,7 +69,12 @@ function nameFrom(value: string): string {
   } catch {
     // A malformed URI is still usable as a display name.
   }
-  return value.replace(/[\\/]+$/, "").split(/[\\/]/).pop() ?? value;
+  return (
+    value
+      .replace(/[\\/]+$/, "")
+      .split(/[\\/]/)
+      .pop() ?? value
+  );
 }
 
 function normalizePath(value: string): string {

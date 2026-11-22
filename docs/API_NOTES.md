@@ -13,14 +13,14 @@ https://opencode.ai/docs/attachments/, https://opencode.ai/docs/build/client/.
 
 ## Process
 
-| Fact | How verified |
-| --- | --- |
-| `opencode serve --hostname 127.0.0.1 --port 0` picks a free port | run |
-| First stdout line: `server listening on http://127.0.0.1:60859` | run |
-| Without `OPENCODE_PASSWORD`, prints a second line `server password <random>` | run |
-| `OPENCODE_PASSWORD=<pw>` env sets a fixed password (no password line printed) | run + docs |
-| The working directory of the process becomes the default *location* (`GET /api/location`) | run |
-| Spec at `GET /openapi.json`; HTML docs at `GET /doc` | run |
+| Fact                                                                                      | How verified |
+| ----------------------------------------------------------------------------------------- | ------------ |
+| `opencode serve --hostname 127.0.0.1 --port 0` picks a free port                          | run          |
+| First stdout line: `server listening on http://127.0.0.1:60859`                           | run          |
+| Without `OPENCODE_PASSWORD`, prints a second line `server password <random>`              | run          |
+| `OPENCODE_PASSWORD=<pw>` env sets a fixed password (no password line printed)             | run + docs   |
+| The working directory of the process becomes the default _location_ (`GET /api/location`) | run          |
+| Spec at `GET /openapi.json`; HTML docs at `GET /doc`                                      | run          |
 
 ## Auth
 
@@ -40,43 +40,43 @@ Omitted → the server's cwd. Sessions carry their own `location` (set at creati
 
 ## Endpoints used by the extension
 
-| Purpose | Request | Response (verified shape) |
-| --- | --- | --- |
-| Health / info | `GET /api/info` | `{version,pid,hostname,urls[],paths,capabilities}` (no envelope) |
-| List sessions | `GET /api/session?directory=<abs>&limit=50&order=desc&parentID=null` | `{data: Session.Info[], cursor}` |
-| Create session | `POST /api/session` `{agent?, model?: {id,providerID,variant?}, location?: {directory}, permissions?}` | `{data: Session.Info}` |
-| Get session | `GET /api/session/{id}` | `{data: Session.Info}` (has `title` once generated) |
-| Delete session | `DELETE /api/session/{id}` | 204 |
-| Rename | `PATCH /api/session/{id}` `{title}` | |
-| Messages | `GET /api/session/{id}/message?order=asc&limit=N&cursor=` | `{data: Message[], cursor:{previous,next}}` — default order is **desc** |
-| Prompt | `POST /api/session/{id}/prompt` `{text, files?: [{uri,name?,description?}], delivery?: "steer"\|"queue"}` | `{data: {id: msg_…, type:"user", payload, delivery}}` — returns immediately, output arrives via SSE |
-| Interrupt | `POST /api/session/{id}/interrupt` | `{interrupted: true}` |
-| Compact | `POST /api/session/{id}/compact` `{id?, delivery?}` | `{data: Session.Inbox.Compaction}` — steered at the next step boundary (schema only, 2.2.7) |
-| Wait idle | `POST /api/experimental/session/{id}/wait` | 204; a staged revert is rejected while the agent loop runs |
-| Stage revert | `POST /api/session/{id}/revert/stage` `{messageID, files?}` | `{data: Session.Revert}` — restores files changed *after* that message unless `files:false`; 409 while busy |
-| Commit revert | `POST /api/session/{id}/revert/commit` | 204; deletes the boundary message **and every later one** (also triggered by the next prompt/compact) |
-| Clear revert | `DELETE /api/session/{id}/revert` | 204; discards the staged boundary and puts its files back |
-| Switch agent | `POST /api/session/{id}/agent` `{agent}` | |
-| Switch model | `POST /api/session/{id}/model` `{model:{id,providerID,variant?}}` | |
-| Pending permissions | `GET /api/session/{id}/permission` | `{data: PermissionRequest[]}` |
-| Reply permission | `POST /api/session/{id}/permission/{perID}/reply` `{decision: "once"\|"always"\|"reject", message?}` | 204 |
-| Pending forms | `GET /api/session/{id}/form` | `{data: Form[]}` |
-| Reply form | `POST /api/session/{id}/form/{frmID}/reply` `{answer: Record<key, string\|number\|boolean\|string[]>}` | 204 |
-| Cancel form | `DELETE /api/session/{id}/form/{frmID}` | _(schema only)_ |
-| Session diff | `GET /api/session/{id}/diff` | `{data: [{file, patch, additions, deletions, status: added\|deleted\|modified}]}` — empty when not a git repo |
-| Models | `GET /api/model?types=chat` | `{data: Model[]}`; Model has `id, modelID, providerID, name, enabled, variants[{id}]` |
-| Default model | `GET /api/model/default` | `{data: Model \| null}` |
-| Agents | `GET /api/agent` | `{data: [{id,name,description?,mode: primary\|subagent\|all, hidden}]}`; seen: build, plan (primary, visible), general, explore (subagent), compaction/title/summary (hidden) |
-| Skills | `GET /api/skill` | `{location, data: [{id,name,description?,autoinvoke?,path,content}]}`; uses the server's default location and includes global skill sources |
-| Commands | `GET /api/command` | `{location, data: [{name,description?}]}` (2.2.7: `init`, `review`, `goal`) |
-| Run command | `POST /api/session/{id}/command` `{name,text,files?,...}` | 204; `text` is the argument string after the command name |
+| Purpose             | Request                                                                                                   | Response (verified shape)                                                                                                                                                     |
+| ------------------- | --------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Health / info       | `GET /api/info`                                                                                           | `{version,pid,hostname,urls[],paths,capabilities}` (no envelope)                                                                                                              |
+| List sessions       | `GET /api/session?directory=<abs>&limit=50&order=desc&parentID=null`                                      | `{data: Session.Info[], cursor}`                                                                                                                                              |
+| Create session      | `POST /api/session` `{agent?, model?: {id,providerID,variant?}, location?: {directory}, permissions?}`    | `{data: Session.Info}`                                                                                                                                                        |
+| Get session         | `GET /api/session/{id}`                                                                                   | `{data: Session.Info}` (has `title` once generated)                                                                                                                           |
+| Delete session      | `DELETE /api/session/{id}`                                                                                | 204                                                                                                                                                                           |
+| Rename              | `PATCH /api/session/{id}` `{title}`                                                                       |                                                                                                                                                                               |
+| Messages            | `GET /api/session/{id}/message?order=asc&limit=N&cursor=`                                                 | `{data: Message[], cursor:{previous,next}}` — default order is **desc**                                                                                                       |
+| Prompt              | `POST /api/session/{id}/prompt` `{text, files?: [{uri,name?,description?}], delivery?: "steer"\|"queue"}` | `{data: {id: msg_…, type:"user", payload, delivery}}` — returns immediately, output arrives via SSE                                                                           |
+| Interrupt           | `POST /api/session/{id}/interrupt`                                                                        | `{interrupted: true}`                                                                                                                                                         |
+| Compact             | `POST /api/session/{id}/compact` `{id?, delivery?}`                                                       | `{data: Session.Inbox.Compaction}` — steered at the next step boundary (schema only, 2.2.7)                                                                                   |
+| Wait idle           | `POST /api/experimental/session/{id}/wait`                                                                | 204; a staged revert is rejected while the agent loop runs                                                                                                                    |
+| Stage revert        | `POST /api/session/{id}/revert/stage` `{messageID, files?}`                                               | `{data: Session.Revert}` — restores files changed _after_ that message unless `files:false`; 409 while busy                                                                   |
+| Commit revert       | `POST /api/session/{id}/revert/commit`                                                                    | 204; deletes the boundary message **and every later one** (also triggered by the next prompt/compact)                                                                         |
+| Clear revert        | `DELETE /api/session/{id}/revert`                                                                         | 204; discards the staged boundary and puts its files back                                                                                                                     |
+| Switch agent        | `POST /api/session/{id}/agent` `{agent}`                                                                  |                                                                                                                                                                               |
+| Switch model        | `POST /api/session/{id}/model` `{model:{id,providerID,variant?}}`                                         |                                                                                                                                                                               |
+| Pending permissions | `GET /api/session/{id}/permission`                                                                        | `{data: PermissionRequest[]}`                                                                                                                                                 |
+| Reply permission    | `POST /api/session/{id}/permission/{perID}/reply` `{decision: "once"\|"always"\|"reject", message?}`      | 204                                                                                                                                                                           |
+| Pending forms       | `GET /api/session/{id}/form`                                                                              | `{data: Form[]}`                                                                                                                                                              |
+| Reply form          | `POST /api/session/{id}/form/{frmID}/reply` `{answer: Record<key, string\|number\|boolean\|string[]>}`    | 204                                                                                                                                                                           |
+| Cancel form         | `DELETE /api/session/{id}/form/{frmID}`                                                                   | _(schema only)_                                                                                                                                                               |
+| Session diff        | `GET /api/session/{id}/diff`                                                                              | `{data: [{file, patch, additions, deletions, status: added\|deleted\|modified}]}` — empty when not a git repo                                                                 |
+| Models              | `GET /api/model?types=chat`                                                                               | `{data: Model[]}`; Model has `id, modelID, providerID, name, enabled, variants[{id}]`                                                                                         |
+| Default model       | `GET /api/model/default`                                                                                  | `{data: Model \| null}`                                                                                                                                                       |
+| Agents              | `GET /api/agent`                                                                                          | `{data: [{id,name,description?,mode: primary\|subagent\|all, hidden}]}`; seen: build, plan (primary, visible), general, explore (subagent), compaction/title/summary (hidden) |
+| Skills              | `GET /api/skill`                                                                                          | `{location, data: [{id,name,description?,autoinvoke?,path,content}]}`; uses the server's default location and includes global skill sources                                   |
+| Commands            | `GET /api/command`                                                                                        | `{location, data: [{name,description?}]}` (2.2.7: `init`, `review`, `goal`)                                                                                                   |
+| Run command         | `POST /api/session/{id}/command` `{name,text,files?,...}`                                                 | 204; `text` is the argument string after the command name                                                                                                                     |
 
 > Both catalogs are **empty until a session exists**: plugin-provided skills and commands are
 > registered when a session is created (verified 2.2.7: 0 → 25 skills / 0 → 3 commands on the same
 > server after `POST /api/session`). Refetch after creating/loading a session and republish.
-| Providers | `GET /api/provider` | `{data: [{id, name, activation}]}` |
-| File search | `GET /api/fs/find?query=<q>&type=file&limit=N` | `{data:[{path (relative), type}]}` |
-| Events | `GET /api/event` | SSE, see below |
+> | Providers | `GET /api/provider` | `{data: [{id, name, activation}]}` |
+> | File search | `GET /api/fs/find?query=<q>&type=file&limit=N` | `{data:[{path (relative), type}]}` |
+> | Events | `GET /api/event` | SSE, see below |
 
 ## Attachments _(docs + prompt shape verified)_
 
@@ -88,11 +88,11 @@ outside the workspace, or any local file when the server runs elsewhere (`openco
 
 ## SSE `/api/event`
 
-* Only `data: <json>` lines (no `event:` field), blank line separator.
-* Keep-alive comment lines `: heartbeat`.
-* First event: `{"id":"evt_…","type":"server.connected","data":{}}`.
-* Global stream (all locations). Each event: `{id, created, type, location?, data, durable?}`.
-* Live only, no replay → on reconnect, refetch state.
+- Only `data: <json>` lines (no `event:` field), blank line separator.
+- Keep-alive comment lines `: heartbeat`.
+- First event: `{"id":"evt_…","type":"server.connected","data":{}}`.
+- Global stream (all locations). Each event: `{id, created, type, location?, data, durable?}`.
+- Live only, no replay → on reconnect, refetch state.
 
 ### Event sequence for one prompt (verified)
 
@@ -186,7 +186,7 @@ drops child requests while the modal is open to avoid duplicate cards and DOM id
 on, requests for tracked children are granted on arrival with `replyPermission(..., "once")`, the
 already-pending ones are swept when the toggle is turned on, and stale requests in a fresh child
 snapshot are filtered the same way. The inline subagent card switches to an amber `waiting` dot plus
-a *Needs your input* badge while a child is blocked, but never renders a second actionable card.
+a _Needs your input_ badge while a child is blocked, but never renders a second actionable card.
 
 ### Message history shape (`GET …/message`)
 
@@ -209,9 +209,15 @@ Default config auto-allows edits/shell in a git project (no `permission.asked` w
 session creation produced:
 
 ```json
-{"id":"per_…","sessionID":"ses_…","action":"edit","resources":["a.txt"],"save":["*"],
- "metadata":{"files":[{"file":"a.txt","patch":"Index: a.txt\n…","status":"modified","additions":1,"deletions":1}]},
- "source":{"type":"tool","messageID":"msg_…","id":"chatcmpl-tool-…"}}
+{
+  "id": "per_…",
+  "sessionID": "ses_…",
+  "action": "edit",
+  "resources": ["a.txt"],
+  "save": ["*"],
+  "metadata": { "files": [{ "file": "a.txt", "patch": "Index: a.txt\n…", "status": "modified", "additions": 1, "deletions": 1 }] },
+  "source": { "type": "tool", "messageID": "msg_…", "id": "chatcmpl-tool-…" }
+}
 ```
 
 Replying `once` → `permission.replied`, the tool then completes. Edit tool results carry
@@ -237,6 +243,7 @@ session.tool.success {"content":[{"type":"text","text":"Todos updated: 0/3 compl
 
 The extension derives the todo panel from the latest `todowrite` call in the session
 (status values seen: `pending`, `in_progress`; `completed` assumed from the summary text).
+
 - The real server rejects `order` combined with `cursor` on `GET …/message` (400 "Cursor cannot be combined with order"); only send `order` on the first page. Found by the e2e test.
 
 ## Context window and usage (verified 2.2.7)

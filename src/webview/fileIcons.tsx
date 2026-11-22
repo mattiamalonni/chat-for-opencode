@@ -18,8 +18,32 @@ import { onHostMessage, post } from "./vscode";
 type Icon = FunctionComponent<SVGAttributes<SVGSVGElement>>;
 
 const CODE = new Set([
-  "ts", "tsx", "js", "jsx", "mjs", "cjs", "py", "go", "rs", "java", "c", "cc", "cpp", "h", "hpp",
-  "cs", "rb", "php", "swift", "kt", "kts", "scala", "lua", "vue", "svelte", "astro",
+  "ts",
+  "tsx",
+  "js",
+  "jsx",
+  "mjs",
+  "cjs",
+  "py",
+  "go",
+  "rs",
+  "java",
+  "c",
+  "cc",
+  "cpp",
+  "h",
+  "hpp",
+  "cs",
+  "rb",
+  "php",
+  "swift",
+  "kt",
+  "kts",
+  "scala",
+  "lua",
+  "vue",
+  "svelte",
+  "astro",
 ]);
 const MARKDOWN = new Set(["md", "mdx", "markdown"]);
 const JSON = new Set(["json", "jsonc", "json5"]);
@@ -140,7 +164,9 @@ export function useFileIcon(path?: string): FileIconData | null | undefined {
   useEffect(() => {
     const listener = () => rerender((n) => n + 1);
     listeners.add(listener);
-    return () => { listeners.delete(listener); };
+    return () => {
+      listeners.delete(listener);
+    };
   }, []);
   useEffect(() => {
     if (path) requestIcon(path);

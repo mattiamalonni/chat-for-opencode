@@ -291,14 +291,16 @@ export class FileIconThemeService {
       this.invalidate();
     }
 
-    const resolved = await Promise.all(paths.map(async (path) => {
-      const cacheKey = `${variant}\0${path}`;
-      if (this.cache.has(cacheKey)) return [path, this.cache.get(cacheKey) ?? null] as const;
-      const icon = theme ? await this.resolveOne(theme, path, variant) : undefined;
-      const value = icon ?? null;
-      this.cache.set(cacheKey, value);
-      return [path, value] as const;
-    }));
+    const resolved = await Promise.all(
+      paths.map(async (path) => {
+        const cacheKey = `${variant}\0${path}`;
+        if (this.cache.has(cacheKey)) return [path, this.cache.get(cacheKey) ?? null] as const;
+        const icon = theme ? await this.resolveOne(theme, path, variant) : undefined;
+        const value = icon ?? null;
+        this.cache.set(cacheKey, value);
+        return [path, value] as const;
+      }),
+    );
     const icons = Object.fromEntries(resolved);
     return { icons, fonts: Object.fromEntries(this.fonts), reset };
   }
@@ -313,9 +315,7 @@ export class FileIconThemeService {
     const { definition } = resolved;
     const svgPath = iconPathFor(definition.iconPath, variant);
     if (svgPath) {
-      const src = svgPath.startsWith("data:")
-        ? svgPath
-        : `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svgPath)}`;
+      const src = svgPath.startsWith("data:") ? svgPath : `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svgPath)}`;
       return { kind: "svg", src };
     }
 
@@ -368,7 +368,9 @@ export class FileIconThemeService {
     if (!inlined) {
       inlined = {
         ...raw,
-        src: await Promise.all((raw.src ?? []).map(async (source) => ({ ...source, path: await this.dataUri(source.path, theme.baseDir) }))),
+        src: await Promise.all(
+          (raw.src ?? []).map(async (source) => ({ ...source, path: await this.dataUri(source.path, theme.baseDir) })),
+        ),
       };
       theme.inlinedFonts.set(key, inlined);
     }

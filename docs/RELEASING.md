@@ -7,17 +7,17 @@ when a tag `vX.Y.Z` matching `package.json` `version` is pushed.
 
 1. **Marketplace publisher** `mattiamalonni` must exist: https://marketplace.visualstudio.com/manage
    (sign in with the same Microsoft account used for Azure DevOps).
-2. **Azure DevOps PAT** with *Organization: All accessible organizations* and scope
-   *Marketplace → Manage*. Check it locally (the token is read from the prompt, not stored):
+2. **Azure DevOps PAT** with _Organization: All accessible organizations_ and scope
+   _Marketplace → Manage_. Check it locally (the token is read from the prompt, not stored):
    ```sh
    npx vsce verify-pat mattiamalonni
    ```
 3. **GitHub secret** `VSCE_PAT`, either at repository level (current setup) or in the `marketplace`
-   environment (*Settings → Environments*). Run this yourself; it prompts for the value:
+   environment (_Settings → Environments_). Run this yourself; it prompts for the value:
    ```sh
    gh secret set VSCE_PAT --env marketplace --repo mattiamalonni/chat-for-opencode
    ```
-   Optionally add *Required reviewers* to the `marketplace` environment so every publish needs a click.
+   Optionally add _Required reviewers_ to the `marketplace` environment so every publish needs a click.
 
 ## Release
 
@@ -31,8 +31,8 @@ git tag v0.3.19
 git push origin v0.3.19
 ```
 
-`Actions → Release → Run workflow` with *dry-run* checked builds and uploads the `.vsix` artifact
-without publishing. To publish manually (without a tag), uncheck *dry-run* and set **version** to the
+`Actions → Release → Run workflow` with _dry-run_ checked builds and uploads the `.vsix` artifact
+without publishing. To publish manually (without a tag), uncheck _dry-run_ and set **version** to the
 exact `package.json` version: the workflow refuses to publish when it is missing or mismatched.
 Every publish path is verified, and the `ci` job now blocks on lint, build, unit tests, coverage
 thresholds, a high-severity production `npm audit`, VS Code integration and `.vsix` packaging.

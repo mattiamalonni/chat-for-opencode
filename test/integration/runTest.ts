@@ -21,7 +21,10 @@ async function main(): Promise<void> {
   const fake = join(workspace, process.platform === "win32" ? "opencode.cmd" : "opencode");
   const mock = join(root, "out", "test", "mock", "mockServer.js");
   if (process.platform === "win32") {
-    writeFileSync(fake, `@echo off\r\nset MOCK_STATE_FILE=${stateFile}\r\nset MOCK_LATE_CATALOG=1\r\n"${process.execPath}" "${mock}" %*\r\n`);
+    writeFileSync(
+      fake,
+      `@echo off\r\nset MOCK_STATE_FILE=${stateFile}\r\nset MOCK_LATE_CATALOG=1\r\n"${process.execPath}" "${mock}" %*\r\n`,
+    );
   } else {
     writeFileSync(fake, `#!/bin/sh\nMOCK_STATE_FILE="${stateFile}" MOCK_LATE_CATALOG=1 exec "${process.execPath}" "${mock}" "$@"\n`);
     chmodSync(fake, 0o755);
@@ -55,9 +58,7 @@ async function main(): Promise<void> {
     ],
     extensionTestsEnv: {
       OC_IT_WORKSPACE: workspace,
-      OC_IT_SUITE: e2e && real
-        ? "webview.real.e2e.test.js"
-        : e2e ? "webview.e2e.test.js" : real ? "real.test.js" : "extension.test.js",
+      OC_IT_SUITE: e2e && real ? "webview.real.e2e.test.js" : e2e ? "webview.e2e.test.js" : real ? "real.test.js" : "extension.test.js",
       OC_IT_E2E: e2e ? "1" : "0",
       OC_IT_CDP_PORT: cdpPort,
     },

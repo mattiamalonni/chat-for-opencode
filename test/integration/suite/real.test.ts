@@ -42,20 +42,32 @@ describe("real opencode serve inside VS Code", () => {
 
   it("asks permission, applies after approval and opens the diff", async () => {
     const mark = posted.length;
-    await controller.receive({ type: "send", text: "Edit a.txt so its only line is b instead of a. Use the edit tool. Nothing else.", attachments: [], context: [] });
+    await controller.receive({
+      type: "send",
+      text: "Edit a.txt so its only line is b instead of a. Use the edit tool. Nothing else.",
+      attachments: [],
+      context: [],
+    });
     const asked = await waitFor(() => ev("permission.asked", mark), "permission.asked");
     const data = (asked as Extract<HostMessage, { type: "event" }>).event.data as { id: string; sessionID: string };
     await controller.receive({ type: "permissionReply", sessionId: data.sessionID, requestId: data.id, decision: "once" });
     await waitFor(() => done(mark), "execution end");
     const changed = await waitFor(() => {
-      const c = posted.slice(mark).filter((m): m is Extract<HostMessage, { type: "changedFiles" }> => m.type === "changedFiles").at(-1);
+      const c = posted
+        .slice(mark)
+        .filter((m): m is Extract<HostMessage, { type: "changedFiles" }> => m.type === "changedFiles")
+        .at(-1);
       return c && c.files.find((f) => f.file === "a.txt");
     }, "changed a.txt");
     await controller.receive({ type: "openDiff", file: changed.file, patch: changed.patch, applied: true });
-    const tab = await waitFor(() => {
-      const t = vscode.window.tabGroups.activeTabGroup.activeTab;
-      return t && t.input instanceof vscode.TabInputTextDiff && t;
-    }, "diff tab", 10_000);
+    const tab = await waitFor(
+      () => {
+        const t = vscode.window.tabGroups.activeTabGroup.activeTab;
+        return t && t.input instanceof vscode.TabInputTextDiff && t;
+      },
+      "diff tab",
+      10_000,
+    );
     const input = tab.input as vscode.TabInputTextDiff;
     assert.equal(normalizeFsPath(input.modified.fsPath), normalizeFsPath(path.join(workspace, "a.txt")));
     assert.equal((await vscode.workspace.openTextDocument(input.original)).getText(), "a\n");
@@ -70,7 +82,14 @@ describe("real opencode serve inside VS Code", () => {
     // controller action directly, which is exactly what the confirmed command does.
     await controller.resetServers();
     await waitFor(() => controller.debugState.status === "connected" && controller.debugState.baseUrl !== oldUrl, "reconnected", 60_000);
-    const s = await waitFor(() => posted.slice(mark).filter((m): m is Extract<HostMessage, { type: "session" }> => m.type === "session").at(-1), "session");
+    const s = await waitFor(
+      () =>
+        posted
+          .slice(mark)
+          .filter((m): m is Extract<HostMessage, { type: "session" }> => m.type === "session")
+          .at(-1),
+      "session",
+    );
     assert.equal(s.session?.id, id);
     assert.ok(s.session!.messages.filter((m) => m.type === "user").length >= 2);
   });

@@ -18,17 +18,25 @@ import { fileRefToOpenPath, isFileRef } from "../shared/fileRef";
 import { formatTokens } from "../shared/format";
 import { isImeKey } from "../shared/keys";
 import type { ActionId } from "../shared/protocol";
-import {
-  isSubagentTool,
-  subagentChildId,
-  subagentView,
-  toolInputSummary,
-  type SubagentActivity,
-} from "../shared/subagents";
+import { isSubagentTool, subagentChildId, subagentView, toolInputSummary, type SubagentActivity } from "../shared/subagents";
 import { isolateKeys } from "./env";
 import { FileTypeIcon } from "./fileIcons";
 import { useT } from "./i18n";
-import { IconCheck, IconChevron, IconCopy, IconError, IconFile, IconFork, IconInfo, IconOpen, IconRefresh, IconRevert, IconSelection, IconTool, IconWarning } from "./icons";
+import {
+  IconCheck,
+  IconChevron,
+  IconCopy,
+  IconError,
+  IconFile,
+  IconFork,
+  IconInfo,
+  IconOpen,
+  IconRefresh,
+  IconRevert,
+  IconSelection,
+  IconTool,
+  IconWarning,
+} from "./icons";
 import { renderMarkdown } from "./markdown";
 import { clearReplyFailure, useReplyFailed } from "./replyFeedback";
 import { useOpenSubagent, useSubagent } from "./subagents";
@@ -163,7 +171,9 @@ export function MessageView({
           </button>
         </div>
         <div class="bubble">
-          <div class="user-text"><Highlight text={message.text} query={searchQuery} /></div>
+          <div class="user-text">
+            <Highlight text={message.text} query={searchQuery} />
+          </div>
           {message.files.length > 0 && (
             <ul class="chips" aria-label={t("context")}>
               {message.files.map((f) => {
@@ -250,7 +260,8 @@ export function TurnStatsRow({ stats }: { stats: TurnStats }) {
 /** Has to be a component: `useT` is a hook. The guard above keeps unfinished turns invisible. */
 function StatsRow({ stats }: { stats: TurnStats }) {
   const t = useT();
-  const total = stats.tokens && stats.tokens.input + stats.tokens.output + stats.tokens.reasoning + stats.tokens.cache.read + stats.tokens.cache.write;
+  const total =
+    stats.tokens && stats.tokens.input + stats.tokens.output + stats.tokens.reasoning + stats.tokens.cache.read + stats.tokens.cache.write;
   const elapsed = Math.max(0, (stats.ended ?? 0) - stats.started);
 
   let duration: string;
@@ -331,7 +342,12 @@ function AssistantView({
 }) {
   const t = useT();
   return (
-    <article class={`msg assistant${grouped ? " grouped" : ""}${filteredOut ? " filtered-out" : ""}`} aria-label={t("assistant")} aria-busy={!message.done} data-message-id={message.id}>
+    <article
+      class={`msg assistant${grouped ? " grouped" : ""}${filteredOut ? " filtered-out" : ""}`}
+      aria-label={t("assistant")}
+      aria-busy={!message.done}
+      data-message-id={message.id}
+    >
       {message.parts.map((p) =>
         p.kind === "tool" ? (
           <ToolCard key={p.key} part={p} state={state} />
@@ -359,7 +375,15 @@ function AssistantView({
 }
 
 /** Retry/error feedback and the waiting indicator, shared by whole and split assistant messages. */
-export function AssistantStatus({ message, typing, filteredOut = false }: { message: UiAssistantMessage; typing?: boolean; filteredOut?: boolean }) {
+export function AssistantStatus({
+  message,
+  typing,
+  filteredOut = false,
+}: {
+  message: UiAssistantMessage;
+  typing?: boolean;
+  filteredOut?: boolean;
+}) {
   const t = useT();
   const hidden = filteredOut ? " filtered-out" : "";
   return (
@@ -487,9 +511,17 @@ export function ToolGroup({ parts, state, filteredOut = false }: { parts: ToolPa
     : names;
   const id = `tool-group-${parts[0].id}`;
   return (
-    <section class={`tool-group${sub ? " subagent" : ""}${needsUser || subWaiting ? " attention" : ""}${filteredOut ? " filtered-out" : ""}`}>
+    <section
+      class={`tool-group${sub ? " subagent" : ""}${needsUser || subWaiting ? " attention" : ""}${filteredOut ? " filtered-out" : ""}`}
+    >
       <div class="tool-header-row">
-        <button type="button" class="tool-header tool-group-header" aria-expanded={expanded} aria-controls={id} onClick={() => setOpen(!open)}>
+        <button
+          type="button"
+          class="tool-header tool-group-header"
+          aria-expanded={expanded}
+          aria-controls={id}
+          onClick={() => setOpen(!open)}
+        >
           <IconChevron class="chevron" />
           <span class={`status-dot ${status} tooltip-host`} role="img" aria-label={statusLabel} data-tooltip={statusLabel}>
             {subWaiting ? <IconWarning /> : status === "completed" ? <IconCheck /> : status === "error" ? <IconError /> : <IconTool />}
@@ -497,7 +529,9 @@ export function ToolGroup({ parts, state, filteredOut = false }: { parts: ToolPa
           {sub && <span class="subagent-badge">{t("subagent")}</span>}
           {subWaiting && <span class="subagent-waiting">{t("needsInput")}</span>}
           <span class="tool-name">{headerName}</span>
-          <span class="tool-summary" title={headerSummary}>{headerSummary}</span>
+          <span class="tool-summary" title={headerSummary}>
+            {headerSummary}
+          </span>
         </button>
         {subSessionId && (
           <button
@@ -524,9 +558,11 @@ export function ToolGroup({ parts, state, filteredOut = false }: { parts: ToolPa
 
 /** Dispatch on the tool name so hook order stays stable for each card. */
 export function ToolCard(props: { part: ToolPart; state: ChatState; filteredOut?: boolean }) {
-  return isSubagentTool(props.part)
-    ? <SubagentToolCard part={props.part} state={props.state} filteredOut={props.filteredOut} />
-    : <GenericToolCard {...props} />;
+  return isSubagentTool(props.part) ? (
+    <SubagentToolCard part={props.part} state={props.state} filteredOut={props.filteredOut} />
+  ) : (
+    <GenericToolCard {...props} />
+  );
 }
 
 /** The tool result wraps the child report in a `<subagent>` tag; the child's own text is plain. */
@@ -562,7 +598,10 @@ function SubagentToolCard({ part, state, filteredOut = false }: { part: ToolPart
   const header = [view.agent || t("subagent"), view.title, activity, elapsed].filter(Boolean).join(" · ");
   const id = `subagent-${part.id}`;
   return (
-    <section class={`tool subagent ${dot}${waiting ? " attention" : ""}${filteredOut ? " filtered-out" : ""}`} aria-label={`${t("subagent")}: ${header}`}>
+    <section
+      class={`tool subagent ${dot}${waiting ? " attention" : ""}${filteredOut ? " filtered-out" : ""}`}
+      aria-label={`${t("subagent")}: ${header}`}
+    >
       <div class="tool-header-row">
         <button
           type="button"
@@ -583,7 +622,9 @@ function SubagentToolCard({ part, state, filteredOut = false }: { part: ToolPart
           </span>
           <span class="subagent-badge">{t("subagent")}</span>
           {waiting && <span class="subagent-waiting">{t("needsInput")}</span>}
-          <span class="tool-summary" title={header}>{header}</span>
+          <span class="tool-summary" title={header}>
+            {header}
+          </span>
         </button>
         {sessionId && (
           <button
@@ -601,7 +642,10 @@ function SubagentToolCard({ part, state, filteredOut = false }: { part: ToolPart
         <div class="tool-body subagent-body" id={id}>
           <div class="subagent-activity">
             <span class="tool-label">{t("activity")}</span>
-            <span>{activity}{elapsed ? ` · ${elapsed}` : ""}</span>
+            <span>
+              {activity}
+              {elapsed ? ` · ${elapsed}` : ""}
+            </span>
           </div>
           {view.task && (
             <details class="tool-section">
@@ -611,13 +655,19 @@ function SubagentToolCard({ part, state, filteredOut = false }: { part: ToolPart
           )}
           {view.tools.length > 0 && (
             <div class="tool-section">
-              <div class="tool-label">{t("steps")} ({view.tools.length})</div>
+              <div class="tool-label">
+                {t("steps")} ({view.tools.length})
+              </div>
               <ul class="subagent-steps">
                 {view.tools.map((tool, i) => (
                   <li class={`subagent-step ${tool.status}`} key={`${tool.name}-${i}`}>
                     <span class={`status-dot ${subagentDot(tool.status)}`} />
                     <span class="step-name">{tool.name}</span>
-                    {tool.summary && <span class="step-summary" title={tool.summary}>{tool.summary}</span>}
+                    {tool.summary && (
+                      <span class="step-summary" title={tool.summary}>
+                        {tool.summary}
+                      </span>
+                    )}
                   </li>
                 ))}
               </ul>
@@ -662,14 +712,19 @@ function GenericToolCard({ part, state, filteredOut = false }: { part: ToolPart;
   );
   const id = `tool-${part.id}`;
   return (
-    <section class={`tool ${part.status}${needsUser ? " attention" : ""}${filteredOut ? " filtered-out" : ""}`} aria-label={`${t("tool")}: ${part.name}`}>
+    <section
+      class={`tool ${part.status}${needsUser ? " attention" : ""}${filteredOut ? " filtered-out" : ""}`}
+      aria-label={`${t("tool")}: ${part.name}`}
+    >
       <button type="button" class="tool-header" aria-expanded={expanded} aria-controls={id} onClick={() => setOpen(!open)}>
         <IconChevron class="chevron" />
         <span class={`status-dot ${part.status} tooltip-host`} role="img" aria-label={statusLabel} data-tooltip={statusLabel}>
           {part.status === "completed" ? <IconCheck /> : part.status === "error" ? <IconError /> : <IconTool />}
         </span>
         <span class="tool-name">{part.name}</span>
-        <span class="tool-summary" title={summary}>{summary}</span>
+        <span class="tool-summary" title={summary}>
+          {summary}
+        </span>
       </button>
       {expanded && (
         <div class="tool-body" id={id}>
@@ -845,7 +900,9 @@ export function PermissionCard({ request }: { request: PermissionRequest }) {
         <button type="button" class="secondary danger" disabled={disabled} onClick={() => reply("reject")}>
           {t("permissionReject")}
         </button>
-        <span class="shortcut-hint" aria-hidden="true">{hasAlways ? t("permissionShortcutHint") : t("permissionShortcutHintNoAlways")}</span>
+        <span class="shortcut-hint" aria-hidden="true">
+          {hasAlways ? t("permissionShortcutHint") : t("permissionShortcutHintNoAlways")}
+        </span>
       </div>
     </div>
   );
@@ -857,12 +914,17 @@ export function initialValue(f: FormField): FormValue | undefined {
     // A malformed default (null, object, array for a string field) must not leak into the input as
     // "[object Object]" or be submitted verbatim.
     switch (f.type) {
-      case "boolean": return typeof d === "boolean" ? d : false;
-      case "multiselect": return Array.isArray(d) ? d.filter((x): x is string => typeof x === "string") : [];
+      case "boolean":
+        return typeof d === "boolean" ? d : false;
+      case "multiselect":
+        return Array.isArray(d) ? d.filter((x): x is string => typeof x === "string") : [];
       case "number":
-      case "integer": return typeof d === "number" && Number.isFinite(d) ? d : undefined;
-      case "external": return undefined;
-      default: return typeof d === "string" || (typeof d === "number" && Number.isFinite(d)) ? (d as FormValue) : undefined;
+      case "integer":
+        return typeof d === "number" && Number.isFinite(d) ? d : undefined;
+      case "external":
+        return undefined;
+      default:
+        return typeof d === "string" || (typeof d === "number" && Number.isFinite(d)) ? (d as FormValue) : undefined;
     }
   }
   if (f.type === "boolean") return false;
@@ -940,18 +1002,31 @@ export function QuestionCard({
   const missing = field ? field.required && isMissing(field, value) : false;
   const labelId = `form-${form.id}`;
   return (
-    <form class="card question" aria-labelledby={labelId} onSubmit={(e) => { e.preventDefault(); if (!disabled && !missing) onSubmit(); }}>
+    <form
+      class="card question"
+      aria-labelledby={labelId}
+      onSubmit={(e) => {
+        e.preventDefault();
+        if (!disabled && !missing) onSubmit();
+      }}
+    >
       <div class="card-title" id={labelId}>
         <IconInfo /> {form.title || t("questionTitle")}
       </div>
       {field && <FieldInput field={field} value={value} onChange={onChange} custom={custom} onCustom={onCustom} resetKey={form.id} />}
       <div class="card-actions">
         {last ? (
-          <button type="submit" class="primary" disabled={disabled || missing}>{t("submit")}</button>
+          <button type="submit" class="primary" disabled={disabled || missing}>
+            {t("submit")}
+          </button>
         ) : (
-          <button type="button" class="primary" disabled={missing} onClick={onNext}>{t("nextQuestion")}</button>
+          <button type="button" class="primary" disabled={missing} onClick={onNext}>
+            {t("nextQuestion")}
+          </button>
         )}
-        <button type="button" class="secondary" disabled={disabled} onClick={onCancel}>{t("cancel")}</button>
+        <button type="button" class="secondary" disabled={disabled} onClick={onCancel}>
+          {t("cancel")}
+        </button>
       </div>
     </form>
   );

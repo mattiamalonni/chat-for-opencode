@@ -34,9 +34,7 @@ export interface SubagentEvent {
 }
 
 export type SubagentAction =
-  | { type: "snapshot"; snapshot: SubagentSnapshot }
-  | { type: "events"; events: SubagentEvent[] }
-  | { type: "clear" };
+  { type: "snapshot"; snapshot: SubagentSnapshot } | { type: "events"; events: SubagentEvent[] } | { type: "clear" };
 
 function emptyChild(sessionId: string): ChatState {
   return chatReducer(initialChatState, { type: "load", sessionId, messages: [], permissions: [], forms: [] });
@@ -199,11 +197,7 @@ export interface SubagentToolView {
 }
 
 export type SubagentActivity =
-  | { kind: "thinking" }
-  | { kind: "tool"; tool: SubagentToolView }
-  | { kind: "text"; text: string }
-  | { kind: "done" }
-  | { kind: "idle" };
+  { kind: "thinking" } | { kind: "tool"; tool: SubagentToolView } | { kind: "text"; text: string } | { kind: "done" } | { kind: "idle" };
 
 export interface SubagentView {
   sessionId?: string;
@@ -238,12 +232,7 @@ function reportOf(child: ChatState | undefined): string | undefined {
 }
 
 /** Compact, read-only projection of a child session used by the inline subagent card. */
-export function subagentView(
-  part: ToolPart,
-  child?: ChatState,
-  meta?: SubagentMeta,
-  reports?: Record<string, string>,
-): SubagentView {
+export function subagentView(part: ToolPart, child?: ChatState, meta?: SubagentMeta, reports?: Record<string, string>): SubagentView {
   const input = toolObject(part);
   const sessionId = subagentChildId(part);
   const title = str(input.description) || meta?.title || "";

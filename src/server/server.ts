@@ -157,10 +157,7 @@ function validateExecutable(executable: string, isWindows: boolean): void {
     throw new ServerError("notInstalled", "The OpenCode executable path is empty or contains a control character.");
   }
   if (isWindows && /["&|<>^%!]/.test(executable)) {
-    throw new ServerError(
-      "notInstalled",
-      `The OpenCode executable path cannot be quoted safely for cmd.exe: "${executable}".`,
-    );
+    throw new ServerError("notInstalled", `The OpenCode executable path cannot be quoted safely for cmd.exe: "${executable}".`);
   }
 }
 

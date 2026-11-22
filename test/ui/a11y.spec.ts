@@ -12,7 +12,9 @@ async function host(page: Page, msg: unknown): Promise<void> {
 async function boot(page: Page): Promise<void> {
   await page.goto(HARNESS);
   await expect
-    .poll(async () => page.evaluate(() => (window as unknown as { __posted?: { type: string }[] }).__posted?.some((m) => m.type === "ready") ?? false))
+    .poll(async () =>
+      page.evaluate(() => (window as unknown as { __posted?: { type: string }[] }).__posted?.some((m) => m.type === "ready") ?? false),
+    )
     .toBe(true);
   await host(page, { type: "init", strings: { ...STRINGS }, platform: "windows", folders: [], issuesUrl: "" });
   await host(page, { type: "connection", status: "connected" });
@@ -66,14 +68,16 @@ test.describe("accessibility tree", () => {
         id: "ses_a11y",
         busy: true,
         messages: [],
-        permissions: [{
-          id: "per_1",
-          sessionID: "ses_a11y",
-          action: "edit",
-          resources: ["src/a.txt"],
-          save: ["*"],
-          metadata: {},
-        }],
+        permissions: [
+          {
+            id: "per_1",
+            sessionID: "ses_a11y",
+            action: "edit",
+            resources: ["src/a.txt"],
+            save: ["*"],
+            metadata: {},
+          },
+        ],
         forms: [],
       },
     });

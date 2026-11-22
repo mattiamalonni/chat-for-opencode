@@ -29,7 +29,13 @@ describe("webview inside VS Code", () => {
       const pages = browser?.contexts().flatMap((context) => context.pages()) ?? [];
       for (const page of pages) {
         for (const frame of page.frames()) {
-          if (await frame.locator(inputSelector).count().catch(() => 0)) return frame;
+          if (
+            await frame
+              .locator(inputSelector)
+              .count()
+              .catch(() => 0)
+          )
+            return frame;
         }
       }
       await new Promise((resolve) => setTimeout(resolve, 250));
@@ -59,11 +65,15 @@ describe("webview inside VS Code", () => {
     await frame.locator(".conversation .msg.user .user-text", { hasText: "pong from the real webview" }).waitFor({ timeout: 30_000 });
     await frame.locator(".conversation .msg.assistant").filter({ hasText: "Echo:" }).waitFor({ timeout: 30_000 });
     // Let the post-turn reconcile finish before another test starts a new turn.
-    await frame.waitForFunction(() => {
-      const cards = document.querySelectorAll(".conversation .msg.assistant");
-      const last = cards[cards.length - 1];
-      return !!last && last.getAttribute("aria-busy") === "false";
-    }, undefined, { timeout: 30_000 });
+    await frame.waitForFunction(
+      () => {
+        const cards = document.querySelectorAll(".conversation .msg.assistant");
+        const last = cards[cards.length - 1];
+        return !!last && last.getAttribute("aria-busy") === "false";
+      },
+      undefined,
+      { timeout: 30_000 },
+    );
   });
 
   it("approves an inline permission by clicking its card", async () => {

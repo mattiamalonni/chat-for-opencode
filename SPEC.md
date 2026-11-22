@@ -88,42 +88,42 @@ All messages are JSON objects with a `type` discriminator, defined in `src/share
 
 ### Host → webview
 
-| type | payload | when |
-| --- | --- | --- |
-| `init` | `strings`, `platform`, `folders`, `activeFolder?`, `issuesUrl?` | after `ready` |
-| `connection` | `status: idle\|starting\|connected\|reconnecting\|error`, `error?`, `version?`, `compatibility?`, `compatibilityDismissed?` | any status change |
-| `catalog` | `models`, `agents`, `skills`, `selectedModel?`, `selectedAgent?` | after connect / config change |
-| `sessions` | `items: SessionSummary[]`, `currentId?`, `hasMore?` | list changed / more pages loaded |
-| `session` | `session: SessionPayload \| null` (`id`, `title?`, `agent?`, `model?`, `busy`, normalised `messages`, `permissions`, `forms`, `usage?`) | session loaded / full resync |
-| `sessionDelta` | `delta: SessionDelta` (tail `messages` + updated pending items/usage) | reconnect/reconcile found no or few new messages; merged by id, does not reset conversation state |
-| `event` | `event` (raw server SSE event for the current session) | live |
-| `context` | `items: ContextItem[]` | active editor / selection changed |
-| `fileResults` | `query`, `items` | answer to `searchFiles` |
-| `addAttachment` | `item` | "Add selection to chat" command |
-| `changedFiles` | `files: FileDiff[]` | after a step that touched files |
-| `autoApprove` | `enabled: boolean` | per-chat auto-approval loaded / toggled |
-| `focusInput` | – | `opencode.focus` |
-| `notice` | `error: UiError` (with optional `target` for a failed inline reply) | transient error (e.g. prompt rejected) |
+| type            | payload                                                                                                                                 | when                                                                                              |
+| --------------- | --------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
+| `init`          | `strings`, `platform`, `folders`, `activeFolder?`, `issuesUrl?`                                                                         | after `ready`                                                                                     |
+| `connection`    | `status: idle\|starting\|connected\|reconnecting\|error`, `error?`, `version?`, `compatibility?`, `compatibilityDismissed?`             | any status change                                                                                 |
+| `catalog`       | `models`, `agents`, `skills`, `selectedModel?`, `selectedAgent?`                                                                        | after connect / config change                                                                     |
+| `sessions`      | `items: SessionSummary[]`, `currentId?`, `hasMore?`                                                                                     | list changed / more pages loaded                                                                  |
+| `session`       | `session: SessionPayload \| null` (`id`, `title?`, `agent?`, `model?`, `busy`, normalised `messages`, `permissions`, `forms`, `usage?`) | session loaded / full resync                                                                      |
+| `sessionDelta`  | `delta: SessionDelta` (tail `messages` + updated pending items/usage)                                                                   | reconnect/reconcile found no or few new messages; merged by id, does not reset conversation state |
+| `event`         | `event` (raw server SSE event for the current session)                                                                                  | live                                                                                              |
+| `context`       | `items: ContextItem[]`                                                                                                                  | active editor / selection changed                                                                 |
+| `fileResults`   | `query`, `items`                                                                                                                        | answer to `searchFiles`                                                                           |
+| `addAttachment` | `item`                                                                                                                                  | "Add selection to chat" command                                                                   |
+| `changedFiles`  | `files: FileDiff[]`                                                                                                                     | after a step that touched files                                                                   |
+| `autoApprove`   | `enabled: boolean`                                                                                                                      | per-chat auto-approval loaded / toggled                                                           |
+| `focusInput`    | –                                                                                                                                       | `opencode.focus`                                                                                  |
+| `notice`        | `error: UiError` (with optional `target` for a failed inline reply)                                                                     | transient error (e.g. prompt rejected)                                                            |
 
 ### Webview → host
 
-| type | payload |
-| --- | --- |
-| `ready` | – |
-| `send` | `text`, `attachments: Attachment[]`, `context: ContextItem[]` |
-| `abort` | – |
-| `newSession`, `selectSession {id}`, `deleteSession {id}`, `deleteAllSessions`, `renameSession {id, title}`, `refreshSessions`, `loadMoreSessions` | |
-| `setModel {model}`, `setAgent {agent}` | |
-| `setAutoApprove {enabled}` | per-chat auto-approval toggle |
-| `permissionReply {requestId, sessionId, decision: once\|always\|reject}` | |
-| `formReply {formId, sessionId, answer}`, `formCancel {formId, sessionId}` | |
-| `searchFiles {query}` | |
-| `openDiff {file, patch, applied}`, `openDiffs {files: [{file, patch}]}`, `openFile {path}`, `openLink {href}` | |
-| `copy {text}` | copy code block to clipboard |
-| `action {id}` | `reconnect`, `showLogs`, `openSettings`, `install`, `login`, `setPassword`, `openFolder`, `newSession` |
-| `selectFolder {uri}` | switch workspace folder |
-| `refreshChanges` | re-fetch the session diff |
-| `dismissCompatibility {version}` | hide the version warning for this version |
+| type                                                                                                                                              | payload                                                                                                |
+| ------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
+| `ready`                                                                                                                                           | –                                                                                                      |
+| `send`                                                                                                                                            | `text`, `attachments: Attachment[]`, `context: ContextItem[]`                                          |
+| `abort`                                                                                                                                           | –                                                                                                      |
+| `newSession`, `selectSession {id}`, `deleteSession {id}`, `deleteAllSessions`, `renameSession {id, title}`, `refreshSessions`, `loadMoreSessions` |                                                                                                        |
+| `setModel {model}`, `setAgent {agent}`                                                                                                            |                                                                                                        |
+| `setAutoApprove {enabled}`                                                                                                                        | per-chat auto-approval toggle                                                                          |
+| `permissionReply {requestId, sessionId, decision: once\|always\|reject}`                                                                          |                                                                                                        |
+| `formReply {formId, sessionId, answer}`, `formCancel {formId, sessionId}`                                                                         |                                                                                                        |
+| `searchFiles {query}`                                                                                                                             |                                                                                                        |
+| `openDiff {file, patch, applied}`, `openDiffs {files: [{file, patch}]}`, `openFile {path}`, `openLink {href}`                                     |                                                                                                        |
+| `copy {text}`                                                                                                                                     | copy code block to clipboard                                                                           |
+| `action {id}`                                                                                                                                     | `reconnect`, `showLogs`, `openSettings`, `install`, `login`, `setPassword`, `openFolder`, `newSession` |
+| `selectFolder {uri}`                                                                                                                              | switch workspace folder                                                                                |
+| `refreshChanges`                                                                                                                                  | re-fetch the session diff                                                                              |
+| `dismissCompatibility {version}`                                                                                                                  | hide the version warning for this version                                                              |
 
 The composer draft is persisted in the webview with `vscode.setState`; it is not a protocol message.
 
@@ -167,21 +167,21 @@ hunks only (`hunksSides`, with a `===== file =====` header per file) and opens o
 
 ## Security
 
-* Webview CSP: `default-src 'none'; script-src 'nonce-…'; style-src ${cspSource};
-  img-src ${cspSource} data:; font-src ${cspSource}`. No remote scripts, no `connect-src`
+- Webview CSP: `default-src 'none'; script-src 'nonce-…'; style-src ${cspSource};
+img-src ${cspSource} data:; font-src ${cspSource}`. No remote scripts, no `connect-src`
   (the webview never talks to the server directly).
-* Markdown HTML is sanitised with DOMPurify *before* prose is linkified, so a crafted
+- Markdown HTML is sanitised with DOMPurify _before_ prose is linkified, so a crafted
   `<a data-file>`/`data-action` in a reply cannot become a clickable file link or a fake code-copy
   button. Regression-tested in a real browser.
-* File references from model output are confined to the workspace folder. `openFile`, attachment
+- File references from model output are confined to the workspace folder. `openFile`, attachment
   chips and `DiffService.open` all resolve the target and reject paths that escape it (including
   `../` sequences), so untrusted tool metadata cannot make the host read an arbitrary local file.
-* File-icon theme assets are read from the installed theme only; paths are resolved (no `..` escape)
+- File-icon theme assets are read from the installed theme only; paths are resolved (no `..` escape)
   and remote `https:` assets are not fetched — the extension makes no network calls beyond the
   configured server and the webview CSP allows no remote images or fonts.
-* Managed server password: random 24 bytes per spawn, kept in memory only.
+- Managed server password: random 24 bytes per spawn, kept in memory only.
   External server password: `SecretStorage`.
-* Server is bound to `127.0.0.1`.
-* Permissions and questions are only auto-answered when the user explicitly opts in
+- Server is bound to `127.0.0.1`.
+- Permissions and questions are only auto-answered when the user explicitly opts in
   (`opencode.autoApprovePermissions` or the per-chat toggle); both default to off. Questions
   (forms) always require a user answer, even with auto-approval enabled.

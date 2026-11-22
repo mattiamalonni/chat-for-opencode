@@ -6,7 +6,7 @@ const state = vi.hoisted(() => ({
   lsofOutput: "",
   lsofFails: false,
   fetchStatus: 401,
-  fetchAuth: "Basic realm=\"Secure Area\"" as string | null,
+  fetchAuth: 'Basic realm="Secure Area"' as string | null,
   fetchBody: {} as unknown,
   alivePids: new Set<number>(),
   killed: [] as Array<[number, string | number | undefined]>,
@@ -38,7 +38,12 @@ vi.mock("node:fs", async () => {
 
 vi.mock("node:child_process", () => ({
   // Callback style so promisify() in orphans.ts wraps it.
-  execFile: (_cmd: string, _args: string[], _opts: unknown, cb: (err: Error | null, result: { stdout: string; stderr: string }) => void) => {
+  execFile: (
+    _cmd: string,
+    _args: string[],
+    _opts: unknown,
+    cb: (err: Error | null, result: { stdout: string; stderr: string }) => void,
+  ) => {
     if (state.lsofFails) cb(new Error("lsof not found"), { stdout: "", stderr: "" });
     else cb(null, { stdout: state.lsofOutput, stderr: "" });
   },
@@ -47,7 +52,11 @@ vi.mock("node:child_process", () => ({
     const handlers: Record<string, (() => void) | undefined> = {};
     // killPid() waits for "close" on Windows; resolve it on the next microtask.
     queueMicrotask(() => handlers.close?.());
-    return { on: (event: string, cb: () => void) => { handlers[event] = cb; } };
+    return {
+      on: (event: string, cb: () => void) => {
+        handlers[event] = cb;
+      },
+    };
   },
 }));
 
@@ -59,9 +68,7 @@ const PORT = 4096;
 
 /** stdout for the OS tool that checks port ownership (`lsof` on POSIX, `netstat` on Windows). */
 function listeningOn(pid: number): string {
-  return process.platform === "win32"
-    ? `  TCP    0.0.0.0:${PORT}    0.0.0.0:0    LISTENING    ${pid}\n`
-    : `${pid}\n`;
+  return process.platform === "win32" ? `  TCP    0.0.0.0:${PORT}    0.0.0.0:0    LISTENING    ${pid}\n` : `${pid}\n`;
 }
 
 function record(overrides: Partial<ServerRecord> = {}): ServerRecord {
@@ -74,9 +81,7 @@ async function add(r: ServerRecord): Promise<void> {
 
 function signalsTo(pid: number): Array<string | number | undefined> {
   // Ignore the `kill(pid, 0)` liveness probes; only real termination signals count.
-  const signals = state.killed
-    .filter(([p, signal]) => p === pid && signal !== 0 && signal !== undefined)
-    .map(([, signal]) => signal);
+  const signals = state.killed.filter(([p, signal]) => p === pid && signal !== 0 && signal !== undefined).map(([, signal]) => signal);
   // Windows terminates through `taskkill /pid <pid> /T /F` instead of process.kill(SIGTERM).
   if (state.spawned.some(([cmd, ...args]) => /^taskkill$/i.test(cmd) && args.includes(String(pid)))) signals.push("SIGTERM");
   return signals;

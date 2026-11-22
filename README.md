@@ -9,8 +9,8 @@ coding agent. The extension is a **client** of the OpenCode v2 server (`opencode
 on your machine. It does not reimplement the agent, never reads or stores provider API keys and
 sends **no telemetry**.
 
-| Conversation | Inline permission | Model picker | Light theme |
-| --- | --- | --- | --- |
+| Conversation                                       | Inline permission                              | Model picker                                       | Light theme                                |
+| -------------------------------------------------- | ---------------------------------------------- | -------------------------------------------------- | ------------------------------------------ |
 | ![Conversation](docs/images/conversation-dark.png) | ![Permission](docs/images/permission-dark.png) | ![Model picker](docs/images/model-picker-dark.png) | ![Light](docs/images/permission-light.png) |
 
 > Screenshots come from the automated UI tests (`npm run test:ui`). They render real OpenCode
@@ -20,23 +20,23 @@ sends **no telemetry**.
 
 - **Streaming chat** with Markdown, syntax highlighting and copy buttons on code blocks.
 - **Collapsible reasoning** ("Thoughts") and **tool cards** that work with any tool name (input, output, errors).
-- **Sessions**: list, create, switch, resume, rename and delete, with *Load more sessions* for older ones and a discreet trash icon to *Delete all sessions* (with a native VS Code confirmation) to clear the workspace at once. The last session of each folder is restored when VS Code restarts.
-- **Rollback to any turn**: every prompt has a discreet *Roll back to this turn* button. Pick the first, the last or any intermediate turn: OpenCode restores the files changed after it and removes that prompt, its reply and all later turns, while the prompt itself returns to the composer so you can edit and resend it. A native confirmation lets you keep the current files (*Messages only*).
-- **Fork a turn**: the other button beside each prompt, *Fork conversation from this turn*, opens a new sibling session with the history up to that point. The current conversation and its files stay untouched, so you can try a different approach without losing the original. Forks stay visible in the session list.
+- **Sessions**: list, create, switch, resume, rename and delete, with _Load more sessions_ for older ones and a discreet trash icon to _Delete all sessions_ (with a native VS Code confirmation) to clear the workspace at once. The last session of each folder is restored when VS Code restarts.
+- **Rollback to any turn**: every prompt has a discreet _Roll back to this turn_ button. Pick the first, the last or any intermediate turn: OpenCode restores the files changed after it and removes that prompt, its reply and all later turns, while the prompt itself returns to the composer so you can edit and resend it. A native confirmation lets you keep the current files (_Messages only_).
+- **Fork a turn**: the other button beside each prompt, _Fork conversation from this turn_, opens a new sibling session with the history up to that point. The current conversation and its files stay untouched, so you can try a different approach without losing the original. Forks stay visible in the session list.
 - **Subagents**: live progress stays inline in the conversation. Click **Open subagent conversation** on a subagent card to inspect the child session in a read-only modal rendered with the same chat view (steps, thoughts, tools and report). Breadcrumbs navigate nested subagents and lead back to the parent chat; `Esc` or a backdrop click closes it.
-- **Opens on the right** in the Secondary Side Bar, like Copilot Chat (VS Code 1.104+); movable anywhere with *OpenCode: Move Chat View…* or drag and drop.
+- **Opens on the right** in the Secondary Side Bar, like Copilot Chat (VS Code 1.104+); movable anywhere with _OpenCode: Move Chat View…_ or drag and drop.
 - **Context window at a glance**: each model in the picker shows its context size, and a meter
   next to the send button shows how much of it the conversation already uses.
 - **Turn stats**: when the agent finishes, one badge summarises the whole turn — steps, time from
   your input to the last step, tokens summed across every step, cost when reported, and the
   insertions/deletions from its file edits. Click **+N / -N** to see all of that turn's changes in one
   read-only diff. The numbers come from OpenCode itself.
-- **Model, reasoning-effort and agent pickers** (custom, searchable, grouped by provider) filled with what your server actually returns (e.g. *Build* / *Plan*).
+- **Model, reasoning-effort and agent pickers** (custom, searchable, grouped by provider) filled with what your server actually returns (e.g. _Build_ / _Plan_).
 - **Stop** a running response (button or `Esc` in the input), and **compact** a long session from the composer toolbar or the command palette.
 - **Keep working while the agent runs**: plain `Enter` queues the next message (`delivery: queue`),
   `Ctrl/Cmd+Enter` interrupts and sends it immediately (`delivery: steer`). A **Queued messages**
   panel above the composer lists the prompts still waiting in the server's inbox: promote one to
-  *send now*, put it back in the composer to edit it, or remove it. A queued prompt stays in the
+  _send now_, put it back in the composer to edit it, or remove it. A queued prompt stays in the
   panel only — it joins the conversation once the agent actually starts working on it. Composer
   drafts are stored per session **and survive a window reload**.
 - A **contract smoke test** on connect names the features that a non-2.2.7 server cannot support, instead of only warning about the version number.
@@ -78,7 +78,7 @@ sends **no telemetry**.
   `curl -fsSL https://opencode.ai/v2/install | bash` (see https://opencode.ai/docs/). The chat shows
   a dismissible warning if your server's minor or major version differs from the tested one.
 - At least one model provider configured in OpenCode (`opencode auth login`). The extension
-  shows a *Configure a provider* button that runs it in a terminal for you.
+  shows a _Configure a provider_ button that runs it in a terminal for you.
 
 ## Install
 
@@ -88,7 +88,7 @@ From a release `.vsix`:
 code --install-extension chat-for-opencode-<version>.vsix
 ```
 
-or *Extensions view → … → Install from VSIX…*.
+or _Extensions view → … → Install from VSIX…_.
 
 From source:
 
@@ -106,17 +106,17 @@ Press **F5** in this repository to launch an Extension Development Host.
    the OpenCode icon in the status bar (click it to view saved logins or sign in), or the
    OpenCode icon in the Secondary Side Bar on the right.
    On VS Code 1.99–1.103, which cannot contribute to the Secondary Side Bar, the chat appears in the Explorer;
-   use *OpenCode: Move Chat View…* to move it to the right.
+   use _OpenCode: Move Chat View…_ to move it to the right.
 2. In a trusted folder the extension starts `opencode serve` in the background (status shown at the top).
-   In an untrusted one it shows a *Trust workspace* action instead and starts nothing.
+   In an untrusted one it shows a _Trust workspace_ action instead and starts nothing.
 3. Type a message. `Enter` sends, `Shift+Enter` adds a new line, `@` suggests files, `/` suggests
    skills, and `Esc` stops a running response. Selecting a skill adds `/skill-id`; the extension
    translates it to OpenCode's `@skill-id` syntax when sending so OpenCode loads its instructions
    with your prompt.
-4. Pick the agent (*Build*, *Plan*, …), model and reasoning effort in the toolbar below the input.
+4. Pick the agent (_Build_, _Plan_, …), model and reasoning effort in the toolbar below the input.
 5. When the agent wants to edit a file or run a command that needs approval, a card appears inside
    the tool call: open the diff, then **Allow once**, **Always allow** or **Reject**.
-6. Use the session button (top left) to switch, resume, rename or delete sessions. The `+` next to the header's refresh icon starts a new one; *Load more sessions* reaches older ones, and the small trash icon next to `+ New Session` in the list deletes every session after a native VS Code confirmation.
+6. Use the session button (top left) to switch, resume, rename or delete sessions. The `+` next to the header's refresh icon starts a new one; _Load more sessions_ reaches older ones, and the small trash icon next to `+ New Session` in the list deletes every session after a native VS Code confirmation.
 
 ### Skills
 
@@ -133,39 +133,39 @@ loads the skill content.
 
 ### Commands
 
-| Command | Default key |
-| --- | --- |
-| OpenCode: Focus Chat | `Cmd/Ctrl+Alt+O` |
-| OpenCode: Ask OpenCode… | `Cmd/Ctrl+Alt+Shift+O` (send a prompt from anywhere) |
-| OpenCode: Open Chat in Editor | – (toolbar, opens a second, wider chat view) |
-| OpenCode: Add Selection to Chat | `Cmd/Ctrl+Alt+L` (editor with selection) |
-| OpenCode: Add File to Chat | – (editor / explorer context menu) |
-| OpenCode: New Session | `Cmd/Ctrl+N` (chat focused) |
-| Search messages in the chat | `Cmd/Ctrl+F` (chat focused) |
-| Sync the current session | `Cmd/Ctrl+R` (chat focused) |
-| OpenCode: Compact Conversation | – |
-| OpenCode: Restart Server… | – (toolbar, with confirmation) |
-| OpenCode: Open Config File | – (toolbar file icon) |
-| OpenCode: Open Extension Settings | – (toolbar gear icon) |
-| OpenCode: Move Chat View… | – (left/right side bar or panel) |
-| OpenCode: Show Logs | – |
-| OpenCode: Set Server Password… | – (external server only) |
-| OpenCode: Stop Server | – |
+| Command                           | Default key                                          |
+| --------------------------------- | ---------------------------------------------------- |
+| OpenCode: Focus Chat              | `Cmd/Ctrl+Alt+O`                                     |
+| OpenCode: Ask OpenCode…           | `Cmd/Ctrl+Alt+Shift+O` (send a prompt from anywhere) |
+| OpenCode: Open Chat in Editor     | – (toolbar, opens a second, wider chat view)         |
+| OpenCode: Add Selection to Chat   | `Cmd/Ctrl+Alt+L` (editor with selection)             |
+| OpenCode: Add File to Chat        | – (editor / explorer context menu)                   |
+| OpenCode: New Session             | `Cmd/Ctrl+N` (chat focused)                          |
+| Search messages in the chat       | `Cmd/Ctrl+F` (chat focused)                          |
+| Sync the current session          | `Cmd/Ctrl+R` (chat focused)                          |
+| OpenCode: Compact Conversation    | –                                                    |
+| OpenCode: Restart Server…         | – (toolbar, with confirmation)                       |
+| OpenCode: Open Config File        | – (toolbar file icon)                                |
+| OpenCode: Open Extension Settings | – (toolbar gear icon)                                |
+| OpenCode: Move Chat View…         | – (left/right side bar or panel)                     |
+| OpenCode: Show Logs               | –                                                    |
+| OpenCode: Set Server Password…    | – (external server only)                             |
+| OpenCode: Stop Server             | –                                                    |
 
 ### Settings
 
-| Setting | Default | Description |
-| --- | --- | --- |
-| `opencode.executablePath` | `opencode` | Executable used to start `opencode serve`. |
-| `opencode.endpoint` | `""` | URL of a server you already run (e.g. `http://127.0.0.1:4096`). When set, nothing is spawned. |
-| `opencode.autoContext` | `true` | Show the active file and selection as context chips. Selections are attached automatically; add the active file to a message with one click. |
-| `opencode.startupTimeout` | `30000` | ms to wait for the server to become healthy. |
-| `opencode.autoRestart` | `true` | Restart the managed server if it crashes (max 5 times in 2 minutes). |
-| `opencode.sessionPermissions` | ask before edits, shell and external files | Rules added to new sessions. Set `[]` to restore OpenCode's permissive defaults. |
-| `opencode.autoApprovePermissions` | `false` | Default for new chats: auto-approve every permission request without showing the approval panel (granted once, saved rules untouched). The **Auto-approve** toggle in the composer overrides it per chat. |
-| `opencode.sessionPageSize` | `10` | Sessions shown per page in the session list; older ones are fetched with **Load more sessions**. |
-| `opencode.notifyOnComplete` | `false` | Notify when a turn finishes while the chat is hidden, with an **Open chat** action. |
-| `opencode.notifyOnFailure` | `true` | Notify when a turn fails while the chat is hidden. |
+| Setting                           | Default                                    | Description                                                                                                                                                                                               |
+| --------------------------------- | ------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `opencode.executablePath`         | `opencode`                                 | Executable used to start `opencode serve`.                                                                                                                                                                |
+| `opencode.endpoint`               | `""`                                       | URL of a server you already run (e.g. `http://127.0.0.1:4096`). When set, nothing is spawned.                                                                                                             |
+| `opencode.autoContext`            | `true`                                     | Show the active file and selection as context chips. Selections are attached automatically; add the active file to a message with one click.                                                              |
+| `opencode.startupTimeout`         | `30000`                                    | ms to wait for the server to become healthy.                                                                                                                                                              |
+| `opencode.autoRestart`            | `true`                                     | Restart the managed server if it crashes (max 5 times in 2 minutes).                                                                                                                                      |
+| `opencode.sessionPermissions`     | ask before edits, shell and external files | Rules added to new sessions. Set `[]` to restore OpenCode's permissive defaults.                                                                                                                          |
+| `opencode.autoApprovePermissions` | `false`                                    | Default for new chats: auto-approve every permission request without showing the approval panel (granted once, saved rules untouched). The **Auto-approve** toggle in the composer overrides it per chat. |
+| `opencode.sessionPageSize`        | `10`                                       | Sessions shown per page in the session list; older ones are fetched with **Load more sessions**.                                                                                                          |
+| `opencode.notifyOnComplete`       | `false`                                    | Notify when a turn finishes while the chat is hidden, with an **Open chat** action.                                                                                                                       |
+| `opencode.notifyOnFailure`        | `true`                                     | Notify when a turn fails while the chat is hidden.                                                                                                                                                        |
 
 **OpenCode: Search All Session Conversations** (`Cmd/Ctrl+Alt+F`) searches titles and message bodies
 across every session in the workspace, then opens the hit and highlights the matching message.
@@ -213,8 +213,9 @@ Auto-approval is off by default; only enable it when you trust unattended edits 
 - Each managed server writes a PID record (no password) in global storage. On the next start,
   servers whose owning VS Code window is gone are reaped; servers owned by another live window
   are left alone.
-- Details: [SPEC.md](SPEC.md), [docs/API_NOTES.md](docs/API_NOTES.md), [docs/DECISIONS.md](docs/DECISIONS.md),
-  [docs/KNOWN_LIMITS.md](docs/KNOWN_LIMITS.md).
+- Details: [documentation index](docs/README.md), including [SPEC.md](SPEC.md),
+  [API_NOTES.md](docs/API_NOTES.md), [DECISIONS.md](docs/DECISIONS.md) and
+  [KNOWN_LIMITS.md](docs/KNOWN_LIMITS.md).
 
 ## Privacy & security
 
@@ -229,15 +230,19 @@ Auto-approval is off by default; only enable it when you trust unattended edits 
 ## Development
 
 ```sh
+npm ci
 npm run compile          # type-check + bundle (esbuild)
-npm run lint             # eslint
-npm test                 # unit (vitest) + UI (Playwright) + integration (@vscode/test-electron)
-npm run test:coverage    # unit tests with a V8 coverage report and minimum thresholds
-npm run test:e2e         # client/reducer against a real `opencode serve` (skips when unavailable)
-npm run test:integration:real  # extension in VS Code + real `opencode serve` (uses your configured default model)
-npm run test:integration:e2e   # clicks the real webview inside VS Code via CDP (mock server)
-npm run test:integration:real:e2e  # real clicks AND real `opencode serve` (uses your configured model)
+npm run verify           # lint + format:check + typecheck + all deterministic suites
+npm test                 # same gates as verify, via npm's pretest hook
+npm run test:unit        # vitest
+npm run test:ui          # Playwright, mock server + recorded SSE fixtures
+npm run test:integration # VS Code extension host + mock server
+npm run test:coverage    # unit coverage, with thresholds
+npm run test:coverage:ui # webview coverage from Chromium V8, mapped to src/webview
 ```
+
+`npm run format` applies Prettier; CI runs `npm run format:check`. For the full test map, live-server
+commands and the definition of done, see [CONTRIBUTING.md](CONTRIBUTING.md).
 
 The Playwright browser is installed with `npx playwright install chromium`.
 Integration tests download VS Code into `.vscode-test/` (`VSCODE_TEST_VERSION=1.99.3` to test the minimum version).

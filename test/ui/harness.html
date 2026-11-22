@@ -1,43 +1,51 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-<head>
-<meta charset="UTF-8">
-<!--
+  <head>
+    <meta charset="UTF-8" />
+    <!--
   Same CSP shape as the real webview (see src/chat/viewProvider.ts): scripts are allowed only via a
   nonce, never 'unsafe-inline'. `file:`/`self` are the harness equivalents of the host's
   `vscode-resource:` source, needed to load the local stylesheet and bundle. The nonce is fixed here
   because the harness is a static file; the XSS test injects a script WITHOUT it and must be blocked.
 -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'self' file:; script-src 'nonce-oc-harness-nonce'; img-src 'self' file: data:; font-src 'self' file: data:;">
-<link id="theme" rel="stylesheet" href="theme-dark.css">
-<link rel="stylesheet" href="../../dist/webview.css">
-<script nonce="oc-harness-nonce">
-  // Fake VS Code host bridge: records posted messages; tests reply with window.postMessage.
-  window.__posted = [];
-  window.__windowKeys = [];
-  // Like the VS Code preload, listen on window in the bubble phase.
-  window.addEventListener("keydown", (e) => window.__windowKeys.push((e.ctrlKey ? "Ctrl+" : "") + (e.metaKey ? "Meta+" : "") + (e.altKey ? "Alt+" : "") + e.key));
-  let state;
-  window.acquireVsCodeApi = () => ({
-    postMessage: (m) => {
-      window.__posted.push(JSON.parse(JSON.stringify(m)));
-      // The real host turns dropped files into attachments; mimic that reply here.
-      if (m && m.type === "dropFiles") {
-        setTimeout(() => {
-          for (const f of m.files) {
-            const uri = f.uri || (f.path ? "file://" + f.path.replace(/\\/g, "/") : "data:" + (f.mime || "text/plain") + ";base64," + f.base64);
-            window.postMessage({ type: "addAttachment", item: { uri, name: f.name, kind: "file", detail: f.name } }, "*");
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'none'; style-src 'self' file:; script-src 'nonce-oc-harness-nonce'; img-src 'self' file: data:; font-src 'self' file: data:;"
+    />
+    <link id="theme" rel="stylesheet" href="theme-dark.css" />
+    <link rel="stylesheet" href="../../dist/webview.css" />
+    <script nonce="oc-harness-nonce">
+      // Fake VS Code host bridge: records posted messages; tests reply with window.postMessage.
+      window.__posted = [];
+      window.__windowKeys = [];
+      // Like the VS Code preload, listen on window in the bubble phase.
+      window.addEventListener("keydown", (e) =>
+        window.__windowKeys.push((e.ctrlKey ? "Ctrl+" : "") + (e.metaKey ? "Meta+" : "") + (e.altKey ? "Alt+" : "") + e.key),
+      );
+      let state;
+      window.acquireVsCodeApi = () => ({
+        postMessage: (m) => {
+          window.__posted.push(JSON.parse(JSON.stringify(m)));
+          // The real host turns dropped files into attachments; mimic that reply here.
+          if (m && m.type === "dropFiles") {
+            setTimeout(() => {
+              for (const f of m.files) {
+                const uri =
+                  f.uri || (f.path ? "file://" + f.path.replace(/\\/g, "/") : "data:" + (f.mime || "text/plain") + ";base64," + f.base64);
+                window.postMessage({ type: "addAttachment", item: { uri, name: f.name, kind: "file", detail: f.name } }, "*");
+              }
+            }, 0);
           }
-        }, 0);
-      }
-    },
-    getState: () => state,
-    setState: (s) => { state = s; },
-  });
-</script>
-</head>
-<body>
-<div id="root"></div>
-<script nonce="oc-harness-nonce" src="../../dist/webview.js"></script>
-</body>
+        },
+        getState: () => state,
+        setState: (s) => {
+          state = s;
+        },
+      });
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script nonce="oc-harness-nonce" src="../../dist/webview.js"></script>
+  </body>
 </html>

@@ -1,0 +1,11 @@
+node_modules/
+dist/
+out/
+.vscode-test/
+coverage/
+test-results/
+playwright-report/
+*.vsix
+package-lock.json
+src/shared/openapi.generated.ts
+test/fixtures/

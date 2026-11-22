@@ -96,5 +96,4 @@ describe("ChatController state machine", () => {
     await call("syncNow", c);
     expect(c.post).toHaveBeenCalledWith({ type: "synced" });
   });
-
 });

@@ -6,7 +6,10 @@ import { startMockServer, type MockServer } from "../mock/mockServer";
 function collect(chunks: string[]): { messages: SseMessage[]; comments: string[] } {
   const messages: SseMessage[] = [];
   const comments: string[] = [];
-  const p = new SseParser((m) => messages.push(m), (c) => comments.push(c));
+  const p = new SseParser(
+    (m) => messages.push(m),
+    (c) => comments.push(c),
+  );
   for (const c of chunks) p.feed(c);
   p.end();
   return { messages, comments };
@@ -44,13 +47,21 @@ describe("SseParser", () => {
   });
 
   it("fails a stream that trickles an unterminated line past the cap", () => {
-    const p = new SseParser(() => {}, () => {}, { maxUnfinishedBytes: 100 });
+    const p = new SseParser(
+      () => {},
+      () => {},
+      { maxUnfinishedBytes: 100 },
+    );
     for (let i = 0; i < 10; i++) p.feed("x".repeat(10)); // 100 bytes is fine
     expect(() => p.feed("x".repeat(11))).toThrow(SseOverflowError);
   });
 
   it("fails a single event whose data exceeds the cap", () => {
-    const p = new SseParser(() => {}, () => {}, { maxEventBytes: 50 });
+    const p = new SseParser(
+      () => {},
+      () => {},
+      { maxEventBytes: 50 },
+    );
     expect(() => p.feed(`data: ${"x".repeat(51)}\n\n`)).toThrow(SseOverflowError);
   });
 

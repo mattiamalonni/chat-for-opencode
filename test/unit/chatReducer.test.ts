@@ -43,13 +43,15 @@ describe("linkSubagent", () => {
     agent: "build",
     model: { id: "m", providerID: "p" },
     time: { created: 1 },
-    content: [{
-      type: "tool",
-      id: `tool-${id}`,
-      name: "subagent",
-      // Matches real persisted state of a running child: no metadata.sessionID yet.
-      state: { status: "running", input: { description }, metadata: {} },
-    }],
+    content: [
+      {
+        type: "tool",
+        id: `tool-${id}`,
+        name: "subagent",
+        // Matches real persisted state of a running child: no metadata.sessionID yet.
+        state: { status: "running", input: { description }, metadata: {} },
+      },
+    ],
   });
 
   it("links a discovered child to the matching card, or the newest unlinked one", () => {
@@ -91,9 +93,10 @@ describe("linkSubagent", () => {
     const messages = [runningSubagent("m1", "first")];
     const linked = chatReducer(open(S1, messages), { type: "linkSubagent", sessionId: "child-1", title: "first" });
     const reload = (sessionId: string) => chatReducer(linked, { type: "load", sessionId, messages, permissions: [], forms: [] });
-    const ids = (state: ChatState) => assistants(state)
-      .flatMap((m) => m.parts)
-      .flatMap((p) => (p.kind === "tool" ? [p.metadata?.sessionID] : []));
+    const ids = (state: ChatState) =>
+      assistants(state)
+        .flatMap((m) => m.parts)
+        .flatMap((p) => (p.kind === "tool" ? [p.metadata?.sessionID] : []));
     expect(ids(reload(S1))).toEqual(["child-1"]);
     expect(ids(reload(S2))).toEqual([undefined]);
   });
@@ -130,7 +133,9 @@ describe("chatReducer with recorded opencode 2.2.7 streams", () => {
   it("renders generic tool calls (write, shell) with input and output", () => {
     const events = fixture("real-sse2.jsonl");
     const state = chatReducer(open(S1), { type: "events", events });
-    const tools = assistants(state).flatMap((a) => a.parts).filter((p) => p.kind === "tool");
+    const tools = assistants(state)
+      .flatMap((a) => a.parts)
+      .filter((p) => p.kind === "tool");
     expect(tools.map((t) => t.kind === "tool" && t.name)).toEqual(["write", "shell", "shell"]);
     for (const t of tools) {
       if (t.kind !== "tool") continue;
@@ -150,7 +155,9 @@ describe("chatReducer with recorded opencode 2.2.7 streams", () => {
     expect(orphanPermissions(state)).toHaveLength(0);
     state = chatReducer(state, { type: "events", events: events.slice(asked + 1) });
     expect(state.permissions).toHaveLength(0);
-    const edit = assistants(state).flatMap((a) => a.parts).find((p) => p.kind === "tool" && p.name === "edit");
+    const edit = assistants(state)
+      .flatMap((a) => a.parts)
+      .find((p) => p.kind === "tool" && p.name === "edit");
     expect(edit && edit.kind === "tool" && edit.status).toBe("completed");
     expect(edit && edit.kind === "tool" && (edit.metadata?.files as unknown[]).length).toBe(1);
   });
@@ -170,7 +177,11 @@ describe("chatReducer with recorded opencode 2.2.7 streams", () => {
     let state = chatReducer(open(S2), {
       type: "events",
       events: [
-        { type: "session.inbox.enqueued", created: 100, data: { sessionID: S2, inboxID: "u1", item: { type: "user", payload: { text: "hi" } } } },
+        {
+          type: "session.inbox.enqueued",
+          created: 100,
+          data: { sessionID: S2, inboxID: "u1", item: { type: "user", payload: { text: "hi" } } },
+        },
         { type: "session.execution.started", data: { sessionID: S2 } },
         { type: "form.created", data: { sessionID: S2, form } },
       ],
@@ -238,19 +249,25 @@ describe("chatReducer with recorded opencode 2.2.7 streams", () => {
 describe("malformed live events degrade gracefully", () => {
   it("ignores usage events without token counts instead of erasing usage", () => {
     const usage = { cost: 0.5, tokens: { input: 1, output: 2, reasoning: 0, cache: { read: 0, write: 0 } } };
-    const state = chatReducer({ ...open("s"), usage }, {
-      type: "event",
-      event: { type: "session.usage.updated", data: { sessionID: "s", cost: 0.9 } },
-    });
+    const state = chatReducer(
+      { ...open("s"), usage },
+      {
+        type: "event",
+        event: { type: "session.usage.updated", data: { sessionID: "s", cost: 0.9 } },
+      },
+    );
     expect(state.usage).toEqual(usage);
   });
 
   it("keeps the selected model when a model-selected event is malformed", () => {
     const model = { id: "m", providerID: "p" };
-    const state = chatReducer({ ...open("s"), model }, {
-      type: "event",
-      event: { type: "session.model.selected", data: { sessionID: "s" } },
-    });
+    const state = chatReducer(
+      { ...open("s"), model },
+      {
+        type: "event",
+        event: { type: "session.model.selected", data: { sessionID: "s" } },
+      },
+    );
     expect(state.model).toEqual(model);
   });
 
@@ -308,12 +325,24 @@ describe("turn metrics", () => {
     let state = chatReducer(open(S1), {
       type: "events",
       events: [
-        { type: "session.inbox.enqueued", created: 1000, data: { sessionID: S1, inboxID: "msg_u1", item: { type: "user", payload: { text: "hi" } } } },
+        {
+          type: "session.inbox.enqueued",
+          created: 1000,
+          data: { sessionID: S1, inboxID: "msg_u1", item: { type: "user", payload: { text: "hi" } } },
+        },
         { type: "session.execution.started", created: 1010, data: { sessionID: S1 } },
         { type: "session.step.started", created: 1100, data: { sessionID: S1, assistantMessageID: "m1", agent: "build" } },
-        { type: "session.step.ended", created: 3000, data: { sessionID: S1, assistantMessageID: "m1", finish: "tool-use", cost: 0.001, tokens: first } },
+        {
+          type: "session.step.ended",
+          created: 3000,
+          data: { sessionID: S1, assistantMessageID: "m1", finish: "tool-use", cost: 0.001, tokens: first },
+        },
         { type: "session.step.started", created: 3100, data: { sessionID: S1, assistantMessageID: "m2", agent: "build" } },
-        { type: "session.step.ended", created: 6000, data: { sessionID: S1, assistantMessageID: "m2", finish: "stop", cost: 0.002, tokens: second } },
+        {
+          type: "session.step.ended",
+          created: 6000,
+          data: { sessionID: S1, assistantMessageID: "m2", finish: "stop", cost: 0.002, tokens: second },
+        },
       ],
     });
     expect(state.turns).toHaveLength(1);
@@ -382,9 +411,7 @@ describe("turn metrics", () => {
     const executions = events.filter(
       (e) => /^session\.execution\.(succeeded|failed|interrupted)$/.test(e.type) && (e.data as { sessionID?: string }).sessionID === S1,
     );
-    const firstInput = events.find(
-      (e) => e.type === "session.inbox.enqueued" && (e.data as { sessionID?: string }).sessionID === S1,
-    );
+    const firstInput = events.find((e) => e.type === "session.inbox.enqueued" && (e.data as { sessionID?: string }).sessionID === S1);
     expect(state.turns).toHaveLength(executions.length);
     expect(state.turns[0].started).toBe(firstInput?.created);
     expect(state.turns[0].ended).toBe(executions[0].created);
@@ -395,7 +422,8 @@ describe("turn metrics", () => {
         (e) => e.type === "session.step.ended" && (e.created ?? 0) > t.started && (e.created ?? 0) <= (t.ended ?? 0),
       );
       const sum = steps.reduce((acc, e) => {
-        const tk = (e.data as { tokens?: { input: number; output: number; reasoning: number; cache: { read: number; write: number } } }).tokens;
+        const tk = (e.data as { tokens?: { input: number; output: number; reasoning: number; cache: { read: number; write: number } } })
+          .tokens;
         return acc + (tk ? tk.input + tk.output + tk.reasoning + tk.cache.read + tk.cache.write : 0);
       }, 0);
       if (steps.length > best.count) best = { count: steps.length, turn: t, sum };
@@ -417,7 +445,12 @@ describe("chatReducer history loading", () => {
       time: { created: 2, completed: 3 },
       content: [
         { type: "reasoning", text: "hmm" },
-        { type: "tool", id: "t1", name: "read", state: { status: "completed", input: { path: "a" }, content: [{ type: "text", text: "a" }] } },
+        {
+          type: "tool",
+          id: "t1",
+          name: "read",
+          state: { status: "completed", input: { path: "a" }, content: [{ type: "text", text: "a" }] },
+        },
         { type: "text", text: "done" },
       ],
     },
@@ -435,7 +468,14 @@ describe("chatReducer history loading", () => {
   it("continues streaming into a message loaded from history (resync after reconnect)", () => {
     const partial: SessionMessage[] = [
       { id: "msg_1", type: "user", text: "hi", time: { created: 1 } },
-      { id: "msg_2", type: "assistant", agent: "build", model: { id: "m", providerID: "p" }, time: { created: 2 }, content: [{ type: "text", text: "hel" }] },
+      {
+        id: "msg_2",
+        type: "assistant",
+        agent: "build",
+        model: { id: "m", providerID: "p" },
+        time: { created: 2 },
+        content: [{ type: "text", text: "hel" }],
+      },
     ];
     let state = open("s", partial);
     expect(state.busy).toBe(true);
@@ -464,7 +504,10 @@ describe("chatReducer history loading", () => {
     let state = open("s", [{ id: "msg_1", type: "user", text: "hi", time: { created: 1 } }]);
     state = chatReducer(state, {
       type: "event",
-      event: { type: "session.inbox.enqueued", data: { sessionID: "s", inboxID: "msg_1", item: { type: "user", payload: { text: "hi" } } } },
+      event: {
+        type: "session.inbox.enqueued",
+        data: { sessionID: "s", inboxID: "msg_1", item: { type: "user", payload: { text: "hi" } } },
+      },
     });
     expect(state.messages).toHaveLength(1);
   });
@@ -482,9 +525,7 @@ describe("chatReducer history loading", () => {
             type: "user",
             payload: {
               text: "What is in this file?",
-              files: [
-                { data: "YQo=", mime: "text/plain", source: { type: "uri", uri: "file:///work/a.txt" }, name: "a.txt" },
-              ],
+              files: [{ data: "YQo=", mime: "text/plain", source: { type: "uri", uri: "file:///work/a.txt" }, name: "a.txt" }],
             },
           },
         },
@@ -504,7 +545,14 @@ describe("busy state after an interrupt", () => {
   // `idle`, so a plain timestamp comparison leaves the composer stuck on "stop".
   const interruptedHistory: SessionMessage[] = [
     { id: "msg_1", type: "user", text: "Tell me a story", time: { created: now - 400 } },
-    { id: "msg_2", type: "assistant", agent: "build", model: { id: "m", providerID: "p" }, time: { created: now - 390, completed: now - 105 }, content: [] },
+    {
+      id: "msg_2",
+      type: "assistant",
+      agent: "build",
+      model: { id: "m", providerID: "p" },
+      time: { created: now - 390, completed: now - 105 },
+      content: [],
+    },
     { id: "msg_3", type: "idle", outcome: "interrupted", time: { created: now - 105 } },
   ];
 
@@ -518,10 +566,7 @@ describe("busy state after an interrupt", () => {
   });
 
   it("ignores trailing bookkeeping messages after the terminal idle", () => {
-    const withCompaction: SessionMessage[] = [
-      ...interruptedHistory,
-      { id: "msg_4", type: "compaction", time: { created: now - 100 } },
-    ];
+    const withCompaction: SessionMessage[] = [...interruptedHistory, { id: "msg_4", type: "compaction", time: { created: now - 100 } }];
     expect(sessionIsBusy(time, withCompaction)).toBe(false);
   });
 
@@ -535,7 +580,13 @@ describe("busy state after an interrupt", () => {
       title: "Chat",
       location: { directory: "/work" },
     };
-    expect(toSessionSummary(info, interruptedHistory)).toMatchObject({ id: "s", title: "Chat", updated: now, busy: false, needsInput: false });
+    expect(toSessionSummary(info, interruptedHistory)).toMatchObject({
+      id: "s",
+      title: "Chat",
+      updated: now,
+      busy: false,
+      needsInput: false,
+    });
     expect(toSessionSummary(info, interruptedHistory.slice(0, 2)).busy).toBe(true);
     // Without a history the list can only use the timestamps, as before.
     expect(toSessionSummary(info).busy).toBe(true);
@@ -562,10 +613,18 @@ describe("a prompt queued while a turn is running", () => {
     return chatReducer(open(S1), {
       type: "events",
       events: [
-        { type: "session.inbox.enqueued", created: 1000, data: { sessionID: S1, inboxID: "u1", item: { type: "user", payload: { text: "first" } } } },
+        {
+          type: "session.inbox.enqueued",
+          created: 1000,
+          data: { sessionID: S1, inboxID: "u1", item: { type: "user", payload: { text: "first" } } },
+        },
         { type: "session.execution.started", created: 1010, data: { sessionID: S1 } },
         { type: "session.step.started", created: 1100, data: { sessionID: S1, assistantMessageID: "m1", agent: "build" } },
-        { type: "session.step.ended", created: 1200, data: { sessionID: S1, assistantMessageID: "m1", finish: "tool-calls", cost: 0.001, tokens } },
+        {
+          type: "session.step.ended",
+          created: 1200,
+          data: { sessionID: S1, assistantMessageID: "m1", finish: "tool-calls", cost: 0.001, tokens },
+        },
       ],
     });
   }
@@ -767,7 +826,14 @@ describe("changed-file selectors", () => {
       agent: "build",
       model: { id: "m", providerID: "p" },
       time: { created: 1 },
-      content: [{ type: "tool", id: "t", name: "edit", state: { status: "running", input: {}, metadata: { files: [file("pending.ts", "modified")] } } }],
+      content: [
+        {
+          type: "tool",
+          id: "t",
+          name: "edit",
+          state: { status: "running", input: {}, metadata: { files: [file("pending.ts", "modified")] } },
+        },
+      ],
     };
     expect(selectToolChangedFiles(open("s", [assistant]))).toEqual([]);
   });
@@ -778,7 +844,13 @@ describe("changed-file selectors", () => {
     expect(mergeChangedFiles([authoritative], state)).toEqual([authoritative]);
   });
 
-  const serverFile = (f: string, status: FileDiff["status"], additions = 1, deletions = 1): FileDiff => ({ file: f, patch, status, additions, deletions });
+  const serverFile = (f: string, status: FileDiff["status"], additions = 1, deletions = 1): FileDiff => ({
+    file: f,
+    patch,
+    status,
+    additions,
+    deletions,
+  });
 
   it("drops server diff rows for files this session never touched", () => {
     // OpenCode diffs from the session's start snapshot to HEAD, so a commit made by another
@@ -817,7 +889,14 @@ describe("changed-file selectors", () => {
       agent: "build",
       model: { id: "m", providerID: "p" },
       time: { created: 1 },
-      content: [{ type: "tool", id: "t", name: "edit", state: { status: "running", input: {}, metadata: { files: [file("pending.ts", "modified")] } } }],
+      content: [
+        {
+          type: "tool",
+          id: "t",
+          name: "edit",
+          state: { status: "running", input: {}, metadata: { files: [file("pending.ts", "modified")] } },
+        },
+      ],
     };
     expect(selectTurnFileChanges(assistants(open("s", [assistant])))).toEqual({ additions: 0, deletions: 0 });
   });
@@ -826,7 +905,11 @@ describe("changed-file selectors", () => {
     const sid = "ses_counts";
     const base = { sessionID: sid, assistantMessageID: "m1" };
     const events: ServerEvent[] = [
-      { type: "session.inbox.enqueued", created: 1000, data: { sessionID: sid, inboxID: "u1", item: { type: "user", payload: { text: "edit" } } } },
+      {
+        type: "session.inbox.enqueued",
+        created: 1000,
+        data: { sessionID: sid, inboxID: "u1", item: { type: "user", payload: { text: "edit" } } },
+      },
       { type: "session.step.started", created: 1100, data: { ...base, agent: "build" } },
       { type: "session.tool.input.started", created: 1200, data: { ...base, id: "t1", name: "edit" } },
       { type: "session.tool.called", created: 1250, data: { ...base, id: "t1", input: {} } },
@@ -840,7 +923,11 @@ describe("changed-file selectors", () => {
           metadata: { files: [file("a.ts", "modified", 4, 2), file("b.ts", "added", 3, 0)] },
         },
       },
-      { type: "session.step.ended", created: 1500, data: { ...base, finish: "stop", tokens: { input: 1, output: 1, reasoning: 0, cache: { read: 0, write: 0 } } } },
+      {
+        type: "session.step.ended",
+        created: 1500,
+        data: { ...base, finish: "stop", tokens: { input: 1, output: 1, reasoning: 0, cache: { read: 0, write: 0 } } },
+      },
       { type: "session.execution.succeeded", created: 1600, data: { sessionID: sid } },
     ];
     const live = chatReducer(open(sid), { type: "events", events });
@@ -852,7 +939,9 @@ describe("changed-file selectors", () => {
       agent: "build",
       model: { id: "m", providerID: "p" },
       time: { created: 1100, completed: 1500 },
-      content: [{ type: "tool", id: "t1", name: "edit", state: { status: "completed", input: {}, content: [], metadata: { status: "completed" } } }],
+      content: [
+        { type: "tool", id: "t1", name: "edit", state: { status: "completed", input: {}, content: [], metadata: { status: "completed" } } },
+      ],
       // Real assistant history carries tokens, so `turnsFromHistory` emits a turn for this id and
       // the resync must merge its live-captured file counts instead of replacing the whole turn.
       tokens: { input: 1, output: 1, reasoning: 0, cache: { read: 0, write: 0 } },
@@ -920,9 +1009,7 @@ describe("incremental resync", () => {
       type: "append",
       delta: {
         sessionId: "s",
-        messages: [
-          { id: "idle_1", type: "idle", outcome: "failed", time: { created: 1001 }, error: { type: "unknown", message: "boom" } },
-        ],
+        messages: [{ id: "idle_1", type: "idle", outcome: "failed", time: { created: 1001 }, error: { type: "unknown", message: "boom" } }],
         permissions: [],
         forms: [],
       },

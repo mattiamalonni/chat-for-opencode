@@ -61,9 +61,7 @@ export class ChatViews implements vscode.Disposable {
     const shown = () => {
       if (this.all.has(view) && view.visible) this.onShown(view);
     };
-    const onVisibility = "onDidChangeVisibility" in view
-      ? view.onDidChangeVisibility(shown)
-      : view.onDidChangeViewState(shown);
+    const onVisibility = "onDidChangeVisibility" in view ? view.onDidChangeVisibility(shown) : view.onDidChangeViewState(shown);
     this.subscriptions.set(view, vscode.Disposable.from(sub, onDispose, onVisibility));
     // The first sidebar view is the focus target. Editor panels opt in explicitly via `attachPanel`.
     if (view === this.sidebar || (!this.sidebar && "onDidChangeVisibility" in view)) {
@@ -88,12 +86,10 @@ export class ChatViews implements vscode.Disposable {
       return;
     }
     const dist = vscode.Uri.joinPath(this.extensionUri, "dist");
-    const panel = vscode.window.createWebviewPanel(
-      "opencode.chat",
-      vscode.l10n.t("OpenCode chat"),
-      vscode.ViewColumn.Beside,
-      { enableScripts: true, localResourceRoots: [dist] },
-    );
+    const panel = vscode.window.createWebviewPanel("opencode.chat", vscode.l10n.t("OpenCode chat"), vscode.ViewColumn.Beside, {
+      enableScripts: true,
+      localResourceRoots: [dist],
+    });
     this.attachPanel(panel);
   }
 

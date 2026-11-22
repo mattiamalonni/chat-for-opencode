@@ -56,11 +56,8 @@ export class CatalogService {
     const savedAgent = this.ctx.globalState.get<string>(AGENT_KEY);
     // Even when the server exposes no agents, build/plan are built in: keep Build as the default.
     const fallbackAgent = (this.agents.find((a) => a.id === "build") ?? this.agents[0])?.id ?? "build";
-    this.selectedAgent = this.agents.length === 0
-      ? savedAgent ?? "build"
-      : this.agents.some((a) => a.id === savedAgent)
-        ? savedAgent
-        : fallbackAgent;
+    this.selectedAgent =
+      this.agents.length === 0 ? (savedAgent ?? "build") : this.agents.some((a) => a.id === savedAgent) ? savedAgent : fallbackAgent;
   }
 
   selectModel(model: ModelRef): void {
@@ -90,17 +87,23 @@ export class CatalogService {
     const safeSkills = skills ? normalizeList(skills, normalizeSkill) : undefined;
     const safeCommands = commands ? normalizeList(commands, normalizeCommand) : undefined;
     let changed = false;
-    if (safeSkills && !sameList(
-      safeSkills.map((s) => `${s.id}\u0000${s.name}\u0000${s.description ?? ""}`),
-      this.skills.map((s) => `${s.id}\u0000${s.name}\u0000${s.description ?? ""}`),
-    )) {
+    if (
+      safeSkills &&
+      !sameList(
+        safeSkills.map((s) => `${s.id}\u0000${s.name}\u0000${s.description ?? ""}`),
+        this.skills.map((s) => `${s.id}\u0000${s.name}\u0000${s.description ?? ""}`),
+      )
+    ) {
       this.skills = safeSkills;
       changed = true;
     }
-    if (safeCommands && !sameList(
-      safeCommands.map((c) => `${c.name}\u0000${c.description ?? ""}`),
-      this.commands.map((c) => `${c.name}\u0000${c.description ?? ""}`),
-    )) {
+    if (
+      safeCommands &&
+      !sameList(
+        safeCommands.map((c) => `${c.name}\u0000${c.description ?? ""}`),
+        this.commands.map((c) => `${c.name}\u0000${c.description ?? ""}`),
+      )
+    ) {
       this.commands = safeCommands;
       changed = true;
     }

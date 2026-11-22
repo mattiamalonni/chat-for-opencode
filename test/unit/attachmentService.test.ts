@@ -10,7 +10,11 @@ vi.mock("vscode", () => ({
         scheme: withQuery.protocol.replace(":", ""),
         fsPath: decodeURIComponent(withQuery.pathname),
         query: withQuery.search.replace(/^\?/, ""),
-        with: (_changes: unknown) => ({ scheme: "file", fsPath: decodeURIComponent(withQuery.pathname), toString: () => value.split("?")[0] }),
+        with: (_changes: unknown) => ({
+          scheme: "file",
+          fsPath: decodeURIComponent(withQuery.pathname),
+          toString: () => value.split("?")[0],
+        }),
         toString: () => value,
       };
     },
@@ -27,12 +31,7 @@ vi.mock("vscode", () => ({
 import { AttachmentService } from "../../src/chat/attachmentService";
 
 function service() {
-  return new AttachmentService(
-    vi.fn(),
-    vi.fn(),
-    vi.fn(),
-    vi.fn(),
-  );
+  return new AttachmentService(vi.fn(), vi.fn(), vi.fn(), vi.fn());
 }
 
 describe("AttachmentService path allowlist", () => {

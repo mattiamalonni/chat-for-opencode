@@ -10,7 +10,7 @@ Run these first; they cover most of the contract with the **mock** server:
 - `npm test` — unit (reducer, adapter, client, SSE, permissions, patches), Playwright UI and
   VS Code integration.
 - `npm run test:integration:e2e` — the **real webview inside VS Code** driven over CDP: typing a
-  prompt, streaming a reply and clicking *Allow once* on a permission card in the panel above the
+  prompt, streaming a reply and clicking _Allow once_ on a permission card in the panel above the
   composer.
 - `npm run test:integration:real` — the extension inside VS Code against a **real** server
   (streaming, permission approval, applied diff, resume after a server restart), but it drives the
@@ -31,18 +31,18 @@ screen readers and multi-window process management.
    mkdir /tmp/oc-manual && cd /tmp/oc-manual && git init && echo a > a.txt && git add . && git commit -m init
    code /tmp/oc-manual
    ```
-   In *Settings (Workspace)* set
+   In _Settings (Workspace)_ set
    `"opencode.sessionPermissions": [{"action":"edit","resource":"*","effect":"ask"}]`
    so edits require approval.
 3. **Open the sidebar**: click the OpenCode icon. Expect "Starting OpenCode…" then the welcome text.
-   *OpenCode: Show Logs* shows `server listening on http://127.0.0.1:<port>` and the password as `***`.
+   _OpenCode: Show Logs_ shows `server listening on http://127.0.0.1:<port>` and the password as `***`.
 4. **Streaming**: send `Explain what a git commit is in 3 bullet points`. Expect text appearing
-   progressively, a collapsible *Thoughts* block if the model reasons, the stop button while running.
+   progressively, a collapsible _Thoughts_ block if the model reasons, the stop button while running.
 5. **Stop**: send `Write a 2000 word essay about compilers` and press `Esc` (or the stop button).
    Expect "Response interrupted." and the composer to become usable again.
 6. **Permission + diff**: send `Change a.txt so it contains b instead of a`. An `edit` tool card shows
-   *Permission required* with `a.txt`. Click the file row → native diff `a` → `b` (proposed).
-   Click **Allow once**. The file changes; *1 Changed file* appears above the input with `+1 / -1`
+   _Permission required_ with `a.txt`. Click the file row → native diff `a` → `b` (proposed).
+   Click **Allow once**. The file changes; _1 Changed file_ appears above the input with `+1 / -1`
    totals. Clicking the totals opens a single read-only diff with all the session's changes; clicking
    the file opens its applied diff. The turn summary bar also shows `+1 / -1` — click it to open that
    turn's changes in one diff.
@@ -52,7 +52,7 @@ screen readers and multi-window process management.
    disable it again and confirm the cards return.
 9. **Context**: open `a.txt`, select the line. Chips `a.txt (Current file)` and `a.txt:1` appear;
    remove one with ×; send `What does the selection contain?`. The user bubble lists the attachment.
-   Right-click → *Add Selection to Chat* adds a chip, and *Add File to Chat* adds the whole file
+   Right-click → _Add Selection to Chat_ adds a chip, and _Add File to Chat_ adds the whole file
    (outside the workspace it is inlined, like a drop or a file-picker pick).
 10. **@ mention and excludes**: type `@a.t`, choose `a.txt` with ↓/Enter. The file becomes a chip
     and the `@a.t` text **disappears from the composer**; the chip alone is sent with the message.
@@ -67,27 +67,27 @@ screen readers and multi-window process management.
     back. Before switching, type a half-finished message; come back and confirm the **draft for that
     session is still there**, while the other session kept its own (empty) draft. Sending clears it.
     Quit and reopen VS Code: the draft must still be there (it is now in `workspaceState`).
-12b. **Queue and steer**: start a long answer, then type another message. The hint should say that
+    12b. **Queue and steer**: start a long answer, then type another message. The hint should say that
     `Enter` queues it and `Ctrl/Cmd+Enter` sends now; press `Enter` and confirm the message shows up
     in the **Queued messages** panel but **not** in the chat conversation yet. When the current
     answer finishes, the queued prompt must leave the panel and appear in the chat before its reply.
     Repeat with `Ctrl/Cmd+Enter`: the current answer must be interrupted and the new one answered.
-12c. **Permission shortcuts**: when a permission card appears in the panel above the composer, Tab
+    12c. **Permission shortcuts**: when a permission card appears in the panel above the composer, Tab
     to it and press `1` (Allow once) or `3` (Reject); `2` (Always allow) should only exist when the
     request offers saved rules. With several requests pending, check the counter and that
-    *Previous* / *Next* move through the queue without affecting the current answer. Clicking
-    *Cancel* on a question and *Reject* on a permission card must also stop the current reply (the
-    **Stop** button disappears); *Allow once* / *Always allow* must let it continue. If the agent
-    bundles several questions, check that they are shown one at a time and that *Next question*
+    _Previous_ / _Next_ move through the queue without affecting the current answer. Clicking
+    _Cancel_ on a question and _Reject_ on a permission card must also stop the current reply (the
+    **Stop** button disappears); _Allow once_ / _Always allow_ must let it continue. If the agent
+    bundles several questions, check that they are shown one at a time and that _Next question_
     keeps earlier answers before a single submit.
-12d. **Export and search**: use the header buttons to export the conversation as a `.md` file and to
+    12d. **Export and search**: use the header buttons to export the conversation as a `.md` file and to
     search for a word you used earlier; non-matching messages must be hidden and the result count
     shown. Add a large inline attachment and check the context meter shows a `~`-prefixed estimate.
- 12e. **Toolbar actions**: from the view title, the file icon opens the effective `opencode.json` in
-     the editor (a minimal one is created in the workspace if the server reports no config document);
-     the refresh icon opens **Restart Server…** with a modal confirmation that has exactly one
-     *Cancel* button (the native one) plus *Restart*; the gear icon opens the VS Code Settings view
-     filtered to this extension. Cancelling the restart must leave the chat and its server connected.
+    12e. **Toolbar actions**: from the view title, the file icon opens the effective `opencode.json` in
+    the editor (a minimal one is created in the workspace if the server reports no config document);
+    the refresh icon opens **Restart Server…** with a modal confirmation that has exactly one
+    _Cancel_ button (the native one) plus _Restart_; the gear icon opens the VS Code Settings view
+    filtered to this extension. Cancelling the restart must leave the chat and its server connected.
 13. **Resume after restart**: quit VS Code completely (`Cmd/Ctrl+Q`), check `ps aux | grep "opencode serve"`
     shows no process started by the extension, reopen the folder and the sidebar. The last session
     and its messages are restored.
@@ -95,16 +95,16 @@ screen readers and multi-window process management.
     should start **its own** server; in global storage there should be two PID records named
     `<folderHash>-<ownerPid>.json`. Quit one window and confirm the other window's server keeps
     running and its chat stays usable (the orphan reaper must not kill a live owner's server).
-15. **Errors and contract banner**: set `opencode.executablePath` to `/nope` → banner *OpenCode is not
-    installed…* with *Install OpenCode / Open settings / Show logs*. Reset the setting → reconnects.
+15. **Errors and contract banner**: set `opencode.executablePath` to `/nope` → banner _OpenCode is not
+    installed…_ with _Install OpenCode / Open settings / Show logs_. Reset the setting → reconnects.
     Kill the server process (`kill <pid>` from the logs) → banner "Reconnecting…" then back to normal.
     If you can point `opencode.endpoint` at a **different** OpenCode version, confirm the contract
     banner names the features whose response shape changed (the adapter normalises fields, but the
     raw-shape warning must still appear) and that dismissing it persists for that signature.
     With an `opencode.endpoint` on another host/container, attach the current file and a selection
-    and send: the prompt must succeed instead of failing with *Unable to read attachment*, because
+    and send: the prompt must succeed instead of failing with _Unable to read attachment_, because
     local `file:` URIs are inlined for external servers. Point the endpoint at a server whose
-    filesystem cannot see a deleted local file to check the clear *Could not read an attached file*
+    filesystem cannot see a deleted local file to check the clear _Could not read an attached file_
     notice instead of a failed send.
 16. **Keyboard**: in the input press `Ctrl+J` / `Ctrl+R` / `Ctrl+K`: the panel must **not** toggle and the
     recent-files picker must **not** open. `Cmd/Ctrl+Shift+P` still opens the command palette;
@@ -112,7 +112,7 @@ screen readers and multi-window process management.
     the same chord in the editor must still create a new file.
 17. **IME** (if available): type Japanese with the system IME and confirm a candidate with Enter: the
     message must not be sent until a second Enter.
-18. **Language**: *Configure Display Language → it*, restart: the UI strings stay in English (there is
+18. **Language**: _Configure Display Language → it_, restart: the UI strings stay in English (there is
     no Italian bundle), but the webview's `<html lang>` must now follow VS Code. In the webview
     developer tools, `document.documentElement.lang` should be `"it"` (it was hard-coded `"en"`).
 19. **Incremental resync** (only if you can drop just the SSE stream, e.g. a local proxy that closes
@@ -121,20 +121,20 @@ screen readers and multi-window process management.
     only the messages produced while disconnected are appended. A server restart instead performs a
     full reload, which is expected. The merge itself is covered by the reducer unit tests and by a
     Playwright UI test that sends a `sessionDelta` and checks that staged chips are preserved.
-19b. **Subagent modal**: ask the agent to use a subagent (`Use the 'explore' subagent to list the
-    files in this folder`). While it runs, the inline card shows a one-line activity; click the
+    19b. **Subagent modal**: ask the agent to use a subagent (`Use the 'explore' subagent to list the
+files in this folder`). While it runs, the inline card shows a one-line activity; click the
     **Open subagent conversation** button on the card. Expect a modal with the child's own task,
     thoughts, tool steps and final report, with breadcrumbs ending in the agent name. Click the
     parent crumb (or press `Esc`, or click the backdrop) to return. Have that subagent spawn a
     nested one and confirm a third crumb appears and can be used to go back. Switch sessions with
     the modal open: it must close along with the child's state.
-19c. **Subagent needing approval**: ask the agent to use a subagent for a command that raises a
-     permission prompt (e.g. *Use the 'explore' subagent to run git status in this folder*, with the
-     default `ask` session rules). The inline card must switch from the running spinner to an amber
-     *Needs your input* badge, and an approval card labelled with the subagent's name must appear
-     above the composer. Click *Allow once*: the card disappears, the indicator returns to running
-     and the child finishes its report. Repeat with the subagent modal open: the approval panel must
-     be visible inside the modal and the reply must still unblock the child. With auto-approve on,
-     neither the card nor the indicator should appear at all.
+    19c. **Subagent needing approval**: ask the agent to use a subagent for a command that raises a
+    permission prompt (e.g. _Use the 'explore' subagent to run git status in this folder_, with the
+    default `ask` session rules). The inline card must switch from the running spinner to an amber
+    _Needs your input_ badge, and an approval card labelled with the subagent's name must appear
+    above the composer. Click _Allow once_: the card disappears, the indicator returns to running
+    and the child finishes its report. Repeat with the subagent modal open: the approval panel must
+    be visible inside the modal and the reply must still unblock the child. With auto-approve on,
+    neither the card nor the indicator should appear at all.
 20. **Screen reader** (if available): with VoiceOver/NVDA, focus the composer and confirm its label,
     the session picker and the permission cards announce their role and state.

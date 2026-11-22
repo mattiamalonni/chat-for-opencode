@@ -61,7 +61,11 @@ export class ConnectionSupervisor {
   }
 
   /** Installs a fresh client/stream for `conn`; the caller then runs the initial load. */
-  openStream(conn: Connection, onEvent: (event: unknown) => void, onStreamStatus: (status: string, error?: unknown) => void): OpenCodeClient {
+  openStream(
+    conn: Connection,
+    onEvent: (event: unknown) => void,
+    onStreamStatus: (status: string, error?: unknown) => void,
+  ): OpenCodeClient {
     this.stream?.close();
     this.client = new OpenCodeClient(conn);
     this.stream = new EventStream({
@@ -86,9 +90,14 @@ export class ConnectionSupervisor {
 
   matches(conn: Connection): boolean {
     const loaded = this.loadedConnection;
-    return !!loaded && this.client !== undefined &&
-      this.client.conn.baseUrl === conn.baseUrl && this.client.conn.password === conn.password &&
-      loaded.baseUrl === conn.baseUrl && loaded.password === conn.password;
+    return (
+      !!loaded &&
+      this.client !== undefined &&
+      this.client.conn.baseUrl === conn.baseUrl &&
+      this.client.conn.password === conn.password &&
+      loaded.baseUrl === conn.baseUrl &&
+      loaded.password === conn.password
+    );
   }
 
   markLoaded(conn: Connection): void {
@@ -207,14 +216,19 @@ export class ConnectionSupervisor {
     if (state.status === "starting" && this.hooks.getStatus() === "connected") {
       this.hooks.setStatus("reconnecting");
     } else if (
-      state.status === "running" && this.client &&
+      state.status === "running" &&
+      this.client &&
       (this.client.conn.baseUrl !== state.conn.baseUrl || this.client.conn.password !== state.conn.password)
     ) {
       // The managed process was restarted: port *and* random password can change. Comparing only
       // the URL would leave a stale client on a reused port (endless 401s).
       void this.hooks.onReady(state.conn, state.version, stale).then(
-        () => { if (!stale()) this.hooks.log("[chat] reconnected to restarted server"); },
-        (err: unknown) => { if (!stale()) this.hooks.setStatus("error", this.hooks.toUiError(err)); },
+        () => {
+          if (!stale()) this.hooks.log("[chat] reconnected to restarted server");
+        },
+        (err: unknown) => {
+          if (!stale()) this.hooks.setStatus("error", this.hooks.toUiError(err));
+        },
       );
     } else if (state.status === "failed") {
       this.closeStream();

@@ -11,7 +11,8 @@ export type ShellPlatform = NodeJS.Platform | "mac" | "windows";
 export function quoteForShell(value: string, platform: ShellPlatform = process.platform): string {
   if (/[\0\r\n]/.test(value)) throw new Error("The executable path contains a control character.");
   if (platform === "win32" || platform === "windows") {
-    if (/["&|<>^%!]/.test(value)) throw new Error('The executable path contains a character cmd.exe cannot quote safely (", &, |, <, >, ^, %, !).');
+    if (/["&|<>^%!]/.test(value))
+      throw new Error('The executable path contains a character cmd.exe cannot quote safely (", &, |, <, >, ^, %, !).');
     return `"${value}"`;
   }
   return `'${value.replace(/'/g, `'\\''`)}'`;

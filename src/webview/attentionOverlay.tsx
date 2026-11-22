@@ -55,16 +55,18 @@ export function AttentionOverlay({ state, subagents }: { state: ChatState; subag
         const visible = f.fields.filter((field) => !field.hidden);
         // A form whose fields are all hidden still needs a card so it can be submitted or cancelled.
         const fields = visible.length > 0 ? visible : [undefined];
-        fields.forEach((field, index) => out.push({
-          id: `${f.id}:${index}`,
-          requestId: f.id,
-          index,
-          kind: "question",
-          form: f,
-          field,
-          last: index === fields.length - 1,
-          sourceLabel,
-        }));
+        fields.forEach((field, index) =>
+          out.push({
+            id: `${f.id}:${index}`,
+            requestId: f.id,
+            index,
+            kind: "question",
+            form: f,
+            field,
+            last: index === fields.length - 1,
+            sourceLabel,
+          }),
+        );
       }
     };
     collect(state);
@@ -159,9 +161,7 @@ export function AttentionOverlay({ state, subagents }: { state: ChatState; subag
 
   // Answers belong to the form, not to the field card: navigating between questions must not lose
   // them, and a single reply carries every field (including hidden ones with their defaults).
-  const [answers, setAnswers] = useState<Record<string, Answers>>(() =>
-    Object.fromEntries(allForms.map((f) => [f.id, initialAnswers(f)])),
-  );
+  const [answers, setAnswers] = useState<Record<string, Answers>>(() => Object.fromEntries(allForms.map((f) => [f.id, initialAnswers(f)])));
   const [customs, setCustoms] = useState<Record<string, Record<string, string>>>({});
   const [busyForms, setBusyForms] = useState<Record<string, boolean>>({});
   const seenForms = useRef(new Map(allForms.map((f) => [f.id, f])));
@@ -172,7 +172,10 @@ export function AttentionOverlay({ state, subagents }: { state: ChatState; subag
       let changed = false;
       for (const f of allForms) {
         if (prev[f.id]) next[f.id] = prev[f.id];
-        else { next[f.id] = initialAnswers(f); changed = true; }
+        else {
+          next[f.id] = initialAnswers(f);
+          changed = true;
+        }
       }
       for (const id of Object.keys(prev)) if (!ids.has(id)) changed = true;
       return changed ? next : prev;
@@ -182,7 +185,10 @@ export function AttentionOverlay({ state, subagents }: { state: ChatState; subag
       let changed = false;
       for (const id of ids) {
         if (prev[id]) next[id] = prev[id];
-        else { next[id] = {}; changed = true; }
+        else {
+          next[id] = {};
+          changed = true;
+        }
       }
       for (const id of Object.keys(prev)) if (!ids.has(id)) changed = true;
       return changed ? next : prev;
@@ -228,7 +234,9 @@ export function AttentionOverlay({ state, subagents }: { state: ChatState; subag
         <IconWarning />
         <span class="attention-title">{t("needsInput")}</span>
         {current.sourceLabel && <span class="attention-source">{current.sourceLabel}</span>}
-        <span class="attention-count" aria-live="polite">{t("attentionCount", currentIndex + 1, ordered.length)}</span>
+        <span class="attention-count" aria-live="polite">
+          {t("attentionCount", currentIndex + 1, ordered.length)}
+        </span>
         {ordered.length > 1 && (
           <span class="attention-nav">
             <button

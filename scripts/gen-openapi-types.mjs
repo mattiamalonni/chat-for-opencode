@@ -38,7 +38,7 @@ const SCHEMAS = [
   "SessionMessagesResponse",
 ];
 
-const version = (/openapi-(\d+\.\d+\.\d+)\.json/.exec(source)?.[1] ?? spec.info?.version ?? "unknown");
+const version = /openapi-(\d+\.\d+\.\d+)\.json/.exec(source)?.[1] ?? spec.info?.version ?? "unknown";
 
 const identifier = (name) => `Api${name.replace(/[^A-Za-z0-9_$]/g, "_")}`;
 const safeKey = (key) => (/^[A-Za-z_$][\w$]*$/.test(key) ? key : JSON.stringify(key));
@@ -54,9 +54,7 @@ function typeOf(schema) {
     case "object": {
       const properties = schema.properties ?? {};
       const required = new Set(schema.required ?? []);
-      const lines = Object.entries(properties).map(
-        ([key, value]) => `  ${safeKey(key)}${required.has(key) ? "" : "?"}: ${typeOf(value)};`,
-      );
+      const lines = Object.entries(properties).map(([key, value]) => `  ${safeKey(key)}${required.has(key) ? "" : "?"}: ${typeOf(value)};`);
       return lines.length ? `{\n${lines.join("\n")}\n}` : "{ [key: string]: unknown }";
     }
     case "array":

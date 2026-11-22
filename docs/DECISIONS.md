@@ -2,21 +2,21 @@
 
 ## D1 — Direct HTTP/SSE instead of an SDK
 
-* `@opencode-ai/sdk` (1.19.x) targets the **v1** API (`/session`, `/event`); the installed server is
+- `@opencode-ai/sdk` (1.19.x) targets the **v1** API (`/session`, `/event`); the installed server is
   v2.2.7 and exposes everything under `/api/*`. Incompatible.
-* `@opencode/client` (2.3.0) is the v2 client but: it is described on npm as a *"Private
-  generation target"*, it is ESM-only (VS Code extensions load CJS), it is newer than the
+- `@opencode/client` (2.3.0) is the v2 client but: it is described on npm as a _"Private
+  generation target"_, it is ESM-only (VS Code extensions load CJS), it is newer than the
   installed server (2.2.7) so generated types may not match, it pulls `@opencode/schema` and
   `@opencode/protocol` (~1.2 MB unpacked for the client alone), and its event subscriptions have
   "no replay or automatic reconnection" anyway.
-* We use ~20 endpoints. A thin hand-written client with types taken from the server's own
+- We use ~20 endpoints. A thin hand-written client with types taken from the server's own
   `/openapi.json` (saved in `docs/openapi-2.2.7.json`) is small, testable against a mock server,
   and lets us implement reconnection exactly as we need.
 
 ## D2 — Managed server: random password via `OPENCODE_PASSWORD`
 
 v2 servers always require Basic auth. Documented env var `OPENCODE_PASSWORD` sets it; we
-generate 32 random bytes per spawn and keep them in memory only. `--port 0` lets the OS pick a
+generate 24 random bytes per spawn (base64url) and keep them in memory only. `--port 0` lets the OS pick a
 free port; the URL is parsed from the `server listening on <url>` stdout line, then `/api/info` is
 polled as a health check.
 
@@ -82,7 +82,7 @@ input contains `todos[]`. The UI shows the latest call's list.
 `viewsExtensionPoint.ts` at tags 1.103.0 / 1.104.0). We keep `engines.vscode ^1.99.0` and contribute
 only that container: on 1.99–1.103 VS Code logs a warning and places the view in the Explorer
 (verified by the integration suite on 1.99.3), from where it can be moved with
-*OpenCode: Move Chat View…* (`workbench.action.moveFocusedView`). An extra Activity Bar container
+_OpenCode: Move Chat View…_ (`workbench.action.moveFocusedView`). An extra Activity Bar container
 was rejected because it would create a duplicate, empty icon on new VS Code versions.
 
 ## D11 — Custom pickers instead of `<select>`
@@ -93,6 +93,7 @@ Home/End, Enter, Escape, type-to-search for the model list) and is styled with `
 variables so it looks like VS Code's own quick picks.
 
 ## D12 — Incremental resync via a descending history page
+
 The event stream is live-only (no `Last-Event-ID` replay), and the history cursor is opaque and can be
 invalidated by compaction. We therefore store the newest history message id and, on reconnect,
 request `order=desc` once: finding the known id gives an exact tail with **one** small request.
@@ -101,6 +102,7 @@ on the optimisation. The webview merges the tail by message id (`sessionDelta`) 
 the state, keeping conversation-scoped UI state intact.
 
 ## D13 — Adapter + generated raw types instead of trusting the snapshot
+
 `checkContract` reports raw shape drift; `src/shared/adapter.ts` converts raw payloads to the
 canonical types used by the reducer, filling optional fields and dropping malformed entries. Raw
 wire types are generated from the checked-in OpenAPI snapshot (`npm run gen:types`, verified in CI).
@@ -110,7 +112,7 @@ version warning honest. Supporting a new server version should extend the adapte
 ## D9 — Permission requests are rendered in the attention overlay, not in the tool card
 
 `permission.asked.source.id` equals the tool call id, so the request is attached to that tool card
-*as a marker*; requests without a source are shown at the end of the conversation. The actionable
+_as a marker_; requests without a source are shown at the end of the conversation. The actionable
 `PermissionCard` is rendered once in the attention overlay above the composer, where it cannot be
 hidden inside a folded step or duplicated across cards. The tool card keeps only the `attention`
 marker pointing to it.
@@ -152,7 +154,7 @@ the overlay.
 `untrustedWorkspaces.supported: "limited"` restricts `opencode.executablePath` and `opencode.endpoint`,
 but VS Code would still let the extension spawn the default `opencode` binary and read `SecretStorage`.
 The `isTrusted` check therefore sits before `server.ensure()` / `server.restart()` and before
-`readAuthLogins()`, and publishes an error card with a *Trust workspace* action. VS Code 1.99 only
+`readAuthLogins()`, and publishes an error card with a _Trust workspace_ action. VS Code 1.99 only
 exposes `onDidGrantWorkspaceTrust`, so gaining trust reconnects without a reload while losing trust
 takes effect on the next reload (all entry points re-check `isTrusted` in the meantime).
 

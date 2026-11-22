@@ -20,30 +20,20 @@ describe("dropFiles", () => {
   });
 
   it("parses JSON uri-lists, plain uri-lists and bare paths", () => {
-    expect(parseUriList('["file:///work/a.ts","file:///work/b.ts"]')).toEqual([
-      { uri: "file:///work/a.ts" },
-      { uri: "file:///work/b.ts" },
-    ]);
-    expect(parseUriList("# comment\nfile:///work/a b.ts\n/work/c.ts\n")).toEqual([
-      { uri: "file:///work/a b.ts" },
-      { path: "/work/c.ts" },
-    ]);
+    expect(parseUriList('["file:///work/a.ts","file:///work/b.ts"]')).toEqual([{ uri: "file:///work/a.ts" }, { uri: "file:///work/b.ts" }]);
+    expect(parseUriList("# comment\nfile:///work/a b.ts\n/work/c.ts\n")).toEqual([{ uri: "file:///work/a b.ts" }, { path: "/work/c.ts" }]);
   });
 
   it("uses VS Code's uri-list and decodes display names", async () => {
     const data = drag(["Files", "application/vnd.code.uri-list"], {
       "application/vnd.code.uri-list": '["file:///work/src/my%20file.ts"]',
     });
-    expect(await collectDroppedFiles(data, read)).toEqual([
-      { uri: "file:///work/src/my%20file.ts", name: "my file.ts" },
-    ]);
+    expect(await collectDroppedFiles(data, read)).toEqual([{ uri: "file:///work/src/my%20file.ts", name: "my file.ts" }]);
   });
 
   it("uses text/uri-list from the desktop and keeps absolute paths", async () => {
     const data = drag(["Files", "text/uri-list"], { "text/uri-list": "file:///Users/me/notes.txt" });
-    expect(await collectDroppedFiles(data, read)).toEqual([
-      { uri: "file:///Users/me/notes.txt", name: "notes.txt" },
-    ]);
+    expect(await collectDroppedFiles(data, read)).toEqual([{ uri: "file:///Users/me/notes.txt", name: "notes.txt" }]);
   });
 
   it("falls back to Electron File.path when no uri-list is present", async () => {
@@ -75,9 +65,7 @@ describe("dropFiles", () => {
   });
 
   it("dedupes a file:// URI and File.path with different Windows drive-letter casing", async () => {
-    const data = drag(["Files", "text/uri-list"], { "text/uri-list": "file:///c:/work/a.ts" }, [
-      { name: "a.ts", path: "C:\\work\\a.ts" },
-    ]);
+    const data = drag(["Files", "text/uri-list"], { "text/uri-list": "file:///c:/work/a.ts" }, [{ name: "a.ts", path: "C:\\work\\a.ts" }]);
     expect(await collectDroppedFiles(data, read)).toEqual([{ uri: "file:///c:/work/a.ts", name: "a.ts" }]);
   });
 
@@ -102,9 +90,7 @@ describe("collectPastedFiles", () => {
       arrayBuffer: async () => new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10]).buffer,
     };
     const clipboard = drag(["Files"], {}, [png]);
-    expect(await collectPastedFiles(clipboard, reader)).toEqual([
-      { name: "shot.png", base64: "iVBORw0KGgo=", mime: "image/png" },
-    ]);
+    expect(await collectPastedFiles(clipboard, reader)).toEqual([{ name: "shot.png", base64: "iVBORw0KGgo=", mime: "image/png" }]);
   });
 
   it("falls back to items[].getAsFile() when files is empty", async () => {
@@ -119,9 +105,7 @@ describe("collectPastedFiles", () => {
       files: [],
       items: [{ kind: "file", type: "image/png", getAsFile: () => png }],
     };
-    expect(await collectPastedFiles(clipboard, reader)).toEqual([
-      { name: "clip.png", base64: "Ynl0ZXM=", mime: "image/png" },
-    ]);
+    expect(await collectPastedFiles(clipboard, reader)).toEqual([{ name: "clip.png", base64: "Ynl0ZXM=", mime: "image/png" }]);
   });
 
   it("ignores non-file items and skips unreadable files", async () => {

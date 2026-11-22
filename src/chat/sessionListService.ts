@@ -131,7 +131,12 @@ export class SessionListService {
       ]);
       const summary = toSessionSummary(safe, messages && messages, permissions.length > 0 || forms.length > 0);
       if (this.summaryCache.size > 200) this.summaryCache.delete(this.summaryCache.keys().next().value as string);
-      this.summaryCache.set(info.id, { updated: safe.time.updated, expires: Date.now() + 3000, busy: summary.busy, needsInput: summary.needsInput });
+      this.summaryCache.set(info.id, {
+        updated: safe.time.updated,
+        expires: Date.now() + 3000,
+        busy: summary.busy,
+        needsInput: summary.needsInput,
+      });
       return summary;
     });
   }
@@ -158,9 +163,13 @@ export class SessionListService {
       for (const id of this.forks) {
         if (sessions.some((s) => s.id === id)) continue;
         const cached = this.forkInfoCache.get(id);
-        const info = cached && cached.expires > now
-          ? cached.info
-          : await client.getSession(id, signal).then((s) => normalizeSessionInfo(s) ?? s).catch(() => undefined);
+        const info =
+          cached && cached.expires > now
+            ? cached.info
+            : await client
+                .getSession(id, signal)
+                .then((s) => normalizeSessionInfo(s) ?? s)
+                .catch(() => undefined);
         if (info && !info.time.archived) {
           forks.push(info);
           if (info !== cached?.info) this.forkInfoCache.set(id, { info, expires: now + 30_000 });
@@ -246,7 +255,8 @@ export class SessionListService {
       while (seen.size < maxSessions && !signal.aborted) {
         if (cursor && cursors.has(cursor)) break;
         if (cursor) cursors.add(cursor);
-        const page = await client.listSessionsPage(directory, 100, cursor, signal)
+        const page = await client
+          .listSessionsPage(directory, 100, cursor, signal)
           .catch(() => ({ items: [] as SessionInfo[], next: undefined as string | undefined }));
         if (signal.aborted) return [];
         const candidates = page.items
