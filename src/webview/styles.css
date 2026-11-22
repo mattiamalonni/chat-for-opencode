@@ -858,7 +858,8 @@ details[open] > summary > .chevron,
   align-items: center;
   gap: 6px;
   width: min(100%, 320px);
-  margin-top: 14px;
+  /* Center the block in the welcome column; without auto margins a fixed-width block sits left. */
+  margin: 14px auto 0;
   padding-top: 12px;
   border-top: 1px solid var(--opencode-border);
 }
@@ -877,6 +878,11 @@ details[open] > summary > .chevron,
   border: 1px solid var(--opencode-border);
   border-radius: 6px;
   cursor: pointer;
+}
+
+/* The demo is the only left-aligned starter: keep it centred like the welcome text. */
+.demo-play {
+  text-align: center;
 }
 
 .welcome-starter:hover,

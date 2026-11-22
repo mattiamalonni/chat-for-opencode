@@ -233,6 +233,14 @@ test("welcome screen, active file is opt-in and selections are attached", async 
   await expect(page.getByRole("button", { name: `${STRINGS.removeContext}: app.ts:3-9`, exact: true })).toBeVisible();
   await page.screenshot({ path: join(SHOTS, "01-welcome-dark.png") });
 
+  // The demo block and its button share the welcome column's centre with the heading.
+  const center = (box: { x: number; width: number } | null) => (box ? box.x + box.width / 2 : Number.NaN);
+  const heading = await page.getByRole("heading", { name: STRINGS.welcomeTitle }).boundingBox();
+  const demo = await page.locator(".welcome-demo").boundingBox();
+  const play = await page.getByRole("button", { name: STRINGS.demoPlay, exact: true }).boundingBox();
+  expect(Math.abs(center(heading) - center(demo))).toBeLessThan(4);
+  expect(Math.abs(center(demo) - center(play))).toBeLessThan(4);
+
   const input = page.getByRole("textbox", { name: STRINGS.inputLabel });
   await input.fill("Explain this code");
   await input.press("Enter");

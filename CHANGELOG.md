@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- **Fix:** the demo block in the welcome screen is now centred with the heading and starter prompts,
+  and its button uses the same alignment, so narrow and wide side bars render a single centred column.
 - **Multi-root:** `@` file search now indexes **every** workspace folder and qualifies duplicate
   names with the folder name, so files unique to another package are suggested too. Files from any
   open folder can be attached, opened from a reply and shown in a diff (the real-path containment
