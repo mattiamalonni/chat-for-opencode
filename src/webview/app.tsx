@@ -106,6 +106,8 @@ export function App() {
   // its agent name when only live events were received).
   const [subagentLabels, setSubagentLabels] = useState<Record<string, string>>({});
   const [syncing, setSyncing] = useState(false);
+  /** Bumped when the host replaces the conversation: lets a crashed render boundary recover. */
+  const [errorResetToken, setErrorResetToken] = useState(0);
   // The capture-phase key listener is installed once; keep the latest `syncNow` reachable so its
   // `syncing` guard still sees current state instead of the first render's value.
   const syncNowRef = useRef<() => void>(() => {});
@@ -186,6 +188,7 @@ export function App() {
           setSessionsHasMore(!!msg.hasMore);
           break;
         case "session": {
+          setErrorResetToken((n) => n + 1);
           queue.current = [];
           childQueue.current = [];
           resyncPending.current = false;
@@ -331,6 +334,7 @@ export function App() {
           break;
         case "synced":
           setSyncing(false);
+          setErrorResetToken((n) => n + 1);
           // A no-op sync (e.g. no client/session yet) posts no `session` message. Without clearing
           // here, the next queue overflow would short-circuit and the hidden chat stays stale.
           resyncPending.current = false;
@@ -605,7 +609,7 @@ export function App() {
     <StringsContext.Provider value={strings}>
       <SubagentsContext.Provider value={subagentEntries}>
         <SubagentNavContext.Provider value={openSubagent}>
-          <WebviewErrorBoundary>
+          <WebviewErrorBoundary resetToken={errorResetToken}>
             <div class="app">
               <Header
                 title={chat.sessionId ? title : strings.untitled}
@@ -733,11 +737,16 @@ export function App() {
 }
 
 /**
- * Catches rendering errors so a single bad message cannot leave the webview blank. The host can
- * resync history, but it cannot recover a webview whose script has thrown, hence the reload action.
+ * Catches rendering errors so a single bad message cannot leave the webview blank. A new `session`
+ * or a completed resync increments `resetToken`, which retries the render with the fresh data; the
+ * reload action remains as a last resort if the same payload keeps throwing.
  */
-class WebviewErrorBoundary extends Component<{ children: ComponentChildren }, { failed: boolean }> {
-  state = { failed: false };
+class WebviewErrorBoundary extends Component<{ children: ComponentChildren; resetToken: number }, { failed: boolean; token: number }> {
+  state = { failed: false, token: this.props.resetToken };
+
+  static getDerivedStateFromProps(props: { resetToken: number }, state: { failed: boolean; token: number }) {
+    return props.resetToken !== state.token ? { failed: false, token: props.resetToken } : null;
+  }
 
   static getDerivedStateFromError(): { failed: boolean } {
     return { failed: true };

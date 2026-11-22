@@ -2,6 +2,9 @@
 
 ## 0.3.19 — 2026-11-22
 
+- **Fix:** the webview error boundary no longer stays in its crashed state forever. A fresh `session`
+  payload or a completed resync retries the render with the new data; manual reload is still offered
+  when the same payload keeps throwing.
 - **DX:** `npm run verify` now runs the same gates as CI (production audit, generated-type diff,
   lint, formatting, typecheck, both coverage floors, production smoke and integration). All inline
   environment variables use `cross-env`, so the scripts also work on Windows, and the webview
