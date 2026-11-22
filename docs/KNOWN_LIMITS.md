@@ -65,6 +65,13 @@ test or a manual probe actually ran.
 
 ## Behaviour limits
 
+- **Applying a code block needs a target file.** The webview guesses the one referenced just above
+  the block; when the guess is missing or wrong, a QuickPick of workspace files takes over. A
+  full-file block replaces the entire file, so it is only appropriate when the reply really contains
+  the whole file. The target must resolve inside the connected folder; files outside it cannot be
+  written. The diff preview and Accept notification are native VS Code UI, so automated tests can
+  assert the preview but cannot click Accept.
+
 - **Context sources are snapshots, not live feeds.** A chip captures diagnostics, the diff, terminal
   output or symbol locations when you add it; later edits do not update it. Remove and re-add the
   chip to refresh. Their Markdown is capped at 12 000 characters (terminal output at 8 000) and is

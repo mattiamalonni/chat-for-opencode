@@ -223,6 +223,7 @@ const WEBVIEW_VALIDATORS: Record<string, Check> = {
   openAttachment: shape({ uri: str(MAX_URI) }),
   openLink: shape({ href: str(MAX_URI) }),
   copy: shape({ text: str(MAX_TEXT) }),
+  applyCode: shape({ text: str(MAX_TEXT), path: opt(str(MAX_URI)) }),
   // `action` is the privileged one: never dispatch an id outside the protocol whitelist.
   action: shape({ id: oneOf(ACTION_IDS) }),
   selectFolder: shape({ uri: str(MAX_URI) }),

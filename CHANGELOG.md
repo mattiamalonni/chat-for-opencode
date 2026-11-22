@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- **Editor:** every code block in a reply now has an **Apply to file** button. It uses the nearest
+  file reference in the reply (or asks you to pick one), opens a native diff of the proposed content,
+  and writes the file only after you press **Accept** in the confirmation notification. Full-file
+  blocks replace the file; unified diff blocks are applied as patches. Paths are confined to the
+  connected workspace, and an invalid patch is rejected before any diff is shown.
 - **Context:** five on-demand context sources can be attached as chips: `@problems` (diagnostics of
   the active file), `@git` (uncommitted diff), `@terminal` (last command output), `@openEditors` and
   `@symbol` (definitions at the cursor). They are available from the `@` suggestions and from a new

@@ -59,7 +59,8 @@ import {
   IconTrash,
   IconWarning,
 } from "./icons";
-import { setCopyLabel } from "./markdown";
+import { fileRefToPath } from "../shared/fileRef";
+import { setApplyLabel, setCopyLabel } from "./markdown";
 import { Picker } from "./picker";
 import { clearReplyFailures, markReplyFailed } from "./replyFeedback";
 import { SubagentNavContext, SubagentsContext, type SubagentEntry } from "./subagents";
@@ -231,6 +232,7 @@ export function App() {
         case "init":
           setStrings({ ...STRINGS, ...msg.strings });
           setCopyLabel(msg.strings.copy);
+          setApplyLabel(msg.strings.applyCode);
           env.platform = msg.platform;
           env.toolOutputLimit = msg.toolOutputLimit ?? 4000;
           setFolders({ list: msg.folders, active: msg.activeFolder });
@@ -2093,6 +2095,21 @@ function Conversation({
 
   const onClick = (e: MouseEvent) => {
     const target = e.target as HTMLElement;
+    const apply = target.closest("[data-action='apply-code']");
+    if (apply) {
+      const block = apply.closest(".code-block");
+      const code = block?.querySelector("code")?.textContent ?? "";
+      // The nearest file reference in the same reply is the best guess for the target. The host
+      // validates it against the workspace and falls back to a picker when it is absent or stale.
+      const message = apply.closest(".msg");
+      const refs = Array.from(message?.querySelectorAll<HTMLElement>("[data-file]") ?? []);
+      const preceding = refs.filter((el) => !!(apply.compareDocumentPosition(el) & Node.DOCUMENT_POSITION_PRECEDING)).at(-1);
+      const path = preceding?.dataset.file ? fileRefToPath(preceding.dataset.file) : undefined;
+      post({ type: "applyCode", text: code, ...(path ? { path } : {}) });
+      apply.textContent = t("applyCodeTitle");
+      setTimeout(() => (apply.textContent = t("applyCode")), 1200);
+      return;
+    }
     const copy = target.closest("[data-action='copy-code']");
     if (copy) {
       const code = copy.closest(".code-block")?.querySelector("code")?.textContent ?? "";

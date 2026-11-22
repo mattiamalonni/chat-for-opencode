@@ -55,6 +55,10 @@ sends **no telemetry**.
   inserts a slash command that loads its instructions with the prompt. Known `/command` and `/skill`
   tokens are underlined like links in the input, so you can spot at a glance what OpenCode will
   interpret; an unknown `/nope` stays plain text.
+- **Apply a reply's code to a file**: each code block has an **Apply to file** button. It targets the
+  file referenced just above the block (or asks you to pick one), opens a native diff of the proposal
+  and writes only after you press **Accept** — full-file blocks replace the file, unified diff blocks
+  are applied as patches. Paths are confined to the connected workspace.
 - **Native diffs**: open proposed changes (before you approve) and applied changes in VS Code's diff
   editor. The **Changed files** panel lists the session's files with per-file counts and shows the
   session totals (`+N / -N`) in its header (“1 Changed file” / “N Changed files”). Click the totals to

@@ -15,8 +15,14 @@ const MAX_CACHE_ENTRIES = 300;
 const MAX_CACHE_CHARS = 2_000_000;
 
 let copyLabel = "Copy";
+let applyLabel = "Apply to file";
 export function setCopyLabel(label: string): void {
   copyLabel = label;
+  cache.clear();
+  cacheChars = 0;
+}
+export function setApplyLabel(label: string): void {
+  applyLabel = label;
   cache.clear();
   cacheChars = 0;
 }
@@ -35,7 +41,9 @@ export function highlight(code: string, lang?: string): string {
 // .code-copy` structure and regain the copy handler with attacker-chosen text. Mark our own buttons
 // with a class generated per page load: untrusted markdown cannot guess it, and it never appears in
 // a stored message or in the protocol.
-const copyMarker = `code-copy-${Math.random().toString(36).slice(2)}`;
+const marker = Math.random().toString(36).slice(2);
+const copyMarker = `code-copy-${marker}`;
+const applyMarker = `code-apply-${marker}`;
 
 const marked = new Marked({
   gfm: true,
@@ -45,7 +53,8 @@ const marked = new Marked({
       const language = (lang ?? "").trim().split(/\s+/)[0] ?? "";
       return (
         `<div class="code-block"><div class="code-header"><span class="code-lang">${escapeHtml(language)}</span>` +
-        `<button type="button" class="code-copy ${copyMarker}" data-action="copy-code">${escapeHtml(copyLabel)}</button></div>` +
+        `<button type="button" class="code-copy ${copyMarker}" data-action="copy-code">${escapeHtml(copyLabel)}</button>` +
+        `<button type="button" class="code-apply ${applyMarker}" data-action="apply-code">${escapeHtml(applyLabel)}</button></div>` +
         `<pre><code class="hljs${language ? ` language-${escapeHtml(language)}` : ""}">${highlight(text, language)}</code></pre></div>`
       );
     },
@@ -152,6 +161,9 @@ export function renderMarkdown(source: string, query = ""): string {
   // but no marker stays inert (and the delegate in app.tsx never copies anything from it).
   for (const button of dom.body.querySelectorAll<HTMLElement>(`.code-block .code-header .code-copy.${copyMarker}`)) {
     button.dataset.action = "copy-code";
+  }
+  for (const button of dom.body.querySelectorAll<HTMLElement>(`.code-block .code-header .code-apply.${applyMarker}`)) {
+    button.dataset.action = "apply-code";
   }
   linkifyFileRefs(dom.body);
   highlightTextNodes(dom.body, search);

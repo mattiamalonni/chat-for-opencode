@@ -73,6 +73,7 @@ export interface CommandHandlerHooks {
   getFileIndex(): { search(query: string): Promise<Attachment[]> } | undefined;
   addContextSource(source: ContextSourceId): Promise<ContextItem | undefined>;
   removeContextSource(source: ContextSourceId): void;
+  applyCode(text: string, path?: string): Promise<void>;
   fileIcons: { resolve(paths: string[]): Promise<FileIconsResponse> };
   diffs: {
     open(root: vscode.Uri, file: string, patch: string, applied: boolean): Promise<void>;
@@ -240,6 +241,10 @@ export class ChatCommandHandler {
       }
       case "removeContextSource": {
         h.removeContextSource(msg.source);
+        return;
+      }
+      case "applyCode": {
+        await h.applyCode(msg.text, msg.path);
         return;
       }
       case "fileIcons": {

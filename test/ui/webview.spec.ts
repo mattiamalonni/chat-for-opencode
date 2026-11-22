@@ -1038,12 +1038,44 @@ test("renders markdown with highlighted code and copies code via the host", asyn
   expect(await lastPosted(page, "openLink")).toEqual({ type: "openLink", href: "https://opencode.ai" });
 });
 
+test("a code block can be applied to the file referenced just above it", async ({ page }) => {
+  await boot(page);
+  const sid = "ses_apply";
+  await openSession(page, sid, [
+    {
+      type: "session.step.started",
+      data: { sessionID: sid, assistantMessageID: "m1", agent: "build", model: { id: "x", providerID: "y" } },
+    },
+    { type: "session.text.started", data: { sessionID: sid, assistantMessageID: "m1", ordinal: 0 } },
+    {
+      type: "session.text.delta",
+      data: {
+        sessionID: sid,
+        assistantMessageID: "m1",
+        ordinal: 0,
+        delta: "Update src/app.ts:12 like this:\n\n```ts\nconst answer = 42;\n```",
+      },
+    },
+    { type: "session.step.ended", data: { sessionID: sid, assistantMessageID: "m1", finish: "stop" } },
+  ]);
+  const block = page.locator(".code-block").first();
+  await expect(block.getByRole("button", { name: STRINGS.applyCode, exact: true })).toBeVisible();
+  await block.getByRole("button", { name: STRINGS.applyCode, exact: true }).click();
+  expect(await lastPosted(page, "applyCode")).toEqual({
+    type: "applyCode",
+    text: "const answer = 42;",
+    path: "src/app.ts",
+  });
+  await page.screenshot({ path: join(SHOTS, "19-apply-code-dark.png") });
+});
+
 test("sanitises crafted HTML without smuggling fake actions or file links", async ({ page }) => {
   await boot(page);
   const sid = "ses_xss";
   const md = [
     '<a data-file="/etc/passwd" href="/etc/passwd">fake file</a>',
     '<button data-action="copy-code">fake copy</button>',
+    '<button data-action="apply-code">fake apply</button>',
     '<a href="javascript:alert(1)">js link</a>',
     "<svg><script>alert(1)</script></svg>",
     '<form><input type="text"></form>',
@@ -1061,6 +1093,7 @@ test("sanitises crafted HTML without smuggling fake actions or file links", asyn
   ]);
   await expect(page.locator(".md a[data-file='/etc/passwd']")).toHaveCount(0);
   await expect(page.locator('.md button[data-action="copy-code"]')).toHaveCount(0);
+  await expect(page.locator('.md button[data-action="apply-code"]')).toHaveCount(0);
   await expect(page.locator('.md a[href^="javascript:"]')).toHaveCount(0);
   await expect(page.locator(".md svg script")).toHaveCount(0);
   await expect(page.locator(".md form, .md input")).toHaveCount(0);

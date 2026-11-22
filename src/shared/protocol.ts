@@ -306,6 +306,8 @@ export type WebviewMessage =
   | { type: "openAttachment"; uri: string }
   | { type: "openLink"; href: string }
   | { type: "copy"; text: string }
+  /** Apply a code block from a reply; `path` is the nearest file reference, if any. */
+  | { type: "applyCode"; text: string; path?: string }
   | { type: "action"; id: ActionId }
   | { type: "selectFolder"; uri: string }
   | { type: "refreshChanges" }

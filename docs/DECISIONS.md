@@ -210,3 +210,14 @@ The five-source catalog is published once in `contextSources`; selecting one pos
 `addContextSource`, and the host recomputes the `context` list so the chip survives a context
 refresh. Chips are attached by default and removed through `removeContextSource` rather than the
 generic toggle, because a toggle would leave stale content cached in the host.
+
+## D21 — Applying a code block is a reviewable proposal, never a direct write
+
+The webview sends only the block text plus the nearest file reference it saw in the reply. The host
+validates that path against the workspace (including the real-path check), reads the current file,
+and computes a proposal: full-file blocks are used verbatim, unified diffs go through the existing
+`applyPatch`. A patch that does not apply is rejected before any UI is shown. The proposal opens as
+a native diff through `DiffService.openProposal`, and the file is written with a `WorkspaceEdit`
+only after a separate **Accept** in a notification; **Reject** or dismissing it writes nothing.
+This keeps the "nothing without review" policy of the permission cards, and lets the whole flow be
+unit-tested behind injected hooks (`ApplyCodeService`) rather than driving native notifications.

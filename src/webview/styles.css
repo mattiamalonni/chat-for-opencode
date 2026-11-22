@@ -1099,21 +1099,30 @@ details[open] > summary > .chevron,
 
 .code-header {
   display: flex;
-  justify-content: space-between;
   align-items: center;
+  gap: 10px;
   padding: 2px 8px;
   font-size: 0.85em;
   color: var(--vscode-descriptionForeground);
   border-bottom: 1px solid var(--opencode-border);
 }
 
-.code-copy {
+.code-lang {
+  margin-right: auto;
+}
+
+.code-copy,
+.code-apply {
   background: none;
   border: none;
   cursor: pointer;
   color: var(--vscode-textLink-foreground);
   font-size: 1em;
   padding: 0;
+}
+
+.code-apply {
+  color: var(--vscode-testing-iconPassed, var(--vscode-charts-green, #23d18b));
 }
 
 .code-block pre {

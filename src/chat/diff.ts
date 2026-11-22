@@ -90,6 +90,16 @@ export class DiffService implements vscode.TextDocumentContentProvider {
     await vscode.commands.executeCommand("vscode.diff", left, right, title, { preview: true });
   }
 
+  /** Shows a proposed code-block edit as an unsaved right-hand side of a native diff. */
+  async openProposal(target: vscode.Uri, current: string, proposed: string): Promise<void> {
+    const file = target.fsPath;
+    const name = path.basename(file);
+    const left = current.length > 0 ? target : this.virtual(file, "empty", "");
+    const right = this.virtual(file, "proposed", proposed);
+    const title = vscode.l10n.t("{0} (OpenCode proposal)", name);
+    await vscode.commands.executeCommand("vscode.diff", left, right, title, { preview: true });
+  }
+
   /**
    * Shows all the edits of a turn in a native multi-file diff. Each row compares the real file
    * with its pre-edit content (reconstructed by reversing the patch), so the user gets full-file

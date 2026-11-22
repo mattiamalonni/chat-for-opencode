@@ -53,6 +53,7 @@ import { SessionListService, type SessionSearchResult } from "./sessionListServi
 import { SubagentTracker } from "./subagentTracker";
 import { ContextTracker, FileIndex, selectionAttachment } from "./context";
 import { ContextSourceService, type SymbolLike } from "./contextSources";
+import { ApplyCodeService } from "./applyCode";
 import { TerminalOutputTracker } from "./terminalOutput";
 import { workingDiff } from "./gitDiff";
 import { ChatViews, type ChatWebview } from "./views";
@@ -210,6 +211,8 @@ export class ChatController implements vscode.Disposable {
   private readonly context: ContextTracker;
   /** On-demand chips (diagnostics, diff, terminal, editors, symbol) and their inline content. */
   private readonly contextSources: ContextSourceService;
+  /** Applies a reply's code block as a reviewable, accepted-only WorkspaceEdit. */
+  private readonly applyCode: ApplyCodeService<vscode.Uri>;
   private readonly terminalOutput = new TerminalOutputTracker();
   private readonly activeContextSources = new Set<ContextSourceId>();
   private readonly contextSourceItems = new Map<ContextSourceId, ContextItem>();
@@ -350,6 +353,60 @@ export class ChatController implements vscode.Disposable {
       gitDiff: (cwd) => workingDiff(cwd),
       terminal: () => this.terminalOutput.latest(),
     });
+    this.applyCode = new ApplyCodeService<vscode.Uri>({
+      t: (message, ...args) => vscode.l10n.t(message, ...args),
+      folder: () => this.folder?.uri.fsPath,
+      activePath: () => {
+        const editor = vscode.window.activeTextEditor;
+        return editor?.document.uri.scheme === "file" ? editor.document.uri.fsPath : undefined;
+      },
+      resolve: async (targetPath) => {
+        const root = this.folder?.uri;
+        if (!root) return undefined;
+        const target = path.isAbsolute(targetPath) ? vscode.Uri.file(targetPath) : vscode.Uri.joinPath(root, targetPath);
+        if (!isWithinDirectory(target.fsPath, root.fsPath) || !(await isWithinDirectoryReal(target.fsPath, root.fsPath))) {
+          this.output.warn(`[chat] blocked applying code to a file outside the workspace: ${target.fsPath}`);
+          return undefined;
+        }
+        return { uri: target, path: vscode.workspace.asRelativePath(target, false) };
+      },
+      pickPath: async (candidates) => {
+        const files = await vscode.workspace.findFiles("**/*", "**/node_modules/**", 200);
+        const items = [...new Set([...candidates, ...files.map((uri) => vscode.workspace.asRelativePath(uri, false))])];
+        return vscode.window.showQuickPick(items, { placeHolder: vscode.l10n.t("Choose a file to apply this code to") });
+      },
+      read: async (uri) => {
+        try {
+          return new TextDecoder().decode(await vscode.workspace.fs.readFile(uri));
+        } catch {
+          return undefined;
+        }
+      },
+      preview: (uri, current, proposed) => this.diffs.openProposal(uri, current, proposed),
+      confirm: async () => {
+        const accept = vscode.l10n.t("Accept");
+        const choice = await vscode.window.showInformationMessage(vscode.l10n.t("Apply this change?"), accept, vscode.l10n.t("Reject"));
+        return choice === accept;
+      },
+      write: async (uri, content) => {
+        let document: vscode.TextDocument | undefined;
+        try {
+          document = await vscode.workspace.openTextDocument(uri);
+        } catch {
+          document = undefined;
+        }
+        const edit = new vscode.WorkspaceEdit();
+        if (document) {
+          edit.set(uri, [new vscode.TextEdit(new vscode.Range(0, 0, document.lineCount, 0), content)]);
+        } else {
+          edit.createFile(uri);
+          edit.insert(uri, new vscode.Position(0, 0), content);
+        }
+        await vscode.workspace.applyEdit(edit);
+      },
+      warn: (message) => this.output.warn(message),
+      info: (message) => void vscode.window.showInformationMessage(message),
+    });
     this.permissions = new PermissionService(
       ctx,
       () => this.folder,
@@ -456,6 +513,7 @@ export class ChatController implements vscode.Disposable {
       getFileIndex: () => this.fileIndex,
       addContextSource: (source) => this.addContextSource(source),
       removeContextSource: (source) => this.removeContextSource(source),
+      applyCode: (text, targetPath) => this.applyCode.apply(text, targetPath),
       fileIcons: this.fileIcons,
       diffs: this.diffs,
       workspaceState: ctx.workspaceState,

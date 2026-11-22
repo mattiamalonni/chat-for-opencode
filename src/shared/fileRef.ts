@@ -27,6 +27,11 @@ export function fileRefToOpenPath(ref: string): string {
   return ref.replace(/#L(\d+)(?:-L?\d+)?$/i, ":$1").replace(/^\.\//, "");
 }
 
+/** `src/app.ts:42:3` → `src/app.ts`, for actions that need a file rather than a location. */
+export function fileRefToPath(ref: string): string {
+  return fileRefToOpenPath(ref).replace(/:\d+(?::\d+)?$/, "");
+}
+
 /** True when `value` looks like a file path (optionally with a line/column). */
 export function isFileRef(value: string): boolean {
   if (!value || NOT_A_FILE.test(value)) return false;
