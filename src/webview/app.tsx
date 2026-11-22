@@ -288,6 +288,7 @@ export function App() {
           break;
         case "inbox":
           setInbox(msg.items);
+          dispatch({ type: "inbox", items: msg.items });
           break;
         case "forked":
           announce(stringsRef.current.forkDone);

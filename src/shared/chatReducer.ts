@@ -2,6 +2,7 @@ import type {
   AssistantMessage,
   FileDiff,
   FormRequest,
+  InboxItem,
   ModelRef,
   PermissionRequest,
   ServerEvent,
@@ -136,6 +137,8 @@ export type ChatAction =
   | { type: "append"; delta: SessionDelta }
   | { type: "event"; event: ServerEvent }
   | { type: "events"; events: ServerEvent[] }
+  /** Authoritative inbox list from the host; reconciles optimistic queued prompts after a resync. */
+  | { type: "inbox"; items: InboxItem[] }
   /** Attach a discovered child id to the still-unlinked `subagent` tool card in the main chat. */
   | { type: "linkSubagent"; sessionId: string; title?: string; toolId?: string }
   | { type: "clearError" };
@@ -165,6 +168,25 @@ export function chatReducer(state: ChatState, action: ChatAction): ChatState {
       // would scan and copy the whole message list over and over (O(events × history)). Deltas for
       // one part are pure string appends, so fold adjacent ones into a single event first.
       return coalesceDeltas(action.events).reduce(applyEvent, state);
+    case "inbox": {
+      // A reconnect can drop `inbox.delivered`/`inbox.cancelled`. Without the server's list the
+      // queued prompt stays in the reducer, and the next `execution.started` delivers it a second
+      // time. Treat the fetched inbox as authoritative for ids we are still waiting on.
+      const ids = new Set(action.items.map((item) => item.id));
+      const queued = state.queuedMessages ?? {};
+      const queuedMessages = Object.fromEntries(Object.entries(queued).filter(([id]) => ids.has(id)));
+      const queuedTurnIds = (state.queuedTurnIds ?? []).filter((id) => ids.has(id));
+      if (
+        Object.keys(queuedMessages).length === Object.keys(queued).length &&
+        queuedTurnIds.length === (state.queuedTurnIds ?? []).length
+      ) {
+        return state;
+      }
+      const messages = state.messages.filter((m) => m.kind !== "user" || !queued[m.id] || ids.has(m.id));
+      const removedTurnIds = new Set((state.queuedTurnIds ?? []).filter((id) => !ids.has(id)));
+      const turns = state.turns.filter((t) => !removedTurnIds.has(t.id));
+      return { ...state, queuedMessages, queuedTurnIds, messages, turns };
+    }
     case "linkSubagent": {
       if (action.toolId) return linkToolToSubagent(state, action.toolId, action.sessionId);
       // OpenCode only writes `metadata.sessionID` into a completed tool's history. A child found

@@ -2,6 +2,9 @@
 
 ## 0.3.19 — 2026-11-22
 
+- **Fix:** queued prompts are now reconciled with the server's inbox list after a resync. If a
+  `delivered`/`cancelled` event was lost while reconnecting, the stale queued card and its turn id
+  are dropped, so the next `execution.started` cannot duplicate the prompt in the conversation.
 - **Fix:** the webview error boundary no longer stays in its crashed state forever. A fresh `session`
   payload or a completed resync retries the render with the new data; manual reload is still offered
   when the same payload keeps throwing.

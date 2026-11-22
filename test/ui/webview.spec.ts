@@ -3022,6 +3022,29 @@ test("the queued-messages panel can promote, edit and remove pending prompts", a
   await expect(panel).toHaveCount(0);
 });
 
+test("an authoritative inbox list drops a queued prompt whose delivery event was lost", async ({ page }) => {
+  await boot(page);
+  await host(page, { type: "session", session: { id: S1, busy: true, messages: [], permissions: [], forms: [] } });
+  await host(page, {
+    type: "inbox",
+    items: [{ id: "q1", sessionID: S1, time: { created: 1 }, type: "user", delivery: "queue", payload: { text: "queued prompt" } }],
+  });
+  await host(page, {
+    type: "event",
+    event: {
+      type: "session.inbox.enqueued",
+      data: { sessionID: S1, inboxID: "q1", item: { type: "user", payload: { text: "queued prompt" }, delivery: "queue" } },
+    },
+  });
+  await expect(page.locator(".panel.inbox .inbox-item")).toHaveCount(1);
+
+  // A resync fetched the server's inbox: the item is already gone, but its event never arrived.
+  await host(page, { type: "inbox", items: [] });
+  await expect(page.locator(".panel.inbox .inbox-item")).toHaveCount(0);
+  await host(page, { type: "event", event: { type: "session.execution.started", data: { sessionID: S1 } } });
+  await expect(page.locator(".msg.user")).toHaveCount(0);
+});
+
 test("a cross-session search hit scrolls to and highlights its message", async ({ page }) => {
   await boot(page);
   const messages: SessionMessage[] = [

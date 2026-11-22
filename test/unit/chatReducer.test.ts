@@ -689,6 +689,36 @@ describe("a prompt queued while a turn is running", () => {
     expect(started.turns[1]).toMatchObject({ id: "u2", started: 2000 });
   });
 
+  it("reconciles queued prompts with the authoritative inbox list after a resync", () => {
+    const queued = chatReducer(running(), {
+      type: "event",
+      event: {
+        type: "session.inbox.enqueued",
+        created: 1300,
+        data: { sessionID: S1, inboxID: "u2", item: { type: "user", payload: { text: "next" }, delivery: "queue" } },
+      },
+    });
+    expect(queued.queuedTurnIds).toEqual(["u2"]);
+
+    // The server no longer has the item: its delivered/cancelled event was lost in a reconnect.
+    const synced = chatReducer(queued, { type: "inbox", items: [] });
+    expect(synced.queuedMessages?.u2).toBeUndefined();
+    expect(synced.queuedTurnIds).toEqual([]);
+    expect(synced.messages.filter((m) => m.kind === "user")).toHaveLength(1);
+    const late = chatReducer(synced, {
+      type: "event",
+      event: { type: "session.execution.started", created: 2000, data: { sessionID: S1 } },
+    });
+    expect(late.messages.filter((m) => m.kind === "user")).toHaveLength(1);
+
+    // An item still present in the inbox stays queued.
+    const kept = chatReducer(queued, {
+      type: "inbox",
+      items: [{ id: "u2", sessionID: S1, time: { created: 1300 }, type: "user", delivery: "queue", payload: { text: "next" } }],
+    });
+    expect(kept.queuedTurnIds).toEqual(["u2"]);
+  });
+
   it("keeps a cancelled queued prompt out of the conversation", () => {
     const queued = chatReducer(running(), {
       type: "event",
