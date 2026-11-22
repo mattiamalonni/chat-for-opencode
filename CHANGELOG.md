@@ -2,6 +2,9 @@
 
 ## 0.3.19 — 2026-11-22
 
+- **Security:** workspace containment for `openFile`, attachment chips and diff rendering now
+  resolves symlinks before deciding: a link inside the folder that points outside can no longer open
+  (or send to the model) a file the user never allowed. Both lexical and real-path checks must pass.
 - **Robustness:** HTTP bodies, SSE buffers and raw server stdout are now size-bounded, so a broken
   server or proxy cannot exhaust the extension host's memory. Session summaries and cross-session
   search use a bounded request pool with cancellation, and "Load more" has its own generation: an

@@ -57,6 +57,7 @@ import { DEFAULT_SESSION_PERMISSIONS } from "./permissions";
 import { PermissionService } from "./permissionService";
 import { quoteForShell } from "./shell";
 import { isWithinDirectory } from "./tempAttachments";
+import { isWithinDirectoryReal } from "./pathSafety";
 
 const PASSWORD_KEY = (endpoint: string) => `opencode.password:${endpoint}`;
 const SESSION_KEY = (folder: string) => `opencode.session:${folder}`;
@@ -2016,8 +2017,8 @@ export class ChatController implements vscode.Disposable {
         ? vscode.Uri.file(file)
         : vscode.Uri.joinPath(this.folder.uri, file);
     // Rendered chat content is untrusted model output. Never open a path outside the workspace,
-    // even if a crafted link or `../` sequence makes it through the webview's sanitizer.
-    if (!isWithinDirectory(uri.fsPath, this.folder.uri.fsPath)) {
+    // even through `../` or a symlink that lexically points inside but resolves elsewhere.
+    if (!isWithinDirectory(uri.fsPath, this.folder.uri.fsPath) || !await isWithinDirectoryReal(uri.fsPath, this.folder.uri.fsPath)) {
       this.output.warn(`[chat] blocked an attempt to open a file outside the workspace: ${uri.fsPath}`);
       return;
     }

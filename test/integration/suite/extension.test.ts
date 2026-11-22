@@ -1,5 +1,5 @@
 import * as assert from "node:assert/strict";
-import { readFileSync, unlinkSync, writeFileSync } from "node:fs";
+import { readFileSync, symlinkSync, unlinkSync, writeFileSync } from "node:fs";
 import * as path from "node:path";
 import * as vscode from "vscode";
 import type { ChatController, ExecutionState } from "../../../src/chat/controller";
@@ -332,6 +332,33 @@ describe("chat-for-opencode extension", () => {
     await controller.receive({ type: "openAttachment", uri: vscode.Uri.file(external).toString() });
     await new Promise((r) => setTimeout(r, 100));
     assert.equal(vscode.window.visibleTextEditors.some((e) => e.document.uri.fsPath === external), false);
+  });
+
+  it("does not follow a symlink that escapes the workspace", async function () {
+    if (process.platform === "win32") this.skip(); // symlink creation needs elevated privileges there
+    const external = path.join(path.dirname(workspace), "oc-it-secret.txt");
+    writeFileSync(external, "secret outside the workspace");
+    const link = path.join(workspace, "oc-it-escape.txt");
+    symlinkSync(external, link);
+    try {
+      await vscode.commands.executeCommand("workbench.action.closeAllEditors");
+      await controller.receive({ type: "openFile", path: "oc-it-escape.txt" });
+      await new Promise((r) => setTimeout(r, 150));
+      assert.equal(
+        vscode.window.visibleTextEditors.some((e) => normalizeFsPath(e.document.uri.fsPath) === normalizeFsPath(external)),
+        false,
+        "openFile must resolve the link before opening",
+      );
+      await controller.receive({ type: "openAttachment", uri: vscode.Uri.file(link).toString() });
+      await new Promise((r) => setTimeout(r, 150));
+      assert.equal(
+        vscode.window.visibleTextEditors.some((e) => normalizeFsPath(e.document.uri.fsPath) === normalizeFsPath(external)),
+        false,
+        "openAttachment must resolve the link before opening",
+      );
+    } finally {
+      unlinkSync(link);
+    }
   });
 
   it("adds the current file outside the workspace as an openable copy", async () => {
