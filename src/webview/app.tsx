@@ -632,7 +632,7 @@ export function App() {
     if (!normalizedQuery) autoScrolledQuery.current = "";
     else if (marks.length > 0 && autoScrolledQuery.current !== normalizedQuery) {
       autoScrolledQuery.current = normalizedQuery;
-      marks[0].scrollIntoView({ block: "center", behavior: "smooth" });
+      marks[0].scrollIntoView({ block: "center", behavior: "instant" });
     }
   }, [normalizedQuery, chat.messages, activeMatch, matchCount]);
 
@@ -641,7 +641,7 @@ export function App() {
     if (marks.length === 0) return;
     const next = (activeMatch + direction + marks.length) % marks.length;
     setActiveMatch(next);
-    marks[next]?.scrollIntoView({ block: "center", behavior: "smooth" });
+    marks[next]?.scrollIntoView({ block: "center", behavior: "instant" });
   };
   navigateMatchRef.current = navigateMatch;
 

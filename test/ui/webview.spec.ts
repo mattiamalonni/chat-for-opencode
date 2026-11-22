@@ -1501,6 +1501,33 @@ test("search hits use theme background colours and Markdown stays formatted whil
   expect(await marks.first().evaluate((el) => getComputedStyle(el).backgroundColor)).toBe("rgb(234, 94, 0)");
 });
 
+test("search scrolls to matches instantly instead of animating", async ({ page }) => {
+  await page.addInitScript(() => {
+    const calls: unknown[] = [];
+    (window as unknown as { __scrollCalls: unknown[] }).__scrollCalls = calls;
+    const original = Element.prototype.scrollIntoView;
+    Element.prototype.scrollIntoView = function (arg?: boolean | ScrollIntoViewOptions) {
+      calls.push(arg);
+      return original.call(this, arg);
+    };
+  });
+  await boot(page);
+  const messages: SessionMessage[] = [
+    { id: "u1", type: "user", text: "first needle", time: { created: 1000 } },
+    { id: "u2", type: "user", text: "second needle", time: { created: 1100 } },
+  ];
+  await host(page, { type: "session", session: { id: S1, busy: false, messages, permissions: [], forms: [] } });
+  const search = page.getByRole("searchbox", { name: STRINGS.searchMessages });
+  await page.getByRole("button", { name: STRINGS.searchMessages }).click();
+  await search.fill("needle");
+  const scrollCalls = () => page.evaluate(() => (window as unknown as { __scrollCalls: unknown[] }).__scrollCalls);
+  expect((await scrollCalls()).length).toBeGreaterThan(0);
+  await search.press("Enter");
+  const all = await scrollCalls();
+  expect(all.length).toBeGreaterThan(1);
+  for (const call of all) expect(call).toMatchObject({ block: "center", behavior: "instant" });
+});
+
 test("Escape closes the search and restores the undimmed, formatted conversation", async ({ page }) => {
   await boot(page);
   const messages: SessionMessage[] = [

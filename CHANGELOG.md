@@ -25,6 +25,7 @@
   needs `[resource, original, modified]` triples, and the previous two-element pairs silently fell
   back to the single hunk-only diff.
 - **Fix:** the search toggle's tooltip no longer covers the search input on narrow side bars.
+- **UI:** jumping between search matches is instant instead of smoothly animated.
 - **Setting:** `opencode.toolOutputLimit` (default `4000`) controls how much tool output is shown
   inline before the _output (n)_ expander.
 - **UI:** _Ask OpenCode…_ now fills the composer with the current editor selection attached instead
