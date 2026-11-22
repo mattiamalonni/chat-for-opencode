@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- **UI:** a second status bar item (`opencode.showUsageInStatusBar`, default on) shows the session's
+  estimated context size and cost, fed by the server's `session` / `sessionDelta` usage payloads. It
+  hides until OpenCode reports numbers, survives resyncs that omit usage, and clears when the session
+  closes. Its tooltip carries the input/output/reasoning/cache breakdown.
 - **Commands:** _OpenCode: Review My Changes_ and _OpenCode: Write Commit Message_ read the workspace's
   staged + unstaged git diff and send it to the agent with a purpose-built prompt (review checklist,
   or a Conventional Commit message to paste into SCM). Untracked files are named in the prompt, the

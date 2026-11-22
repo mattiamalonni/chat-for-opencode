@@ -542,6 +542,11 @@
           "minimum": 500,
           "maximum": 100000,
           "markdownDescription": "%config.toolOutputLimit%"
+        },
+        "opencode.showUsageInStatusBar": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "%config.showUsageInStatusBar%"
         }
       }
     }

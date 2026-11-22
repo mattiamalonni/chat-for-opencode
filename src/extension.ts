@@ -6,6 +6,7 @@ import { ChatController, ServerRegistry, type ExecutionStatus, type SessionSearc
 import { DIFF_SCHEME, DiffService } from "./chat/diff";
 import { fileAttachment, selectionAttachment } from "./chat/context";
 import { diffPrompt, workingDiff, type DiffIntent, type WorkingDiff } from "./chat/gitDiff";
+import { usageLabel, usageTooltip, usageUpdateFromMessage, type SessionUsage } from "./chat/usageStatus";
 import { diagnosticCodeActions, EXPLAIN_DIAGNOSTIC_COMMAND, FIX_DIAGNOSTIC_COMMAND, type DiagnosticCommandArgs } from "./chat/codeActions";
 import { ChatViewProvider } from "./chat/viewProvider";
 import { cleanupOrphanServers } from "./server/orphans";
@@ -121,7 +122,35 @@ export function activate(context: vscode.ExtensionContext): ExtensionApi {
     chat.prefillDraft(prompt, attachment ? [attachment] : []);
   };
 
+  // A second, quiet status item keeps the running cost visible even with the sidebar collapsed.
+  // It mirrors the server's session usage; the webview's context meter remains the detailed view.
+  const usageItem = vscode.window.createStatusBarItem("opencode.usage", vscode.StatusBarAlignment.Right, 99);
+  usageItem.name = vscode.l10n.t("OpenCode session usage");
+  usageItem.command = "opencode.focus";
+  let sessionUsage: SessionUsage | undefined;
+  const renderUsage = () => {
+    const enabled = vscode.workspace.getConfiguration("opencode").get<boolean>("showUsageInStatusBar", true);
+    if (!sessionUsage || !enabled || !vscode.workspace.isTrusted) {
+      usageItem.hide();
+      return;
+    }
+    usageItem.text = usageLabel(sessionUsage);
+    usageItem.tooltip = usageTooltip(sessionUsage, (message) => vscode.l10n.t(message));
+    usageItem.show();
+  };
+  renderUsage();
+
   context.subscriptions.push(
+    usageItem,
+    chat.onDidPost((msg) => {
+      const update = usageUpdateFromMessage(msg);
+      if (update.kind === "keep") return;
+      sessionUsage = update.kind === "set" ? update.usage : undefined;
+      renderUsage();
+    }),
+    vscode.workspace.onDidChangeConfiguration((e) => {
+      if (e.affectsConfiguration("opencode.showUsageInStatusBar")) renderUsage();
+    }),
     output,
     vscode.workspace.registerTextDocumentContentProvider(DIFF_SCHEME, diffs),
     vscode.window.registerWebviewViewProvider(ChatViewProvider.viewId, new ChatViewProvider(context.extensionUri, chat)),

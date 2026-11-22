@@ -1068,4 +1068,16 @@ describe("chat-for-opencode extension", () => {
       "commit-message prompt in the conversation",
     );
   });
+
+  it("publishes session usage that feeds the status bar meter", async () => {
+    const mark = posted.length;
+    await controller.receive({ type: "send", text: "[usage] status bar", attachments: [], context: [] });
+    await waitFor(
+      () =>
+        posted.slice(mark).some((m) => (m.type === "session" ? m.session?.usage : m.type === "sessionDelta" ? m.delta.usage : false))
+          ? true
+          : undefined,
+      "session usage in a posted payload",
+    );
+  });
 });

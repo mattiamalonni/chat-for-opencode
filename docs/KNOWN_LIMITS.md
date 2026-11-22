@@ -148,6 +148,10 @@ test or a manual probe actually ran.
   `src/shared/adapter.ts` normalises missing/renamed fields so the UI degrades gracefully, and the
   raw wire types are generated from the snapshot with `npm run gen:types`, but neither can adapt to
   changed endpoints or event semantics. Supporting a new version means extending the adapter.
+- **Status bar usage is the same estimate** as the composer's context meter (see API_NOTES). It is
+  unknown until the first reply (and after a compaction), so the item stays hidden until OpenCode
+  reports numbers. It mirrors the **open session** only and is cleared when that session closes;
+  the running cost of other sessions is not accumulated.
 - **Context meter is an estimate** from the last step's token usage (see API_NOTES). It is unknown
   until the first reply and after a compaction, it is computed against the _selected_ model (the
   one the next message will use), and whether reasoning tokens stay in context depends on the
