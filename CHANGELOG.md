@@ -2,6 +2,8 @@
 
 ## 0.3.19 — 2026-11-22
 
+- **UI:** the _Copy response_ action is now docked beside the first line of the answer and revealed
+  on hover/focus, instead of floating in the empty bottom-right corner of tall grouped messages.
 - **Robustness:** the set that suppresses duplicate notifications while the chat is hidden is now
   FIFO-bounded (500 keys), like the other caches in the extension. A long session with the chat
   closed can no longer grow it without limit.

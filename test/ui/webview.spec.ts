@@ -3145,7 +3145,18 @@ test("a finished response can be copied as plain text", async ({ page }) => {
   ];
   await host(page, { type: "session", session: { id: S1, busy: false, messages, permissions: [], forms: [] } });
   const copy = page.locator(".msg.assistant .copy-response");
+  const message = page.locator(".msg.assistant");
   await expect(copy).toHaveCount(1);
+  // The action sits next to the first line, not alone in the empty bottom-right of the card.
+  const actions = message.locator(".assistant-actions");
+  expect(await actions.evaluate((el) => getComputedStyle(el).opacity)).toBe("0");
+  await message.hover();
+  await expect.poll(() => actions.evaluate((el) => getComputedStyle(el).opacity)).toBe("1");
+  const articleBox = await message.boundingBox();
+  const copyBox = await copy.boundingBox();
+  expect(articleBox).not.toBeNull();
+  expect(copyBox).not.toBeNull();
+  expect(copyBox!.y - articleBox!.y).toBeLessThan(8);
   await copy.click();
   expect(await lastPosted(page, "copy")).toEqual({ type: "copy", text: "the short answer" });
 });

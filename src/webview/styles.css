@@ -789,8 +789,19 @@ details[open] > summary > .chevron,
   opacity: 1;
 }
 
+/* The copy action belongs to the answer, not to the empty space at the bottom of a tall card:
+   dock it beside the first line and reveal it only while the card is hovered/focused. */
 .assistant-actions {
-  align-self: flex-end;
+  position: absolute;
+  top: 0;
+  right: 0;
+  opacity: 0;
+  transition: opacity 120ms ease;
+}
+
+.msg.assistant:hover .assistant-actions,
+.msg.assistant:focus-within .assistant-actions {
+  opacity: 1;
 }
 
 .msg.revealed {
@@ -822,6 +833,9 @@ details[open] > summary > .chevron,
   flex-direction: column;
   gap: 6px;
   min-width: 0;
+  position: relative;
+  /* Reserve a slim gutter for the copy action so it never overlaps the answer. */
+  padding-right: 28px;
 }
 
 .msg.assistant.grouped {
