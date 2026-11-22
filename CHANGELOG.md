@@ -2,6 +2,11 @@
 
 ## 0.3.19 — 2026-11-22
 
+- **Fix:** a prompt refused before it reached the server (lost connection or failed request) no longer
+  leaves the status bar spinner running forever. The turn's execution generation is captured when
+  `send()` publishes the optimistic `running` state, and the refusal path closes it with `failed`
+  only if that generation is still current. Unit and integration tests cover both the terminal
+  transition and the stale-generation guard.
 - **Trust and views:** the extension now declares limited support for untrusted workspaces. Before
   starting `opencode serve`, reading saved logins or using `opencode.executablePath` /
   `opencode.endpoint`, it checks Workspace Trust and shows an actionable *Trust workspace* banner

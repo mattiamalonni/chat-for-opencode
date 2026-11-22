@@ -73,6 +73,42 @@ describe("host-side execution state", () => {
     expect(show).not.toHaveBeenCalled();
   });
 
+  it("closes the running state when a prompt is refused, but never overrides a newer turn", async () => {
+    const restoreFailedPrompt = proto["restoreFailedPrompt"] as unknown as (
+      this: {
+        failedPrompt: unknown;
+        saveDraft: (sid: string, text: string) => Promise<void>;
+        publishExecution: (status: "failed", sid: string | undefined) => void;
+        post: (msg: unknown) => void;
+        lifecycle: { generations: { execution: { is: (token: number) => boolean } } };
+      },
+      text: string,
+      attachments: unknown[],
+      context: unknown[],
+      delivery: undefined,
+      sid: string,
+      detail: string,
+      generation: number,
+    ) => Promise<void>;
+    const published: string[] = [];
+    const c = {
+      failedPrompt: undefined,
+      saveDraft: vi.fn(async () => undefined),
+      publishExecution: vi.fn((status: "failed") => published.push(status)),
+      post: vi.fn(),
+      lifecycle: { generations: { execution: { is: (token: number) => token === 7 } } },
+    };
+
+    await restoreFailedPrompt.call(c, "hello", [], [], undefined, "s1", "boom", 7);
+    expect(published).toEqual(["failed"]);
+    expect(c.failedPrompt).toMatchObject({ text: "hello", sessionId: "s1" });
+
+    published.length = 0;
+    await restoreFailedPrompt.call(c, "hello", [], [], undefined, "s1", "boom", 6);
+    // A stale refusal must not overwrite the current turn's state.
+    expect(published).toEqual([]);
+  });
+
   it("announces a terminal event only once per turn", () => {
     const show = vscode.window.showInformationMessage as unknown as ReturnType<typeof vi.fn>;
     show.mockClear();

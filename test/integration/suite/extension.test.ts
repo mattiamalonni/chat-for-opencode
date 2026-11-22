@@ -2,7 +2,7 @@ import * as assert from "node:assert/strict";
 import { readFileSync, unlinkSync, writeFileSync } from "node:fs";
 import * as path from "node:path";
 import * as vscode from "vscode";
-import type { ChatController } from "../../../src/chat/controller";
+import type { ChatController, ExecutionState } from "../../../src/chat/controller";
 import type { HostMessage } from "../../../src/shared/protocol";
 import { normalizeFsPath } from "./paths";
 
@@ -471,22 +471,31 @@ describe("chat-for-opencode extension", () => {
     assert.ok(lastPosted("notice", mark), "the failed request is still reported to the user");
   });
 
-  it("restores a refused prompt and resends it from the Retry action", async () => {
+  it("restores a refused prompt, closes the running state and resends it from the Retry action", async () => {
     await controller.receive({ type: "newSession" });
     const mark = posted.length;
     const armed = await fetch(`${controller.debugState.baseUrl}/__mock/failPromptOnce`, { method: "POST" });
     assert.equal(armed.status, 204);
 
-    await controller.receive({ type: "send", text: "do not lose me", attachments: [], context: [] });
-    const notice = await waitFor(() => lastPosted("notice", mark), "prompt failed notice");
-    assert.equal(notice.error.kind, "promptFailed");
-    assert.ok(notice.error.actions.includes("retry"));
-    const restored = await waitFor(() => lastPosted("draftRestored", mark), "restored draft");
-    assert.equal(restored.text, "do not lose me");
-    assert.equal(restored.force, undefined);
+    // The status bar listens to this event; the spinner must not survive a refused prompt.
+    const states: ExecutionState[] = [];
+    const subscription = controller.onDidChangeExecution((state) => states.push(state));
+    try {
+      await controller.receive({ type: "send", text: "do not lose me", attachments: [], context: [] });
+      const notice = await waitFor(() => lastPosted("notice", mark), "prompt failed notice");
+      assert.equal(notice.error.kind, "promptFailed");
+      assert.ok(notice.error.actions.includes("retry"));
+      const restored = await waitFor(() => lastPosted("draftRestored", mark), "restored draft");
+      assert.equal(restored.text, "do not lose me");
+      assert.equal(restored.force, undefined);
+      assert.ok(states.some((s) => s.status === "running"), "the optimistic running state was published");
+      assert.equal(states.at(-1)?.status, "failed", "execution state is terminal, not stuck on running");
 
-    await controller.receive({ type: "action", id: "retry" });
-    await waitFor(() => eventPosted("session.text.delta", mark), "reply streamed after retry");
+      await controller.receive({ type: "action", id: "retry" });
+      await waitFor(() => eventPosted("session.text.delta", mark), "reply streamed after retry");
+    } finally {
+      subscription.dispose();
+    }
     const cleared = await waitFor(
       () => posted.slice(mark).find((m): m is Extract<HostMessage, { type: "draftRestored" }> => m.type === "draftRestored" && m.force === true),
       "composer cleared after retry",

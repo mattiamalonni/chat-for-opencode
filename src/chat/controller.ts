@@ -1846,7 +1846,14 @@ export class ChatController implements vscode.Disposable {
     }
   }
 
-  /** Put a refused prompt back in the composer and offer an exact-payload retry. */
+  /**
+   * Put a refused prompt back in the composer and offer an exact-payload retry.
+   *
+   * `generation` is the token published as "running" by `send()`. The server never accepted the
+   * prompt, so no terminal event will close that state: we must do it here or the status bar keeps
+   * spinning forever. The guard prevents an asynchronously restored draft from overwriting a newer
+   * turn that started in the meantime.
+   */
   private async restoreFailedPrompt(
     text: string,
     attachments: Attachment[],
@@ -1854,9 +1861,13 @@ export class ChatController implements vscode.Disposable {
     delivery: "steer" | "queue" | undefined,
     sid: string | undefined,
     detail: string,
+    generation?: number,
   ): Promise<void> {
     this.failedPrompt = { text, attachments, context, delivery, sessionId: sid };
     if (sid) await this.saveDraft(sid, text).catch(() => undefined);
+    if (generation !== undefined && this.lifecycle.generations.execution.is(generation)) {
+      this.publishExecution("failed", sid);
+    }
     this.post({ type: "draftRestored", sessionId: sid, text });
     const s = translatedStrings();
     this.post({ type: "notice", error: { kind: "promptFailed", message: s["error.promptFailed"], detail, actions: ["retry", "reconnect", "showLogs"] } });
@@ -1865,15 +1876,13 @@ export class ChatController implements vscode.Disposable {
   /** Returns false when the prompt never reached the server (no notice is posted for stale loads). */
   private async send(text: string, attachments: Attachment[], context: ContextItem[], delivery?: "steer" | "queue"): Promise<boolean> {
     // A queued message starts no turn yet: leave the current turn's reconcile generation alone.
-    if (delivery !== "queue") {
-      this.lifecycle.generations.execution.bump();
-      this.publishExecution("running", this.sessionId);
-    }
+    const generation = delivery === "queue" ? undefined : this.lifecycle.generations.execution.bump();
+    if (generation !== undefined) this.publishExecution("running", this.sessionId);
     if (delivery !== "queue") this.lifecycle.cancel("reconcile");
     if (!this.client) await this.connect();
     const client = this.client;
     if (!client || !this.folder) {
-      await this.restoreFailedPrompt(text, attachments, context, delivery, this.sessionId, translatedStrings()["error.connectionLost"]);
+      await this.restoreFailedPrompt(text, attachments, context, delivery, this.sessionId, translatedStrings()["error.connectionLost"], generation);
       return false;
     }
     const files: FileAttachment[] = [];
@@ -1929,7 +1938,7 @@ export class ChatController implements vscode.Disposable {
       return true;
     } catch (err) {
       const detail = err instanceof Error ? err.message : String(err);
-      await this.restoreFailedPrompt(text, attachments, context, delivery, this.sessionId, detail);
+      await this.restoreFailedPrompt(text, attachments, context, delivery, this.sessionId, detail, generation);
       return false;
     }
   }
