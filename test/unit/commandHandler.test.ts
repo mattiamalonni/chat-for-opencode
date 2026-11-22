@@ -60,6 +60,7 @@ function setup(overrides: Partial<CommandHandlerHooks> = {}) {
     addContextSource: vi.fn(async () => undefined),
     removeContextSource: vi.fn(),
     applyCode: vi.fn(async () => undefined),
+    usePrompt: vi.fn(async () => undefined),
     fileIcons: { resolve: vi.fn(async () => ({ icons: {}, fonts: {}, reset: false })) },
     diffs: { open: vi.fn(async () => undefined), openCombined: vi.fn(async () => undefined) },
     workspaceState: { get: vi.fn(() => ({})), update } as never,

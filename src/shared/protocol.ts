@@ -78,6 +78,14 @@ export interface SessionSummary {
 export const CONTEXT_SOURCE_IDS = ["problems", "git", "terminal", "openEditors", "symbol"] as const;
 export type ContextSourceId = (typeof CONTEXT_SOURCE_IDS)[number];
 
+/** A reusable prompt that can be inserted into the composer with `$variable` placeholders. */
+export interface PromptDefinition {
+  id: string;
+  title: string;
+  description: string;
+  text: string;
+}
+
 export interface ContextSource {
   id: ContextSourceId;
   label: string;
@@ -226,6 +234,8 @@ export type HostMessage =
   | { type: "context"; items: ContextItem[] }
   /** Catalog of on-demand context sources, used by the `@` picker and the composer toolbar. */
   | { type: "contextSources"; items: ContextSource[] }
+  /** Built-in and user-defined prompts, shown by `/` in the composer. */
+  | { type: "promptCatalog"; items: PromptDefinition[] }
   /** Icons requested by the webview, keyed by the exact path it asked for. */
   | { type: "fileIcons"; icons: Record<string, FileIconData | null>; fonts: Record<string, FileIconFont>; reset?: boolean }
   | { type: "fileResults"; query: string; items: Attachment[] }
@@ -292,6 +302,7 @@ export type WebviewMessage =
   | { type: "formReply"; sessionId: string; formId: string; answer: Record<string, FormValue> }
   | { type: "formCancel"; sessionId: string; formId: string }
   | { type: "searchFiles"; query: string }
+  | { type: "usePrompt"; id: string }
   | { type: "addContextSource"; source: ContextSourceId }
   | { type: "removeContextSource"; source: ContextSourceId }
   /** Lazily request theme icons for file paths the webview is about to render. */

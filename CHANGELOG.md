@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- **Prompts:** a reusable prompt library is available from `/` alongside skills and commands. Eight
+  curated prompts ship with the extension (explain, tests, bugs, optimize, document, review,
+  problems, commit) and users can add their own via `opencode.promptLibrary`. Selecting one prefills
+  the composer with `$selection`, `$file`, `$diff` and `$problems` resolved from the current editor
+  and context sources; it is never sent automatically.
 - **Editor:** every code block in a reply now has an **Apply to file** button. It uses the nearest
   file reference in the reply (or asks you to pick one), opens a native diff of the proposed content,
   and writes the file only after you press **Accept** in the confirmation notification. Full-file

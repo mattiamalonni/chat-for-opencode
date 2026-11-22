@@ -87,6 +87,13 @@ const isContextSource: Check = shape({
   description: str(MAX_TEXT),
 });
 
+const isPromptDefinition: Check = shape({
+  id: str(),
+  title: str(MAX_LABEL),
+  description: str(MAX_TEXT),
+  text: str(MAX_TEXT),
+});
+
 const isDroppedFile: Check = shape({
   name: str(MAX_LABEL),
   uri: opt(str(MAX_URI)),
@@ -212,6 +219,7 @@ const WEBVIEW_VALIDATORS: Record<string, Check> = {
   formReply: shape({ sessionId: str(), formId: str(), answer: rec(isFormValue) }),
   formCancel: shape({ sessionId: str(), formId: str() }),
   searchFiles: shape({ query: str(MAX_LABEL) }),
+  usePrompt: shape({ id: str() }),
   addContextSource: shape({ source: oneOf(CONTEXT_SOURCE_IDS) }),
   removeContextSource: shape({ source: oneOf(CONTEXT_SOURCE_IDS) }),
   fileIcons: shape({ paths: arr(str(MAX_URI)) }),
@@ -269,6 +277,7 @@ const HOST_VALIDATORS: Record<string, Check> = {
   linkSubagent: shape({ toolId: str(), sessionId: str() }),
   context: shape({ items: arr(isContextItem) }),
   contextSources: shape({ items: arr(isContextSource) }),
+  promptCatalog: shape({ items: arr(isPromptDefinition) }),
   fileIcons: shape({
     icons: rec((value) => value === null || isFileIcon(value)),
     fonts: rec(isFileIconFont),

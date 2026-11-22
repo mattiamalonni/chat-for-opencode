@@ -1067,6 +1067,23 @@ describe("chat-for-opencode extension", () => {
     }
   });
 
+  it("publishes the prompt library and prefills a prompt with the active file", async () => {
+    const document = await vscode.workspace.openTextDocument(path.join(workspace, "src", "app.ts"));
+    await vscode.window.showTextDocument(document);
+    const catalog = await waitFor(
+      () => posted.find((m): m is Extract<HostMessage, { type: "promptCatalog" }> => m.type === "promptCatalog"),
+      "prompt catalog",
+    );
+    assert.ok(catalog.items.some((p) => p.id === "explain"));
+
+    const mark = posted.length;
+    await controller.receive({ type: "usePrompt", id: "explain" });
+    const prefill = await waitFor(() => lastPosted("prefillDraft", mark), "prefilled prompt from the library");
+    assert.match(prefill.text, /Explain/);
+    assert.match(prefill.text, /src[\\/]app\.ts/);
+    await vscode.commands.executeCommand("workbench.action.closeAllEditors");
+  });
+
   it("prefills a prompt with the active file from the editor title action", async () => {
     const document = await vscode.workspace.openTextDocument(path.join(workspace, "src", "app.ts"));
     await vscode.window.showTextDocument(document);

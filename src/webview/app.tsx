@@ -28,6 +28,7 @@ import type {
   ContextSource,
   FolderInfo,
   HostMessage,
+  PromptDefinition,
   SessionSummary,
   UiError,
 } from "../shared/protocol";
@@ -111,6 +112,7 @@ export function App() {
   const [folders, setFolders] = useState<{ list: FolderInfo[]; active?: string }>({ list: [] });
   const [context, setContext] = useState<ContextItem[]>([]);
   const [contextSources, setContextSources] = useState<ContextSource[]>([]);
+  const [prompts, setPrompts] = useState<PromptDefinition[]>([]);
   // Explicit user choices per context chip: the active file is opt-in, selections are opt-out.
   const [contextChoice, setContextChoice] = useState<Map<string, boolean>>(new Map());
   const [attachments, setAttachments] = useState<Attachment[]>([]);
@@ -352,6 +354,9 @@ export function App() {
           break;
         case "contextSources":
           setContextSources(msg.items);
+          break;
+        case "promptCatalog":
+          setPrompts(msg.items);
           break;
         case "fileResults":
           setFileResults({ query: msg.query, items: msg.items });
@@ -894,6 +899,7 @@ export function App() {
                 onToggleAutoApprove={(enabled) => post({ type: "setAutoApprove", enabled })}
                 context={context}
                 contextSources={contextSources}
+                prompts={prompts}
                 selectedContext={selectedContext}
                 onToggleContext={(id) =>
                   setContextChoice((prev) => {

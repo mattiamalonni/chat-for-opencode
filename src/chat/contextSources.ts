@@ -65,6 +65,17 @@ export function inlineContext(kind: ContextSourceId, label: string, content: str
 
 const SEVERITY = ["Error", "Warning", "Information", "Hint"];
 
+/** Reads back the Markdown carried by an inline context chip, for `$diff` / `$problems`. */
+export function decodeContextContent(uri: string): string {
+  const comma = uri.indexOf(",");
+  if (comma < 0) return "";
+  try {
+    return Buffer.from(uri.slice(comma + 1), "base64").toString("utf8");
+  } catch {
+    return "";
+  }
+}
+
 export function formatDiagnostics(items: DiagnosticLike[]): string {
   if (items.length === 0) return "No diagnostics reported for the active file.";
   return items

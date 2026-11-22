@@ -2,7 +2,7 @@ import type { VNode } from "preact";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "preact/hooks";
 import type { AgentInfo, CommandSuggestion, ModelInfo, ModelRef, SkillSuggestion } from "../shared/api";
 import { composerAction } from "../shared/keys";
-import type { Attachment, ContextItem, ContextSource, ContextSourceId } from "../shared/protocol";
+import type { Attachment, ContextItem, ContextSource, ContextSourceId, PromptDefinition } from "../shared/protocol";
 import { isolateKeys } from "./env";
 import { formatTokens } from "../shared/format";
 import { ContextMeter } from "./contextMeter";
@@ -33,6 +33,7 @@ export interface ComposerProps {
   onToggleAutoApprove: (enabled: boolean) => void;
   context: ContextItem[];
   contextSources: ContextSource[];
+  prompts: PromptDefinition[];
   selectedContext: Set<string>;
   onToggleContext: (id: string) => void;
   attachments: Attachment[];
@@ -74,7 +75,8 @@ type MentionItem =
   | { kind: "file"; item: Attachment }
   | { kind: "skill"; item: SkillSuggestion }
   | { kind: "command"; item: CommandSuggestion }
-  | { kind: "context"; item: ContextSource };
+  | { kind: "context"; item: ContextSource }
+  | { kind: "prompt"; item: PromptDefinition };
 type Mention = { query: string; start: number; kind: "file" | "skill" };
 
 /**
@@ -232,6 +234,15 @@ export function Composer(props: ComposerProps) {
         : [],
     [mention?.kind, mentionQuery, props.commands],
   );
+  const promptResults: PromptDefinition[] = useMemo(
+    () =>
+      mention?.kind === "skill"
+        ? props.prompts
+            .filter((p) => `${p.id} ${p.title} ${p.description}`.toLowerCase().includes(mention.query.trim().toLowerCase()))
+            .slice(0, 12)
+        : [],
+    [mention?.kind, mention?.query, props.prompts],
+  );
   const sourceQuery = mention?.kind === "file" ? mention.query.trim().toLowerCase() : "";
   const sourceResults: ContextSource[] = useMemo(
     () =>
@@ -243,6 +254,7 @@ export function Composer(props: ComposerProps) {
     [mention?.kind, sourceQuery, props.contextSources],
   );
   const results: MentionItem[] = [
+    ...promptResults.map((item): MentionItem => ({ kind: "prompt", item })),
     ...sourceResults.map((item): MentionItem => ({ kind: "context", item })),
     ...commandResults.map((item): MentionItem => ({ kind: "command", item })),
     ...(mention?.kind === "skill" || mention?.kind === "file" ? skillResults : []).map((item): MentionItem => ({ kind: "skill", item })),
@@ -304,6 +316,7 @@ export function Composer(props: ComposerProps) {
     setMention(undefined);
     if (item.kind === "file") props.onAddAttachment(item.item);
     if (item.kind === "context") post({ type: "addContextSource", source: item.item.id });
+    if (item.kind === "prompt") post({ type: "usePrompt", id: item.item.id });
     requestAnimationFrame(() => {
       const pos = mention.start + label.length;
       el?.focus();
@@ -539,7 +552,9 @@ export function Composer(props: ComposerProps) {
                           ? `command:${r.item.name}`
                           : r.kind === "context"
                             ? `source:${r.item.id}`
-                            : `skill:${r.item.id}`
+                            : r.kind === "prompt"
+                              ? `prompt:${r.item.id}`
+                              : `skill:${r.item.id}`
                     }
                     id={`mention-${i}`}
                     role="option"
@@ -551,15 +566,19 @@ export function Composer(props: ComposerProps) {
                     }}
                   >
                     {r.kind === "file" ? <FileTypeIcon path={r.item.detail ?? r.item.name} /> : <IconTool />}
-                    <span class="mention-name">{r.kind === "context" ? r.item.label : r.item.name}</span>
+                    <span class="mention-name">
+                      {r.kind === "context" ? r.item.label : r.kind === "prompt" ? r.item.title : r.item.name}
+                    </span>
                     <span class="mention-path">
                       {r.kind === "file"
                         ? r.item.detail
                         : r.kind === "context"
                           ? `@${r.item.id} · ${r.item.description}`
-                          : r.kind === "command"
-                            ? `/${r.item.name}${r.item.description ? ` · ${r.item.description}` : ""}`
-                            : `@${r.item.id}${r.item.description ? ` · ${r.item.description}` : ""}`}
+                          : r.kind === "prompt"
+                            ? `/${r.item.id} · ${r.item.description}`
+                            : r.kind === "command"
+                              ? `/${r.item.name}${r.item.description ? ` · ${r.item.description}` : ""}`
+                              : `@${r.item.id}${r.item.description ? ` · ${r.item.description}` : ""}`}
                     </span>
                   </li>
                 ))

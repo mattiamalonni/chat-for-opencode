@@ -557,6 +557,37 @@
           "maximum": 100000,
           "markdownDescription": "%config.toolOutputLimit%"
         },
+        "opencode.promptLibrary": {
+          "type": "array",
+          "default": [],
+          "markdownDescription": "%config.promptLibrary%",
+          "items": {
+            "type": "object",
+            "required": [
+              "id",
+              "title",
+              "text"
+            ],
+            "properties": {
+              "id": {
+                "type": "string",
+                "description": "Unique slash-command id, without the leading slash."
+              },
+              "title": {
+                "type": "string",
+                "description": "Label shown in the / picker."
+              },
+              "description": {
+                "type": "string",
+                "description": "Short hint shown under the label."
+              },
+              "text": {
+                "type": "string",
+                "description": "Prompt text. Supports $selection, $file, $diff and $problems."
+              }
+            }
+          }
+        },
         "opencode.showUsageInStatusBar": {
           "type": "boolean",
           "default": true,

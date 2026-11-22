@@ -65,6 +65,10 @@ test or a manual probe actually ran.
 
 ## Behaviour limits
 
+- **Prompt variables are snapshots.** `$diff` and `$problems` reuse the same on-demand context
+  sources as the chips: they reflect the workspace when you pick the prompt, not when you finally
+  press Enter. `$file` and `$selection` come from the editor active at pick time. A prompt whose id
+  matches a skill or command wins in the `/` picker; use a distinct id for custom prompts.
 - **Applying a code block needs a target file.** The webview guesses the one referenced just above
   the block; when the guess is missing or wrong, a QuickPick of workspace files takes over. A
   full-file block replaces the entire file, so it is only appropriate when the reply really contains

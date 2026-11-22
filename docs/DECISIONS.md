@@ -221,3 +221,13 @@ a native diff through `DiffService.openProposal`, and the file is written with a
 only after a separate **Accept** in a notification; **Reject** or dismissing it writes nothing.
 This keeps the "nothing without review" policy of the permission cards, and lets the whole flow be
 unit-tested behind injected hooks (`ApplyCodeService`) rather than driving native notifications.
+
+## D22 — Prompt variables are resolved in the host, not the webview
+
+A `/` prompt can refer to the selection, the active file, the working-tree diff or the editor
+diagnostics. The webview has no access to git or to diagnostics, and reimplementing those sources
+there would duplicate `ContextSourceService`. Selecting a prompt therefore posts only its `id`; the
+host resolves `$selection` / `$file` from the active editor and reuses `contextSources.build("git")`
+and `build("problems")` for the other two, then posts the existing `prefillDraft` message. This also
+keeps user-defined prompts (from `opencode.promptLibrary`) on the same path as the curated ones and
+makes the resolution a pure `resolvePromptVariables` function with unit tests.

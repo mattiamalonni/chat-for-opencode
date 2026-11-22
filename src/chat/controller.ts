@@ -52,7 +52,8 @@ import { AttachmentService, mimeFromName } from "./attachmentService";
 import { SessionListService, type SessionSearchResult } from "./sessionListService";
 import { SubagentTracker } from "./subagentTracker";
 import { ContextTracker, FileIndex, selectionAttachment } from "./context";
-import { ContextSourceService, type SymbolLike } from "./contextSources";
+import { ContextSourceService, decodeContextContent, type SymbolLike } from "./contextSources";
+import { PromptLibraryService } from "./promptLibrary";
 import { ApplyCodeService } from "./applyCode";
 import { TerminalOutputTracker } from "./terminalOutput";
 import { workingDiff } from "./gitDiff";
@@ -213,6 +214,8 @@ export class ChatController implements vscode.Disposable {
   private readonly contextSources: ContextSourceService;
   /** Applies a reply's code block as a reviewable, accepted-only WorkspaceEdit. */
   private readonly applyCode: ApplyCodeService<vscode.Uri>;
+  /** Built-in + user prompts inserted into the composer with editor context resolved. */
+  private readonly prompts: PromptLibraryService;
   private readonly terminalOutput = new TerminalOutputTracker();
   private readonly activeContextSources = new Set<ContextSourceId>();
   private readonly contextSourceItems = new Map<ContextSourceId, ContextItem>();
@@ -407,6 +410,29 @@ export class ChatController implements vscode.Disposable {
       warn: (message) => this.output.warn(message),
       info: (message) => void vscode.window.showInformationMessage(message),
     });
+    this.prompts = new PromptLibraryService({
+      t: (text) => vscode.l10n.t(text),
+      userPrompts: () =>
+        vscode.workspace
+          .getConfiguration("opencode", this.folder?.uri)
+          .get<Array<{ id?: unknown; title?: unknown; description?: unknown; text?: unknown }>>("promptLibrary", []),
+      selection: () => {
+        const editor = vscode.window.activeTextEditor;
+        return editor && !editor.selection.isEmpty ? editor.document.getText(editor.selection) : "";
+      },
+      filePath: () => {
+        const editor = vscode.window.activeTextEditor;
+        return editor?.document.uri.scheme === "file" ? vscode.workspace.asRelativePath(editor.document.uri, false) : undefined;
+      },
+      diff: async () => {
+        const item = await this.contextSources.build("git");
+        return item ? decodeContextContent(item.uri) : "";
+      },
+      problems: async () => {
+        const item = await this.contextSources.build("problems");
+        return item ? decodeContextContent(item.uri) : "";
+      },
+    });
     this.permissions = new PermissionService(
       ctx,
       () => this.folder,
@@ -514,6 +540,7 @@ export class ChatController implements vscode.Disposable {
       addContextSource: (source) => this.addContextSource(source),
       removeContextSource: (source) => this.removeContextSource(source),
       applyCode: (text, targetPath) => this.applyCode.apply(text, targetPath),
+      usePrompt: (id) => this.usePrompt(id),
       fileIcons: this.fileIcons,
       diffs: this.diffs,
       workspaceState: ctx.workspaceState,
@@ -732,6 +759,7 @@ export class ChatController implements vscode.Disposable {
       toolOutputLimit: vscode.workspace.getConfiguration("opencode", this.folder?.uri).get<number>("toolOutputLimit", 4000),
     });
     this.post({ type: "contextSources", items: this.contextSources.catalog() });
+    this.post({ type: "promptCatalog", items: this.prompts.catalog() });
   }
 
   private sourceContextItems(): ContextItem[] {
@@ -758,6 +786,16 @@ export class ChatController implements vscode.Disposable {
       this.output.warn(`[chat] context source ${source}: ${String(err)}`);
       return undefined;
     }
+  }
+
+  async usePrompt(id: string): Promise<void> {
+    if (!id) return;
+    const text = await this.prompts.resolve(id);
+    if (text === undefined) {
+      this.output.warn(`[chat] unknown prompt: ${id}`);
+      return;
+    }
+    this.prefillDraft(text, []);
   }
 
   removeContextSource(source: ContextSourceId): void {

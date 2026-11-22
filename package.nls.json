@@ -35,6 +35,7 @@
   "config.toolOutputLimit": "Characters of a tool's output shown inline before the **output (n)** affordance. Raise it to review long command output without expanding every card.",
   "config.notifyOnComplete": "Show a notification when a turn finishes while the chat is hidden, with an action to open it. Off by default to avoid noise on long sessions.",
   "config.notifyOnFailure": "Show a notification when a turn fails while the chat is hidden, with an action to open it.",
+  "config.promptLibrary": "Reusable prompts offered by `/` in the chat. Each entry needs a unique `id`, a `title` and the `text` to insert; `description` is optional. The text may contain `$selection`, `$file`, `$diff` and `$problems`, which are replaced with the current editor context when you pick it. Built-in prompts (explain, tests, bugs, optimize, document, review, problems, commit) are always available.",
   "config.showUsageInStatusBar": "Show a status bar item with the current session's estimated context size and cost. The numbers come from OpenCode and appear after the first reply.",
   "command.moveView": "Move Chat View… (left/right side bar, panel)",
   "command.install": "Install OpenCode…",

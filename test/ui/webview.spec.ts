@@ -49,6 +49,21 @@ const CONTEXT_SOURCES = [
   { id: "symbol", label: "Symbol at cursor", description: "Definitions of the symbol under the cursor" },
 ] as const;
 
+const PROMPTS = [
+  {
+    id: "review",
+    title: "Review uncommitted changes",
+    description: "Review the working-tree diff for bugs and risks",
+    text: "Review these changes:\n\n$diff",
+  },
+  {
+    id: "explain",
+    title: "Explain this file",
+    description: "Summarise what the active file does",
+    text: "Explain $file",
+  },
+] as const;
+
 const AGENTS = [
   { id: "build", name: "Build", description: "The default agent.", mode: "primary", hidden: false },
   { id: "plan", name: "Plan", description: "Read-only planning agent.", mode: "primary", hidden: false },
@@ -99,6 +114,7 @@ async function boot(page: Page, theme: "dark" | "light" = "dark"): Promise<strin
   });
   await host(page, { type: "session", session: null });
   await host(page, { type: "contextSources", items: [...CONTEXT_SOURCES] });
+  await host(page, { type: "promptCatalog", items: [...PROMPTS] });
   await host(page, {
     type: "context",
     items: [
@@ -1795,6 +1811,16 @@ test("slash commands select skills and preserve other slash commands", async ({ 
   await input.fill("/unknown command");
   await input.press("Enter");
   expect(await lastPosted(page, "send")).toMatchObject({ type: "send", text: "/unknown command" });
+});
+
+test("slash suggestions include reusable prompts that prefill the composer", async ({ page }) => {
+  await boot(page);
+  const input = page.getByRole("textbox", { name: STRINGS.inputLabel });
+  await input.fill("/rev");
+  await expect(page.locator(".mention-popup")).toContainText("Review uncommitted changes");
+  await page.locator(".mention-popup li").filter({ hasText: "Review uncommitted changes" }).click();
+  expect(await lastPosted(page, "usePrompt")).toEqual({ type: "usePrompt", id: "review" });
+  await expect(input).toHaveValue("");
 });
 
 test("slash suggestions include commands, which stay as /command when sent", async ({ page }) => {

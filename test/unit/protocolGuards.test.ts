@@ -16,6 +16,7 @@ describe("webview → host boundary", () => {
     ).toBe(true);
     expect(isWebviewMessage({ type: "permissionReply", sessionId: "s1", requestId: "r1", decision: "once" })).toBe(true);
     expect(isWebviewMessage({ type: "formReply", sessionId: "s1", formId: "f1", answer: { a: "x", b: ["y"], c: 2, d: true } })).toBe(true);
+    expect(isWebviewMessage({ type: "usePrompt", id: "review" })).toBe(true);
     expect(isWebviewMessage({ type: "addContextSource", source: "problems" })).toBe(true);
     expect(isWebviewMessage({ type: "removeContextSource", source: "git" })).toBe(true);
     expect(isWebviewMessage({ type: "openDiff", file: "a.txt", patch: "@@", applied: true })).toBe(true);
@@ -34,6 +35,7 @@ describe("webview → host boundary", () => {
     expect(isWebviewMessage({ type: "send", text: "x".repeat(4_000_001), attachments: [], context: [] })).toBe(false);
     expect(isWebviewMessage({ type: "fileIcons", paths: new Array(2001).fill("a.txt") })).toBe(false);
     expect(isWebviewMessage({ type: "openLink", href: "x".repeat(32_769) })).toBe(false);
+    expect(isWebviewMessage({ type: "usePrompt", id: 7 })).toBe(false);
     expect(isWebviewMessage({ type: "addContextSource", source: "anything" })).toBe(false);
     expect(isWebviewMessage({ type: "removeContextSource" })).toBe(false);
   });
@@ -65,6 +67,12 @@ describe("host → webview boundary", () => {
     expect(isHostMessage({ type: "revealMessage", messageId: 'a"] [x', sessionId: "s1" })).toBe(true);
     expect(isHostMessage({ type: "linkSubagent", toolId: "tool-1", sessionId: "child-1" })).toBe(true);
     expect(isHostMessage({ type: "contextSources", items: [{ id: "git", label: "Git diff", description: "Changes" }] })).toBe(true);
+    expect(
+      isHostMessage({
+        type: "promptCatalog",
+        items: [{ id: "review", title: "Review", description: "Changes", text: "Review $diff" }],
+      }),
+    ).toBe(true);
     expect(
       isHostMessage({
         type: "context",
