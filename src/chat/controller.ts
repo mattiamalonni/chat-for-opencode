@@ -906,9 +906,18 @@ export class ChatController implements vscode.Disposable {
         }
       }
     }
-    if (sid === this.sessionId && event.type === "session.tool.progress") {
-      const childId = (event.data as { metadata?: { sessionID?: unknown } }).metadata?.sessionID;
-      if (typeof childId === "string" && childId) this.subagents.track(childId);
+    if (
+      sid === this.sessionId &&
+      (event.type === "session.tool.progress" || event.type === "session.tool.success" || event.type === "session.tool.failed")
+    ) {
+      const data = event.data as { id?: unknown; metadata?: { sessionID?: unknown } };
+      const childId = data.metadata?.sessionID;
+      if (typeof childId === "string" && childId) {
+        this.subagents.track(childId);
+        // Link by tool call id, not by title: two concurrent subagents can share a description, and
+        // the tool card may be created after this event. The webview keeps the id until it appears.
+        if (typeof data.id === "string" && data.id) this.post({ type: "linkSubagent", toolId: data.id, sessionId: childId });
+      }
     }
     if (sid === this.sessionId && event.type === "session.inbox.enqueued") {
       // A background child announces its final report after the parent turn has already ended.

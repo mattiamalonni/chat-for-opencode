@@ -259,6 +259,11 @@ export function App() {
           }
           frame.current ??= requestAnimationFrame(flush);
           break;
+        case "linkSubagent":
+          // Explicit host link: reliable even when two children share a description or the tool
+          // card is rendered after the tool event that announced the child session.
+          dispatch({ type: "linkSubagent", toolId: msg.toolId, sessionId: msg.sessionId });
+          break;
         case "context":
           setContext(msg.items);
           setContextChoice((prev) => {

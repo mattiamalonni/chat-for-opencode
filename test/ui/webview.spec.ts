@@ -2628,6 +2628,22 @@ test("subagent progress stays one line until the tool card is expanded", async (
   expect(csp).toEqual([]);
 });
 
+test("an explicit subagent link makes a card openable even without history metadata", async ({ page }) => {
+  await boot(page);
+  const sid = "ses_link";
+  const base = { sessionID: sid, assistantMessageID: "m1" };
+  await openSession(page, sid, [
+    { type: "session.step.started", created: 1, data: { ...base, agent: "build" } },
+    { type: "session.tool.input.started", created: 2, data: { ...base, id: "tool-1", name: "subagent" } },
+    { type: "session.tool.called", created: 3, data: { ...base, id: "tool-1", input: { description: "a job" } } },
+  ]);
+  const card = page.locator(".tool.subagent").first();
+  await expect(card.locator(".tool-open")).toHaveCount(0);
+  await host(page, { type: "linkSubagent", toolId: "tool-1", sessionId: "child-1" });
+  await expect(card.locator(".tool-open")).toHaveCount(1);
+  await expect(card.locator(".tool-open")).toHaveAttribute("aria-label", STRINGS.openSubagent);
+});
+
 test("a subagent card opens a read-only conversation modal with breadcrumbs", async ({ page }) => {
   await boot(page);
   const events = fixture("real-sse-subagent.jsonl");

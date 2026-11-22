@@ -69,6 +69,29 @@ describe("linkSubagent", () => {
     expect(fallbackIds).toEqual([undefined, "child-2"]);
   });
 
+  it("links by tool id, even when two children share a description", () => {
+    const state = open(S1, [runningSubagent("m1", "same job"), runningSubagent("m2", "same job")]);
+    const linked = chatReducer(state, { type: "linkSubagent", toolId: "tool-m2", sessionId: "child-2" });
+    const ids = assistants(linked)
+      .flatMap((m) => m.parts)
+      .flatMap((p) => (p.kind === "tool" ? [p.metadata?.sessionID] : []));
+    expect(ids).toEqual([undefined, "child-2"]);
+  });
+
+  it("remembers an explicit link until the tool card is rendered", () => {
+    const pending = chatReducer(open(S1), { type: "linkSubagent", toolId: "tool-m1", sessionId: "child-1" });
+    const base = { sessionID: S1, assistantMessageID: "m1", id: "tool-m1" };
+    const events: ServerEvent[] = [
+      { type: "session.tool.input.started", created: 1, data: { ...base, name: "subagent" } },
+      { type: "session.tool.called", created: 2, data: { ...base, input: { description: "same job" } } },
+    ];
+    const withCard = events.reduce((state, event) => chatReducer(state, { type: "event", event }), pending);
+    const ids = assistants(withCard)
+      .flatMap((m) => m.parts)
+      .flatMap((p) => (p.kind === "tool" ? [p.metadata?.sessionID] : []));
+    expect(ids).toEqual(["child-1"]);
+  });
+
   it("does not overwrite an id that is already known", () => {
     const state = open(S1, [runningSubagent("m1", "first")]);
     const linked = chatReducer(state, { type: "linkSubagent", sessionId: "child-1", title: "first" });

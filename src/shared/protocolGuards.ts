@@ -256,6 +256,7 @@ const HOST_VALIDATORS: Record<string, Check> = {
   event: shape({ event: isEvent }),
   subagent: shape({ snapshot: isSubagentSnapshot }),
   subagentEvent: shape({ sessionId: str(), event: isEvent }),
+  linkSubagent: shape({ toolId: str(), sessionId: str() }),
   context: shape({ items: arr(isContextItem) }),
   fileIcons: shape({
     icons: rec((value) => value === null || isFileIcon(value)),

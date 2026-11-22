@@ -59,6 +59,7 @@ describe("host → webview boundary", () => {
     expect(isHostMessage({ type: "event", event: { type: "session.status", data: { sessionID: "s1" } } })).toBe(true);
     expect(isHostMessage({ type: "notice", error: { kind: "promptFailed", message: "failed", actions: ["retry"] } })).toBe(true);
     expect(isHostMessage({ type: "revealMessage", messageId: 'a"] [x', sessionId: "s1" })).toBe(true);
+    expect(isHostMessage({ type: "linkSubagent", toolId: "tool-1", sessionId: "child-1" })).toBe(true);
     expect(isHostMessage({ type: "synced" })).toBe(true);
   });
 

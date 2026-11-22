@@ -206,6 +206,11 @@ export type HostMessage =
   | { type: "subagent"; snapshot: SubagentSnapshot }
   /** Live event belonging to a subagent's child session (not the one shown in the chat). */
   | { type: "subagentEvent"; sessionId: string; event: ServerEvent }
+  /**
+   * The host saw `metadata.sessionID` on a tool call: link that exact card to the child session.
+   * Sent as soon as the tool reports the id, so a card created after the snapshot still gets it.
+   */
+  | { type: "linkSubagent"; toolId: string; sessionId: string }
   | { type: "context"; items: ContextItem[] }
   /** Icons requested by the webview, keyed by the exact path it asked for. */
   | { type: "fileIcons"; icons: Record<string, FileIconData | null>; fonts: Record<string, FileIconFont>; reset?: boolean }

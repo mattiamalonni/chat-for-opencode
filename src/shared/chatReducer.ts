@@ -110,6 +110,8 @@ export interface ChatState {
   touchedFiles?: string[];
   /** Final reports of background subagents, announced as synthetic messages keyed by child id. */
   subagentReports?: Record<string, string>;
+  /** toolId → child session id, for links that arrived before the tool card was rendered. */
+  pendingSubagentLinks?: Record<string, string>;
   /** Inbox ids of queued prompts, in delivery order; each opens its own turn at `execution.started`. */
   queuedTurnIds?: string[];
   /** Prompts accepted into the inbox but not delivered yet. Kept out of `messages` until delivery. */
@@ -135,7 +137,7 @@ export type ChatAction =
   | { type: "event"; event: ServerEvent }
   | { type: "events"; events: ServerEvent[] }
   /** Attach a discovered child id to the still-unlinked `subagent` tool card in the main chat. */
-  | { type: "linkSubagent"; sessionId: string; title?: string }
+  | { type: "linkSubagent"; sessionId: string; title?: string; toolId?: string }
   | { type: "clearError" };
 
 export const initialChatState: ChatState = {
@@ -149,8 +151,11 @@ export const initialChatState: ChatState = {
 
 export function chatReducer(state: ChatState, action: ChatAction): ChatState {
   switch (action.type) {
-    case "load":
-      return loadHistory(action, state);
+    case "load": {
+      const loaded = loadHistory(action, state);
+      const cleared = loaded.sessionId !== state.sessionId ? { ...loaded, pendingSubagentLinks: {} } : loaded;
+      return applyPendingSubagentLinks(cleared);
+    }
     case "append":
       return state.sessionId === action.delta.sessionId ? appendDelta(state, action.delta) : state;
     case "event":
@@ -161,6 +166,7 @@ export function chatReducer(state: ChatState, action: ChatAction): ChatState {
       // one part are pure string appends, so fold adjacent ones into a single event first.
       return coalesceDeltas(action.events).reduce(applyEvent, state);
     case "linkSubagent": {
+      if (action.toolId) return linkToolToSubagent(state, action.toolId, action.sessionId);
       // OpenCode only writes `metadata.sessionID` into a completed tool's history. A child found
       // via `session.created`/the session list must still be reachable from its card, so link the
       // id to the newest unlinked subagent call. Prefer an exact description/title match; when
@@ -298,6 +304,48 @@ function carrySubagentLinks(previous: UiMessage | undefined, next: UiMessage): U
       return sessionID ? { ...p, metadata: { ...(p.metadata ?? {}), sessionID } } : p;
     }),
   };
+}
+
+/** Apply an explicit link by tool id; remember it if the card has not been rendered yet. */
+function linkToolToSubagent(state: ChatState, toolId: string, sessionId: string): ChatState {
+  let found = false;
+  const messages = state.messages.map((m) => {
+    if (m.kind !== "assistant") return m;
+    return {
+      ...m,
+      parts: m.parts.map((p) => {
+        if (p.kind !== "tool" || (p.name !== "subagent" && p.name !== "task")) return p;
+        if (p.id !== toolId || p.metadata?.sessionID) return p;
+        found = true;
+        return { ...p, metadata: { ...(p.metadata ?? {}), sessionID: sessionId } };
+      }),
+    };
+  });
+  const pending = { ...(state.pendingSubagentLinks ?? {}) };
+  if (found) delete pending[toolId];
+  else pending[toolId] = sessionId;
+  return { ...state, messages, pendingSubagentLinks: pending };
+}
+
+/** Consume remembered links when the tool card arrives later in the live stream or a resync. */
+function applyPendingSubagentLinks(state: ChatState): ChatState {
+  const pending = state.pendingSubagentLinks;
+  if (!pending || Object.keys(pending).length === 0) return state;
+  let changed = false;
+  const messages = state.messages.map((m) => {
+    if (m.kind !== "assistant") return m;
+    return {
+      ...m,
+      parts: m.parts.map((p) => {
+        if (p.kind !== "tool" || (p.name !== "subagent" && p.name !== "task") || p.metadata?.sessionID) return p;
+        const sessionId = pending[p.id];
+        if (!sessionId) return p;
+        changed = true;
+        return { ...p, metadata: { ...(p.metadata ?? {}), sessionID: sessionId } };
+      }),
+    };
+  });
+  return changed ? { ...state, messages } : state;
 }
 
 function loadHistory(action: Extract<ChatAction, { type: "load" }>, previous: ChatState): ChatState {
@@ -972,22 +1020,26 @@ export function applyEvent(state: ChatState, event: ServerEvent): ChatState {
     case "session.tool.called": {
       const id = str(d, "id");
       const input = (d.input as Record<string, unknown>) ?? {};
-      return updateAssistant(state, msgId, (m) =>
-        updatePart(m, `tool:${id}`, (p) => ({
-          ...toolPart(id, p),
-          input,
-          inputText: JSON.stringify(input, null, 2),
-          status: "running",
-        })),
+      return applyPendingSubagentLinks(
+        updateAssistant(state, msgId, (m) =>
+          updatePart(m, `tool:${id}`, (p) => ({
+            ...toolPart(id, p),
+            input,
+            inputText: JSON.stringify(input, null, 2),
+            status: "running",
+          })),
+        ),
       );
     }
     case "session.tool.progress": {
       const id = str(d, "id");
-      return updateAssistant(state, msgId, (m) =>
-        updatePart(m, `tool:${id}`, (p) => {
-          const t = toolPart(id, p);
-          return { ...t, metadata: { ...(t.metadata ?? {}), ...((d.metadata as Data) ?? {}) } };
-        }),
+      return applyPendingSubagentLinks(
+        updateAssistant(state, msgId, (m) =>
+          updatePart(m, `tool:${id}`, (p) => {
+            const t = toolPart(id, p);
+            return { ...t, metadata: { ...(t.metadata ?? {}), ...((d.metadata as Data) ?? {}) } };
+          }),
+        ),
       );
     }
     case "session.tool.success":
@@ -1006,7 +1058,7 @@ export function applyEvent(state: ChatState, event: ServerEvent): ChatState {
           };
         }),
       );
-      return withLiveFileChanges(updated);
+      return withLiveFileChanges(applyPendingSubagentLinks(updated));
     }
     case "session.step.ended": {
       const tokens = d.tokens as TokenUsage | undefined;

@@ -2,6 +2,11 @@
 
 ## 0.3.19 — 2026-11-22
 
+- **Fix:** subagent cards are now linked to their child session by tool call id. The host sends an
+  explicit `linkSubagent` message as soon as `metadata.sessionID` appears on a tool event, and the
+  webview remembers the id even if the card is created later — so two parallel children with the same
+  description no longer cross-link and a card is not left without an _Open subagent conversation_
+  action. The title match remains a fallback for snapshots without a tool id.
 - **Contributing:** added `CONTRIBUTING.md` (setup, test matrix, definition of done), issue/PR
   templates and a documentation index; fixed the drifted password-size and a11y status notes.
   Prettier, `.editorconfig` and `.gitattributes` now define formatting and LF endings, with
