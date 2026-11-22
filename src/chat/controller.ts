@@ -61,6 +61,7 @@ import { isWithinDirectory } from "./tempAttachments";
 import { isWithinDirectoryReal } from "./pathSafety";
 import { normalizeEndpoint } from "../server/endpoint";
 import { configTargetPaths } from "./configTarget";
+import { BoundedSet } from "../shared/boundedSet";
 import { ExecutionStateService, type ExecutionState } from "./executionState";
 
 export type { ExecutionState, ExecutionStatus, TerminalStatus } from "./executionState";
@@ -226,7 +227,7 @@ export class ChatController implements vscode.Disposable {
   /** Drops, picker, inline staging and the attachment path allowlist; see attachmentService.ts. */
   private readonly attachments: AttachmentService;
   /** Attention requests already announced while the chat was hidden (avoids notification spam). */
-  private readonly announcedHiddenAttention = new Set<string>();
+  private readonly announcedHiddenAttention = new BoundedSet<string>(500);
 
   // The supervisor owns these; the controller reads them through the same names it always used.
   private get client(): OpenCodeClient | undefined {

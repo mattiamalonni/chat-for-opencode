@@ -2,6 +2,9 @@
 
 ## 0.3.19 — 2026-11-22
 
+- **Robustness:** the set that suppresses duplicate notifications while the chat is hidden is now
+  FIFO-bounded (500 keys), like the other caches in the extension. A long session with the chat
+  closed can no longer grow it without limit.
 - **Fix:** queued prompts are now reconciled with the server's inbox list after a resync. If a
   `delivered`/`cancelled` event was lost while reconnecting, the stale queued card and its turn id
   are dropped, so the next `execution.started` cannot duplicate the prompt in the conversation.
