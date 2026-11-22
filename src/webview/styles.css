@@ -2260,6 +2260,21 @@ button:disabled {
   text-decoration: underline;
 }
 
+.context-source-wrap {
+  position: relative;
+  display: inline-flex;
+}
+
+.context-source-menu {
+  left: 0;
+  right: auto;
+  width: min(280px, 80vw);
+}
+
+.context-source-menu .mention-name {
+  flex: none;
+}
+
 .mention-popup {
   position: absolute;
   bottom: calc(100% + 6px);

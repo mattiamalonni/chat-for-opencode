@@ -74,9 +74,19 @@ export interface SessionSummary {
   needsInput: boolean;
 }
 
+/** On-demand context sources the host can turn into chips with inline content. */
+export const CONTEXT_SOURCE_IDS = ["problems", "git", "terminal", "openEditors", "symbol"] as const;
+export type ContextSourceId = (typeof CONTEXT_SOURCE_IDS)[number];
+
+export interface ContextSource {
+  id: ContextSourceId;
+  label: string;
+  description: string;
+}
+
 export interface ContextItem {
   id: string;
-  kind: "file" | "selection";
+  kind: "file" | "selection" | ContextSourceId;
   uri: string;
   label: string;
   detail?: string;
@@ -214,6 +224,8 @@ export type HostMessage =
    */
   | { type: "linkSubagent"; toolId: string; sessionId: string }
   | { type: "context"; items: ContextItem[] }
+  /** Catalog of on-demand context sources, used by the `@` picker and the composer toolbar. */
+  | { type: "contextSources"; items: ContextSource[] }
   /** Icons requested by the webview, keyed by the exact path it asked for. */
   | { type: "fileIcons"; icons: Record<string, FileIconData | null>; fonts: Record<string, FileIconFont>; reset?: boolean }
   | { type: "fileResults"; query: string; items: Attachment[] }
@@ -280,6 +292,8 @@ export type WebviewMessage =
   | { type: "formReply"; sessionId: string; formId: string; answer: Record<string, FormValue> }
   | { type: "formCancel"; sessionId: string; formId: string }
   | { type: "searchFiles"; query: string }
+  | { type: "addContextSource"; source: ContextSourceId }
+  | { type: "removeContextSource"; source: ContextSourceId }
   /** Lazily request theme icons for file paths the webview is about to render. */
   | { type: "fileIcons"; paths: string[] }
   | { type: "dropFiles"; files: DroppedFile[] }

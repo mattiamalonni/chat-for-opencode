@@ -38,6 +38,7 @@ import type {
   Attachment,
   ConnectionStatus,
   ContextItem,
+  ContextSourceId,
   DroppedFile,
   HostMessage,
   SessionSummary,
@@ -51,6 +52,9 @@ import { AttachmentService, mimeFromName } from "./attachmentService";
 import { SessionListService, type SessionSearchResult } from "./sessionListService";
 import { SubagentTracker } from "./subagentTracker";
 import { ContextTracker, FileIndex, selectionAttachment } from "./context";
+import { ContextSourceService, type SymbolLike } from "./contextSources";
+import { TerminalOutputTracker } from "./terminalOutput";
+import { workingDiff } from "./gitDiff";
 import { ChatViews, type ChatWebview } from "./views";
 import { DiffService } from "./diff";
 import { DEFAULT_SESSION_PERMISSIONS } from "./permissions";
@@ -204,6 +208,11 @@ export class ChatController implements vscode.Disposable {
   private readonly fileIcons: FileIconThemeService;
   private fileIndex: FileIndex | undefined;
   private readonly context: ContextTracker;
+  /** On-demand chips (diagnostics, diff, terminal, editors, symbol) and their inline content. */
+  private readonly contextSources: ContextSourceService;
+  private readonly terminalOutput = new TerminalOutputTracker();
+  private readonly activeContextSources = new Set<ContextSourceId>();
+  private readonly contextSourceItems = new Map<ContextSourceId, ContextItem>();
   private readonly disposables: vscode.Disposable[] = [];
   /** Inline permissions: per-chat auto-approve, granted ids and pending-request filtering. */
   private readonly permissions: PermissionService;
@@ -314,7 +323,33 @@ export class ChatController implements vscode.Disposable {
         return Math.min(100, Math.max(1, Math.floor(configured) || 10));
       },
     );
-    this.context = new ContextTracker((items) => this.post({ type: "context", items }));
+    this.context = new ContextTracker((items) => this.post({ type: "context", items: [...items, ...this.sourceContextItems()] }));
+    this.contextSources = new ContextSourceService({
+      t: (text) => vscode.l10n.t(text),
+      folder: () => this.folder?.uri,
+      activeEditor: () => vscode.window.activeTextEditor,
+      visibleEditors: () => vscode.window.visibleTextEditors,
+      diagnostics: () => vscode.languages.getDiagnostics().flatMap(([uri, list]) => list.map((diagnostic) => ({ uri, diagnostic }))),
+      symbolsAt: async (editor): Promise<SymbolLike[]> => {
+        const uri = editor.document.uri;
+        const position = editor.selection.active;
+        const word = editor.document.getWordRangeAtPosition(position);
+        const name = (word ? editor.document.getText(word) : editor.document.getText(editor.selection)) || path.basename(uri.fsPath);
+        const found =
+          (await vscode.commands.executeCommand<Array<vscode.Location | vscode.LocationLink>>(
+            "vscode.executeDefinitionProvider",
+            uri,
+            position,
+          )) ?? [];
+        return found.slice(0, 20).map((entry) => {
+          const target = "uri" in entry ? entry.uri : entry.targetUri;
+          const range = "range" in entry ? entry.range : (entry.targetSelectionRange ?? entry.targetRange);
+          return { name, uri: target.fsPath, line: range.start.line };
+        });
+      },
+      gitDiff: (cwd) => workingDiff(cwd),
+      terminal: () => this.terminalOutput.latest(),
+    });
     this.permissions = new PermissionService(
       ctx,
       () => this.folder,
@@ -419,6 +454,8 @@ export class ChatController implements vscode.Disposable {
       execution: this.execution,
       generation: this.lifecycle.generations.load,
       getFileIndex: () => this.fileIndex,
+      addContextSource: (source) => this.addContextSource(source),
+      removeContextSource: (source) => this.removeContextSource(source),
       fileIcons: this.fileIcons,
       diffs: this.diffs,
       workspaceState: ctx.workspaceState,
@@ -436,6 +473,7 @@ export class ChatController implements vscode.Disposable {
     };
     this.disposables.push(
       this.context,
+      this.terminalOutput,
       vscode.window.onDidChangeActiveColorTheme(refreshFileIcons),
       vscode.extensions.onDidChange(refreshFileIcons),
       vscode.workspace.onDidChangeWorkspaceFolders(() => {
@@ -635,6 +673,39 @@ export class ChatController implements vscode.Disposable {
       dropzone: this.dropzoneEnabled(),
       toolOutputLimit: vscode.workspace.getConfiguration("opencode", this.folder?.uri).get<number>("toolOutputLimit", 4000),
     });
+    this.post({ type: "contextSources", items: this.contextSources.catalog() });
+  }
+
+  private sourceContextItems(): ContextItem[] {
+    return [...this.activeContextSources]
+      .map((source) => this.contextSourceItems.get(source))
+      .filter((item): item is ContextItem => !!item);
+  }
+
+  private postContext(): void {
+    this.post({ type: "context", items: [...this.context.current(), ...this.sourceContextItems()] });
+  }
+
+  async addContextSource(source: ContextSourceId): Promise<ContextItem | undefined> {
+    const existing = this.contextSourceItems.get(source);
+    if (existing) return existing;
+    try {
+      const item = await this.contextSources.build(source);
+      if (!item) return undefined;
+      this.activeContextSources.add(source);
+      this.contextSourceItems.set(source, item);
+      this.postContext();
+      return item;
+    } catch (err) {
+      this.output.warn(`[chat] context source ${source}: ${String(err)}`);
+      return undefined;
+    }
+  }
+
+  removeContextSource(source: ContextSourceId): void {
+    if (!this.activeContextSources.delete(source)) return;
+    this.contextSourceItems.delete(source);
+    this.postContext();
   }
 
   private dropzoneEnabled(): boolean {

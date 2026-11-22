@@ -8,7 +8,7 @@
  */
 import type * as vscode from "vscode";
 import type { FileDiff, ModelRef, SessionInfo } from "../shared/api";
-import type { ActionId, Attachment, ContextItem, DroppedFile, HostMessage, WebviewMessage } from "../shared/protocol";
+import type { ActionId, Attachment, ContextItem, ContextSourceId, DroppedFile, HostMessage, WebviewMessage } from "../shared/protocol";
 import type { OpenCodeClient } from "../client/http";
 import type { ExecutionStateService } from "./executionState";
 import type { Generation } from "./generation";
@@ -71,6 +71,8 @@ export interface CommandHandlerHooks {
   execution: ExecutionStateService;
   generation: Generation;
   getFileIndex(): { search(query: string): Promise<Attachment[]> } | undefined;
+  addContextSource(source: ContextSourceId): Promise<ContextItem | undefined>;
+  removeContextSource(source: ContextSourceId): void;
   fileIcons: { resolve(paths: string[]): Promise<FileIconsResponse> };
   diffs: {
     open(root: vscode.Uri, file: string, patch: string, applied: boolean): Promise<void>;
@@ -230,6 +232,14 @@ export class ChatCommandHandler {
       case "searchFiles": {
         const items = (await h.getFileIndex()?.search(msg.query)) ?? [];
         h.post({ type: "fileResults", query: msg.query, items });
+        return;
+      }
+      case "addContextSource": {
+        await h.addContextSource(msg.source);
+        return;
+      }
+      case "removeContextSource": {
+        h.removeContextSource(msg.source);
         return;
       }
       case "fileIcons": {

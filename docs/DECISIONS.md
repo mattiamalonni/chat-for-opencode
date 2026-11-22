@@ -195,3 +195,18 @@ Trade-off: the demo is a fixed, non-interactive recording and each chat view pla
 That is enough for a first impression; a scripted, interactive Q&A would need a host-side simulator
 and is deliberately out of scope. To refresh the recording, slice a fixture and rewrite its
 `sessionID` to `DEMO_SESSION_ID`.
+
+## D20 — Context sources travel as inline data URIs
+
+Content-based chips (`@problems`, `@git`, `@terminal`, `@openEditors`, `@symbol`) could have been
+sent as a new prompt-text block, but that would duplicate the attachment pipeline and break
+external servers, whose filesystem does not contain our paths. Instead the host formats each source
+as Markdown and builds a `data:text/markdown;base64,` `ContextItem.uri`. `resolveAttachment` already
+passes non-`file:` URIs through verbatim, so the same code path handles local and remote servers,
+and the webview's existing `estimateDataUrlTokens` counts their size. Content is capped at 12 000
+characters (base64 stays below the 32 768-character URI guard) and terminal output at 8 000.
+
+The five-source catalog is published once in `contextSources`; selecting one posts
+`addContextSource`, and the host recomputes the `context` list so the chip survives a context
+refresh. Chips are attached by default and removed through `removeContextSource` rather than the
+generic toggle, because a toggle would leave stale content cached in the host.

@@ -25,6 +25,7 @@ import type {
   Attachment,
   ConnectionStatus,
   ContextItem,
+  ContextSource,
   FolderInfo,
   HostMessage,
   SessionSummary,
@@ -108,6 +109,7 @@ export function App() {
   const [sessionsHasMore, setSessionsHasMore] = useState(false);
   const [folders, setFolders] = useState<{ list: FolderInfo[]; active?: string }>({ list: [] });
   const [context, setContext] = useState<ContextItem[]>([]);
+  const [contextSources, setContextSources] = useState<ContextSource[]>([]);
   // Explicit user choices per context chip: the active file is opt-in, selections are opt-out.
   const [contextChoice, setContextChoice] = useState<Map<string, boolean>>(new Map());
   const [attachments, setAttachments] = useState<Attachment[]>([]);
@@ -346,6 +348,9 @@ export function App() {
             return next.size === prev.size ? prev : next;
           });
           break;
+        case "contextSources":
+          setContextSources(msg.items);
+          break;
         case "fileResults":
           setFileResults({ query: msg.query, items: msg.items });
           break;
@@ -561,7 +566,8 @@ export function App() {
   );
   // The active file is opt-in; selections stay attached until the user removes them.
   const selectedContext = useMemo(
-    () => new Set(context.filter((c) => contextChoice.get(c.id) ?? c.kind === "selection").map((c) => c.id)),
+    () =>
+      new Set(context.filter((c) => contextChoice.get(c.id) ?? (c.id.startsWith("context:") || c.kind === "selection")).map((c) => c.id)),
     [context, contextChoice],
   );
   const send = (text: string, delivery?: "steer" | "queue") => {
@@ -654,7 +660,7 @@ export function App() {
   const connected = status.status === "connected" || status.status === "reconnecting";
   const title = chat.title || sessions.find((s) => s.id === chat.sessionId)?.title || strings.untitled;
   // Inline attachments are sent as data URLs; their decoded content costs tokens too.
-  const attachmentTokens = attachments.reduce((n, a) => n + estimateDataUrlTokens(a.uri), 0);
+  const attachmentTokens = [...context, ...attachments].reduce((n, a) => n + estimateDataUrlTokens(a.uri), 0);
 
   const normalizedQuery = searchQuery.trim().toLowerCase();
   const searchCount = useMemo(
@@ -885,6 +891,7 @@ export function App() {
                 cost={chat.usage?.cost}
                 onToggleAutoApprove={(enabled) => post({ type: "setAutoApprove", enabled })}
                 context={context}
+                contextSources={contextSources}
                 selectedContext={selectedContext}
                 onToggleContext={(id) =>
                   setContextChoice((prev) => {

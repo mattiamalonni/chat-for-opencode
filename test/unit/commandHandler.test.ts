@@ -57,6 +57,8 @@ function setup(overrides: Partial<CommandHandlerHooks> = {}) {
     execution: new ExecutionStateService(),
     generation: { bump: vi.fn(() => 2), current: vi.fn(() => 2), is: vi.fn(() => true) } as never,
     getFileIndex: () => undefined,
+    addContextSource: vi.fn(async () => undefined),
+    removeContextSource: vi.fn(),
     fileIcons: { resolve: vi.fn(async () => ({ icons: {}, fonts: {}, reset: false })) },
     diffs: { open: vi.fn(async () => undefined), openCombined: vi.fn(async () => undefined) },
     workspaceState: { get: vi.fn(() => ({})), update } as never,

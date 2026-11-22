@@ -129,6 +129,7 @@ export const STRINGS = {
   addContext: "Add to message",
   currentFile: "Current file",
   selection: "Selection",
+  addContextSource: "Add context",
   pickFiles: "Attach files from disk",
   dropFilesOverlay: "Drop files to attach them to the message",
   dropFilesHint: "Shift+drag or paste files here, or click the folder to browse.",

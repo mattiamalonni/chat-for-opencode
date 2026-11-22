@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- **Context:** five on-demand context sources can be attached as chips: `@problems` (diagnostics of
+  the active file), `@git` (uncommitted diff), `@terminal` (last command output), `@openEditors` and
+  `@symbol` (definitions at the cursor). They are available from the `@` suggestions and from a new
+  **Add context** button in the composer; content travels to the model as an inline Markdown data
+  URI, so it works with both managed and external servers. Chips are attached by default and can be
+  removed; the catalog and add/remove messages are guarded and covered by unit, UI and integration tests.
 - **UI:** a **Play demo conversation** action in the empty state (also shown when setup is incomplete)
   replays a real recorded OpenCode turn entirely inside the webview. It shows streaming text,
   reasoning, tool cards, an approval and the finished-turn stats with no CLI, provider or server

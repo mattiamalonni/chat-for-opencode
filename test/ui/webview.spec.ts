@@ -41,6 +41,14 @@ const MODELS = [
     limit: { context: 200000, output: 64000 },
   },
 ];
+const CONTEXT_SOURCES = [
+  { id: "problems", label: "Problems", description: "Diagnostics for the active file (errors and warnings)" },
+  { id: "git", label: "Git diff", description: "Uncommitted changes in this workspace" },
+  { id: "terminal", label: "Terminal", description: "Output of the last terminal command" },
+  { id: "openEditors", label: "Open editors", description: "Paths of the editors currently open" },
+  { id: "symbol", label: "Symbol at cursor", description: "Definitions of the symbol under the cursor" },
+] as const;
+
 const AGENTS = [
   { id: "build", name: "Build", description: "The default agent.", mode: "primary", hidden: false },
   { id: "plan", name: "Plan", description: "Read-only planning agent.", mode: "primary", hidden: false },
@@ -90,6 +98,7 @@ async function boot(page: Page, theme: "dark" | "light" = "dark"): Promise<strin
     items: [{ id: S1, title: "Hello world reply", updated: Date.now() - 120_000, busy: false, needsInput: false }],
   });
   await host(page, { type: "session", session: null });
+  await host(page, { type: "contextSources", items: [...CONTEXT_SOURCES] });
   await host(page, {
     type: "context",
     items: [
@@ -181,9 +190,19 @@ async function openSession(page: Page, id: string, events: ServerEvent[]): Promi
 
 /** The latest finished turn starts expanded; older expectations can still open every fold. */
 async function expandSteps(page: Page): Promise<void> {
-  for (const header of await page.locator(".step-block .step-fold-header").all()) {
-    if ((await header.getAttribute("aria-expanded")) !== "true") await header.click();
-  }
+  // History and live events can still be folding into step groups on the next animation frame.
+  // Click whatever is collapsed and retry until every header is actually expanded.
+  await expect
+    .poll(async () => {
+      for (const header of await page.locator(".step-block .step-fold-header").all()) {
+        if ((await header.getAttribute("aria-expanded")) !== "true") await header.click();
+      }
+      const state = await page
+        .locator(".step-block .step-fold-header")
+        .evaluateAll((els) => els.map((el) => el.getAttribute("aria-expanded")));
+      return state.length > 0 && state.every((value) => value === "true");
+    })
+    .toBe(true);
 }
 
 test("welcome screen, active file is opt-in and selections are attached", async ({ page }) => {
@@ -250,6 +269,47 @@ test("adding the active file and removing a selection toggles the context chips"
   await input.press("Enter");
   const send = await lastPosted(page, "send");
   expect(send && "context" in send && send.context.map((c) => c.kind)).toEqual(["file"]);
+});
+
+test("context sources attach inline content as chips and can be removed", async ({ page }) => {
+  await boot(page);
+  await page.getByRole("button", { name: STRINGS.addContextSource, exact: true }).click();
+  await expect(page.locator(".context-source-menu")).toBeVisible();
+  await page.locator(".context-source-menu li").filter({ hasText: "Problems" }).click();
+  expect(await lastPosted(page, "addContextSource")).toMatchObject({ source: "problems" });
+
+  // The host answers with the chip carrying its own content as a data URI.
+  await host(page, {
+    type: "context",
+    items: [
+      { id: "file:///work/src/app.ts", kind: "file", uri: "file:///work/src/app.ts", label: "app.ts", detail: "src/app.ts" },
+      {
+        id: "context:problems",
+        kind: "problems",
+        uri: "data:text/markdown;base64,dW51c2VkIGltcG9ydA==",
+        label: "Problems",
+        detail: "Diagnostics",
+      },
+    ],
+  });
+  const chip = page.locator(".chip").filter({ hasText: "Problems" });
+  await expect(chip).toBeVisible();
+  await expect(chip).not.toHaveClass(/off/);
+  await expect(page.locator(".context-source-menu")).toHaveCount(0);
+  await page.screenshot({ path: join(SHOTS, "18-context-sources-dark.png") });
+
+  await page.getByRole("button", { name: `${STRINGS.removeContext}: Problems`, exact: true }).click();
+  expect(await lastPosted(page, "removeContextSource")).toMatchObject({ source: "problems" });
+});
+
+test("@ mentions suggest context sources and attach them", async ({ page }) => {
+  await boot(page);
+  const input = page.getByRole("textbox", { name: STRINGS.inputLabel });
+  await input.fill("@prob");
+  await expect(page.locator(".mention-popup")).toContainText("Problems");
+  await page.locator(".mention-popup li").filter({ hasText: "Problems" }).click();
+  expect(await lastPosted(page, "addContextSource")).toMatchObject({ source: "problems" });
+  await expect(input).toHaveValue("");
 });
 
 test("dropping a file from outside shows an overlay and attaches it", async ({ page }) => {

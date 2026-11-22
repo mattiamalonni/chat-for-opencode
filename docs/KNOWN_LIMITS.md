@@ -65,6 +65,15 @@ test or a manual probe actually ran.
 
 ## Behaviour limits
 
+- **Context sources are snapshots, not live feeds.** A chip captures diagnostics, the diff, terminal
+  output or symbol locations when you add it; later edits do not update it. Remove and re-add the
+  chip to refresh. Their Markdown is capped at 12 000 characters (terminal output at 8 000) and is
+  counted in the context meter like any other inline attachment.
+- **Some context sources need host features.** `@git` needs `git` on `PATH` and a repository at the
+  connected folder; `@symbol` needs a definition provider for the language; `@terminal` needs VS Code
+  shell integration and only sees commands started after this extension activated. When the data is
+  unavailable the chip is simply not added.
+
 - **The recorded demo is not interactive.** It replays one fixed turn from a 2.2.7 fixture; typing
   while it plays only announces the demo hint and sends nothing. Each open chat view plays its own
   copy, and a second chat view opened mid-replay starts from the beginning. Exiting resyncs the real
