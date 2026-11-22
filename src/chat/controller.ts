@@ -1411,13 +1411,6 @@ export class ChatController implements vscode.Disposable {
 
   // ---- commands ---------------------------------------------------------------------------
 
-  /** Entry point for the palette/status-bar "Ask" command: reuse the normal send pipeline. */
-  async ask(text: string): Promise<void> {
-    const trimmed = text.trim();
-    if (!trimmed) return;
-    await this.receive({ type: "send", text: trimmed, attachments: [], context: [] });
-  }
-
   async newSession(): Promise<void> {
     this.announcedHiddenAttention.clear();
     this.failedPrompt = undefined;

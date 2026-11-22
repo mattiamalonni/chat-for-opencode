@@ -3,12 +3,28 @@
  * It deliberately stays small — the full UI suite runs against the development bundle so coverage
  * can be mapped back to TypeScript sources.
  */
+import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { expect, test } from "@playwright/test";
 import type { HostMessage } from "../../src/shared/protocol";
 import { STRINGS } from "../../src/shared/strings";
 
 const HARNESS = "file://" + join(__dirname, "harness.html");
+const DIST = join(__dirname, "..", "..", "dist");
+
+/**
+ * The comment above is a promise, not a test: without these assertions a `compile:prod` regression
+ * could ship an unminified bundle (with source maps and dev JSX) and every check below would still pass.
+ */
+test("the production artefact is minified and has no source maps", () => {
+  const bundle = readFileSync(join(DIST, "webview.js"), "utf8");
+  expect(bundle).not.toContain("//# sourceMappingURL");
+  expect(bundle).not.toMatch(/\bjsxDEV\b|_jsx-runtime-dev|jsx-dev-runtime/);
+  expect(readdirSync(DIST).filter((name) => name.endsWith(".map"))).toEqual([]);
+  // A development bundle has ~24k lines (vs ~100 minified); keep a wide margin so dependency
+  // growth cannot trip this, while an accidental `sourcemap/minify: false` build still fails.
+  expect(bundle.split("\n").filter((line) => line.trim().length > 0).length).toBeLessThan(200);
+});
 
 test("the production bundle boots and posts a prompt", async ({ page }) => {
   const errors: string[] = [];

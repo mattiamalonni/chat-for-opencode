@@ -132,6 +132,8 @@ export function activate(context: vscode.ExtensionContext): ExtensionApi {
       await focusView();
       chat.post({ type: "focusInput" });
     }),
+    // Bound to the status bar while a turn is running, so the spinner itself is actionable.
+    vscode.commands.registerCommand("opencode.stopTurn", () => void chat.receive({ type: "abort" })),
     vscode.commands.registerCommand("opencode.openChatInEditor", () => chat.openChatInEditor()),
     vscode.commands.registerCommand("opencode.ask", async () => {
       const text = await vscode.window.showInputBox({
@@ -140,8 +142,13 @@ export function activate(context: vscode.ExtensionContext): ExtensionApi {
         placeHolder: vscode.l10n.t("Describe what you want OpenCode to do…"),
       });
       if (!text?.trim()) return;
+      const editor = vscode.window.activeTextEditor;
+      const attachment =
+        editor && !editor.selection.isEmpty && editor.document.uri.scheme === "file" ? selectionAttachment(editor) : undefined;
       await focusView();
-      await chat.ask(text);
+      // Fill the composer instead of sending straight away: the selection must travel with the
+      // prompt and the user gets to review (or extend) it before it reaches the agent.
+      chat.prefillDraft(text.trim(), attachment ? [attachment] : []);
     }),
     vscode.commands.registerCommand("opencode.account", async () => {
       let logins: vscode.QuickPickItem[];
@@ -235,12 +242,20 @@ export function activate(context: vscode.ExtensionContext): ExtensionApi {
   status.name = vscode.l10n.t("OpenCode account");
   status.text = "$(comment-discussion)";
   let authLogins: vscode.QuickPickItem[] | undefined;
+  let executionStatus: ExecutionStatus = "idle";
+  const statusDescriptions: Record<ExecutionStatus, string> = {
+    idle: vscode.l10n.t("Idle"),
+    running: vscode.l10n.t("Generating a response — click to stop"),
+    succeeded: vscode.l10n.t("Response complete — click to open the chat"),
+    failed: vscode.l10n.t("Response failed — click to open the chat"),
+    interrupted: vscode.l10n.t("Response interrupted — click to open the chat"),
+  };
   const updateStatusTooltip = () => {
     if (!vscode.workspace.isTrusted) {
       status.tooltip = vscode.l10n.t("Trust this workspace to use OpenCode");
       return;
     }
-    status.tooltip =
+    const loginHint =
       authLogins === undefined
         ? vscode.l10n.t("Click to view OpenCode login information")
         : authLogins.length
@@ -249,6 +264,7 @@ export function activate(context: vscode.ExtensionContext): ExtensionApi {
               [...new Set(authLogins.map((login) => [login.label, login.description, login.detail].filter(Boolean).join(" —")))].join(", "),
             )
           : vscode.l10n.t("No saved OpenCode login. Click to sign in");
+    status.tooltip = executionStatus === "idle" ? loginHint : `${statusDescriptions[executionStatus]}\n${loginHint}`;
   };
   updateStatusTooltip();
   status.command = "opencode.account";
@@ -264,6 +280,9 @@ export function activate(context: vscode.ExtensionContext): ExtensionApi {
     status,
     chat.onDidChangeExecution((state) => {
       status.text = executionIcons[state.status];
+      executionStatus = state.status;
+      status.command = state.status === "running" ? "opencode.stopTurn" : state.status === "idle" ? "opencode.account" : "opencode.focus";
+      updateStatusTooltip();
     }),
   );
   status.show();

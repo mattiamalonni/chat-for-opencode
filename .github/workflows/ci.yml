@@ -46,10 +46,8 @@ jobs:
           git diff --exit-code -- src/shared/openapi.generated.ts
       - run: npm run compile
       - run: npm run test:unit
-      - name: Recorded contract gate (opencode@2.2.7)
-        # Deterministic half of the contract gate: no server/provider needed. The live `contract`
-        # job remains opt-in because it needs a real binary and credentials.
-        run: npx vitest run test/unit/contractSnapshot.test.ts
+        # `test:unit` already runs test/unit/contractSnapshot.test.ts (vitest.config.mts includes
+        # test/unit/**/*.test.ts); a separate gate step only reran the same file on all 3 runners.
       - name: Coverage thresholds
         # Enforce the configured floors on one runner; the other two keep the faster unit-only run.
         if: runner.os == 'Linux'
@@ -65,11 +63,11 @@ jobs:
           key: ${{ runner.os }}-playwright-${{ hashFiles('package-lock.json') }}
       - run: npx playwright install --with-deps chromium
         if: runner.os == 'Linux'
-      # `compile` already produced dist/webview.js + .css, so call Playwright
-      # directly instead of letting `test:ui` rebuild the same bundle.
+      # `compile` already produced dist/webview.js + .css. The `:ci` variant calls Playwright
+      # directly; the plain script keeps its own `compile` for local `npm run verify` use.
       - name: UI tests + webview coverage (Linux)
         if: runner.os == 'Linux'
-        run: npm run test:coverage:ui
+        run: npm run test:coverage:ui:ci
         env:
           OC_UI_COVERAGE_MIN: 55
       # The shipped artefact is minified and built without source maps: exercise it too, so a

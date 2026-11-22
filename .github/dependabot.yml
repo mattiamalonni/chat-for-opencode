@@ -12,6 +12,16 @@ updates:
         update-types:
           - "minor"
           - "patch"
+      # Majors must still surface: grouping only minor/patch would hide them forever.
+      major:
+        patterns:
+          - "*"
+        update-types:
+          - "major"
+    ignore:
+      # Pinned to the VS Code engine declaration in package.json, not a free choice.
+      - dependency-name: "@types/vscode"
+        update-types: ["major"]
 
   - package-ecosystem: github-actions
     directory: "/"
@@ -25,3 +35,8 @@ updates:
         update-types:
           - "minor"
           - "patch"
+      major:
+        patterns:
+          - "*"
+        update-types:
+          - "major"

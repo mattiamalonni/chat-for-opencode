@@ -87,8 +87,20 @@ export function messageSearchText(message: UiMessage): string {
   return text;
 }
 
+/**
+ * Only the text the reader actually sees. `messageSearchText` also folds tool I/O and reasoning
+ * into one string for search/export, which is wrong for the "Copy this response" action.
+ */
+export function visibleResponseText(message: UiAssistantMessage): string {
+  return message.parts
+    .filter((p): p is TextPart => p.kind === "text")
+    .map((p) => p.text)
+    .join("\n")
+    .trim();
+}
+
 /** Highlights a query in plain text. Markdown bodies keep their rendered HTML and are not rewritten. */
-function Highlight({ text, query }: { text: string; query: string }) {
+export function Highlight({ text, query }: { text: string; query: string }) {
   const needle = query.toLowerCase();
   if (!needle) return <>{text}</>;
   const lower = text.toLowerCase();
@@ -365,7 +377,7 @@ function AssistantView({
           data-tooltip={t("copyResponse")}
           aria-label={t("copyResponse")}
           disabled={!message.done || message.parts.length === 0}
-          onClick={() => post({ type: "copy", text: messageSearchText(message).trim() })}
+          onClick={() => post({ type: "copy", text: visibleResponseText(message) })}
         >
           <IconCopy />
         </button>

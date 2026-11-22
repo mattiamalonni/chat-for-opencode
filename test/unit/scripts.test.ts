@@ -28,6 +28,12 @@ describe("npm scripts", () => {
     }
   });
 
+  it("keeps Vitest and its coverage provider on the exact same version", () => {
+    // Vitest requires @vitest/coverage-v8 to match its own version. A caret on one side and a pin
+    // on the other silently breaks `test:coverage` on the next minor bump.
+    expect(manifest.devDependencies["@vitest/coverage-v8"]).toBe(manifest.devDependencies["vitest"]);
+  });
+
   it("enforces a webview coverage floor by default, not only in CI", async () => {
     const source = await import("node:fs").then((fs) => fs.readFileSync("scripts/ui-coverage.mjs", "utf8"));
     expect(source).toContain("OC_UI_COVERAGE_MIN ?? 55");
