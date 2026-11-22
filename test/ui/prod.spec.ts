@@ -17,6 +17,9 @@ const DIST = join(__dirname, "..", "..", "dist");
  * could ship an unminified bundle (with source maps and dev JSX) and every check below would still pass.
  */
 test("the production artefact is minified and has no source maps", () => {
+  // `npm run test:ui` also collects this file against a development bundle; the artefact check
+  // belongs to the dedicated production gate only.
+  test.skip(!process.env.OC_PROD_BUNDLE, "only meaningful after compile:prod");
   const bundle = readFileSync(join(DIST, "webview.js"), "utf8");
   expect(bundle).not.toContain("//# sourceMappingURL");
   expect(bundle).not.toMatch(/\bjsxDEV\b|_jsx-runtime-dev|jsx-dev-runtime/);

@@ -115,6 +115,10 @@ export function App() {
   const [searchQuery, setSearchQuery] = useState("");
   // Bumped by Cmd/Ctrl+F so re-focusing the search works even when it is already open.
   const [searchFocusToken, setSearchFocusToken] = useState(0);
+  const [activeMatch, setActiveMatch] = useState(0);
+  const [matchCount, setMatchCount] = useState(0);
+  // The capture-phase key listener is installed once; reach the latest navigation through a ref.
+  const navigateMatchRef = useRef<(direction: number) => void>(() => {});
   const [announcement, setAnnouncement] = useState({ text: "", seq: 0 });
   // A live region only announces when its text changes: repeating the same string is silent.
   const announce = (text: string) => setAnnouncement((prev) => ({ text, seq: prev.seq + 1 }));
@@ -418,6 +422,10 @@ export function App() {
         e.preventDefault();
         e.stopPropagation();
         syncNowRef.current();
+      } else if (e.key === "F3") {
+        e.preventDefault();
+        e.stopPropagation();
+        navigateMatchRef.current(e.shiftKey ? -1 : 1);
       }
     };
     window.addEventListener("keydown", onKeyDown, true);
@@ -571,6 +579,24 @@ export function App() {
         : chat.messages.length,
     [chat.messages, normalizedQuery],
   );
+  // Count the marks that are actually rendered (a collapsed tool can hide text) and keep the
+  // highlighted one in sync across re-renders while a turn streams in.
+  useLayoutEffect(() => {
+    const marks = Array.from(document.querySelectorAll<HTMLElement>(".conversation mark[data-search-match]"));
+    if (marks.length !== matchCount) setMatchCount(marks.length);
+    if (marks.length > 0 && activeMatch >= marks.length) setActiveMatch(0);
+    marks.forEach((mark, i) => mark.classList.toggle("match-current", i === activeMatch));
+  }, [normalizedQuery, chat.messages, activeMatch, matchCount]);
+
+  const navigateMatch = (direction: number) => {
+    const marks = Array.from(document.querySelectorAll<HTMLElement>(".conversation mark[data-search-match]"));
+    if (marks.length === 0) return;
+    const next = (activeMatch + direction + marks.length) % marks.length;
+    setActiveMatch(next);
+    marks[next]?.scrollIntoView({ block: "center", behavior: "smooth" });
+  };
+  navigateMatchRef.current = navigateMatch;
+
   // Everything stays in the webview: no host message, no network request.
   const exportConversation = () => {
     const markdown = conversationMarkdown(chat.messages, title, strings);
@@ -630,6 +656,9 @@ export function App() {
                 searchQuery={searchQuery}
                 onSearchChange={setSearchQuery}
                 searchCount={searchCount}
+                activeMatch={activeMatch}
+                matchCount={matchCount}
+                onNavigateMatch={navigateMatch}
               />
               {showSessions && (
                 <SessionList
@@ -861,6 +890,9 @@ function Header(props: {
   searchQuery: string;
   onSearchChange: (value: string) => void;
   searchCount: number;
+  activeMatch: number;
+  matchCount: number;
+  onNavigateMatch: (direction: number) => void;
 }) {
   const t = useT();
   const searchRef = useRef<HTMLInputElement>(null);
@@ -959,10 +991,38 @@ function Header(props: {
                 props.onToggleSearch();
                 return;
               }
+              if (e.key === "Enter") {
+                e.preventDefault();
+                e.stopPropagation();
+                props.onNavigateMatch(e.shiftKey ? -1 : 1);
+                return;
+              }
               isolateKeys(e);
             }}
           />
-          <span class="search-count">{t("searchResults", props.searchCount)}</span>
+          <span class="search-count">
+            {props.searchQuery.trim() && props.matchCount > 0
+              ? `${t("searchMatchPosition", props.activeMatch + 1, props.matchCount)} · ${t("searchResults", props.searchCount)}`
+              : t("searchResults", props.searchCount)}
+          </span>
+          <button
+            type="button"
+            class="icon-button"
+            aria-label={t("previousMatch")}
+            data-tooltip={t("previousMatch")}
+            onClick={() => props.onNavigateMatch(-1)}
+          >
+            ↑
+          </button>
+          <button
+            type="button"
+            class="icon-button"
+            aria-label={t("nextMatch")}
+            data-tooltip={t("nextMatch")}
+            onClick={() => props.onNavigateMatch(1)}
+          >
+            ↓
+          </button>
           <button type="button" class="icon-button" aria-label={t("dismiss")} onClick={props.onToggleSearch}>
             <IconClose />
           </button>
@@ -1001,9 +1061,21 @@ function SessionList(props: {
   const [confirm, setConfirm] = useState<string | undefined>();
   const [renaming, setRenaming] = useState<string | undefined>();
   const [draft, setDraft] = useState("");
+  const [filter, setFilter] = useState("");
+  const [activeIndex, setActiveIndex] = useState(0);
   const ref = useRef<HTMLDivElement>(null);
+  const filterRef = useRef<HTMLInputElement>(null);
+  const itemRefs = useRef(new Map<string, HTMLButtonElement>());
+  const filterTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const visible = useMemo(
+    () => props.sessions.filter((s) => (s.title || t("untitled")).toLowerCase().includes(filter.trim().toLowerCase())),
+    [props.sessions, filter, t],
+  );
   useEffect(() => {
-    (ref.current?.querySelector("button.session-item") as HTMLButtonElement | null)?.focus();
+    filterRef.current?.focus();
+    return () => {
+      if (filterTimer.current) clearTimeout(filterTimer.current);
+    };
   }, []);
   // Inline forms replace their focused button; return focus to the dialog so Escape keeps working.
   const closeInline = () => {
@@ -1025,10 +1097,21 @@ function SessionList(props: {
       tabIndex={-1}
       aria-label={t("sessions")}
       onKeyDown={(e) => {
-        if (e.key !== "Escape") return;
-        e.stopPropagation();
-        if (renaming || confirm) closeInline();
-        else props.onClose();
+        if (e.key === "Escape") {
+          e.stopPropagation();
+          if (renaming || confirm) closeInline();
+          else props.onClose();
+          return;
+        }
+        // Roving focus: ↑/↓ walk the filtered rows, Enter activates the focused button.
+        if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+          e.preventDefault();
+          if (visible.length === 0) return;
+          const next = Math.min(visible.length - 1, Math.max(0, activeIndex + (e.key === "ArrowDown" ? 1 : -1)));
+          setActiveIndex(next);
+          const id = visible[next]?.id;
+          if (id) itemRefs.current.get(id)?.focus();
+        }
       }}
     >
       <div class="session-header">
@@ -1046,10 +1129,27 @@ function SessionList(props: {
             <IconTrash />
           </button>
         )}
+        <input
+          ref={filterRef}
+          type="search"
+          class="session-filter"
+          aria-label={t("filterSessions")}
+          placeholder={t("filterSessions")}
+          value={filter}
+          onInput={(e) => {
+            const value = (e.currentTarget as HTMLInputElement).value;
+            setFilter(value);
+            setActiveIndex(0);
+            if (filterTimer.current) clearTimeout(filterTimer.current);
+            // Keep paging until a match appears; the loaded titles are filtered locally.
+            if (value.trim()) filterTimer.current = setTimeout(() => props.onLoadMore(), 250);
+          }}
+          onKeyDown={isolateKeys}
+        />
       </div>
-      {props.sessions.length === 0 && <div class="empty">{t("noSessions")}</div>}
+      {visible.length === 0 && <div class="empty">{t("noSessions")}</div>}
       <ul>
-        {props.sessions.map((s) => (
+        {visible.map((s, i) => (
           <li key={s.id} class={s.id === props.currentId ? "current" : ""}>
             {renaming === s.id ? (
               <div class="rename" role="group" aria-label={t("renameSession")}>
@@ -1115,8 +1215,13 @@ function SessionList(props: {
               <>
                 <button
                   type="button"
+                  ref={(el) => {
+                    if (el) itemRefs.current.set(s.id, el);
+                    else itemRefs.current.delete(s.id);
+                  }}
                   class="session-item"
                   aria-current={s.id === props.currentId}
+                  onFocus={() => setActiveIndex(i)}
                   onClick={() => post({ type: "selectSession", id: s.id })}
                 >
                   {(s.busy || s.needsInput) && (
@@ -1699,9 +1804,9 @@ function Conversation({
     const filteredOut = !!q && !itemSearchText(item).toLowerCase().includes(q);
     switch (item.kind) {
       case "tools":
-        return <ToolGroup key={item.key} parts={item.parts} state={chat} filteredOut={filteredOut} />;
+        return <ToolGroup key={item.key} parts={item.parts} state={chat} filteredOut={filteredOut} searchQuery={q} />;
       case "tool":
-        return <ToolCard key={item.key} part={item.part} state={chat} filteredOut={filteredOut} />;
+        return <ToolCard key={item.key} part={item.part} state={chat} filteredOut={filteredOut} searchQuery={q} />;
       case "assistant":
         return (
           <MessageView
@@ -1711,6 +1816,7 @@ function Conversation({
             grouped={item.grouped}
             showStatus={false}
             filteredOut={filteredOut}
+            searchQuery={q}
           />
         );
       case "status":
@@ -1738,7 +1844,7 @@ function Conversation({
             state={chat}
             grouped={false}
             filteredOut={filteredOut}
-            searchQuery={searchQuery}
+            searchQuery={q}
           />
         );
     }

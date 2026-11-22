@@ -681,6 +681,26 @@ details[open] > summary > .chevron,
   border-radius: 2px;
 }
 
+.conversation mark.match-current {
+  background: var(--vscode-editor-findMatchBackground, #515c6a);
+  outline: 1px solid var(--vscode-focusBorder, #007fd4);
+}
+
+/* Search shows raw text so it can be highlighted without rewriting rendered Markdown. */
+.search-plain {
+  white-space: pre-wrap;
+}
+
+.session-filter {
+  flex: 1;
+  min-width: 60px;
+  padding: 3px 6px;
+  border: 1px solid var(--vscode-input-border, transparent);
+  border-radius: 3px;
+  background: var(--vscode-input-background);
+  color: var(--vscode-input-foreground);
+}
+
 .conversation-wrap {
   position: relative;
   flex: 1;

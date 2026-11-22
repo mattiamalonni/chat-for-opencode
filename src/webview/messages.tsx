@@ -110,12 +110,29 @@ export function Highlight({ text, query }: { text: string; query: string }) {
   let i = 0;
   while (at !== -1) {
     if (at > from) children.push(text.slice(from, at));
-    children.push(<mark key={`m${i++}`}>{text.slice(at, at + needle.length)}</mark>);
+    children.push(
+      <mark key={`m${i++}`} data-search-match="true">
+        {text.slice(at, at + needle.length)}
+      </mark>,
+    );
     from = at + needle.length;
     at = lower.indexOf(needle, from);
   }
   if (from < text.length) children.push(text.slice(from));
   return <>{children}</>;
+}
+
+/**
+ * While a search is active, show the raw text with highlights instead of rendered Markdown:
+ * rewriting `dangerouslySetInnerHTML` would mean parsing untrusted HTML a second time.
+ */
+function SearchableMarkdown({ text, query }: { text: string; query: string }) {
+  if (!query.trim()) return <Markdown text={text} />;
+  return (
+    <div class="md search-plain">
+      <Highlight text={text} query={query} />
+    </div>
+  );
 }
 
 export function MessageView({
@@ -227,7 +244,16 @@ export function MessageView({
     );
   }
   if (message.kind === "notice") return <NoticeView notice={message} filteredOut={filteredOut} />;
-  return <AssistantView message={message} state={state} grouped={grouped} showStatus={showStatus} filteredOut={filteredOut} />;
+  return (
+    <AssistantView
+      message={message}
+      state={state}
+      grouped={grouped}
+      showStatus={showStatus}
+      searchQuery={searchQuery}
+      filteredOut={filteredOut}
+    />
+  );
 }
 
 function NoticeView({ notice, filteredOut = false }: { notice: UiNotice; filteredOut?: boolean }) {
@@ -344,12 +370,14 @@ function AssistantView({
   state,
   grouped,
   showStatus = true,
+  searchQuery = "",
   filteredOut = false,
 }: {
   message: UiAssistantMessage;
   state: ChatState;
   grouped: boolean;
   showStatus?: boolean;
+  searchQuery?: string;
   filteredOut?: boolean;
 }) {
   const t = useT();
@@ -362,11 +390,11 @@ function AssistantView({
     >
       {message.parts.map((p) =>
         p.kind === "tool" ? (
-          <ToolCard key={p.key} part={p} state={state} />
+          <ToolCard key={p.key} part={p} state={state} searchQuery={searchQuery} />
         ) : p.kind === "reasoning" ? (
           <Reasoning key={p.key} part={p} />
         ) : (
-          <Markdown key={p.key} text={p.text} />
+          <SearchableMarkdown key={p.key} text={p.text} query={searchQuery} />
         ),
       )}
       {showStatus && <AssistantStatus message={message} typing={message.parts.length === 0} />}
@@ -484,7 +512,17 @@ function subagentDot(status: string): "running" | "error" | "completed" {
   return status === "error" ? "error" : status === "completed" || status === "cancelled" ? "completed" : "running";
 }
 
-export function ToolGroup({ parts, state, filteredOut = false }: { parts: ToolPart[]; state: ChatState; filteredOut?: boolean }) {
+export function ToolGroup({
+  parts,
+  state,
+  filteredOut = false,
+  searchQuery = "",
+}: {
+  parts: ToolPart[];
+  state: ChatState;
+  filteredOut?: boolean;
+  searchQuery?: string;
+}) {
   const t = useT();
   const openSubagent = useOpenSubagent();
   const needsUser = parts.some((p) => permissionsForTool(state, p.id).length > 0 || formsForTool(state, p.id).length > 0);
@@ -497,7 +535,8 @@ export function ToolGroup({ parts, state, filteredOut = false }: { parts: ToolPa
   const sub = subagentPart ? subagentView(subagentPart, subEntry?.state, subEntry?.meta, state.subagentReports) : undefined;
   const subSessionId = sub?.sessionId;
   const subWaiting = !!sub?.needsInput;
-  const expanded = open || needsUser || subWaiting;
+  // Search must be able to reach text inside a collapsed card.
+  const expanded = open || needsUser || subWaiting || !!searchQuery;
   const running = parts.some((p) => p.status === "running" || p.status === "streaming");
   const failed = parts.some((p) => p.status === "error");
   const status = sub ? (subWaiting ? "waiting" : subagentDot(sub.status)) : running ? "running" : failed ? "error" : "completed";
@@ -542,7 +581,7 @@ export function ToolGroup({ parts, state, filteredOut = false }: { parts: ToolPa
           {subWaiting && <span class="subagent-waiting">{t("needsInput")}</span>}
           <span class="tool-name">{headerName}</span>
           <span class="tool-summary" title={headerSummary}>
-            {headerSummary}
+            <Highlight text={headerSummary} query={searchQuery} />
           </span>
         </button>
         {subSessionId && (
@@ -560,7 +599,7 @@ export function ToolGroup({ parts, state, filteredOut = false }: { parts: ToolPa
       {expanded && (
         <div class="tool-group-body" id={id}>
           {parts.map((p) => (
-            <ToolCard key={p.key} part={p} state={state} />
+            <ToolCard key={p.key} part={p} state={state} searchQuery={searchQuery} />
           ))}
         </div>
       )}
@@ -569,12 +608,8 @@ export function ToolGroup({ parts, state, filteredOut = false }: { parts: ToolPa
 }
 
 /** Dispatch on the tool name so hook order stays stable for each card. */
-export function ToolCard(props: { part: ToolPart; state: ChatState; filteredOut?: boolean }) {
-  return isSubagentTool(props.part) ? (
-    <SubagentToolCard part={props.part} state={props.state} filteredOut={props.filteredOut} />
-  ) : (
-    <GenericToolCard {...props} />
-  );
+export function ToolCard(props: { part: ToolPart; state: ChatState; filteredOut?: boolean; searchQuery?: string }) {
+  return isSubagentTool(props.part) ? <SubagentToolCard {...props} /> : <GenericToolCard {...props} />;
 }
 
 /** The tool result wraps the child report in a `<subagent>` tag; the child's own text is plain. */
@@ -583,7 +618,17 @@ function stripSubagentWrapper(text: string): string {
 }
 
 /** A subagent call stays one line until expanded; its child's progress is shown on demand. */
-function SubagentToolCard({ part, state, filteredOut = false }: { part: ToolPart; state: ChatState; filteredOut?: boolean }) {
+function SubagentToolCard({
+  part,
+  state,
+  filteredOut = false,
+  searchQuery = "",
+}: {
+  part: ToolPart;
+  state: ChatState;
+  filteredOut?: boolean;
+  searchQuery?: string;
+}) {
   const t = useT();
   const openSubagent = useOpenSubagent();
   const sessionId = subagentChildId(part);
@@ -662,7 +707,9 @@ function SubagentToolCard({ part, state, filteredOut = false }: { part: ToolPart
           {view.task && (
             <details class="tool-section">
               <summary class="tool-label">{t("task")}</summary>
-              <pre class="tool-pre">{view.task}</pre>
+              <pre class="tool-pre">
+                <Highlight text={view.task} query={searchQuery} />
+              </pre>
             </details>
           )}
           {view.tools.length > 0 && (
@@ -688,12 +735,14 @@ function SubagentToolCard({ part, state, filteredOut = false }: { part: ToolPart
           {view.report && (
             <div class="tool-section">
               <div class="tool-label">{t("report")}</div>
-              <TruncatedPre text={stripSubagentWrapper(view.report)} />
+              <TruncatedPre text={stripSubagentWrapper(view.report)} query={searchQuery} />
             </div>
           )}
           <details class="tool-section">
             <summary class="tool-label">{t("input")}</summary>
-            <pre class="tool-pre">{part.inputText}</pre>
+            <pre class="tool-pre">
+              <Highlight text={part.inputText} query={searchQuery} />
+            </pre>
           </details>
         </div>
       )}
@@ -701,14 +750,24 @@ function SubagentToolCard({ part, state, filteredOut = false }: { part: ToolPart
   );
 }
 
-function GenericToolCard({ part, state, filteredOut = false }: { part: ToolPart; state: ChatState; filteredOut?: boolean }) {
+function GenericToolCard({
+  part,
+  state,
+  filteredOut = false,
+  searchQuery = "",
+}: {
+  part: ToolPart;
+  state: ChatState;
+  filteredOut?: boolean;
+  searchQuery?: string;
+}) {
   const t = useT();
   const permissions = permissionsForTool(state, part.id);
   const forms = formsForTool(state, part.id);
   const needsUser = permissions.length > 0 || forms.length > 0;
   const [open, setOpen] = useState(false);
   const files = useMemo(() => selectToolFiles(part), [part.metadata]);
-  const expanded = open || needsUser;
+  const expanded = open || needsUser || !!searchQuery;
   // When a question is pending, the FormCard already renders the same
   // information in a friendly way — showing the raw JSON input too is noise.
   const showInput = part.inputText && forms.length === 0;
@@ -735,7 +794,7 @@ function GenericToolCard({ part, state, filteredOut = false }: { part: ToolPart;
         </span>
         <span class="tool-name">{part.name}</span>
         <span class="tool-summary" title={summary}>
-          {summary}
+          <Highlight text={summary} query={searchQuery} />
         </span>
       </button>
       {expanded && (
@@ -743,19 +802,23 @@ function GenericToolCard({ part, state, filteredOut = false }: { part: ToolPart;
           {showInput && (
             <div class="tool-section">
               <div class="tool-label">{t("input")}</div>
-              <pre class="tool-pre">{part.inputText}</pre>
+              <pre class="tool-pre">
+                <Highlight text={part.inputText} query={searchQuery} />
+              </pre>
             </div>
           )}
           {output && (
             <div class="tool-section">
               <div class="tool-label">{t("output")}</div>
-              <TruncatedPre text={output} />
+              <TruncatedPre text={output} query={searchQuery} />
             </div>
           )}
           {part.error && part.error.message && (
             <div class="tool-section">
               <div class="tool-label">{t("error")}</div>
-              <pre class="tool-pre error-text">{part.error.message}</pre>
+              <pre class="tool-pre error-text">
+                <Highlight text={part.error.message} query={searchQuery} />
+              </pre>
             </div>
           )}
           {inputFile && (
@@ -778,14 +841,21 @@ function GenericToolCard({ part, state, filteredOut = false }: { part: ToolPart;
   );
 }
 
-function TruncatedPre({ text }: { text: string }) {
+function TruncatedPre({ text, query = "" }: { text: string; query?: string }) {
   const [full, setFull] = useState(false);
   const limit = 4000;
   const t = useT();
-  if (text.length <= limit || full) return <pre class="tool-pre">{text}</pre>;
+  if (text.length <= limit || full)
+    return (
+      <pre class="tool-pre">
+        <Highlight text={text} query={query} />
+      </pre>
+    );
   return (
     <div>
-      <pre class="tool-pre">{text.slice(0, limit)}…</pre>
+      <pre class="tool-pre">
+        <Highlight text={text.slice(0, limit)} query={query} />…
+      </pre>
       <button type="button" class="link-button" onClick={() => setFull(true)}>
         {t("output")} ({text.length.toLocaleString("en")})
       </button>
