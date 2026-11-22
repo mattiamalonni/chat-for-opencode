@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- **UI:** the finished-turn footer now shows the turn's start and end times (`HH:mm`, local time) at
+  its two ends, flanking the existing steps, duration, tokens and cost. Both times are in the bar's
+  accessible label too.
 - **UI:** new first-run walkthrough (**Help → Welcome → Get started with OpenCode**) plus a setup-aware
   empty state. The Install action shows a copyable, OS-aware command with a retry instead of a bare
   docs link, provider sign-in explains the terminal hand-off before it happens, and setup-blocking

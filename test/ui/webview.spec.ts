@@ -2546,6 +2546,9 @@ test("a finished turn shows one total for all its steps", async ({ page }) => {
   await expect(stats).toContainText("505 tokens");
   await expect(stats).toContainText("$0.0030");
   await expect(stats).toContainText("2 steps");
+  // Start/end clock times are pinned to the two ends of the footer (locale-aware, TZ-independent).
+  const clock = new Intl.DateTimeFormat("en", { hour: "2-digit", minute: "2-digit", hourCycle: "h23" });
+  await expect(stats.locator(".turn-stats-time")).toHaveText([clock.format(new Date(1000)), clock.format(new Date(6500))]);
   await expect(stats).not.toHaveClass(/tooltip-host/);
   await page.screenshot({ path: join(SHOTS, "13-turn-stats-dark.png") });
 });

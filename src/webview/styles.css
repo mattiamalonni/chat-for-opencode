@@ -955,6 +955,12 @@ details[open] > summary > .chevron,
   opacity: 0.6;
 }
 
+/* Clock times pinned to the two ends of the footer; the rules between them stay centred. */
+.turn-stats-time {
+  flex: none;
+  white-space: nowrap;
+}
+
 .turn-stats-text {
   flex: none;
   white-space: nowrap;

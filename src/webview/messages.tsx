@@ -284,18 +284,30 @@ export function ActionButton({ id }: { id: ActionId }) {
   );
 }
 
+let clockFormatter: Intl.DateTimeFormat | undefined;
+let clockFormatterLang: string | undefined;
+/** HH:mm in the webview locale; the host passes VS Code's language as `document.documentElement.lang`. */
+function formatClock(ts: number): string {
+  const lang = document.documentElement.lang || undefined;
+  if (!clockFormatter || clockFormatterLang !== lang) {
+    clockFormatter = new Intl.DateTimeFormat(lang, { hour: "2-digit", minute: "2-digit", hourCycle: "h23" });
+    clockFormatterLang = lang;
+  }
+  return clockFormatter.format(new Date(ts));
+}
+
 /** Wall-clock time and total usage for a whole user turn, from input to the last step. */
 export function TurnStatsRow({ stats }: { stats: TurnStats }) {
   if (stats.ended === undefined) return null;
-  return <StatsRow stats={stats} />;
+  return <StatsRow stats={stats} ended={stats.ended} />;
 }
 
 /** Has to be a component: `useT` is a hook. The guard above keeps unfinished turns invisible. */
-function StatsRow({ stats }: { stats: TurnStats }) {
+function StatsRow({ stats, ended }: { stats: TurnStats; ended: number }) {
   const t = useT();
   const total =
     stats.tokens && stats.tokens.input + stats.tokens.output + stats.tokens.reasoning + stats.tokens.cache.read + stats.tokens.cache.write;
-  const elapsed = Math.max(0, (stats.ended ?? 0) - stats.started);
+  const elapsed = Math.max(0, ended - stats.started);
 
   let duration: string;
   const seconds = Math.round(elapsed / 100) / 10;
@@ -309,6 +321,8 @@ function StatsRow({ stats }: { stats: TurnStats }) {
     }
     duration = t("turnDurationMinutes", minutes, rest);
   }
+  const startedAt = formatClock(stats.started);
+  const endedAt = formatClock(ended);
   const steps = stats.steps && stats.steps > 0 ? t("stepCount", stats.steps) : undefined;
   const tokens = total && total > 0 ? t("tokens", formatTokens(total)) : undefined;
   const cost = stats.cost !== undefined && stats.cost > 0 ? `$${stats.cost.toFixed(stats.cost < 0.01 ? 4 : 2)}` : undefined;
@@ -319,6 +333,8 @@ function StatsRow({ stats }: { stats: TurnStats }) {
   const openable = (stats.files ?? []).filter((f) => f.patch);
   // No visual tooltip on this bar; the label is only for screen readers.
   const summaryLabel = [
+    t("turnStatsStarted", startedAt),
+    t("turnStatsEnded", endedAt),
     t("turnStatsTooltip", duration, tokens ?? t("turnStatsUnknown"), cost ?? t("turnStatsUnknown"), steps ?? t("turnStatsUnknown")),
     hasChanges ? t("turnStatsChanges", additions, deletions) : undefined,
     openable.length > 0 ? t("turnStatsOpenDiff") : undefined,
@@ -334,6 +350,9 @@ function StatsRow({ stats }: { stats: TurnStats }) {
   );
   return (
     <div class="turn-stats" role="group" aria-label={summaryLabel}>
+      <span class="turn-stats-time" aria-hidden="true">
+        {startedAt}
+      </span>
       <span class="turn-stats-line" aria-hidden="true" />
       <span class="turn-stats-text">
         {shown.join(" · ")}
@@ -356,6 +375,9 @@ function StatsRow({ stats }: { stats: TurnStats }) {
         )}
       </span>
       <span class="turn-stats-line" aria-hidden="true" />
+      <span class="turn-stats-time" aria-hidden="true">
+        {endedAt}
+      </span>
     </div>
   );
 }
