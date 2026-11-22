@@ -435,6 +435,7 @@
     "test:unit": "vitest run",
     "test:coverage": "vitest run --coverage",
     "test:coverage:ui": "npm run compile && node -e \"require('node:fs').rmSync('coverage/ui', { recursive: true, force: true })\" && OC_COVERAGE=1 playwright test && node scripts/ui-coverage.mjs",
+    "test:ui:prod": "npm run compile:prod && playwright test test/ui/prod.spec.ts",
     "test:ui": "node esbuild.mjs && playwright test",
     "test:integration": "node esbuild.mjs && tsc -p test/integration && node out/test/integration/runTest.js",
     "test:e2e": "vitest run --config vitest.e2e.config.mts",

@@ -2,6 +2,9 @@
 
 ## 0.3.19 — 2026-11-22
 
+- **CI:** added a smoke test against the minified, source-map-free production bundle. The full UI
+  suite still runs on the development bundle (so coverage can be mapped to TypeScript), but the
+  artefact that ships is now exercised before packaging.
 - **Robustness:** _Delete all sessions_ is now bounded (100 pages / 10 000 ids), abortable and
   guarded by the folder generation. A broken or malicious cursor sequence can no longer keep the
   extension host busy forever, and switching folders/trust during the walk stops it before it

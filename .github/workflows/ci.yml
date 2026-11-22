@@ -71,6 +71,11 @@ jobs:
         run: npm run test:coverage:ui
         env:
           OC_UI_COVERAGE_MIN: 55
+      # The shipped artefact is minified and built without source maps: exercise it too, so a
+      # regression that only exists in the production bundle cannot reach the Marketplace.
+      - name: Production bundle smoke (Linux)
+        if: runner.os == 'Linux'
+        run: npm run test:ui:prod
       - name: Upload UI screenshots
         if: always() && runner.os == 'Linux'
         uses: actions/upload-artifact@v7

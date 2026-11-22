@@ -40,6 +40,7 @@ Architecture notes and API facts: [docs/README.md](docs/README.md).
 | `npm run test:ui`                             | Webview in Chromium                    | Uses the recorded 2.2.7 SSE fixtures; no server or provider                   |
 | `npm run test:integration`                    | Extension inside VS Code + mock server | Requires a downloaded VS Code (`.vscode-test/`), no credentials               |
 | `npm run test:coverage:ui`                    | UI suite + webview line coverage       | Maps Chromium V8 ranges through the source map; gate via `OC_UI_COVERAGE_MIN` |
+| `npm run test:ui:prod`                        | Minified production bundle             | Small smoke test for the artefact that actually ships                         |
 | `npm run test:coverage`                       | Unit coverage                          | Thresholds in `vitest.config.mts`                                             |
 | `npm run test:e2e` / `test:integration:real*` | Real `opencode serve`                  | Opt-in, needs a provider; not part of the push gate                           |
 
