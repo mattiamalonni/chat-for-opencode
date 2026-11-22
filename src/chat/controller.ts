@@ -58,6 +58,7 @@ import { PermissionService } from "./permissionService";
 import { quoteForShell } from "./shell";
 import { isWithinDirectory } from "./tempAttachments";
 import { isWithinDirectoryReal } from "./pathSafety";
+import { configTargetPaths } from "./configTarget";
 import { ExecutionStateService, type ExecutionState } from "./executionState";
 
 export type { ExecutionState, ExecutionStatus, TerminalStatus } from "./executionState";
@@ -2000,17 +2001,33 @@ export class ChatController implements vscode.Disposable {
       await this.connect();
       client = this.client;
     }
+    const folder = this.folder;
+    if (!folder) return;
+    const directory = folder.uri.fsPath;
     let target: string | undefined;
     if (client) {
-      const entries = await client.config(this.folder?.uri.fsPath).catch(() => [] as ConfigEntry[]);
-      target = entries
-        .filter((e) => e.type === "document" && typeof e.path === "string" && !!e.path)
-        .map((e) => e.path!)
-        .at(-1);
+      const entries = await client.config(directory).catch(() => [] as ConfigEntry[]);
+      // The server's paths are untrusted: ignore anything that is not an OpenCode config file in
+      // this workspace, and resolve symlinks before accepting the highest-priority document.
+      for (const candidate of configTargetPaths(entries, directory)) {
+        if (await isWithinDirectoryReal(candidate, directory)) target = candidate;
+      }
     }
-    if (!target) {
-      if (!this.folder) return;
-      target = path.join(this.folder.uri.fsPath, "opencode.json");
+    // Creation is only ever performed for the in-workspace fallback, never for a server-supplied
+    // path that failed validation.
+    if (!target) target = path.join(directory, "opencode.json");
+    if (!(await isWithinDirectoryReal(target, directory))) {
+      const s = translatedStrings();
+      this.post({
+        type: "notice",
+        error: {
+          kind: "requestFailed",
+          message: s["error.requestFailed"],
+          detail: "Config path is outside the workspace",
+          actions: ["showLogs"],
+        },
+      });
+      return;
     }
     const uri = vscode.Uri.file(target);
     try {

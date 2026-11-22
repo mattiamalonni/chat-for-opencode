@@ -2,6 +2,11 @@
 
 ## 0.3.19 — 2026-11-22
 
+- **Security:** config documents reported by the server are now treated as untrusted input. Only
+  `opencode.json`/`opencode.jsonc` files inside the workspace (after resolving symlinks) may be
+  opened; a path outside the workspace is ignored and creation is limited to the in-workspace
+  fallback, so a remote or compromised server cannot make the extension open or create arbitrary
+  files. Unit tests cover absolute paths, traversal and unrelated file names.
 - **Fix:** subagent cards are now linked to their child session by tool call id. The host sends an
   explicit `linkSubagent` message as soon as `metadata.sessionID` appears on a tool event, and the
   webview remembers the id even if the card is created later — so two parallel children with the same
