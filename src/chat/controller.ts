@@ -552,6 +552,11 @@ export class ChatController implements vscode.Disposable {
     return this.chatViews.isVisible;
   }
 
+  /** Workspace folder this chat is connected to, for host commands that need a cwd (git, terminal). */
+  get folderUri(): vscode.Uri | undefined {
+    return this.folder?.uri;
+  }
+
   post(msg: HostMessage): void {
     this.chatViews.post(msg);
   }

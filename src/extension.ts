@@ -5,6 +5,7 @@ import * as vscode from "vscode";
 import { ChatController, ServerRegistry, type ExecutionStatus, type SessionSearchResult } from "./chat/controller";
 import { DIFF_SCHEME, DiffService } from "./chat/diff";
 import { fileAttachment, selectionAttachment } from "./chat/context";
+import { diffPrompt, workingDiff, type DiffIntent, type WorkingDiff } from "./chat/gitDiff";
 import { diagnosticCodeActions, EXPLAIN_DIAGNOSTIC_COMMAND, FIX_DIAGNOSTIC_COMMAND, type DiagnosticCommandArgs } from "./chat/codeActions";
 import { ChatViewProvider } from "./chat/viewProvider";
 import { cleanupOrphanServers } from "./server/orphans";
@@ -68,6 +69,34 @@ export function activate(context: vscode.ExtensionContext): ExtensionApi {
   };
 
   /** A Quick Fix selects the offending lines, then opens the chat with them attached. */
+  const runDiffCommand = async (intent: DiffIntent) => {
+    const cwd = chat.folderUri?.fsPath;
+    if (!cwd || !vscode.workspace.isTrusted) {
+      void vscode.window.showInformationMessage(vscode.l10n.t("Open a trusted workspace folder first."));
+      return;
+    }
+    let diff: WorkingDiff | undefined;
+    try {
+      const title =
+        intent === "review"
+          ? vscode.l10n.t("Reading git changes for a review…")
+          : vscode.l10n.t("Reading git changes for a commit message…");
+      diff = await vscode.window.withProgress({ location: vscode.ProgressLocation.Notification, title }, () => workingDiff(cwd));
+    } catch (err) {
+      output.error(`[git] ${String(err)}`);
+      void vscode.window.showErrorMessage(
+        vscode.l10n.t("Could not read the git diff. Check that git is installed and this folder is a repository."),
+      );
+      return;
+    }
+    if (!diff || !diff.diff.trim()) {
+      void vscode.window.showInformationMessage(vscode.l10n.t("No uncommitted changes found in this workspace."));
+      return;
+    }
+    await focusView();
+    await chat.receive({ type: "send", text: diffPrompt(diff, intent), attachments: [], context: [] });
+  };
+
   const prefillDiagnostic = async (value: unknown, intent: "fix" | "explain") => {
     if (!value || typeof value !== "object") return;
     const args = value as Partial<DiagnosticCommandArgs>;
@@ -261,6 +290,8 @@ export function activate(context: vscode.ExtensionContext): ExtensionApi {
       // prompt and the user gets to review (or extend) it before it reaches the agent.
       chat.prefillDraft(text.trim(), attachment ? [attachment] : []);
     }),
+    vscode.commands.registerCommand("opencode.reviewChanges", () => void runDiffCommand("review")),
+    vscode.commands.registerCommand("opencode.commitMessage", () => void runDiffCommand("commit")),
     vscode.commands.registerCommand(FIX_DIAGNOSTIC_COMMAND, (args: unknown) => void prefillDiagnostic(args, "fix")),
     vscode.commands.registerCommand(EXPLAIN_DIAGNOSTIC_COMMAND, (args: unknown) => void prefillDiagnostic(args, "explain")),
     vscode.commands.registerCommand("opencode.askAboutFile", async () => {

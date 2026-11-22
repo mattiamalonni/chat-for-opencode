@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- **Commands:** _OpenCode: Review My Changes_ and _OpenCode: Write Commit Message_ read the workspace's
+  staged + unstaged git diff and send it to the agent with a purpose-built prompt (review checklist,
+  or a Conventional Commit message to paste into SCM). Untracked files are named in the prompt, the
+  diff is capped at 24 000 characters, and repositories without commits use a staged/unstaged fallback.
 - **Editor:** `vscode.languages.registerCodeActionsProvider` adds _Fix with OpenCode_ (preferred) and
   _Explain with OpenCode_ Quick Fixes for diagnostics that touch the cursor/selection, up to three
   at a time. Each one selects the offending lines and prefills the chat with the diagnostic message —

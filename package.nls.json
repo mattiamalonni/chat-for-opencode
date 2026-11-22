@@ -41,6 +41,8 @@
   "command.askAboutFile": "Ask OpenCode About This File",
   "command.fixDiagnostic": "Fix with OpenCode",
   "command.explainDiagnostic": "Explain with OpenCode",
+  "command.reviewChanges": "Review My Changes",
+  "command.commitMessage": "Write Commit Message",
   "walkthrough.title": "Get started with OpenCode",
   "walkthrough.description": "Three quick steps to go from a fresh install to your first reply.",
   "walkthrough.trust.title": "Trust this workspace",

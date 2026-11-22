@@ -260,6 +260,18 @@
         "command": "opencode.explainDiagnostic",
         "title": "%command.explainDiagnostic%",
         "category": "OpenCode"
+      },
+      {
+        "command": "opencode.reviewChanges",
+        "title": "%command.reviewChanges%",
+        "category": "OpenCode",
+        "icon": "$(eye)"
+      },
+      {
+        "command": "opencode.commitMessage",
+        "title": "%command.commitMessage%",
+        "category": "OpenCode",
+        "icon": "$(git-commit)"
       }
     ],
     "menus": {
@@ -384,6 +396,12 @@
         },
         {
           "command": "opencode.askAboutFile"
+        },
+        {
+          "command": "opencode.reviewChanges"
+        },
+        {
+          "command": "opencode.commitMessage"
         }
       ]
     },

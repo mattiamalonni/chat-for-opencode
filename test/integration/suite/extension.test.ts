@@ -1,4 +1,5 @@
 import * as assert from "node:assert/strict";
+import { execFileSync } from "node:child_process";
 import { readFileSync, symlinkSync, unlinkSync, writeFileSync } from "node:fs";
 import * as path from "node:path";
 import * as vscode from "vscode";
@@ -72,6 +73,8 @@ describe("chat-for-opencode extension", () => {
       "opencode.askAboutFile",
       "opencode.fixDiagnostic",
       "opencode.explainDiagnostic",
+      "opencode.reviewChanges",
+      "opencode.commitMessage",
     ]) {
       assert.ok(all.includes(c), `missing command ${c}`);
     }
@@ -1033,5 +1036,36 @@ describe("chat-for-opencode extension", () => {
     assert.equal(prefill.attachments[0].kind, "file");
     assert.equal(prefill.attachments[0].name, "app.ts");
     await vscode.commands.executeCommand("workbench.action.closeAllEditors");
+  });
+
+  function postedUserTextContains(since: number, needle: string): boolean {
+    return posted.slice(since).some((m) => {
+      const messages = m.type === "session" ? m.session?.messages : m.type === "sessionDelta" ? m.delta.messages : undefined;
+      return messages?.some((item) => item.type === "user" && item.text.includes(needle));
+    });
+  }
+
+  it("sends a review prompt built from the uncommitted git diff", async () => {
+    execFileSync("git", ["init", "-q"], { cwd: workspace });
+    writeFileSync(path.join(workspace, "src", "review-fixture.txt"), "staged for review\n");
+    execFileSync("git", ["add", "src/review-fixture.txt"], { cwd: workspace });
+    const mark = posted.length;
+    await vscode.commands.executeCommand("opencode.reviewChanges");
+    await waitFor(
+      () =>
+        postedUserTextContains(mark, "Review the uncommitted changes") && postedUserTextContains(mark, "review-fixture.txt")
+          ? true
+          : undefined,
+      "review prompt with the git diff in the conversation",
+    );
+  });
+
+  it("sends a commit-message prompt built from the same changes", async () => {
+    const mark = posted.length;
+    await vscode.commands.executeCommand("opencode.commitMessage");
+    await waitFor(
+      () => (postedUserTextContains(mark, "Conventional Commit message") ? true : undefined),
+      "commit-message prompt in the conversation",
+    );
   });
 });

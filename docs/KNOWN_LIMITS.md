@@ -65,6 +65,11 @@ test or a manual probe actually ran.
 
 ## Behaviour limits
 
+- **Git commands read the workspace working tree, not a PR.** _Review My Changes_ / _Write Commit
+  Message_ require `git` on `PATH` and a repository at the folder the chat is connected to. They
+  send staged + unstaged **tracked** changes; untracked files are listed by name only (their content
+  is not attached), and the diff is truncated at 24 000 characters with a note in the prompt. The
+  commit message is written in the chat — the extension does not fill the SCM input box for you.
 - **Quick Fixes depend on other extensions' diagnostics.** The Code Actions only see diagnostics
   published by a language server or another VS Code extension for the open file — OpenCode itself
   does not publish diagnostics. With no diagnostic on the line there is no lightbulb (the editor title
