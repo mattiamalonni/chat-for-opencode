@@ -72,14 +72,15 @@ describe("ManagedServer", () => {
     expect(server.state.status).toBe("failed");
   });
 
-  it("reports startFailed with stderr when the process exits during startup", async () => {
+  it("keeps stderr in the diagnostic log detail, not in the UI detail", async () => {
     const { server } = make(fakeOpencode("MOCK_FAIL_START=1"));
     const err = await server.ensure().catch((e: unknown) => e);
     expect(err).toMatchObject({ kind: "startFailed" });
-    expect((err as { detail?: string }).detail).toContain("simulated startup failure");
+    expect((err as { logDetail?: string }).logDetail).toContain("simulated startup failure");
+    expect((err as { detail?: string }).detail).toBeUndefined();
   });
 
-  it("redacts the password from stderr before exposing it as error detail", async () => {
+  it("redacts the password from stderr before exposing it as diagnostic detail", async () => {
     const dir = mkdtempSync(join(tmpdir(), "oc-fake-"));
     // The child runs through cmd.exe on Windows, so a .cmd shim is required there; a POSIX script
     // would be inert and cmd.exe would report it as "not recognized" instead of our stderr line.
@@ -93,9 +94,10 @@ describe("ManagedServer", () => {
     const { server } = make(file);
     const err = await server.ensure().catch((e: unknown) => e);
     expect(err).toMatchObject({ kind: "startFailed" });
-    const detail = (err as { detail?: string }).detail ?? "";
+    const detail = (err as { logDetail?: string }).logDetail ?? "";
     expect(detail).toContain("server password ***");
     expect(detail).not.toMatch(/server password\s+[A-Za-z0-9+/=]{16,}/);
+    expect((err as { detail?: string }).detail).toBeUndefined();
   });
 
   it("restarts automatically after a crash and stops cleanly", async () => {

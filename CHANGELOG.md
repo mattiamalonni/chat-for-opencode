@@ -2,6 +2,10 @@
 
 ## 0.3.19 — 2026-11-22
 
+- **Security:** the managed server's password is now redacted in every encoding that can appear in
+  child-process output (raw, Basic Base64/Base64URL, URL-encoded, hex, `OPENCODE_PASSWORD=…` and any
+  `Authorization: Basic/Bearer` value). Raw stderr is no longer sent to the webview as an error
+  detail: it stays in a length-capped, redacted diagnostic field written only to the Output channel.
 - **Hardening:** every message crossing the webview ↔ host boundary is now validated at runtime
   (`src/shared/protocolGuards.ts`) before the host dispatches privileged actions or the webview
   touches its reducer. Unknown types, malformed payloads, unbounded input and action ids outside the

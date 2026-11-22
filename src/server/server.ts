@@ -4,6 +4,7 @@ import { randomBytes } from "node:crypto";
 import { ApiError, OpenCodeClient, type Connection } from "../client/http";
 import { jitteredDelay } from "../shared/constants";
 import { clearServerRecord, writeServerRecord } from "./orphans";
+import { redactSecrets } from "./redact";
 
 export type ServerErrorKind = "notInstalled" | "startFailed" | "unauthorized" | "unreachable";
 
@@ -11,7 +12,13 @@ export class ServerError extends Error {
   constructor(
     readonly kind: ServerErrorKind,
     message: string,
+    /** Safe to show in the chat: a short diagnosis produced by this extension. */
     readonly detail?: string,
+    /**
+     * Raw (but redacted and length-capped) child-process output. Diagnostic only: the controller
+     * writes it to the Output channel and never sends it to the webview.
+     */
+    readonly logDetail?: string,
   ) {
     super(message);
     this.name = "ServerError";
@@ -229,7 +236,7 @@ export class ManagedServer extends BaseServer {
       const timeoutMessage = () => `OpenCode did not become healthy within ${this.opts.startupTimeoutMs} ms.`;
 
       const timer = setTimeout(() => {
-        fail(new ServerError("startFailed", timeoutMessage(), stderrTail));
+        fail(new ServerError("startFailed", timeoutMessage(), undefined, stderrTail));
       }, this.opts.startupTimeoutMs);
 
       child.on("error", (err: NodeJS.ErrnoException) => {
@@ -243,10 +250,11 @@ export class ManagedServer extends BaseServer {
 
       child.stderr?.setEncoding("utf8");
       child.stderr?.on("data", (chunk: string) => {
-        // Redact the accumulated tail before it can reach ServerError.detail → the chat UI.
-        // A credential split across two chunks is caught because we redact before slicing.
-        stderrTail = redact(stderrTail + chunk, password).slice(-4000);
-        for (const line of chunk.split(/\r?\n/)) if (line.trim()) log(`[server:stderr] ${redact(line, password)}`);
+        // Redact every encoding of the password before storing the tail. It is diagnostic-only
+        // (`ServerError.logDetail` → Output channel), never sent to the chat. Redacting before
+        // slicing also catches a credential split across two chunks.
+        stderrTail = redactSecrets(stderrTail + chunk, password).slice(-4000);
+        for (const line of chunk.split(/\r?\n/)) if (line.trim()) log(`[server:stderr] ${redactSecrets(line, password)}`);
       });
 
       child.stdout?.setEncoding("utf8");
@@ -256,7 +264,7 @@ export class ManagedServer extends BaseServer {
         stdoutBuf = lines.pop() ?? "";
         for (const line of lines) {
           if (!line.trim()) continue;
-          log(`[server] ${redact(line, password)}`);
+          log(`[server] ${redactSecrets(line, password)}`);
           const m = LISTEN_RE.exec(line);
           if (m && !settled && !healthStarted) {
             healthStarted = true;
@@ -298,6 +306,7 @@ export class ManagedServer extends BaseServer {
             new ServerError(
               "startFailed",
               `OpenCode exited during startup (code ${code ?? signal}).`,
+              undefined,
               stderrTail.trim() || undefined,
             ),
           );
@@ -319,7 +328,7 @@ export class ManagedServer extends BaseServer {
     if (!this.opts.autoRestart || this.restarts.length >= max) {
       this.setState({
         status: "failed",
-        error: new ServerError("startFailed", `OpenCode stopped unexpectedly (code ${code}).`, stderrTail.trim() || undefined),
+        error: new ServerError("startFailed", `OpenCode stopped unexpectedly (code ${code}).`, undefined, stderrTail.trim() || undefined),
       });
       return;
     }
@@ -398,10 +407,6 @@ export class ManagedServer extends BaseServer {
       }
     });
   }
-}
-
-function redact(line: string, secret: string): string {
-  return line.split(secret).join("***").replace(/(server password\s+)\S+/i, "$1***");
 }
 
 export interface ExternalServerOptions {

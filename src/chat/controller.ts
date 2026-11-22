@@ -259,7 +259,12 @@ export class ChatController implements vscode.Disposable {
         this.stopLivePoll();
         this.clearTimers();
       },
-      toUiError: (err, fallback) => toUiError(err, fallback),
+      toUiError: (err, fallback) => {
+        // Child-process output is diagnostic-only: redacted by the server, capped, and written here
+        // instead of being forwarded to the webview as an error detail.
+        if (err instanceof ServerError && err.logDetail) output.warn(`[server] ${err.logDetail}`);
+        return toUiError(err, fallback);
+      },
     });
     this.attachments = new AttachmentService(
       (item) => this.addAttachment(item),
@@ -410,6 +415,7 @@ export class ChatController implements vscode.Disposable {
       await run;
     } catch (err) {
       this.output.error(`[chat] ${msg.type} failed: ${String(err)}`);
+      if (err instanceof ServerError && err.logDetail) this.output.warn(`[server] ${err.logDetail}`);
       const error = toUiError(err);
       // No `*.replied` event arrives for a failed reply, so tag the notice with the card it
       // belongs to; the webview uses it to re-enable the card's buttons for a retry.
