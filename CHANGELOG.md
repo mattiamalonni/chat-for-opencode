@@ -2,6 +2,12 @@
 
 ## 0.3.19 — 2026-11-22
 
+- **Hardening:** every message crossing the webview ↔ host boundary is now validated at runtime
+  (`src/shared/protocolGuards.ts`) before the host dispatches privileged actions or the webview
+  touches its reducer. Unknown types, malformed payloads, unbounded input and action ids outside the
+  protocol whitelist are dropped instead of crashing or escalating. The cross-session reveal is now
+  a one-shot command that compares `data-message-id` attributes rather than interpolating the id into
+  a CSS selector, so a crafted id cannot throw or pull the view back on every streamed token.
 - **Fix:** a prompt refused before it reached the server (lost connection or failed request) no longer
   leaves the status bar spinner running forever. The turn's execution generation is captured when
   `send()` publishes the optimistic `running` state, and the refusal path closes it with `failed`

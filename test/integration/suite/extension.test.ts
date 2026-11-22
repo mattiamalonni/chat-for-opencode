@@ -503,6 +503,22 @@ describe("chat-for-opencode extension", () => {
     assert.equal(cleared.text, "");
   });
 
+  it("drops malformed webview messages before they can reach privileged dispatch", async () => {
+    const mark = posted.length;
+    const sessionBefore = controller.debugState.sessionId;
+    // Neither a bogus action id nor malformed nested data may be dispatched on the host side.
+    await controller.receive({ type: "action", id: "deleteAllSessions" } as never);
+    await controller.receive({ type: "openFile", path: 42 } as never);
+    await controller.receive({ type: "send", text: "x", attachments: [{} as never], context: [] });
+    await controller.receive({ type: "notAProtocolMessage" } as never);
+    await new Promise((r) => setTimeout(r, 200));
+    assert.equal(controller.debugState.sessionId, sessionBefore);
+    // Live events from the preceding turn may still be in flight; only the actions that invalid
+    // input could have triggered are checked here.
+    const sideEffects = posted.slice(mark).filter((m) => m.type === "notice" || m.type === "draftRestored");
+    assert.deepEqual(sideEffects, [], "invalid input produced no host-side effects");
+  });
+
   it("reports a transient catalog failure as a request error and recovers automatically", async () => {
     const mark = posted.length;
     const armed = await fetch(`${controller.debugState.baseUrl}/__mock/failModelsOnce`, { method: "POST" });

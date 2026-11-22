@@ -21,28 +21,34 @@ import type { Strings } from "./strings";
 
 export type ConnectionStatus = "idle" | "starting" | "connected" | "reconnecting" | "error";
 
-export type UiErrorKind =
-  | "notInstalled"
-  | "startFailed"
-  | "unauthorized"
-  | "noProvider"
-  | "connectionLost"
-  | "promptFailed"
-  | "noWorkspace"
-  | "untrustedWorkspace"
-  | "requestFailed";
+/** Runtime whitelists live next to the types so protocol guards cannot silently drift from them. */
+export const UI_ERROR_KINDS = [
+  "notInstalled",
+  "startFailed",
+  "unauthorized",
+  "noProvider",
+  "connectionLost",
+  "promptFailed",
+  "noWorkspace",
+  "untrustedWorkspace",
+  "requestFailed",
+] as const;
 
-export type ActionId =
-  | "reconnect"
-  | "showLogs"
-  | "openSettings"
-  | "install"
-  | "login"
-  | "setPassword"
-  | "openFolder"
-  | "trustWorkspace"
-  | "newSession"
-  | "retry";
+export const ACTION_IDS = [
+  "reconnect",
+  "showLogs",
+  "openSettings",
+  "install",
+  "login",
+  "setPassword",
+  "openFolder",
+  "trustWorkspace",
+  "newSession",
+  "retry",
+] as const;
+
+export type UiErrorKind = (typeof UI_ERROR_KINDS)[number];
+export type ActionId = (typeof ACTION_IDS)[number];
 
 /** Identifies the inline card a failed reply belongs to, so it can re-enable its buttons. */
 export interface ReplyTarget {

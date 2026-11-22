@@ -614,6 +614,7 @@ export function App() {
           scrollToken={scrollToken}
           searchQuery={searchQuery}
           revealMessageId={revealMessageId}
+          onRevealed={() => setRevealMessageId(undefined)}
           onSuggestedPrompt={(text) => {
             setDraft(text, chat.sessionId ?? undefined);
             setDraftToken((n) => n + 1);
@@ -1496,6 +1497,7 @@ function Conversation({
   searchQuery,
   label,
   revealMessageId,
+  onRevealed,
   onSuggestedPrompt,
 }: {
   chat: ReturnType<typeof chatReducer>;
@@ -1503,6 +1505,7 @@ function Conversation({
   searchQuery: string;
   label?: string;
   revealMessageId?: string;
+  onRevealed?: () => void;
   onSuggestedPrompt?: (text: string) => void;
 }) {
   const t = useT();
@@ -1538,11 +1541,27 @@ function Conversation({
     scrollToEnd();
   }, [scrollToken]);
 
+  // A reveal is a one-shot command, not persistent state. Previously the id stayed set, so every
+  // streamed token re-ran this effect, scrolled the user back to the old hit and fought auto-scroll.
+  const consumedReveal = useRef<string | undefined>(undefined);
+  const revealTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  useEffect(() => () => {
+    if (revealTimer.current) clearTimeout(revealTimer.current);
+  }, []);
   useEffect(() => {
-    if (!revealMessageId) return;
+    if (!revealMessageId) {
+      consumedReveal.current = undefined;
+      return;
+    }
+    if (consumedReveal.current === revealMessageId) return;
     const container = ref.current;
-    const el = container?.querySelector<HTMLElement>(`[data-message-id="${revealMessageId}"]`);
-    if (!container || !el) return;
+    if (!container) return;
+    // Compare `dataset` instead of interpolating the id into a CSS selector: message ids come from
+    // the server, so quotes/brackets in one used to throw a SyntaxError and take down the webview.
+    const el = Array.from(container.querySelectorAll<HTMLElement>("[data-message-id]"))
+      .find((candidate) => candidate.dataset.messageId === revealMessageId);
+    if (!el) return; // Not rendered yet (e.g. still loading): retry when messages change.
+    consumedReveal.current = revealMessageId;
     // Scroll only the chat container: `scrollIntoView` would also scroll the surrounding webview
     // (and the editor), which can leave the visible chat apparently stuck somewhere else.
     const delta = el.getBoundingClientRect().top - container.getBoundingClientRect().top;
@@ -1550,9 +1569,10 @@ function Conversation({
     stick.current = false;
     setAtBottom(false);
     el.classList.add("revealed");
-    const timer = setTimeout(() => el.classList.remove("revealed"), 1600);
-    return () => clearTimeout(timer);
-  }, [revealMessageId, chat.messages]);
+    if (revealTimer.current) clearTimeout(revealTimer.current);
+    revealTimer.current = setTimeout(() => el.classList.remove("revealed"), 1600);
+    onRevealed?.();
+  }, [revealMessageId, chat.messages, onRevealed]);
 
   // Pin to the bottom only when the conversation actually grows (a streamed token, a new
   // message, a new card). This used to run after *every* render, so an unrelated state change

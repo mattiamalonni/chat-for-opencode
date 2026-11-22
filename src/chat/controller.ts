@@ -33,6 +33,7 @@ import { parseSubagentReport } from "../shared/subagentReport";
 import { checkCompatibility } from "../shared/compatibility";
 import { DEFAULT_STARTUP_TIMEOUT_MS, jitteredDelay } from "../shared/constants";
 import { checkContract, contractSignature, emptyContract, type ContractObservations } from "../shared/contract";
+import { isWebviewMessage } from "../shared/protocolGuards";
 import type {
   ActionId,
   Attachment,
@@ -388,8 +389,20 @@ export class ChatController implements vscode.Disposable {
     sessionId?: string;
   };
 
-  /** Entry point for webview messages (also used by integration tests). */
-  async receive(msg: WebviewMessage): Promise<void> {
+  /**
+   * Entry point for webview messages (also used by integration tests).
+   *
+   * The webview is untrusted input from the host's point of view: validate at the boundary before
+   * anything reaches `handle()`, which dispatches privileged actions (file/terminal/link opening,
+   * session deletion). Messages that do not match the protocol are logged and dropped, never
+   * dispatched with whatever shape the sender happened to choose.
+   */
+  async receive(msg: unknown): Promise<void> {
+    if (!isWebviewMessage(msg)) {
+      const type = typeof msg === "object" && msg !== null ? (msg as { type?: unknown }).type : typeof msg;
+      this.output.warn(`[chat] ignored an invalid webview message (type: ${String(type)})`);
+      return;
+    }
     const run = this.messageQueue.then(() => this.handle(msg));
     // Keep the chain alive after a failed message so later ones are still processed.
     this.messageQueue = run.catch(() => undefined);

@@ -2725,6 +2725,43 @@ test("a cross-session search hit scrolls to and highlights its message", async (
   await expect(page.locator('.msg.assistant[data-message-id="a1"].revealed')).toHaveCount(1);
 });
 
+test("a reveal is consumed once and CSS-special ids cannot break the selector", async ({ page }) => {
+  await page.setViewportSize({ width: 420, height: 500 });
+  await boot(page);
+  const crafted = 'hit"] [x';
+  const messages: SessionMessage[] = [
+    ...Array.from({ length: 30 }, (_, i) => ({ id: `m${i}`, type: "user" as const, text: `message ${i}`, time: { created: 1000 + i } })),
+    {
+      id: crafted,
+      type: "assistant",
+      agent: "build",
+      model: { id: "m", providerID: "p" },
+      content: [{ type: "text", text: "the hit" }],
+      time: { created: 2000, completed: 2100 },
+    },
+  ];
+  await host(page, { type: "session", session: { id: S1, busy: false, messages, permissions: [], forms: [] } });
+  const conversation = page.locator(".conversation");
+  await expect.poll(() => conversation.evaluate((el) => el.scrollHeight > el.clientHeight)).toBe(true);
+  await host(page, { type: "revealMessage", messageId: crafted, sessionId: S1 });
+  await expect(page.locator(".msg.assistant.revealed")).toHaveCount(1);
+  await expect(page.locator(".msg.assistant").filter({ hasText: "the hit" })).toBeVisible();
+
+  // Scrolling away and streaming more tokens must not yank the view back to the old hit.
+  await conversation.evaluate((el) => {
+    el.scrollTop = 0;
+    el.dispatchEvent(new Event("scroll"));
+  });
+  await host(page, {
+    type: "sessionDelta",
+    delta: {
+      sessionId: S1,
+      messages: [{ id: "tail", type: "assistant", agent: "build", model: { id: "m", providerID: "p" }, content: [{ type: "text", text: "more" }], time: { created: 3000 } }],
+    },
+  });
+  await expect.poll(() => conversation.evaluate((el) => el.scrollTop)).toBe(0);
+});
+
 test("the welcome screen offers suggested prompts that fill the composer", async ({ page }) => {
   await boot(page);
   await expect(page.getByRole("heading", { name: STRINGS.welcomeTitle })).toBeVisible();

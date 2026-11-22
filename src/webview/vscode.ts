@@ -1,4 +1,5 @@
 import type { HostMessage, WebviewMessage } from "../shared/protocol";
+import { isHostMessage } from "../shared/protocolGuards";
 
 interface VsCodeApi {
   postMessage(msg: unknown): void;
@@ -24,8 +25,10 @@ export function post(msg: WebviewMessage): void {
 
 export function onHostMessage(handler: (msg: HostMessage) => void): () => void {
   const listener = (e: MessageEvent) => {
-    const data = e.data as HostMessage | undefined;
-    if (data && typeof data === "object" && typeof data.type === "string") handler(data);
+    // The host is the trusted producer, but a stale bundle or a mismatched payload must not reach
+    // the reducer: validate the message shape before handing it to the app.
+    if (isHostMessage(e.data)) handler(e.data);
+    else console.warn("[webview] ignored an invalid host message", e.data);
   };
   window.addEventListener("message", listener);
   return () => window.removeEventListener("message", listener);
