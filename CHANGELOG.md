@@ -2,6 +2,10 @@
 
 ## 0.3.19 — 2026-11-22
 
+- **Architecture:** webview command dispatch moved out of `ChatController` into `ChatCommandHandler`.
+  Together with the earlier `ChatEventRouter`, both large dispatch switches are now standalone
+  services with explicit hooks boundaries, covered by unit tests that need no VS Code host. Shared
+  storage keys live in `src/chat/storageKeys.ts`; the controller only wires the services together.
 - **Architecture:** server-event routing moved out of `ChatController` into `ChatEventRouter` with an
   explicit hooks boundary. Subagent discovery/linking, inbox scheduling, turn lifecycle, hidden
   notifications and picker refreshes are now unit-testable without a VS Code host; the controller

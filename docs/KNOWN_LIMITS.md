@@ -50,13 +50,14 @@ test or a manual probe actually ran.
 
 ## Architectural debt
 
-- **`ChatController` is still the orchestrator for many concerns.** Connection supervision, session
-  listing, subagents, attachments, diffs, permissions, turn state and server-event routing now live
-  in dedicated services (`ConnectionSupervisor`, `SessionListService`, `SubagentTracker`,
-  `AttachmentService`, `DiffService`, `PermissionService`, `ExecutionStateService`, `ChatEventRouter`).
-  The remaining large block is `handle()` (webview command dispatch). Splitting it into a command
-  handler with an explicit hooks boundary is the next refactor. Turn state itself is no longer
-  duplicated — see `src/chat/executionState.ts`.
+- **`ChatController` is still the orchestrator for many concerns, but no longer implements them.**
+  Connection supervision, session listing, subagents, attachments, diffs, permissions, turn state,
+  server-event routing and webview command dispatch live in dedicated services (`ConnectionSupervisor`,
+  `SessionListService`, `SubagentTracker`, `AttachmentService`, `DiffService`, `PermissionService`,
+  `ExecutionStateService`, `ChatEventRouter`, `ChatCommandHandler`). The controller wires them
+  together and owns the session/conversation lifecycle; it is still ~1.9k lines, but the two previous
+  dispatch monoliths are now independently testable through explicit hooks objects. Turn state itself
+  is no longer duplicated — see `src/chat/executionState.ts`.
 - **The webview's `busy` flag is still derived from server events**, not from the host's execution
   status. This is deliberate: it renders per-step history and queued turns. The two state machines
   can still disagree briefly during a resync, but the host-side one (status bar, composer unlocking)

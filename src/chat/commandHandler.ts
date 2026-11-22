@@ -1,0 +1,345 @@
+/**
+ * Dispatches messages coming from the webview.
+ *
+ * This was a ~260-line switch inside `ChatController` with modal dialogs, destructive actions and
+ * session/model mutations inline. The hooks below are the entire boundary to the host: the handler
+ * decides *which* action a message means, the controller owns *how* that action is carried out. A
+ * fake hooks object can exercise every command without an Extension Development Host.
+ */
+import * as vscode from "vscode";
+import type { FileDiff, ModelRef, SessionInfo } from "../shared/api";
+import type { ActionId, Attachment, ContextItem, DroppedFile, HostMessage, WebviewMessage } from "../shared/protocol";
+import type { OpenCodeClient } from "../client/http";
+import type { ExecutionStateService } from "./executionState";
+import type { Generation } from "./generation";
+import type { FileIconsResponse } from "./fileIconTheme";
+import { COMPAT_DISMISSED_KEY, CONTRACT_DISMISSED_KEY, DRAFTS_KEY } from "./storageKeys";
+
+export interface FailedPrompt {
+  text: string;
+  attachments: Attachment[];
+  context: ContextItem[];
+  delivery?: "steer" | "queue";
+  sessionId?: string;
+}
+
+export interface CommandHandlerHooks {
+  getClient(): OpenCodeClient | undefined;
+  getSessionId(): string | undefined;
+  getFolder(): vscode.WorkspaceFolder | undefined;
+  getStatus(): string;
+  clearFailedPrompt(): void;
+  post(msg: HostMessage): void;
+  postInit(): void;
+  postConnection(): void;
+  postDrafts(): void;
+  postLocalIdle(sid: string, generation: number): void;
+  connect(): Promise<void>;
+  loadAll(): Promise<void>;
+  loadSession(info: SessionInfo, stale?: () => boolean): Promise<void>;
+  send(text: string, attachments: Attachment[], context: ContextItem[], delivery?: "steer" | "queue"): Promise<boolean>;
+  newSession(): Promise<void>;
+  saveDraft(sid: string | undefined, text: string): Promise<void>;
+  refreshSessions(): Promise<void>;
+  loadMoreSessions(): Promise<void>;
+  setAutoApprove(enabled: boolean): Promise<void>;
+  setPassword(): Promise<void>;
+  dropFiles(files: DroppedFile[]): Promise<void>;
+  pickFiles(): Promise<void>;
+  openFile(path: string): Promise<void>;
+  openAttachment(uri: string): Promise<void>;
+  openLink(href: string): Promise<void>;
+  runAction(id: ActionId): Promise<void>;
+  switchFolder(folder: vscode.WorkspaceFolder | undefined): Promise<void>;
+  refreshChanges(): Promise<FileDiff[]>;
+  syncNow(): Promise<void>;
+  compact(): Promise<void>;
+  revertToTurn(sessionId: string, messageID: string, text: string, files: boolean): Promise<void>;
+  forkToTurn(sessionId: string, messageID: string): Promise<void>;
+  regenerateTurn(sessionId: string, messageID: string, text: string, attachments: Attachment[]): Promise<void>;
+  refreshInbox(sid: string): Promise<void>;
+  deleteAllSessions(): Promise<void>;
+  catalog: {
+    selectedModel?: ModelRef;
+    selectedAgent?: string;
+    selectModel(model: ModelRef): void;
+    selectAgent(agent: string): void;
+  };
+  sessionList: { forget(ids: Iterable<string>): void; rename(id: string, title: string): boolean };
+  permissions: { write(id: string, value: unknown): Promise<void> };
+  subagents: { snapshot(id: string): Promise<void> };
+  execution: ExecutionStateService;
+  generation: Generation;
+  getFileIndex(): { search(query: string): Promise<Attachment[]> } | undefined;
+  fileIcons: { resolve(paths: string[]): Promise<FileIconsResponse> };
+  diffs: {
+    open(root: vscode.Uri, file: string, patch: string, applied: boolean): Promise<void>;
+    openCombined(files: Array<{ file: string; patch: string }>): Promise<void>;
+  };
+  workspaceState: vscode.Memento;
+  globalState: vscode.Memento;
+  log(line: string): void;
+}
+
+export class ChatCommandHandler {
+  constructor(private readonly hooks: CommandHandlerHooks) {}
+
+  async handle(msg: WebviewMessage): Promise<void> {
+    const h = this.hooks;
+    switch (msg.type) {
+      case "ready":
+        h.postInit();
+        h.postConnection();
+        h.postDrafts();
+        if (h.getClient() && h.getStatus() !== "error") await h.loadAll();
+        else await h.connect();
+        return;
+      case "send":
+        await h.send(msg.text, msg.attachments, msg.context, msg.delivery);
+        return;
+      case "abort": {
+        const sid = h.getSessionId();
+        const generation = h.execution.generation.current();
+        if (h.getClient() && sid) {
+          try {
+            await h.getClient()!.interrupt(sid);
+          } finally {
+            // A second interrupt on an idle session emits no terminal event; a failed one (500)
+            // must not leave the composer stuck either, so clear busy locally on both paths.
+            h.postLocalIdle(sid, generation);
+          }
+        }
+        return;
+      }
+      case "newSession":
+        return h.newSession();
+      case "selectSession": {
+        if (!h.getClient()) return;
+        h.clearFailedPrompt();
+        const generation = h.generation.bump();
+        const info = await h.getClient()!.getSession(msg.id);
+        if (!h.generation.is(generation)) return;
+        return h.loadSession(info, () => !h.generation.is(generation));
+      }
+      case "deleteSession":
+        if (!h.getClient()) return;
+        await h.getClient()!.deleteSession(msg.id);
+        h.sessionList.forget([msg.id]);
+        await h.permissions.write(msg.id, undefined);
+        await this.deleteDraft(msg.id);
+        if (msg.id === h.getSessionId()) await h.newSession();
+        else await h.refreshSessions();
+        return;
+      case "deleteAllSessions": {
+        const answer = await vscode.window.showWarningMessage(
+          vscode.l10n.t("Delete all sessions?"),
+          {
+            modal: true,
+            detail: vscode.l10n.t("Every session in this workspace will be permanently removed. This cannot be undone."),
+          },
+          vscode.l10n.t("Delete all"),
+        );
+        if (answer === undefined) return;
+        return h.deleteAllSessions();
+      }
+      case "renameSession": {
+        if (!h.getClient()) return;
+        const title = msg.title.trim();
+        if (!title) return;
+        await h.getClient()!.renameSession(msg.id, title);
+        // Optimistic update: the header/list react even when the live event is missed.
+        h.sessionList.rename(msg.id, title);
+        if (msg.id === h.getSessionId())
+          h.post({ type: "event", event: { type: "session.renamed", data: { sessionID: msg.id, title } } } as never);
+        return;
+      }
+      case "refreshSessions":
+        return h.refreshSessions();
+      case "loadMoreSessions":
+        return h.loadMoreSessions();
+      case "setModel": {
+        const previous = h.catalog.selectedModel;
+        try {
+          // The server owns the session's model: commit the UI only after it accepted the switch.
+          if (h.getClient() && h.getSessionId()) await h.getClient()!.switchModel(h.getSessionId()!, msg.model);
+          h.catalog.selectModel(msg.model);
+        } catch (err) {
+          if (previous) h.catalog.selectModel(previous);
+          throw err;
+        }
+        return;
+      }
+      case "setAgent": {
+        const previous = h.catalog.selectedAgent;
+        try {
+          if (h.getClient() && h.getSessionId()) await h.getClient()!.switchAgent(h.getSessionId()!, msg.agent);
+          h.catalog.selectAgent(msg.agent);
+        } catch (err) {
+          if (previous) h.catalog.selectAgent(previous);
+          throw err;
+        }
+        return;
+      }
+      case "setAutoApprove":
+        return h.setAutoApprove(msg.enabled);
+      case "saveDraft":
+        return h.saveDraft(msg.sessionId, msg.text);
+      case "permissionReply": {
+        const sid = msg.sessionId;
+        const generation = h.execution.generation.current();
+        try {
+          await h.getClient()?.replyPermission(sid, msg.requestId, msg.decision);
+          // Rejecting a tool call ends the turn: stop its generation too, or the model keeps
+          // answering and the composer stays on "stop" with no card left to act on.
+          if (msg.decision === "reject" && h.getClient() && sid) {
+            try {
+              await h.getClient()!.interrupt(sid);
+            } catch (err) {
+              h.log(`[chat] interrupt after permission reject failed: ${String(err)}`);
+            }
+          }
+        } finally {
+          if (msg.decision === "reject") h.postLocalIdle(sid, generation);
+        }
+        return;
+      }
+      case "formReply":
+        await h.getClient()?.replyForm(msg.sessionId, msg.formId, msg.answer);
+        return;
+      case "formCancel": {
+        const sid = msg.sessionId;
+        const generation = h.execution.generation.current();
+        try {
+          await h.getClient()?.cancelForm(sid, msg.formId);
+          if (h.getClient() && sid) {
+            try {
+              await h.getClient()!.interrupt(sid);
+            } catch (err) {
+              h.log(`[chat] interrupt after form cancel failed: ${String(err)}`);
+            }
+          }
+        } finally {
+          // The server may answer with only `form.cancelled` and no terminal execution event.
+          h.postLocalIdle(sid, generation);
+        }
+        return;
+      }
+      case "searchFiles": {
+        const items = (await h.getFileIndex()?.search(msg.query)) ?? [];
+        h.post({ type: "fileResults", query: msg.query, items });
+        return;
+      }
+      case "fileIcons": {
+        try {
+          h.post({ type: "fileIcons", ...(await h.fileIcons.resolve(msg.paths)) });
+        } catch (err) {
+          h.log(`[chat] file icon theme: ${String(err)}`);
+          // A broken theme must not make the webview retry forever: answer with explicit misses and
+          // reset so fonts registered by the previous theme are not kept around.
+          h.post({ type: "fileIcons", reset: true, icons: Object.fromEntries(msg.paths.map((p) => [p, null])), fonts: {} });
+        }
+        return;
+      }
+      case "dropFiles":
+        return h.dropFiles(msg.files);
+      case "pickFiles":
+        return h.pickFiles();
+      case "openDiff":
+        if (h.getFolder()) await h.diffs.open(h.getFolder()!.uri, msg.file, msg.patch, msg.applied);
+        return;
+      case "openDiffs":
+        // Only changed hunks, in one read-only diff view (no files involved).
+        await h.diffs.openCombined(msg.files);
+        return;
+      case "openFile":
+        return h.openFile(msg.path);
+      case "openAttachment":
+        return h.openAttachment(msg.uri);
+      case "openLink":
+        return h.openLink(msg.href);
+      case "copy":
+        await vscode.env.clipboard.writeText(msg.text);
+        return;
+      case "action":
+        return h.runAction(msg.id);
+      case "selectFolder":
+        return h.switchFolder(vscode.workspace.workspaceFolders?.find((f) => f.uri.toString() === msg.uri));
+      case "refreshChanges":
+        return void (await h.refreshChanges());
+      case "sync":
+        return h.syncNow();
+      case "refreshSubagent":
+        // The card was expanded but its live events may have been missed; fetch the child history.
+        return void (await h.subagents.snapshot(msg.sessionId));
+      case "compact":
+        return h.compact();
+      case "revertTo": {
+        if (!h.getClient() || !h.getSessionId() || msg.sessionId !== h.getSessionId()) return;
+        const rollback = vscode.l10n.t("Roll back");
+        const messagesOnly = vscode.l10n.t("Messages only");
+        const choice = await vscode.window.showWarningMessage(
+          vscode.l10n.t("Roll back to this turn?"),
+          {
+            modal: true,
+            detail: vscode.l10n.t(
+              "The selected prompt, its reply and every later turn will be removed from the conversation. 'Roll back' also restores file changes made after that point; 'Messages only' keeps the current files. The prompt returns to the composer so you can edit and resend it.",
+            ),
+          },
+          rollback,
+          messagesOnly,
+          vscode.l10n.t("Cancel"),
+        );
+        if (choice !== rollback && choice !== messagesOnly) return;
+        return h.revertToTurn(msg.sessionId, msg.messageID, msg.text, choice === rollback);
+      }
+      case "forkTo":
+        return h.forkToTurn(msg.sessionId, msg.messageID);
+      case "regenerate": {
+        if (!h.getClient() || !h.getSessionId() || msg.sessionId !== h.getSessionId()) return;
+        const regenerate = vscode.l10n.t("Regenerate");
+        const choice = await vscode.window.showWarningMessage(
+          vscode.l10n.t("Regenerate this response?"),
+          {
+            modal: true,
+            detail: vscode.l10n.t(
+              "The reply and every later turn will be removed and your prompt sent again. Your files stay untouched. Use Roll back if you want to restore files too.",
+            ),
+          },
+          regenerate,
+          vscode.l10n.t("Cancel"),
+        );
+        if (choice !== regenerate) return;
+        return h.regenerateTurn(msg.sessionId, msg.messageID, msg.text, msg.attachments);
+      }
+      case "setInboxDelivery": {
+        if (!h.getClient() || msg.sessionId !== h.getSessionId()) return;
+        await h.getClient()!.setInboxDelivery(msg.sessionId, msg.inboxId, msg.delivery);
+        return h.refreshInbox(msg.sessionId);
+      }
+      case "cancelInbox": {
+        if (!h.getClient() || msg.sessionId !== h.getSessionId()) return;
+        await h.getClient()!.cancelInbox(msg.sessionId, msg.inboxId);
+        return h.refreshInbox(msg.sessionId);
+      }
+      case "dismissCompatibility":
+        await h.globalState.update(COMPAT_DISMISSED_KEY, msg.version);
+        return;
+      case "dismissContract":
+        await h.globalState.update(CONTRACT_DISMISSED_KEY, msg.signature);
+        h.postConnection();
+        return;
+    }
+  }
+
+  private async deleteDraft(id: string): Promise<void> {
+    const h = this.hooks;
+    const folder = h.getFolder();
+    if (!folder) return;
+    const key = DRAFTS_KEY(folder.uri.toString());
+    const saved = h.workspaceState.get<{ drafts?: Record<string, string> }>(key) ?? {};
+    if (saved.drafts?.[id] === undefined) return;
+    const drafts = { ...saved.drafts };
+    delete drafts[id];
+    await h.workspaceState.update(key, { ...saved, drafts });
+  }
+}

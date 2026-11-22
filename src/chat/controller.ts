@@ -61,18 +61,16 @@ import { normalizeEndpoint } from "../server/endpoint";
 import { configTargetPaths } from "./configTarget";
 import { BoundedSet } from "../shared/boundedSet";
 import { ChatEventRouter } from "./eventRouter";
+import { ChatCommandHandler } from "./commandHandler";
 import { ExecutionStateService, type ExecutionState } from "./executionState";
 
 export type { ExecutionState, ExecutionStatus, TerminalStatus } from "./executionState";
 
-const PASSWORD_KEY = (endpoint: string) => `opencode.password:${endpoint}`;
-const SESSION_KEY = (folder: string) => `opencode.session:${folder}`;
-const COMPAT_DISMISSED_KEY = "opencode.compatibilityDismissedFor";
-const CONTRACT_DISMISSED_KEY = "opencode.contractDismissedFor";
+import { PASSWORD_KEY, SESSION_KEY, COMPAT_DISMISSED_KEY, CONTRACT_DISMISSED_KEY, DRAFTS_KEY } from "./storageKeys";
+
 /** Bounds for the bulk-delete walk: a broken server must not keep the extension host busy forever. */
 const MAX_DELETE_PAGES = 100;
 const MAX_DELETE_IDS = 10_000;
-const DRAFTS_KEY = (folder: string) => `opencode.drafts:${folder}`;
 
 /**
  * How often an open session is re-read from history. The SSE stream only carries events from the
@@ -211,6 +209,7 @@ export class ChatController implements vscode.Disposable {
   /** All in-flight tokens and timers live in one place; see lifecycle.ts. */
   private readonly lifecycle = new ChatLifecycle();
   private readonly eventRouter: ChatEventRouter;
+  private readonly commandHandler: ChatCommandHandler;
   /** Single owner of turn status, generation and local-idle grace; see executionState.ts. */
   private readonly execution = new ExecutionStateService();
   /** Picker paging, summaries, fork visibility and bounded search; see sessionListService.ts. */
@@ -373,6 +372,57 @@ export class ChatController implements vscode.Disposable {
         return undefined;
       },
       readFile: (file) => vscode.workspace.fs.readFile(vscode.Uri.file(file)),
+    });
+    this.commandHandler = new ChatCommandHandler({
+      getClient: () => this.client,
+      getSessionId: () => this.sessionId,
+      getFolder: () => this.folder,
+      getStatus: () => this.status,
+      clearFailedPrompt: () => {
+        this.failedPrompt = undefined;
+      },
+      post: (msg) => this.post(msg),
+      postInit: () => this.postInit(),
+      postConnection: () => this.postConnection(),
+      postDrafts: () => this.postDrafts(),
+      postLocalIdle: (sid, generation) => this.postLocalIdle(sid, generation),
+      connect: () => this.connect(),
+      loadAll: () => this.loadAll(),
+      loadSession: (info, stale) => this.loadSession(info, stale),
+      send: (text, attachments, context, delivery) => this.send(text, attachments, context, delivery),
+      newSession: () => this.newSession(),
+      saveDraft: (sid, text) => this.saveDraft(sid, text),
+      refreshSessions: () => this.refreshSessions(),
+      loadMoreSessions: () => this.loadMoreSessions(),
+      setAutoApprove: (enabled) => this.setAutoApprove(enabled),
+      setPassword: () => this.setPassword(),
+      dropFiles: (files) => this.dropFiles(files),
+      pickFiles: () => this.pickFiles(),
+      openFile: (file) => this.openFile(file),
+      openAttachment: (uri) => this.openAttachment(uri),
+      openLink: (href) => this.openLink(href),
+      runAction: (id) => this.runAction(id),
+      switchFolder: (folder) => this.switchFolder(folder),
+      refreshChanges: () => this.refreshChanges(),
+      syncNow: () => this.syncNow(),
+      compact: () => this.compact(),
+      revertToTurn: (sessionId, messageID, text, files) => this.revertToTurn(sessionId, messageID, text, files),
+      forkToTurn: (sessionId, messageID) => this.forkToTurn(sessionId, messageID),
+      regenerateTurn: (sessionId, messageID, text, attachments) => this.regenerateTurn(sessionId, messageID, text, attachments),
+      refreshInbox: (sid) => this.refreshInbox(sid),
+      deleteAllSessions: () => this.deleteAllSessions(),
+      catalog: this.catalog,
+      sessionList: this.sessionList,
+      permissions: this.permissions,
+      subagents: this.subagents,
+      execution: this.execution,
+      generation: this.lifecycle.generations.load,
+      getFileIndex: () => this.fileIndex,
+      fileIcons: this.fileIcons,
+      diffs: this.diffs,
+      workspaceState: ctx.workspaceState,
+      globalState: ctx.globalState,
+      log: (line) => output.warn(line),
     });
     const refreshFileIcons = () => {
       this.fileIcons.invalidate();
@@ -1569,268 +1619,7 @@ export class ChatController implements vscode.Disposable {
   // ---- webview messages -------------------------------------------------------------------
 
   private async handle(msg: WebviewMessage): Promise<void> {
-    switch (msg.type) {
-      case "ready":
-        this.postInit();
-        this.postConnection();
-        this.postDrafts();
-        if (this.client && this.status !== "error") {
-          await this.loadAll();
-        } else {
-          await this.connect();
-        }
-        return;
-      case "send":
-        await this.send(msg.text, msg.attachments, msg.context, msg.delivery);
-        return;
-      case "abort": {
-        const sid = this.sessionId;
-        const generation = this.execution.generation.current();
-        if (this.client && sid) {
-          try {
-            await this.client.interrupt(sid);
-          } finally {
-            // A server that receives a second interrupt on an already-idle session emits no
-            // terminal event. A failed request (e.g. a 500) must not leave the composer stuck on
-            // "stop" either, so clear busy locally on both paths.
-            this.postLocalIdle(sid, generation);
-          }
-        }
-        return;
-      }
-      case "newSession":
-        return this.newSession();
-      case "selectSession": {
-        if (!this.client) return;
-        this.failedPrompt = undefined;
-        const generation = this.lifecycle.generations.load.bump();
-        const info = await this.client.getSession(msg.id);
-        if (!this.lifecycle.generations.load.is(generation)) return;
-        return this.loadSession(info, () => !this.lifecycle.generations.load.is(generation));
-      }
-      case "deleteSession":
-        if (!this.client) return;
-        await this.client.deleteSession(msg.id);
-        this.sessionList.forget([msg.id]);
-        await this.permissions.write(msg.id, undefined);
-        if (this.folder) {
-          const key = DRAFTS_KEY(this.folder.uri.toString());
-          const saved = this.ctx.workspaceState.get<{ drafts?: Record<string, string> }>(key) ?? {};
-          if (saved.drafts?.[msg.id] !== undefined) {
-            const drafts = { ...saved.drafts };
-            delete drafts[msg.id];
-            await this.ctx.workspaceState.update(key, { ...saved, drafts });
-          }
-        }
-        if (msg.id === this.sessionId) await this.newSession();
-        else await this.refreshSessions();
-        return;
-      case "deleteAllSessions": {
-        const answer = await vscode.window.showWarningMessage(
-          vscode.l10n.t("Delete all sessions?"),
-          {
-            modal: true,
-            detail: vscode.l10n.t("Every session in this workspace will be permanently removed. This cannot be undone."),
-          },
-          vscode.l10n.t("Delete all"),
-        );
-        if (answer === undefined) return;
-        return this.deleteAllSessions();
-      }
-      case "renameSession": {
-        if (!this.client) return;
-        const title = msg.title.trim();
-        if (!title) return;
-        await this.client.renameSession(msg.id, title);
-        // Update optimistically so the header/list react even if the live event is missed.
-        this.sessionList.rename(msg.id, title);
-        if (msg.id === this.sessionId) {
-          this.post({ type: "event", event: { type: "session.renamed", data: { sessionID: msg.id, title } } });
-        }
-        return;
-      }
-      case "refreshSessions":
-        return this.refreshSessions();
-      case "loadMoreSessions":
-        return this.loadMoreSessions();
-      case "setModel": {
-        const previous = this.catalog.selectedModel;
-        try {
-          // The server owns the session's model: commit the UI/selection only after it accepted it.
-          if (this.client && this.sessionId) await this.client.switchModel(this.sessionId, msg.model);
-          this.catalog.selectModel(msg.model);
-        } catch (err) {
-          if (previous) this.catalog.selectModel(previous);
-          throw err; // `receive()` turns it into an actionable notice
-        }
-        return;
-      }
-      case "setAgent": {
-        const previous = this.catalog.selectedAgent;
-        try {
-          if (this.client && this.sessionId) await this.client.switchAgent(this.sessionId, msg.agent);
-          this.catalog.selectAgent(msg.agent);
-        } catch (err) {
-          if (previous) this.catalog.selectAgent(previous);
-          throw err;
-        }
-        return;
-      }
-      case "setAutoApprove":
-        return this.setAutoApprove(msg.enabled);
-      case "saveDraft":
-        return this.saveDraft(msg.sessionId, msg.text);
-      case "permissionReply": {
-        const sid = msg.sessionId;
-        const generation = this.execution.generation.current();
-        try {
-          await this.client?.replyPermission(sid, msg.requestId, msg.decision);
-          // Rejecting a tool call ends the assistant's turn: stop the generation too, otherwise
-          // the model keeps answering and the composer stays on "stop" with no card left to act on.
-          // "once" and "always" let the turn continue as usual.
-          if (msg.decision === "reject" && this.client && sid) {
-            try {
-              await this.client.interrupt(sid);
-            } catch (err) {
-              this.output.warn(`[chat] interrupt after permission reject failed: ${String(err)}`);
-            }
-          }
-        } finally {
-          if (msg.decision === "reject") this.postLocalIdle(sid, generation);
-        }
-        return;
-      }
-      case "formReply":
-        await this.client?.replyForm(msg.sessionId, msg.formId, msg.answer);
-        return;
-      case "formCancel": {
-        const sid = msg.sessionId;
-        const generation = this.execution.generation.current();
-        try {
-          await this.client?.cancelForm(sid, msg.formId);
-          // Dismissing a question ends the assistant's turn: stop the generation too, otherwise
-          // the model keeps answering and the composer stays on "stop" after the form is gone.
-          // An already-idle session may reject the interrupt; the local idle below still applies.
-          if (this.client && sid) {
-            try {
-              await this.client.interrupt(sid);
-            } catch (err) {
-              this.output.warn(`[chat] interrupt after form cancel failed: ${String(err)}`);
-            }
-          }
-        } finally {
-          // The server may answer with only `form.cancelled` and no terminal execution event.
-          // Clear busy locally so the composer can never stay stuck on "stop" (same guard as
-          // `abort`).
-          this.postLocalIdle(sid, generation);
-        }
-        return;
-      }
-      case "searchFiles": {
-        const items = (await this.fileIndex?.search(msg.query)) ?? [];
-        this.post({ type: "fileResults", query: msg.query, items });
-        return;
-      }
-      case "fileIcons": {
-        try {
-          this.post({ type: "fileIcons", ...(await this.fileIcons.resolve(msg.paths)) });
-        } catch (err) {
-          this.output.warn(`[chat] file icon theme: ${String(err)}`);
-          // A broken theme must not make the webview retry forever: answer with explicit misses and
-          // reset so fonts registered by the previous theme are not kept around.
-          this.post({ type: "fileIcons", reset: true, icons: Object.fromEntries(msg.paths.map((p) => [p, null])), fonts: {} });
-        }
-        return;
-      }
-      case "dropFiles":
-        return this.dropFiles(msg.files);
-      case "pickFiles":
-        return this.pickFiles();
-      case "openDiff":
-        if (this.folder) await this.diffs.open(this.folder.uri, msg.file, msg.patch, msg.applied);
-        return;
-      case "openDiffs":
-        // Only the changed hunks, in one read-only VS Code diff view (no files involved).
-        await this.diffs.openCombined(msg.files);
-        return;
-      case "openFile":
-        return this.openFile(msg.path);
-      case "openAttachment":
-        return this.openAttachment(msg.uri);
-      case "openLink":
-        return this.openLink(msg.href);
-      case "copy":
-        await vscode.env.clipboard.writeText(msg.text);
-        return;
-      case "action":
-        return this.runAction(msg.id);
-      case "selectFolder":
-        return this.switchFolder(vscode.workspace.workspaceFolders?.find((f) => f.uri.toString() === msg.uri));
-      case "refreshChanges":
-        return void (await this.refreshChanges());
-      case "sync":
-        return this.syncNow();
-      case "refreshSubagent":
-        // The card was expanded but its live events may have been missed; fetch the child's history.
-        return void (await this.subagents.snapshot(msg.sessionId));
-      case "compact":
-        return this.compact();
-      case "revertTo": {
-        if (!this.client || !this.sessionId || msg.sessionId !== this.sessionId) return;
-        const rollback = vscode.l10n.t("Roll back");
-        const messagesOnly = vscode.l10n.t("Messages only");
-        const choice = await vscode.window.showWarningMessage(
-          vscode.l10n.t("Roll back to this turn?"),
-          {
-            modal: true,
-            detail: vscode.l10n.t(
-              "The selected prompt, its reply and every later turn will be removed from the conversation. 'Roll back' also restores file changes made after that point; 'Messages only' keeps the current files. The prompt returns to the composer so you can edit and resend it.",
-            ),
-          },
-          rollback,
-          messagesOnly,
-          vscode.l10n.t("Cancel"),
-        );
-        if (choice !== rollback && choice !== messagesOnly) return;
-        return this.revertToTurn(msg.sessionId, msg.messageID, msg.text, choice === rollback);
-      }
-      case "forkTo":
-        return this.forkToTurn(msg.sessionId, msg.messageID);
-      case "regenerate": {
-        if (!this.client || !this.sessionId || msg.sessionId !== this.sessionId) return;
-        const regenerate = vscode.l10n.t("Regenerate");
-        const choice = await vscode.window.showWarningMessage(
-          vscode.l10n.t("Regenerate this response?"),
-          {
-            modal: true,
-            detail: vscode.l10n.t(
-              "The reply and every later turn will be removed and your prompt sent again. Your files stay untouched. Use Roll back if you want to restore files too.",
-            ),
-          },
-          regenerate,
-          vscode.l10n.t("Cancel"),
-        );
-        if (choice !== regenerate) return;
-        return this.regenerateTurn(msg.sessionId, msg.messageID, msg.text, msg.attachments);
-      }
-      case "setInboxDelivery": {
-        if (!this.client || msg.sessionId !== this.sessionId) return;
-        await this.client.setInboxDelivery(msg.sessionId, msg.inboxId, msg.delivery);
-        return this.refreshInbox(msg.sessionId);
-      }
-      case "cancelInbox": {
-        if (!this.client || msg.sessionId !== this.sessionId) return;
-        await this.client.cancelInbox(msg.sessionId, msg.inboxId);
-        return this.refreshInbox(msg.sessionId);
-      }
-      case "dismissCompatibility":
-        await this.ctx.globalState.update(COMPAT_DISMISSED_KEY, msg.version);
-        return;
-      case "dismissContract":
-        await this.ctx.globalState.update(CONTRACT_DISMISSED_KEY, msg.signature);
-        this.postConnection();
-        return;
-    }
+    await this.commandHandler.handle(msg);
   }
 
   /**
