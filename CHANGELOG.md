@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- **Commands:** _OpenCode: Continue This Session in Terminal_ opens a terminal in the workspace and
+  runs `opencode --session <id>` for the open conversation (or a fresh TUI when none is open). The
+  executable path and session id are shell-quoted per platform, and a warning appears if the chat is
+  still generating. The pure command builder is unit-tested on POSIX and Windows.
 - **UI:** a second status bar item (`opencode.showUsageInStatusBar`, default on) shows the session's
   estimated context size and cost, fed by the server's `session` / `sessionDelta` usage payloads. It
   hides until OpenCode reports numbers, survives resyncs that omit usage, and clears when the session

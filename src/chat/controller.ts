@@ -557,6 +557,11 @@ export class ChatController implements vscode.Disposable {
     return this.folder?.uri;
   }
 
+  /** Session shown in the chat, for commands that hand the conversation to another client. */
+  get currentSessionId(): string | undefined {
+    return this.sessionId;
+  }
+
   post(msg: HostMessage): void {
     this.chatViews.post(msg);
   }

@@ -272,6 +272,12 @@
         "title": "%command.commitMessage%",
         "category": "OpenCode",
         "icon": "$(git-commit)"
+      },
+      {
+        "command": "opencode.continueInTerminal",
+        "title": "%command.continueInTerminal%",
+        "category": "OpenCode",
+        "icon": "$(terminal)"
       }
     ],
     "menus": {
@@ -300,6 +306,11 @@
         },
         {
           "command": "opencode.compact",
+          "when": "view == opencode.chatView",
+          "group": "overflow"
+        },
+        {
+          "command": "opencode.continueInTerminal",
           "when": "view == opencode.chatView",
           "group": "overflow"
         },
@@ -402,6 +413,9 @@
         },
         {
           "command": "opencode.commitMessage"
+        },
+        {
+          "command": "opencode.continueInTerminal"
         }
       ]
     },

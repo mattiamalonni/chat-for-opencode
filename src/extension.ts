@@ -7,6 +7,7 @@ import { DIFF_SCHEME, DiffService } from "./chat/diff";
 import { fileAttachment, selectionAttachment } from "./chat/context";
 import { diffPrompt, workingDiff, type DiffIntent, type WorkingDiff } from "./chat/gitDiff";
 import { usageLabel, usageTooltip, usageUpdateFromMessage, type SessionUsage } from "./chat/usageStatus";
+import { openSessionCommand } from "./chat/terminal";
 import { diagnosticCodeActions, EXPLAIN_DIAGNOSTIC_COMMAND, FIX_DIAGNOSTIC_COMMAND, type DiagnosticCommandArgs } from "./chat/codeActions";
 import { ChatViewProvider } from "./chat/viewProvider";
 import { cleanupOrphanServers } from "./server/orphans";
@@ -60,6 +61,9 @@ export function activate(context: vscode.ExtensionContext): ExtensionApi {
   const diffs = new DiffService((line) => output.warn(line));
   controller = new ChatController(context, registry, diffs, output);
   const chat = controller;
+  // Declared here so host commands can warn when a turn is still active; the status bar listener
+  // below writes the same variable.
+  let executionStatus: ExecutionStatus = "idle";
 
   const focusView = () => vscode.commands.executeCommand(`${ChatViewProvider.viewId}.focus`);
   const readAuthLogins = async () => {
@@ -321,6 +325,40 @@ export function activate(context: vscode.ExtensionContext): ExtensionApi {
     }),
     vscode.commands.registerCommand("opencode.reviewChanges", () => void runDiffCommand("review")),
     vscode.commands.registerCommand("opencode.commitMessage", () => void runDiffCommand("commit")),
+    vscode.commands.registerCommand("opencode.continueInTerminal", async () => {
+      if (!vscode.workspace.isTrusted) {
+        void vscode.window.showInformationMessage(vscode.l10n.t("Trust this workspace before using OpenCode."));
+        return;
+      }
+      if (executionStatus === "running" || executionStatus === "needsInput") {
+        const anyway = vscode.l10n.t("Open in terminal anyway");
+        const choice = await vscode.window.showWarningMessage(
+          vscode.l10n.t(
+            "This session is still active in the chat. A terminal is a second client on the same session; both can write to it.",
+          ),
+          anyway,
+        );
+        if (choice !== anyway) return;
+      }
+      const executable = vscode.workspace.getConfiguration("opencode").get<string>("executablePath", "opencode").trim() || "opencode";
+      const sessionId = chat.currentSessionId;
+      let command: string;
+      try {
+        command = openSessionCommand(executable, sessionId);
+      } catch (err) {
+        output.error(`[terminal] ${String(err)}`);
+        void vscode.window.showErrorMessage(
+          vscode.l10n.t("The configured OpenCode executable path cannot be quoted safely in a terminal."),
+        );
+        return;
+      }
+      const terminal = vscode.window.createTerminal({
+        name: sessionId ? vscode.l10n.t("OpenCode session") : vscode.l10n.t("OpenCode"),
+        cwd: chat.folderUri,
+      });
+      terminal.show();
+      terminal.sendText(command);
+    }),
     vscode.commands.registerCommand(FIX_DIAGNOSTIC_COMMAND, (args: unknown) => void prefillDiagnostic(args, "fix")),
     vscode.commands.registerCommand(EXPLAIN_DIAGNOSTIC_COMMAND, (args: unknown) => void prefillDiagnostic(args, "explain")),
     vscode.commands.registerCommand("opencode.askAboutFile", async () => {
@@ -425,7 +463,6 @@ export function activate(context: vscode.ExtensionContext): ExtensionApi {
   status.name = vscode.l10n.t("OpenCode account");
   status.text = "$(comment-discussion)";
   let authLogins: vscode.QuickPickItem[] | undefined;
-  let executionStatus: ExecutionStatus = "idle";
   const statusDescriptions: Record<ExecutionStatus, string> = {
     idle: vscode.l10n.t("Idle"),
     running: vscode.l10n.t("Generating a response — click to stop"),

@@ -46,6 +46,7 @@ sends **no telemetry**.
 - **Quick Fixes on errors**: VS Code's squiggles now offer _Fix with OpenCode_ and _Explain with OpenCode_ (up to three diagnostics at a time), which select the offending lines and prefill the chat with the diagnostic message. The editor title bar also has an **Ask OpenCode About This File** button that attaches the whole file. As with the other editor commands, nothing is sent until you press Enter.
 - **Review your uncommitted work**: _OpenCode: Review My Changes_ reads the git diff of the workspace (staged + unstaged tracked files) and sends it with a review prompt; _OpenCode: Write Commit Message_ sends the same diff with a request for a Conventional Commit message you can paste into the SCM input box. Untracked files are listed by name, and diffs are capped so a huge working tree cannot flood the context.
 - **Usage in the status bar**: a second, discreet item shows the session's estimated context size and cost, mirroring the composer's context meter. It updates from OpenCode's own usage events, hides when there is no data, and can be switched off with `opencode.showUsageInStatusBar`. Hover it for the input/output/cache breakdown; click to open the chat.
+- **Continue in the terminal**: _OpenCode: Continue This Session in Terminal_ (also in the chat's overflow menu) opens a terminal in the workspace and runs `opencode --session <id>` for the conversation you are viewing, so you can switch between the sidebar and the TUI without losing context. With no session yet it just opens a fresh TUI. If the chat is still generating, it asks first.
 - **Attach external files** by dragging them into the chat (**hold Shift**: VS Code otherwise opens the file in an editor), by pasting an image or other file into the prompt, or with the folder button, which opens a native file picker. Files outside the workspace are sent **inline** so the model receives their content instead of only a path to look for. The same applies to local files when you connect to an external `opencode.endpoint`: OpenCode reads `file:` paths from its own filesystem, which may not be yours, so their contents are embedded in the message instead.
 - **Clickable file references**: `src/app.ts:42` in a reply, a tool's input path, a permission resource or a changed-file row opens the file at that line in the editor.
 - **Skills**: type `/` to search skills discovered by OpenCode, including global skills; selecting one
@@ -141,32 +142,33 @@ loads the skill content.
 
 ### Commands
 
-| Command                                | Default key                                                                                   |
-| -------------------------------------- | --------------------------------------------------------------------------------------------- |
-| OpenCode: Focus Chat                   | `Cmd/Ctrl+Alt+O`                                                                              |
-| OpenCode: Quick Switch Session         | `Cmd/Ctrl+Alt+S` (recent sessions first; typing searches all conversations)                   |
-| OpenCode: Install OpenCode…            | – (copy the install command, open platform instructions, retry the connection)                |
-| OpenCode: Ask OpenCode…                | `Cmd/Ctrl+Alt+Shift+O` (fill the composer from anywhere, with the current selection attached) |
-| OpenCode: Stop current response        | – (also click the status bar while a turn runs)                                               |
-| OpenCode: Open Chat in Editor          | – (toolbar, opens a second, wider chat view)                                                  |
-| OpenCode: Add Selection to Chat        | `Cmd/Ctrl+Alt+L` (editor with selection)                                                      |
-| OpenCode: Add File to Chat             | – (editor / explorer context menu)                                                            |
-| OpenCode: Ask OpenCode About This File | – (editor title button / command palette)                                                     |
-| OpenCode: Fix with OpenCode            | – (Quick Fix on a diagnostic; also the command behind the lightbulb)                          |
-| OpenCode: Explain with OpenCode        | – (Quick Fix on a diagnostic)                                                                 |
-| OpenCode: Review My Changes            | – (sends the workspace git diff with a review prompt)                                         |
-| OpenCode: Write Commit Message         | – (sends the workspace git diff with a Conventional Commit prompt)                            |
-| OpenCode: New Session                  | `Cmd/Ctrl+N` (chat focused)                                                                   |
-| Search messages in the chat            | `Cmd/Ctrl+F`, then `F3`/`Shift+F3` for next/previous match                                    |
-| Sync the current session               | `Cmd/Ctrl+R` (chat focused)                                                                   |
-| OpenCode: Compact Conversation         | –                                                                                             |
-| OpenCode: Restart Server…              | – (toolbar, with confirmation)                                                                |
-| OpenCode: Open Config File             | – (toolbar file icon)                                                                         |
-| OpenCode: Open Extension Settings      | – (toolbar gear icon)                                                                         |
-| OpenCode: Move Chat View…              | – (left/right side bar or panel)                                                              |
-| OpenCode: Show Logs                    | –                                                                                             |
-| OpenCode: Set Server Password…         | – (external server only)                                                                      |
-| OpenCode: Stop Server                  | –                                                                                             |
+| Command                                     | Default key                                                                                   |
+| ------------------------------------------- | --------------------------------------------------------------------------------------------- |
+| OpenCode: Focus Chat                        | `Cmd/Ctrl+Alt+O`                                                                              |
+| OpenCode: Quick Switch Session              | `Cmd/Ctrl+Alt+S` (recent sessions first; typing searches all conversations)                   |
+| OpenCode: Install OpenCode…                 | – (copy the install command, open platform instructions, retry the connection)                |
+| OpenCode: Ask OpenCode…                     | `Cmd/Ctrl+Alt+Shift+O` (fill the composer from anywhere, with the current selection attached) |
+| OpenCode: Stop current response             | – (also click the status bar while a turn runs)                                               |
+| OpenCode: Open Chat in Editor               | – (toolbar, opens a second, wider chat view)                                                  |
+| OpenCode: Add Selection to Chat             | `Cmd/Ctrl+Alt+L` (editor with selection)                                                      |
+| OpenCode: Add File to Chat                  | – (editor / explorer context menu)                                                            |
+| OpenCode: Ask OpenCode About This File      | – (editor title button / command palette)                                                     |
+| OpenCode: Fix with OpenCode                 | – (Quick Fix on a diagnostic; also the command behind the lightbulb)                          |
+| OpenCode: Explain with OpenCode             | – (Quick Fix on a diagnostic)                                                                 |
+| OpenCode: Review My Changes                 | – (sends the workspace git diff with a review prompt)                                         |
+| OpenCode: Write Commit Message              | – (sends the workspace git diff with a Conventional Commit prompt)                            |
+| OpenCode: Continue This Session in Terminal | – (chat overflow menu; `opencode --session <id>` in a terminal)                               |
+| OpenCode: New Session                       | `Cmd/Ctrl+N` (chat focused)                                                                   |
+| Search messages in the chat                 | `Cmd/Ctrl+F`, then `F3`/`Shift+F3` for next/previous match                                    |
+| Sync the current session                    | `Cmd/Ctrl+R` (chat focused)                                                                   |
+| OpenCode: Compact Conversation              | –                                                                                             |
+| OpenCode: Restart Server…                   | – (toolbar, with confirmation)                                                                |
+| OpenCode: Open Config File                  | – (toolbar file icon)                                                                         |
+| OpenCode: Open Extension Settings           | – (toolbar gear icon)                                                                         |
+| OpenCode: Move Chat View…                   | – (left/right side bar or panel)                                                              |
+| OpenCode: Show Logs                         | –                                                                                             |
+| OpenCode: Set Server Password…              | – (external server only)                                                                      |
+| OpenCode: Stop Server                       | –                                                                                             |
 
 ### Settings
 

@@ -148,6 +148,11 @@ test or a manual probe actually ran.
   `src/shared/adapter.ts` normalises missing/renamed fields so the UI degrades gracefully, and the
   raw wire types are generated from the snapshot with `npm run gen:types`, but neither can adapt to
   changed endpoints or event semantics. Supporting a new version means extending the adapter.
+- **The terminal hand-off needs the CLI on `PATH`.** _Continue This Session in Terminal_ uses the
+  configured `opencode.executablePath` and the TUI's own authentication — the extension's managed
+  server password is **not** passed. The TUI and the chat are two clients writing the same on-disk
+  session, so a permission or prompt answered in one is not rendered live in the other (the chat polls
+  the open session while visible). With no session open the command starts a fresh TUI.
 - **Status bar usage is the same estimate** as the composer's context meter (see API_NOTES). It is
   unknown until the first reply (and after a compaction), so the item stays hidden until OpenCode
   reports numbers. It mirrors the **open session** only and is cleared when that session closes;

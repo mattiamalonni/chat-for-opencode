@@ -75,6 +75,7 @@ describe("chat-for-opencode extension", () => {
       "opencode.explainDiagnostic",
       "opencode.reviewChanges",
       "opencode.commitMessage",
+      "opencode.continueInTerminal",
     ]) {
       assert.ok(all.includes(c), `missing command ${c}`);
     }
