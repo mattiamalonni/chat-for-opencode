@@ -91,7 +91,7 @@ for (const f of files) {
 }
 console.log(`Webview UI coverage: ${hit}/${total} lines (${percent.toFixed(1)}%) — see ${join(DIR, "lcov.info")}`);
 
-const floor = Number(process.env.OC_UI_COVERAGE_MIN ?? 0);
+const floor = Number(process.env.OC_UI_COVERAGE_MIN ?? 55);
 if (percent < floor) {
   console.error(`Webview coverage ${percent.toFixed(1)}% is below the ${floor}% floor.`);
   process.exitCode = 1;

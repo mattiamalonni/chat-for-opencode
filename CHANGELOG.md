@@ -2,6 +2,10 @@
 
 ## 0.3.19 — 2026-11-22
 
+- **DX:** `npm run verify` now runs the same gates as CI (production audit, generated-type diff,
+  lint, formatting, typecheck, both coverage floors, production smoke and integration). All inline
+  environment variables use `cross-env`, so the scripts also work on Windows, and the webview
+  coverage floor is enforced locally by default instead of only in CI.
 - **CI:** every job now has an explicit timeout, and the nightly live-contract job writes a run
   summary and opens/comments on a `contract-drift` issue on failure. Being advisory no longer means
   being invisible.

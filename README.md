@@ -232,8 +232,8 @@ Auto-approval is off by default; only enable it when you trust unattended edits 
 ```sh
 npm ci
 npm run compile          # type-check + bundle (esbuild)
-npm run verify           # lint + format:check + typecheck + all deterministic suites
-npm test                 # same gates as verify, via npm's pretest hook
+npm run verify           # full CI gate: audit, types, lint, format, coverage, UI, prod smoke, integration
+npm test                 # faster local loop: pretest checks + unit, UI and integration suites
 npm run test:unit        # vitest
 npm run test:ui          # Playwright, mock server + recorded SSE fixtures
 npm run test:integration # VS Code extension host + mock server

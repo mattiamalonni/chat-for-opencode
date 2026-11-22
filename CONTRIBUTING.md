@@ -10,7 +10,8 @@ a boundary (host ↔ server, host ↔ webview, or an async race). The checks bel
 node --version   # see .nvmrc
 npm ci
 npm run compile  # typecheck + esbuild bundles
-npm test         # lint, format, typecheck, unit, UI, integration (same gates as CI)
+npm test         # lint, format, typecheck + unit, UI, integration (fast local loop)
+npm run verify   # the full CI gate, including audit, generated types, coverage floors and the production smoke test
 ```
 
 Press <kbd>F5</kbd> in VS Code to launch an Extension Development Host. The chat opens in the
