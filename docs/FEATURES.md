@@ -34,12 +34,17 @@ settings, see [REFERENCE.md](REFERENCE.md).
   and an "N of M" counter. The session list has its own title filter. Clear **error states** with the
   action buttons (OpenCode missing, no provider, connection lost, interrupted response…).
 
+![An actionable error banner with setup actions](images/error-dark.png)
+
 ## Context and files
 
 - **Editor context**: the active file and selection are attached automatically as removable chips,
   with your active file icon theme's icons (including dark/light/high-contrast and glyph fonts).
 - **`@` mentions** with fuzzy workspace search: picking a file attaches it as a chip and removes the
   `@query` from the input. **Add Selection to Chat** / **Add File to Chat** work the same way.
+
+  ![The @ file picker with fuzzy results](images/mention-dark.png)
+
 - **Context sources on demand**: `@problems`, `@git`, `@terminal`, `@openEditors` or `@symbol`, or
   the **Add context** button next to the composer's folder button. Their content is sent inline, so
   it works even when the server's filesystem is not yours.
