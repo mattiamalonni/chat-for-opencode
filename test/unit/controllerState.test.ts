@@ -92,7 +92,14 @@ describe("ChatController state machine", () => {
   it("stops servers and posts an untrusted notice when trust is revoked", async () => {
     const c = base();
     const detach = vi.fn().mockResolvedValue(undefined);
-    (c as Record<string, unknown>).detachServers = detach;
+    (c as Record<string, unknown>).connectionService = {
+      onWorkspaceTrustChanged: async (trusted: boolean) => {
+        if (!trusted) {
+          await detach();
+          (c.postUntrusted as () => void)();
+        }
+      },
+    };
     await call("onWorkspaceTrustChanged", c, false);
     expect(detach).toHaveBeenCalledOnce();
     expect(c.post).toHaveBeenCalledWith(
