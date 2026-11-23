@@ -112,10 +112,12 @@ describe("loadSession staleness", () => {
         forms: vi.fn().mockResolvedValue([]),
         inbox: vi.fn().mockResolvedValue([]),
       },
-      folder: { uri: { toString: () => "file:///w" } },
+      state: {
+        folder: { uri: { toString: () => "file:///w" } },
+        sessionId: "old",
+      },
       output: { warn: vi.fn() },
       observeContract: vi.fn(),
-      sessionId: "old",
       execution: { ensureSession: vi.fn() },
       subagents: { reset: vi.fn(), track: vi.fn(), discover: vi.fn() },
       permissions: {

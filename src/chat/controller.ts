@@ -65,6 +65,7 @@ import { BoundedSet } from "../shared/boundedSet";
 import { ChatEventRouter } from "./eventRouter";
 import { ChatCommandHandler } from "./commandHandler";
 import { ExecutionStateService, type ExecutionState } from "./executionState";
+import { createControllerState } from "./controllerState";
 
 export type { ExecutionState, ExecutionStatus, TerminalStatus } from "./executionState";
 
@@ -85,17 +86,11 @@ export { ServerRegistry, translatedStrings } from "./controllerSupport";
 export type { SessionSearchResult } from "./sessionListService";
 
 export class ChatController implements vscode.Disposable {
+  private readonly state = createControllerState();
   /** All live chats and their listeners; see views.ts. */
   private readonly chatViews: ChatViews;
-  private folder: vscode.WorkspaceFolder | undefined;
   /** Server process, HTTP client and SSE stream ownership; see connectionSupervisor.ts. */
   private readonly supervisor: ConnectionSupervisor;
-  private sessionId: string | undefined;
-  private status: ConnectionStatus = "idle";
-  private lastError: UiError | undefined;
-  private version: string | undefined;
-  private contractObservations: ContractObservations = {};
-  private contract = emptyContract;
   /** Server-provided catalog and the user's model/agent selection. */
   private readonly catalog: CatalogService;
   /** File icons come from the user's active icon theme, resolved on demand for the webview. */
@@ -118,12 +113,6 @@ export class ChatController implements vscode.Disposable {
   private readonly execution = new ExecutionStateService();
   /** Picker paging, summaries, fork visibility and bounded search; see sessionListService.ts. */
   private readonly sessionList: SessionListService;
-  /** High-water mark for incremental resync: the newest history message id of the loaded session. */
-  private lastKnownMessage: { sessionId: string; id: string } | undefined;
-  /** A failed catalog fetch is retried a couple of times before the banner asks the user to reconnect. */
-  private catalogRetries = 0;
-  /** Last live SSE event for the open session; a poll is redundant while the stream feeds us. */
-  private lastSessionEventAt = 0;
   /** Child discovery, event routing and snapshots; see subagentTracker.ts. */
   private readonly subagents: SubagentTracker;
 
@@ -154,31 +143,31 @@ export class ChatController implements vscode.Disposable {
         // Back in view: the user can see the cards, so a later resync must not announce them again.
         this.announcedHiddenAttention.clear();
         // `resync()` also publishes a "connected" status, so never run it while still connecting.
-        if (this.status === "connected" && this.client) void this.resync();
+        if (this.state.status === "connected" && this.client) void this.resync();
       },
     );
     this.supervisor = new ConnectionSupervisor({
       registry,
       log: (line) => output.info(line),
-      getFolder: () => this.folder,
+      getFolder: () => this.state.folder,
       setFolder: (folder) => {
-        this.folder = folder;
+        this.state.folder = folder;
       },
       pickFolder: () => this.pickFolder() as vscode.WorkspaceFolder,
       trustBlocked: () => this.trustBlocked(),
       postUntrusted: () => this.postUntrusted(),
       setStatus: (status, error) => this.setStatus(status, error),
-      getStatus: () => this.status,
+      getStatus: () => this.state.status,
       generation: this.lifecycle.generations.connect,
       onReady: (conn, version, stale) => {
-        this.version = version;
+        this.state.version = version;
         return this.useConnection(conn, stale);
       },
       onStreamReconnect: () => {
         void this.resync();
       },
       onDetached: () => {
-        this.lastKnownMessage = undefined;
+        this.state.lastKnownMessage = undefined;
         this.stopLivePoll();
         this.clearTimers();
       },
@@ -197,8 +186,8 @@ export class ChatController implements vscode.Disposable {
     );
     this.subagents = new SubagentTracker(
       () => this.client,
-      () => this.sessionId,
-      () => this.folder?.uri.fsPath,
+      () => this.state.sessionId,
+      () => this.state.folder?.uri.fsPath,
       this.lifecycle.generations.child,
       (msg) => this.post(msg),
       (line) => output.warn(line),
@@ -207,22 +196,22 @@ export class ChatController implements vscode.Disposable {
     );
     this.sessionList = new SessionListService(
       () => this.client,
-      () => this.folder?.uri.fsPath,
-      () => this.sessionId,
+      () => this.state.folder?.uri.fsPath,
+      () => this.state.sessionId,
       this.lifecycle.generations.sessions,
       (msg) => this.post(msg),
       (line) => output.warn(line),
       () => {
-        const configured = vscode.workspace.getConfiguration("opencode", this.folder?.uri).get<number>("sessionPageSize", 10);
+        const configured = vscode.workspace.getConfiguration("opencode", this.state.folder?.uri).get<number>("sessionPageSize", 10);
         return Math.min(100, Math.max(1, Math.floor(configured) || 10));
       },
-      () => (this.folder && (vscode.workspace.workspaceFolders?.length ?? 0) > 1 ? this.folder.name : undefined),
+      () => (this.state.folder && (vscode.workspace.workspaceFolders?.length ?? 0) > 1 ? this.state.folder.name : undefined),
     );
     this.context = new ContextTracker((items) => this.post({ type: "context", items }));
 
     this.applyCode = new ApplyCodeService<vscode.Uri>({
       t: (message, ...args) => vscode.l10n.t(message, ...args),
-      folder: () => this.folder?.uri.fsPath,
+      folder: () => this.state.folder?.uri.fsPath,
       activePath: () => {
         const editor = vscode.window.activeTextEditor;
         return editor?.document.uri.scheme === "file" ? editor.document.uri.fsPath : undefined;
@@ -269,7 +258,7 @@ export class ChatController implements vscode.Disposable {
       t: (text) => vscode.l10n.t(text),
       userPrompts: () =>
         vscode.workspace
-          .getConfiguration("opencode", this.folder?.uri)
+          .getConfiguration("opencode", this.state.folder?.uri)
           .get<Array<{ id?: unknown; title?: unknown; description?: unknown; text?: unknown }>>("promptLibrary", []),
       selection: () => {
         const editor = vscode.window.activeTextEditor;
@@ -280,7 +269,7 @@ export class ChatController implements vscode.Disposable {
         return editor?.document.uri.scheme === "file" ? vscode.workspace.asRelativePath(editor.document.uri, false) : undefined;
       },
       diff: async () => {
-        const cwd = this.folder?.uri.fsPath;
+        const cwd = this.state.folder?.uri.fsPath;
         if (!cwd) return "";
         const diff = await workingDiff(cwd);
         return diff ? formatPromptDiff(diff) : "";
@@ -299,7 +288,7 @@ export class ChatController implements vscode.Disposable {
     });
     this.projectInstructions = new ProjectInstructionService<vscode.Uri>({
       t: (message, ...args) => vscode.l10n.t(message, ...args),
-      folder: () => this.folder?.uri.fsPath,
+      folder: () => this.state.folder?.uri.fsPath,
       pickTarget: async () => {
         const custom = vscode.l10n.t("Choose another file…");
         const choice = await vscode.window.showQuickPick([DEFAULT_INSTRUCTION_FILE, custom], {
@@ -348,7 +337,7 @@ export class ChatController implements vscode.Disposable {
     });
     this.permissions = new PermissionService(
       ctx,
-      () => this.folder,
+      () => this.state.folder,
       (line) => output.info(line),
     );
     this.catalog = new CatalogService(
@@ -358,11 +347,11 @@ export class ChatController implements vscode.Disposable {
       () => this.chatViews.size > 0,
     );
     this.eventRouter = new ChatEventRouter({
-      getSessionId: () => this.sessionId,
-      getFolderUri: () => this.folder?.uri,
+      getSessionId: () => this.state.sessionId,
+      getFolderUri: () => this.state.folder?.uri,
       isVisible: () => this.isVisible,
       noteSessionEvent: () => {
-        this.lastSessionEventAt = Date.now();
+        this.state.lastSessionEventAt = Date.now();
       },
       post: (msg) => this.post(msg),
       postSessionEvent: (sid, event) => this.postSessionEvent(sid, event),
@@ -387,7 +376,8 @@ export class ChatController implements vscode.Disposable {
         if (kind === vscode.ColorThemeKind.HighContrast || kind === vscode.ColorThemeKind.HighContrastLight) return "highContrast";
         return kind === vscode.ColorThemeKind.Light ? "light" : "dark";
       },
-      associations: () => vscode.workspace.getConfiguration("files", this.folder?.uri).get<Record<string, string>>("associations", {}),
+      associations: () =>
+        vscode.workspace.getConfiguration("files", this.state.folder?.uri).get<Record<string, string>>("associations", {}),
       languages: () =>
         vscode.extensions.all.flatMap((ext) => {
           const contributed = ext.packageJSON?.contributes?.languages as LanguageContribution[] | undefined;
@@ -407,11 +397,11 @@ export class ChatController implements vscode.Disposable {
     });
     this.commandHandler = new ChatCommandHandler({
       getClient: () => this.client,
-      getSessionId: () => this.sessionId,
-      getFolder: () => this.folder,
-      getStatus: () => this.status,
+      getSessionId: () => this.state.sessionId,
+      getFolder: () => this.state.folder,
+      getStatus: () => this.state.status,
       clearFailedPrompt: () => {
-        this.failedPrompt = undefined;
+        this.state.failedPrompt = undefined;
       },
       post: (msg) => this.post(msg),
       postInit: () => this.postInit(),
@@ -478,14 +468,14 @@ export class ChatController implements vscode.Disposable {
         this.fileIndex?.dispose();
         const folders = vscode.workspace.workspaceFolders ?? [];
         this.fileIndex = folders.length > 0 ? new FileIndex(folders, this.ctx.workspaceState) : undefined;
-        if (this.folder && !folders.some((f) => f.uri.toString() === this.folder?.uri.toString())) {
+        if (this.state.folder && !folders.some((f) => f.uri.toString() === this.state.folder?.uri.toString())) {
           void this.switchFolder(this.pickFolder());
         }
       }),
       vscode.workspace.onDidChangeConfiguration((e) => {
         if (e.affectsConfiguration("opencode.autoApprovePermissions")) {
           this.postAutoApprove();
-          if (this.permissions.enabled(this.sessionId)) void this.approvePending();
+          if (this.permissions.enabled(this.state.sessionId)) void this.approvePending();
         }
         if (e.affectsConfiguration("opencode.dropzone")) {
           this.post({ type: "dropzone", enabled: this.dropzoneEnabled() });
@@ -527,13 +517,13 @@ export class ChatController implements vscode.Disposable {
   /** Opens the session a search hit came from and asks the webview to scroll to its message. */
   async openSearchResult(result: SessionSearchResult): Promise<void> {
     await vscode.commands.executeCommand("opencode.chatView.focus");
-    if (result.sessionId !== this.sessionId) await this.receive({ type: "selectSession", id: result.sessionId });
+    if (result.sessionId !== this.state.sessionId) await this.receive({ type: "selectSession", id: result.sessionId });
     if (result.messageId) this.post({ type: "revealMessage", messageId: result.messageId, sessionId: result.sessionId });
   }
 
   /** Fills the composer from an editor context action, attaching the selection it came from. */
   prefillDraft(text: string, attachments: Attachment[]): void {
-    this.post({ type: "prefillDraft", sessionId: this.sessionId ?? undefined, text, attachments });
+    this.post({ type: "prefillDraft", sessionId: this.state.sessionId ?? undefined, text, attachments });
   }
 
   /** Serializes webview messages: a late `ready`/loadAll must not race a prompt and drop its events. */
@@ -541,19 +531,6 @@ export class ChatController implements vscode.Disposable {
 
   /** Dedicated token: ordinary session refreshes must not cancel a bulk delete. */
   private readonly deleteGeneration = new Generation();
-  /** Cancels an in-flight bulk delete when the folder changes or the controller is disposed. */
-  private deleteAllAbort?: AbortController;
-  /** Cancels large history/catalog fetches of the current connection epoch (generation guards only
-   * stopped their *results* from being published, not the requests themselves). */
-  private connectionAbort: AbortController | undefined;
-  /** The last prompt the server refused, kept so the "Retry" action can resend the exact payload. */
-  private failedPrompt?: {
-    text: string;
-    attachments: Attachment[];
-    context: ContextItem[];
-    delivery?: "steer" | "queue";
-    sessionId?: string;
-  };
 
   /**
    * Entry point for webview messages (also used by integration tests).
@@ -592,12 +569,12 @@ export class ChatController implements vscode.Disposable {
 
   /** Workspace folder this chat is connected to, for host commands that need a cwd (git, terminal). */
   get folderUri(): vscode.Uri | undefined {
-    return this.folder?.uri;
+    return this.state.folder?.uri;
   }
 
   /** Session shown in the chat, for commands that hand the conversation to another client. */
   get currentSessionId(): string | undefined {
-    return this.sessionId;
+    return this.state.sessionId;
   }
 
   post(msg: HostMessage): void {
@@ -605,8 +582,8 @@ export class ChatController implements vscode.Disposable {
   }
 
   private abortConnectionRequests(): void {
-    this.connectionAbort?.abort();
-    this.connectionAbort = undefined;
+    this.state.connectionAbort?.abort();
+    this.state.connectionAbort = undefined;
   }
 
   /** Best-effort fetches degrade to a fallback, but the reason must still reach the output channel. */
@@ -640,7 +617,7 @@ export class ChatController implements vscode.Disposable {
    */
   private postLocalIdle(sid: string, generation = this.execution.current()): void {
     // Ignore late results: a newer prompt may have started while interrupt/cancel was in flight.
-    if (sid !== this.sessionId || !this.execution.markLocalIdle(sid, generation)) return;
+    if (sid !== this.state.sessionId || !this.execution.markLocalIdle(sid, generation)) return;
     this.post({
       type: "event",
       // `local` tells the webview to also finish the partial assistant message and its turn: the
@@ -668,10 +645,10 @@ export class ChatController implements vscode.Disposable {
       strings: translatedStrings(),
       platform,
       folders: (vscode.workspace.workspaceFolders ?? []).map((f) => ({ uri: f.uri.toString(), name: f.name })),
-      activeFolder: this.folder?.uri.toString(),
+      activeFolder: this.state.folder?.uri.toString(),
       issuesUrl: (this.ctx.extension.packageJSON as { bugs?: { url?: string } }).bugs?.url,
       dropzone: this.dropzoneEnabled(),
-      toolOutputLimit: vscode.workspace.getConfiguration("opencode", this.folder?.uri).get<number>("toolOutputLimit", 4000),
+      toolOutputLimit: vscode.workspace.getConfiguration("opencode", this.state.folder?.uri).get<number>("toolOutputLimit", 4000),
     });
     this.post({ type: "promptCatalog", items: this.prompts.catalog() });
   }
@@ -686,7 +663,7 @@ export class ChatController implements vscode.Disposable {
 
   /** Resolves an untrusted path against the connected folder, with the real-path escape check. */
   private async resolveWorkspacePath(targetPath: string): Promise<{ uri: vscode.Uri; path: string } | undefined> {
-    const root = this.folder?.uri;
+    const root = this.state.folder?.uri;
     if (!root) return undefined;
     const target = path.isAbsolute(targetPath) ? vscode.Uri.file(targetPath) : vscode.Uri.joinPath(root, targetPath);
     if (!(await this.isWithinWorkspace(target.fsPath))) {
@@ -713,31 +690,31 @@ export class ChatController implements vscode.Disposable {
   }
 
   private dropzoneEnabled(): boolean {
-    return vscode.workspace.getConfiguration("opencode", this.folder?.uri).get<boolean>("dropzone", true);
+    return vscode.workspace.getConfiguration("opencode", this.state.folder?.uri).get<boolean>("dropzone", true);
   }
 
-  private postConnection(status: ConnectionStatus = this.status, error = this.lastError): void {
+  private postConnection(status: ConnectionStatus = this.state.status, error = this.state.lastError): void {
     this.post({
       type: "connection",
       status,
       error,
-      version: this.version,
-      compatibility: checkCompatibility(this.version),
-      compatibilityDismissed: !!this.version && this.ctx.globalState.get<string>(COMPAT_DISMISSED_KEY) === this.version,
-      contract: this.contract,
-      contractDismissed: this.ctx.globalState.get<string>(CONTRACT_DISMISSED_KEY) === contractSignature(this.contract),
+      version: this.state.version,
+      compatibility: checkCompatibility(this.state.version),
+      compatibilityDismissed: !!this.state.version && this.ctx.globalState.get<string>(COMPAT_DISMISSED_KEY) === this.state.version,
+      contract: this.state.contract,
+      contractDismissed: this.ctx.globalState.get<string>(CONTRACT_DISMISSED_KEY) === contractSignature(this.state.contract),
     });
   }
 
   /** Recompute the contract report from all observations collected so far. */
   private observeContract(observations: Partial<ContractObservations>): void {
-    this.contractObservations = { ...this.contractObservations, ...observations };
-    this.contract = checkContract(this.contractObservations);
+    this.state.contractObservations = { ...this.state.contractObservations, ...observations };
+    this.state.contract = checkContract(this.state.contractObservations);
   }
 
   private setStatus(status: ConnectionStatus, error?: UiError): void {
-    this.status = status;
-    this.lastError = error;
+    this.state.status = status;
+    this.state.lastError = error;
     this.postConnection(status, error);
   }
 
@@ -796,7 +773,7 @@ export class ChatController implements vscode.Disposable {
     this.supervisor.clearLoaded();
     // Every fetch below belongs to this connection; a later folder/session change must cancel it.
     this.abortConnectionRequests();
-    this.connectionAbort = new AbortController();
+    this.state.connectionAbort = new AbortController();
     this.catalog.resetWarmUp();
     this.fileIndex?.dispose();
     const folders = vscode.workspace.workspaceFolders ?? [];
@@ -813,13 +790,13 @@ export class ChatController implements vscode.Disposable {
 
   private async loadAll(): Promise<void> {
     const client = this.client;
-    if (!client || !this.folder) return;
+    if (!client || !this.state.folder) return;
     const generation = this.lifecycle.generations.load.bump();
     const stale = () => !this.lifecycle.generations.load.is(generation);
-    this.contractObservations = {};
-    this.contract = emptyContract;
+    this.state.contractObservations = {};
+    this.state.contract = emptyContract;
     let catalogError: string | undefined;
-    const signal = this.connectionAbort?.signal;
+    const signal = this.state.connectionAbort?.signal;
     const [models, defaultModel, agents] = await Promise.all([
       client.models(signal).catch((err: unknown) => {
         catalogError = err instanceof Error ? err.message : String(err);
@@ -836,7 +813,7 @@ export class ChatController implements vscode.Disposable {
     // entries must not hide a server version we cannot really support.
     if (stale()) return;
     this.catalog.setModelsAndAgents(models, defaultModel, agents);
-    const sessionId = this.sessionId ?? this.ctx.workspaceState.get<string>(SESSION_KEY(this.folder.uri.toString()));
+    const sessionId = this.state.sessionId ?? this.ctx.workspaceState.get<string>(SESSION_KEY(this.state.folder.uri.toString()));
     let session: SessionInfo | undefined;
     if (sessionId) {
       session = await this.bestEffort("load stored session", client.getSession(sessionId, signal), undefined);
@@ -846,7 +823,11 @@ export class ChatController implements vscode.Disposable {
     // (fresh window, or right after "New session") create a throwaway one so the `/` picker is
     // populated before the first prompt; the registrations survive deleting that session.
     if (!session && !this.catalog.isWarmedUp) {
-      const tmp = await this.bestEffort("create warm-up session", client.createSession({ directory: this.folder.uri.fsPath }), undefined);
+      const tmp = await this.bestEffort(
+        "create warm-up session",
+        client.createSession({ directory: this.state.folder.uri.fsPath }),
+        undefined,
+      );
       if (tmp) {
         try {
           this.catalog.markWarmedUp();
@@ -859,7 +840,7 @@ export class ChatController implements vscode.Disposable {
     // Now that model/agent state is complete, a refreshed catalog (if any) can be posted safely.
     await this.catalog.refresh(client);
     if (stale()) return;
-    this.observeContract({ version: this.version, models, agents, skills: this.catalog.skills });
+    this.observeContract({ version: this.state.version, models, agents, skills: this.catalog.skills });
 
     await this.refreshSessions();
     if (stale()) return;
@@ -867,7 +848,7 @@ export class ChatController implements vscode.Disposable {
       await this.loadSession(session, stale);
     } else {
       if (stale()) return;
-      this.sessionId = undefined;
+      this.state.sessionId = undefined;
       this.subagents.reset();
       this.catalog.publish();
       this.post({ type: "session", session: null });
@@ -882,9 +863,9 @@ export class ChatController implements vscode.Disposable {
         detail: catalogError,
         actions: ["reconnect", "showLogs"],
       });
-      if (this.catalogRetries < 2 && !stale()) {
-        this.catalogRetries++;
-        const wait = jitteredDelay(500 * this.catalogRetries);
+      if (this.state.catalogRetries < 2 && !stale()) {
+        this.state.catalogRetries++;
+        const wait = jitteredDelay(500 * this.state.catalogRetries);
         this.lifecycle.schedule(
           "catalogRetry",
           () => {
@@ -894,7 +875,7 @@ export class ChatController implements vscode.Disposable {
         );
       }
     } else {
-      this.catalogRetries = 0;
+      this.state.catalogRetries = 0;
       if (this.catalog.models.length === 0) {
         const s = translatedStrings();
         this.setStatus("error", { kind: "noProvider", message: s["error.noProvider"], actions: ["login", "reconnect", "showLogs"] });
@@ -927,10 +908,10 @@ export class ChatController implements vscode.Disposable {
     prefetched?: SessionMessage[],
   ): Promise<boolean> {
     const client = this.client;
-    if (!client || this.lastKnownMessage?.sessionId !== sid) return false;
-    const signal = this.connectionAbort?.signal;
+    if (!client || this.state.lastKnownMessage?.sessionId !== sid) return false;
+    const signal = this.state.connectionAbort?.signal;
     const rawNewer =
-      prefetched ?? (await client.messagesNewerThan(sid, this.lastKnownMessage.id, undefined, signal).catch(() => undefined));
+      prefetched ?? (await client.messagesNewerThan(sid, this.state.lastKnownMessage.id, undefined, signal).catch(() => undefined));
     if (rawNewer === undefined || stale()) return false;
     const [rawPermissions, rawForms] = await Promise.all([
       client.permissions(sid, signal).catch(() => [] as PermissionRequest[]),
@@ -942,7 +923,7 @@ export class ChatController implements vscode.Disposable {
     const pending = await this.permissions.filterPending(client, sid, normalizeList(rawPermissions, normalizePermission));
     if (stale()) return true;
     const last = newer.at(-1);
-    if (last) this.lastKnownMessage = { sessionId: sid, id: last.id };
+    if (last) this.state.lastKnownMessage = { sessionId: sid, id: last.id };
     this.postAutoApprove();
     this.post({
       type: "sessionDelta",
@@ -972,19 +953,19 @@ export class ChatController implements vscode.Disposable {
       // old resync publish "connected" for a client we no longer own.
       const connectGeneration = this.lifecycle.generations.connect.current();
       const client = this.client;
-      const sid = this.sessionId;
+      const sid = this.state.sessionId;
       await this.refreshSessions();
-      if (sid && sid === this.sessionId && client && client === this.client) {
+      if (sid && sid === this.state.sessionId && client && client === this.client) {
         const info = await client.getSession(sid);
-        if (!this.lifecycle.generations.load.is(generation) || sid !== this.sessionId || client !== this.client) return;
+        if (!this.lifecycle.generations.load.is(generation) || sid !== this.state.sessionId || client !== this.client) return;
         const busyOverride = this.execution.isLocallyIdle(sid) ? false : undefined;
-        const stale = () => !this.lifecycle.generations.load.is(generation) || sid !== this.sessionId || client !== this.client;
+        const stale = () => !this.lifecycle.generations.load.is(generation) || sid !== this.state.sessionId || client !== this.client;
         if (!(await this.resyncTail(sid, info, stale, busyOverride))) {
           await this.loadSession(info, stale, busyOverride);
         }
       }
       if (!this.lifecycle.generations.connect.is(connectGeneration) || client !== this.client) return;
-      if (this.status !== "error" || this.lastError?.kind === "connectionLost") this.setStatus("connected");
+      if (this.state.status !== "error" || this.state.lastError?.kind === "connectionLost") this.setStatus("connected");
     } catch (err) {
       this.output.error(`[chat] resync failed: ${String(err)}`);
     }
@@ -998,12 +979,12 @@ export class ChatController implements vscode.Disposable {
   private async syncNow(): Promise<void> {
     try {
       const client = this.client;
-      const sid = this.sessionId;
+      const sid = this.state.sessionId;
       if (!client || !sid) return;
       const generation = this.lifecycle.generations.load.bump();
       const info = await client.getSession(sid);
-      if (!this.lifecycle.generations.load.is(generation) || sid !== this.sessionId) return;
-      await this.loadSession(info, () => !this.lifecycle.generations.load.is(generation) || sid !== this.sessionId);
+      if (!this.lifecycle.generations.load.is(generation) || sid !== this.state.sessionId) return;
+      await this.loadSession(info, () => !this.lifecycle.generations.load.is(generation) || sid !== this.state.sessionId);
     } finally {
       this.post({ type: "synced" });
     }
@@ -1026,16 +1007,16 @@ export class ChatController implements vscode.Disposable {
 
   private async pollSessionTail(force = false): Promise<void> {
     const client = this.client;
-    const sid = this.sessionId;
-    if (!client || !sid || this.status !== "connected" || (!force && !this.isVisible)) return;
+    const sid = this.state.sessionId;
+    if (!client || !sid || this.state.status !== "connected" || (!force && !this.isVisible)) return;
     // Local turns are driven by live events; polling them would only re-post partial snapshots and
     // could pull a streaming card back to an older history state. Wait for the stream to go quiet.
-    if (!force && Date.now() - this.lastSessionEventAt < LIVE_POLL_MS) return;
-    const head = this.lastKnownMessage;
+    if (!force && Date.now() - this.state.lastSessionEventAt < LIVE_POLL_MS) return;
+    const head = this.state.lastKnownMessage;
     if (!head || head.sessionId !== sid) return;
     try {
       const generation = this.lifecycle.generations.load.current();
-      const stale = () => !this.lifecycle.generations.load.is(generation) || sid !== this.sessionId;
+      const stale = () => !this.lifecycle.generations.load.is(generation) || sid !== this.state.sessionId;
       // The tail itself is authoritative. `time.updated` is not a reliable gate: it can stay equal
       // on a coarse clock, or move for changes we do not render, which used to hide real messages.
       const newer = await client.messagesNewerThan(sid, head.id).catch(() => undefined);
@@ -1080,11 +1061,11 @@ export class ChatController implements vscode.Disposable {
   /**
    * A child has no separate toggle of its own: it inherits the chat's auto-approve choice. Without
    * this, a permission asked by a subagent would stay pending forever — the child session is not
-   * `this.sessionId`, so `PermissionService.enabled(childId)` would fall back to the global setting
+   * `this.state.sessionId`, so `PermissionService.enabled(childId)` would fall back to the global setting
    * even when the user explicitly turned auto-approve on (or off) for this chat.
    */
   private autoApproveEnabled(): boolean {
-    return this.permissions.enabled(this.sessionId);
+    return this.permissions.enabled(this.state.sessionId);
   }
 
   /** Post a live event to the session that owns it: the main chat, or a tracked subagent's view. */
@@ -1101,25 +1082,25 @@ export class ChatController implements vscode.Disposable {
   /** Cancel all deferred work from the previous connection/session before switching or resetting. */
   private clearTimers(): void {
     this.lifecycle.clearAll();
-    this.catalogRetries = 0;
+    this.state.catalogRetries = 0;
   }
 
   private postAutoApprove(): void {
-    this.post({ type: "autoApprove", enabled: this.permissions.enabled(this.sessionId) });
+    this.post({ type: "autoApprove", enabled: this.permissions.enabled(this.state.sessionId) });
   }
 
   /** Drafts live in workspaceState so they survive a window reload (vscode.setState does not). */
   private postDrafts(): void {
-    if (!this.folder) return;
+    if (!this.state.folder) return;
     const saved = this.ctx.workspaceState.get<{ drafts?: Record<string, string>; globalDraft?: string }>(
-      DRAFTS_KEY(this.folder.uri.toString()),
+      DRAFTS_KEY(this.state.folder.uri.toString()),
     );
     this.post({ type: "drafts", drafts: saved?.drafts ?? {}, globalDraft: saved?.globalDraft });
   }
 
   private async saveDraft(sessionId: string | undefined, text: string): Promise<void> {
-    if (!this.folder) return;
-    const key = DRAFTS_KEY(this.folder.uri.toString());
+    if (!this.state.folder) return;
+    const key = DRAFTS_KEY(this.state.folder.uri.toString());
     const saved = this.ctx.workspaceState.get<{ drafts?: Record<string, string>; globalDraft?: string }>(key) ?? {};
     if (sessionId === undefined) {
       await this.ctx.workspaceState.update(key, { ...saved, globalDraft: text });
@@ -1129,7 +1110,7 @@ export class ChatController implements vscode.Disposable {
   }
 
   private async setAutoApprove(enabled: boolean): Promise<void> {
-    if (this.sessionId) await this.permissions.write(this.sessionId, enabled);
+    if (this.state.sessionId) await this.permissions.write(this.state.sessionId, enabled);
     else this.permissions.setPending(enabled);
     this.postAutoApprove();
     if (enabled) await this.approvePending();
@@ -1149,7 +1130,7 @@ export class ChatController implements vscode.Disposable {
   /** Grants requests that were already pending when auto-approval was turned on, in children too. */
   private async approvePending(): Promise<void> {
     const client = this.client;
-    const sid = this.sessionId;
+    const sid = this.state.sessionId;
     if (!client || !sid || !this.autoApproveEnabled()) return;
     for (const id of [sid, ...this.subagents.ids()]) {
       const pending = await client.permissions(id).catch(() => [] as PermissionRequest[]);
@@ -1179,11 +1160,11 @@ export class ChatController implements vscode.Disposable {
    * Re-read the pending prompts from the server. A queued message is stored server-side, so the
    * webview cannot reconstruct the list from the SSE events (which carry no replay).
    */
-  private async refreshInbox(sid = this.sessionId): Promise<void> {
+  private async refreshInbox(sid = this.state.sessionId): Promise<void> {
     const client = this.client;
-    if (!client || !sid || sid !== this.sessionId) return;
+    if (!client || !sid || sid !== this.state.sessionId) return;
     const items = await client.inbox(sid).catch(() => [] as InboxItem[]);
-    if (sid !== this.sessionId || client !== this.client) return;
+    if (sid !== this.state.sessionId || client !== this.client) return;
     this.publishInbox(items);
   }
 
@@ -1197,12 +1178,12 @@ export class ChatController implements vscode.Disposable {
    * Skipped when another prompt starts meanwhile, since its live events are newer than the snapshot.
    */
   private scheduleReconcile(): void {
-    const sid = this.sessionId;
+    const sid = this.state.sessionId;
     const generation = this.execution.generation.current();
     this.lifecycle.schedule(
       "reconcile",
       () => {
-        if (!sid || sid !== this.sessionId || !this.execution.generation.is(generation)) return;
+        if (!sid || sid !== this.state.sessionId || !this.execution.generation.is(generation)) return;
         void this.reconcileSession(sid, generation);
       },
       350,
@@ -1210,15 +1191,15 @@ export class ChatController implements vscode.Disposable {
   }
 
   private async reconcileSession(sid: string, generation: number): Promise<void> {
-    if (!this.client || sid !== this.sessionId) return;
+    if (!this.client || sid !== this.state.sessionId) return;
     try {
-      const info = await this.client.getSession(sid, this.connectionAbort?.signal);
-      if (sid !== this.sessionId || !this.execution.generation.is(generation)) return;
+      const info = await this.client.getSession(sid, this.state.connectionAbort?.signal);
+      if (sid !== this.state.sessionId || !this.execution.generation.is(generation)) return;
       // If the composer was cleared locally and no new turn has started, the server's timestamps
       // are stale (a dismissed question can leave `busy` newer than `idle` with no idle message).
       // Keep it unlocked instead of re-syncing back to "stop".
       const busyOverride = this.execution.isLocallyIdle(sid) ? false : undefined;
-      const stale = () => sid !== this.sessionId || !this.execution.generation.is(generation);
+      const stale = () => sid !== this.state.sessionId || !this.execution.generation.is(generation);
       if (!(await this.resyncTail(sid, info, stale, busyOverride))) {
         await this.loadSession(info, stale, busyOverride);
       }
@@ -1243,14 +1224,14 @@ export class ChatController implements vscode.Disposable {
    */
   async deleteAllSessions(): Promise<void> {
     const client = this.client;
-    const folder = this.folder;
+    const folder = this.state.folder;
     if (!client || !folder) return;
     const directory = folder.uri.fsPath;
-    this.deleteAllAbort?.abort();
+    this.state.deleteAllAbort?.abort();
     const abort = new AbortController();
-    this.deleteAllAbort = abort;
+    this.state.deleteAllAbort = abort;
     const token = this.deleteGeneration.current();
-    const stale = () => abort.signal.aborted || !this.deleteGeneration.is(token) || this.folder !== folder || this.client !== client;
+    const stale = () => abort.signal.aborted || !this.deleteGeneration.is(token) || this.state.folder !== folder || this.client !== client;
     const ids = new Set<string>();
     const seenCursors = new Set<string>();
     let cursor: string | undefined;
@@ -1271,7 +1252,7 @@ export class ChatController implements vscode.Disposable {
       }
       if (!exhausted) throw new Error("Too many session pages to delete");
 
-      const currentId = this.sessionId;
+      const currentId = this.state.sessionId;
       const deleted: string[] = [];
       for (const id of ids) {
         if (stale()) return;
@@ -1306,12 +1287,12 @@ export class ChatController implements vscode.Disposable {
       if (!currentId || ids.has(currentId)) await this.newSession();
       else await this.refreshSessions();
     } finally {
-      if (this.deleteAllAbort === abort) this.deleteAllAbort = undefined;
+      if (this.state.deleteAllAbort === abort) this.state.deleteAllAbort = undefined;
     }
   }
 
   async refreshChanges(): Promise<FileDiff[]> {
-    const sid = this.sessionId;
+    const sid = this.state.sessionId;
     const client = this.client;
     let files: FileDiff[] = [];
     if (client && sid) {
@@ -1319,14 +1300,14 @@ export class ChatController implements vscode.Disposable {
     }
     // The fetch is async: a session switch, new chat or folder change can happen while it is in
     // flight. Posting a diff fetched for the old session would overwrite the new chat's panel.
-    if (sid !== this.sessionId || client !== this.client) return files;
+    if (sid !== this.state.sessionId || client !== this.client) return files;
     this.post({ type: "changedFiles", files });
     return files;
   }
 
   /** Ask the server to compact the current session (runs at the next step boundary). */
   async compact(): Promise<void> {
-    const sid = this.sessionId;
+    const sid = this.state.sessionId;
     if (!sid || !this.client) return;
     try {
       await this.client.compact(sid);
@@ -1357,7 +1338,7 @@ export class ChatController implements vscode.Disposable {
   /** Shared boundary stage/commit/reload, used by both rollback and regenerate. */
   private async revertBoundary(sessionId: string, messageID: string, files: boolean): Promise<boolean> {
     const client = this.client;
-    if (!client || sessionId !== this.sessionId) return false;
+    if (!client || sessionId !== this.state.sessionId) return false;
     this.execution.generation.bump();
     const generation = this.lifecycle.generations.load.bump();
     try {
@@ -1373,11 +1354,11 @@ export class ChatController implements vscode.Disposable {
         await client.revertClear(sessionId).catch(() => undefined);
         throw err;
       }
-      if (!this.lifecycle.generations.load.is(generation) || sessionId !== this.sessionId) return false;
+      if (!this.lifecycle.generations.load.is(generation) || sessionId !== this.state.sessionId) return false;
       const info = await client.getSession(sessionId);
-      if (!this.lifecycle.generations.load.is(generation) || sessionId !== this.sessionId) return false;
+      if (!this.lifecycle.generations.load.is(generation) || sessionId !== this.state.sessionId) return false;
       // A commit deletes messages, so a tail resync cannot detect it: rebuild from history.
-      await this.loadSession(info, () => !this.lifecycle.generations.load.is(generation) || sessionId !== this.sessionId);
+      await this.loadSession(info, () => !this.lifecycle.generations.load.is(generation) || sessionId !== this.state.sessionId);
       return true;
     } catch (err) {
       const s = translatedStrings();
@@ -1400,7 +1381,7 @@ export class ChatController implements vscode.Disposable {
    */
   async forkToTurn(sessionId: string, messageID: string): Promise<void> {
     const client = this.client;
-    if (!client || sessionId !== this.sessionId) return;
+    if (!client || sessionId !== this.state.sessionId) return;
     const generation = this.lifecycle.generations.load.bump();
     try {
       const info = await client.forkSession(sessionId, messageID);
@@ -1430,8 +1411,8 @@ export class ChatController implements vscode.Disposable {
    */
   private async loadSession(rawInfo: SessionInfo, stale?: () => boolean, busyOverride?: boolean, fast = false): Promise<void> {
     const client = this.client;
-    if (!client || !this.folder) return;
-    const signal = this.connectionAbort?.signal;
+    if (!client || !this.state.folder) return;
+    const signal = this.state.connectionAbort?.signal;
     const [rawMessages, rawPermissions, rawForms, rawInbox] = await Promise.all([
       // The other fetches degrade to empty lists; history must too. `send()` awaits loadSession
       // before posting, so a transient history error must not silently swallow the user's prompt.
@@ -1449,24 +1430,24 @@ export class ChatController implements vscode.Disposable {
     const info = normalizeSessionInfo(rawInfo) ?? rawInfo;
     const messages = normalizeList(rawMessages, normalizeSessionMessage);
     const forms = normalizeList(rawForms, normalizeForm);
-    const changed = this.sessionId !== info.id;
+    const changed = this.state.sessionId !== info.id;
     // Publish the new session before touching children: `loadSubagentSnapshot` captures the parent
     // synchronously and drops its result if that id no longer matches the open session. Setting it
     // afterwards made every subagent of a freshly selected session fail its own staleness guard.
-    this.sessionId = info.id;
+    this.state.sessionId = info.id;
     if (changed) {
       this.subagents.reset();
       // Terminal events of the previous session cannot close its turn any more.
       this.execution.ensureSession(info.id);
     }
     const newest = messages.at(-1);
-    this.lastKnownMessage = newest ? { sessionId: info.id, id: newest.id } : undefined;
+    this.state.lastKnownMessage = newest ? { sessionId: info.id, id: newest.id } : undefined;
     // Requests granted automatically must not linger as cards when the chat's toggle is on.
     const pending = await this.permissions.filterPending(client, info.id, normalizeList(rawPermissions, normalizePermission));
     // `filterPending` performs real HTTP calls (auto-approve). A session switch while it is in
     // flight bumps `loadGen`; without a second guard we would persist and post the stale session.
     if (stale?.()) return;
-    await this.ctx.workspaceState.update(SESSION_KEY(this.folder.uri.toString()), info.id);
+    await this.ctx.workspaceState.update(SESSION_KEY(this.state.folder.uri.toString()), info.id);
     // Persist the selection carried by the open session, so a reload without a session uses the
     // same model/agent. These are accepted values from the server, not an optimistic local choice.
     if (info.model && this.catalog.models.some((m) => m.id === info.model?.id && m.providerID === info.model?.providerID)) {
@@ -1532,12 +1513,12 @@ export class ChatController implements vscode.Disposable {
    */
   private invalidateSessionState(): void {
     this.announcedHiddenAttention.clear();
-    this.failedPrompt = undefined;
+    this.state.failedPrompt = undefined;
     this.lifecycle.generations.load.bump();
     this.abortConnectionRequests();
     this.clearTimers();
     this.stopLivePoll();
-    this.lastKnownMessage = undefined;
+    this.state.lastKnownMessage = undefined;
     this.permissions.setPending(undefined);
     this.execution.reset();
   }
@@ -1549,7 +1530,7 @@ export class ChatController implements vscode.Disposable {
     // A bulk delete belongs to one folder/connection; a new session within the same connection must
     // not cancel it (server events can legitimately open a session while the walk is in progress).
     this.deleteGeneration.bump();
-    this.deleteAllAbort?.abort();
+    this.state.deleteAllAbort?.abort();
     this.sessionList.reset();
     this.sessionList.cancelSearch();
     this.invalidateSessionState();
@@ -1559,9 +1540,9 @@ export class ChatController implements vscode.Disposable {
     this.invalidateSessionState();
     // No session is open any more: polling its tail would be a no-op every two seconds until the
     // next load. Loading that session starts the poll again.
-    this.sessionId = undefined;
+    this.state.sessionId = undefined;
     this.subagents.reset();
-    if (this.folder) await this.ctx.workspaceState.update(SESSION_KEY(this.folder.uri.toString()), undefined);
+    if (this.state.folder) await this.ctx.workspaceState.update(SESSION_KEY(this.state.folder.uri.toString()), undefined);
     this.post({ type: "session", session: null });
     this.post({ type: "changedFiles", files: [] });
     this.publishInbox([]);
@@ -1598,13 +1579,13 @@ export class ChatController implements vscode.Disposable {
   }
 
   async switchFolder(folder: vscode.WorkspaceFolder | undefined): Promise<void> {
-    if (folder?.uri.toString() === this.folder?.uri.toString()) return;
+    if (folder?.uri.toString() === this.state.folder?.uri.toString()) return;
     this.invalidateConnection();
-    this.sessionId = undefined;
+    this.state.sessionId = undefined;
     // Detach the old server before connecting to the new folder: its late state notifications must
     // not race the new connection (the supervisor still re-checks ownership when it installs one).
     this.supervisor.detachServerOnly();
-    this.folder = folder;
+    this.state.folder = folder;
     this.postInit();
     this.post({ type: "session", session: null });
     this.post({ type: "changedFiles", files: [] });
@@ -1642,7 +1623,7 @@ export class ChatController implements vscode.Disposable {
     // Use the same folder scope as ServerRegistry.get(), otherwise a per-folder endpoint in a
     // multi-root workspace is invisible here (and the secret would be stored under the wrong key).
     const endpoint = normalizeEndpoint(
-      vscode.workspace.getConfiguration("opencode", this.folder?.uri).get<string>("endpoint", "").trim(),
+      vscode.workspace.getConfiguration("opencode", this.state.folder?.uri).get<string>("endpoint", "").trim(),
     ).baseUrl;
     if (!endpoint) {
       void vscode.window.showInformationMessage(
@@ -1702,7 +1683,7 @@ export class ChatController implements vscode.Disposable {
     }
     if (choice !== openTerminal) return;
     const exe =
-      vscode.workspace.getConfiguration("opencode", this.folder?.uri).get<string>("executablePath", "opencode").trim() || "opencode";
+      vscode.workspace.getConfiguration("opencode", this.state.folder?.uri).get<string>("executablePath", "opencode").trim() || "opencode";
     let command: string;
     try {
       command = `${quoteForShell(exe)} auth login`;
@@ -1712,7 +1693,7 @@ export class ChatController implements vscode.Disposable {
       );
       return;
     }
-    const terminal = vscode.window.createTerminal({ name: "OpenCode auth", cwd: this.folder?.uri });
+    const terminal = vscode.window.createTerminal({ name: "OpenCode auth", cwd: this.state.folder?.uri });
     terminal.show();
     terminal.sendText(command);
   }
@@ -1744,7 +1725,7 @@ export class ChatController implements vscode.Disposable {
       case "newSession":
         return this.newSession();
       case "retry": {
-        const failed = this.failedPrompt;
+        const failed = this.state.failedPrompt;
         if (!failed) return;
         if (await this.send(failed.text, failed.attachments, failed.context, failed.delivery)) {
           // The restored text is no longer needed: clear it from both the composer and storage.
@@ -1779,7 +1760,7 @@ export class ChatController implements vscode.Disposable {
     detail: string,
     generation?: number,
   ): Promise<void> {
-    this.failedPrompt = { text, attachments, context, delivery, sessionId: sid };
+    this.state.failedPrompt = { text, attachments, context, delivery, sessionId: sid };
     if (sid) await this.saveDraft(sid, text).catch(() => undefined);
     this.execution.fail(sid, generation);
     this.post({ type: "draftRestored", sessionId: sid, text });
@@ -1793,17 +1774,17 @@ export class ChatController implements vscode.Disposable {
   /** Returns false when the prompt never reached the server (no notice is posted for stale loads). */
   private async send(text: string, attachments: Attachment[], context: ContextItem[], delivery?: "steer" | "queue"): Promise<boolean> {
     // A queued message starts no turn yet: leave the current turn's reconcile generation alone.
-    const turn = { generation: delivery === "queue" ? undefined : this.execution.start(this.sessionId) };
+    const turn = { generation: delivery === "queue" ? undefined : this.execution.start(this.state.sessionId) };
     if (delivery !== "queue") this.lifecycle.cancel("reconcile");
     if (!this.client) await this.connect();
     const client = this.client;
-    if (!client || !this.folder) {
+    if (!client || !this.state.folder) {
       await this.restoreFailedPrompt(
         text,
         attachments,
         context,
         delivery,
-        this.sessionId,
+        this.state.sessionId,
         translatedStrings()["error.connectionLost"],
         turn.generation,
       );
@@ -1828,14 +1809,14 @@ export class ChatController implements vscode.Disposable {
       files.push(resolved.attachment);
     }
     try {
-      if (!this.sessionId) {
+      if (!this.state.sessionId) {
         const permissions = vscode.workspace
-          .getConfiguration("opencode", this.folder.uri)
+          .getConfiguration("opencode", this.state.folder.uri)
           .get<PermissionRule[]>("sessionPermissions", DEFAULT_SESSION_PERMISSIONS);
         const autoApprove = this.permissions.takePending();
         const loadGeneration = this.lifecycle.generations.load.bump();
         const info = await client.createSession({
-          directory: this.folder.uri.fsPath,
+          directory: this.state.folder.uri.fsPath,
           agent: this.catalog.selectedAgent,
           model: this.catalog.selectedModel,
           permissions,
@@ -1845,18 +1826,18 @@ export class ChatController implements vscode.Disposable {
         }
         await this.loadSession(info, () => !this.lifecycle.generations.load.is(loadGeneration), undefined, true);
         if (!this.lifecycle.generations.load.is(loadGeneration)) {
-          this.execution.fail(this.sessionId, turn.generation);
+          this.execution.fail(this.state.sessionId, turn.generation);
           return false;
         }
         // Loading the freshly created session changes `sessionId`, which correctly closes the
         // previous session's turn. This prompt is still in flight, so re-arm it for the new id.
         if (turn.generation !== undefined && !this.execution.is(turn.generation)) {
-          turn.generation = this.execution.start(this.sessionId);
+          turn.generation = this.execution.start(this.state.sessionId);
         }
       }
-      const sid = this.sessionId;
+      const sid = this.state.sessionId;
       if (!sid) {
-        this.execution.fail(this.sessionId, turn.generation);
+        this.execution.fail(this.state.sessionId, turn.generation);
         return false;
       }
       const slash = /^\/(\S+)(?:\s+([\s\S]*))?$/.exec(text);
@@ -1869,17 +1850,17 @@ export class ChatController implements vscode.Disposable {
       } else {
         await client.prompt(sid, text, files, delivery);
       }
-      this.failedPrompt = undefined;
+      this.state.failedPrompt = undefined;
       return true;
     } catch (err) {
       const detail = err instanceof Error ? err.message : String(err);
-      await this.restoreFailedPrompt(text, attachments, context, delivery, this.sessionId, detail, turn.generation);
+      await this.restoreFailedPrompt(text, attachments, context, delivery, this.state.sessionId, detail, turn.generation);
       return false;
     }
   }
 
   private async openFile(p: string): Promise<void> {
-    if (!this.folder) return;
+    if (!this.state.folder) return;
     const m = /^(.*?)(?::(\d+)(?::(\d+))?)?$/.exec(p);
     const file = m?.[1] ?? p;
     const line = m?.[2] ? Number(m[2]) - 1 : undefined;
@@ -1887,7 +1868,7 @@ export class ChatController implements vscode.Disposable {
       ? vscode.Uri.parse(file)
       : /^([a-zA-Z]:[\\/]|\/)/.test(file)
         ? vscode.Uri.file(file)
-        : vscode.Uri.joinPath(this.folder.uri, file);
+        : vscode.Uri.joinPath(this.state.folder.uri, file);
     // Rendered chat content is untrusted model output. Never open a path outside any opened folder,
     // even through `../` or a symlink that lexically points inside but resolves elsewhere.
     if (!(await this.isWithinWorkspace(uri.fsPath))) {
@@ -1931,12 +1912,14 @@ export class ChatController implements vscode.Disposable {
 
   // Exposed for integration tests.
   get debugState() {
-    const storedSession = this.folder ? this.ctx.workspaceState.get<string>(SESSION_KEY(this.folder.uri.toString())) : undefined;
+    const storedSession = this.state.folder
+      ? this.ctx.workspaceState.get<string>(SESSION_KEY(this.state.folder.uri.toString()))
+      : undefined;
     return {
-      status: this.status,
-      sessionId: this.sessionId,
+      status: this.state.status,
+      sessionId: this.state.sessionId,
       storedSession,
-      folder: this.folder?.uri.fsPath,
+      folder: this.state.folder?.uri.fsPath,
       baseUrl: this.client?.conn.baseUrl,
       livePolling: this.lifecycle.hasInterval("livePoll"),
     };

@@ -31,14 +31,21 @@ function base(extra: Record<string, unknown> = {}) {
     connect: { current: () => 1, is: () => true, bump: vi.fn() },
     load: { current: () => 1, is: () => true, bump: vi.fn() },
   };
-  const self: Record<string, unknown> = {
+  const state: Record<string, unknown> = {
     status: "idle",
     lastError: undefined,
     version: undefined,
-    wasDisconnected: false,
     contract: { failures: [] },
     contractObservations: {},
     sessionId: "s1",
+  };
+  // A few tests override a moved scalar with the old flat key; route it to the shared state.
+  for (const key of ["status", "sessionId", "folder", "lastError", "version", "contract", "contractObservations"]) {
+    if (key in extra && extra[key] !== undefined) state[key] = extra[key];
+  }
+  const self: Record<string, unknown> = {
+    state,
+    wasDisconnected: false,
     execution: new ExecutionStateService(),
     post: vi.fn(),
     scheduleReconcile: vi.fn(),
@@ -59,7 +66,7 @@ describe("ChatController state machine", () => {
   it("setStatus publishes the connection state to the webview", () => {
     const c = base();
     call("setStatus", c, "reconnecting");
-    expect(c.status).toBe("reconnecting");
+    expect((c.state as Record<string, unknown>).status).toBe("reconnecting");
     expect(c.post).toHaveBeenCalledWith(expect.objectContaining({ type: "connection", status: "reconnecting" }));
   });
 

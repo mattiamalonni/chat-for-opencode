@@ -21,9 +21,11 @@ function fake(isCurrent = true) {
   };
   const self = {
     client,
-    folder: { uri: { fsPath: "/work", toString: () => "file:///work" } },
-    sessionId: "s1",
-    deleteAllAbort: undefined as AbortController | undefined,
+    state: {
+      folder: { uri: { fsPath: "/work", toString: () => "file:///work" } },
+      sessionId: "s1",
+      deleteAllAbort: undefined as AbortController | undefined,
+    },
     deleteGeneration: { current: () => 1, is: () => isCurrent, bump: vi.fn() },
     lifecycle: { generations: {} },
     output: { warn: vi.fn() },
@@ -44,7 +46,7 @@ describe("deleteAllSessions", () => {
     await expect(callDeleteAll(self)).rejects.toThrow(/Too many session pages/);
     expect(client.listSessionsPage).toHaveBeenCalledTimes(100);
     expect(client.deleteSession).not.toHaveBeenCalled();
-    expect(self.deleteAllAbort).toBeUndefined();
+    expect(self.state.deleteAllAbort).toBeUndefined();
   });
 
   it("does not delete anything once the folder generation went stale", async () => {
