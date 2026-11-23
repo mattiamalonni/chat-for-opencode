@@ -50,7 +50,7 @@ function isOtherMessageType(type: string): type is OtherMessageType {
 
 export { OPENAPI_SNAPSHOT_VERSION };
 
-export function normalizeModelRef(raw: unknown): ModelRef | undefined {
+function normalizeModelRef(raw: unknown): ModelRef | undefined {
   const o = obj(raw);
   const id = o && firstString(o.id, o.modelID);
   const providerID = o && str(o.providerID);
@@ -59,7 +59,7 @@ export function normalizeModelRef(raw: unknown): ModelRef | undefined {
   return variant ? { id, providerID, variant } : { id, providerID };
 }
 
-export function normalizeTokenUsage(raw: unknown): TokenUsage {
+function normalizeTokenUsage(raw: unknown): TokenUsage {
   const o = obj(raw) ?? {};
   const cache = obj(o.cache) ?? {};
   return {
@@ -70,7 +70,7 @@ export function normalizeTokenUsage(raw: unknown): TokenUsage {
   };
 }
 
-export function normalizeError(raw: unknown): StructuredError | undefined {
+function normalizeError(raw: unknown): StructuredError | undefined {
   const o = obj(raw);
   const type = o && str(o.type);
   const message = o && str(o.message);

@@ -69,7 +69,7 @@ const CURATED: ReadonlyArray<{ id: string; title: string; description: string; t
 ];
 
 /** Drops malformed settings entries before they can reach the webview protocol. */
-export function normalizeUserPrompts(
+function normalizeUserPrompts(
   items: ReadonlyArray<{ id?: unknown; title?: unknown; description?: unknown; text?: unknown }>,
 ): Array<{ id: string; title: string; description?: string; text: string }> {
   return items

@@ -6,7 +6,7 @@ const execFileAsync = promisify(execFile);
 /** Injected in unit tests so no real git process is needed. */
 export type GitRunner = (args: string[], cwd: string) => Promise<string>;
 
-export const defaultGitRunner: GitRunner = async (args, cwd) => {
+const defaultGitRunner: GitRunner = async (args, cwd) => {
   const { stdout } = await execFileAsync("git", args, { cwd, timeout: 10_000, maxBuffer: 16 * 1024 * 1024 });
   return stdout;
 };

@@ -10,7 +10,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-export function parseAuthLogins(output: string): vscode.QuickPickItem[] {
+function parseAuthLogins(output: string): vscode.QuickPickItem[] {
   const parsed: unknown = JSON.parse(output);
   if (!Array.isArray(parsed)) throw new Error("Expected an array from `opencode auth list --format json`.");
 

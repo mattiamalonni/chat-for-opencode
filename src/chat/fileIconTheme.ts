@@ -97,7 +97,7 @@ export interface FileIconsResponse {
 }
 
 /** Strips URI query/fragment and normalizes separators before matching. */
-export function filePathParts(path: string | undefined): { full: string; base: string; parent: string } {
+function filePathParts(path: string | undefined): { full: string; base: string; parent: string } {
   const full = (path ?? "").split(/[?#]/, 1)[0].replace(/\\/g, "/");
   const segments = full.split("/");
   return { full, base: segments.pop() ?? "", parent: segments.pop() ?? "" };
@@ -128,7 +128,7 @@ function parseTheme(json: string): ThemeFile {
 }
 
 /** Matches a `files.associations` glob against a path (supports single and double stars and `?`). */
-export function globMatches(glob: string, path: string): boolean {
+function globMatches(glob: string, path: string): boolean {
   let source = "";
   for (let i = 0; i < glob.length; i++) {
     const char = glob[i];
@@ -154,7 +154,7 @@ export function globMatches(glob: string, path: string): boolean {
 }
 
 /** Derives the language id the way VS Code does for icon matching: no first-line matching. */
-export function languageIdForPath(
+function languageIdForPath(
   path: string,
   associations: Record<string, string>,
   languages: readonly LanguageContribution[],
@@ -186,12 +186,7 @@ export function languageIdForPath(
  * Association order documented for file icon themes:
  * file name with parent > file name > extension with parent > extension > language > default.
  */
-export function resolveDefinitionId(
-  theme: LoadedTheme,
-  path: string,
-  languageId: string | undefined,
-  variant: ThemeVariant,
-): string | undefined {
+function resolveDefinitionId(theme: LoadedTheme, path: string, languageId: string | undefined, variant: ThemeVariant): string | undefined {
   const override = theme.variants[variant];
   const variantAssociations = mergeAssociations(theme.associations, override);
   const names = lowerMap(variantAssociations.fileNames);

@@ -79,7 +79,7 @@ export function isSyncKey(e: KeyLike, platform: Platform): boolean {
   return isPlainChord(e, platform, "r");
 }
 
-export type ComposerAction = "send" | "steer" | "newline" | "none";
+type ComposerAction = "send" | "steer" | "newline" | "none";
 
 /**
  * Enter sends (or queues while the agent is busy), Shift/Alt+Enter inserts a newline,

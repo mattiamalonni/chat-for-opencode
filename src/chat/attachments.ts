@@ -5,13 +5,13 @@ import type { FileAttachment } from "../shared/api";
 /** OpenCode rejects decoded attachments above this size. */
 export const MAX_ATTACHMENT_BYTES = 20 * 1024 * 1024;
 
-export interface AttachmentLike {
+interface AttachmentLike {
   uri: string;
   name?: string;
   label?: string;
 }
 
-export type ResolveResult =
+type ResolveResult =
   | { status: "ok"; attachment: FileAttachment }
   | { status: "tooLarge"; name: string }
   | { status: "unreadable"; name: string; detail: string };

@@ -156,7 +156,7 @@ export function appendDelta(state: ChatState, delta: SessionDelta): ChatState {
   };
 }
 
-export function fromHistory(m: SessionMessage): UiMessage | undefined {
+function fromHistory(m: SessionMessage): UiMessage | undefined {
   switch (m.type) {
     case "user":
       return {

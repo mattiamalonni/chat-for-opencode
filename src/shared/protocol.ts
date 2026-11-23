@@ -131,7 +131,7 @@ export interface FileIconFont {
   style?: string;
 }
 
-export interface SessionPayload {
+interface SessionPayload {
   id: string;
   title?: string;
   agent?: string;

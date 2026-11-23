@@ -85,7 +85,7 @@ async function readBoundedText(res: Response, limit: number, truncate: boolean):
   return text;
 }
 
-export function authHeaders(conn: Connection): Record<string, string> {
+function authHeaders(conn: Connection): Record<string, string> {
   if (!conn.password) return {};
   const token = Buffer.from(`opencode:${conn.password}`, "utf8").toString("base64");
   return { authorization: `Basic ${token}` };

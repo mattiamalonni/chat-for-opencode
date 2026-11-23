@@ -6,7 +6,7 @@
  */
 
 export const DEFAULT_INSTRUCTION_FILE = "AGENTS.md";
-export const MAX_INSTRUCTION_CHARS = 2_000;
+const MAX_INSTRUCTION_CHARS = 2_000;
 
 export function formatInstruction(text: string, now = new Date()): string {
   const body = text.trim().slice(0, MAX_INSTRUCTION_CHARS);

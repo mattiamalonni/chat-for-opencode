@@ -2,7 +2,7 @@ import * as path from "node:path";
 import * as vscode from "vscode";
 import type { Attachment, ContextItem } from "../shared/protocol";
 
-export function fileUriWithRange(uri: vscode.Uri, start?: number, end?: number): string {
+function fileUriWithRange(uri: vscode.Uri, start?: number, end?: number): string {
   const base = uri.with({ query: "", fragment: "" }).toString();
   return start !== undefined && end !== undefined ? `${base}?start=${start}&end=${end}` : base;
 }
@@ -289,7 +289,7 @@ export class FileIndex implements vscode.Disposable {
 }
 
 /** Subsequence match; rewards basename hits, contiguous runs and prefix matches. 0 = no match. */
-export function fuzzyScore(query: string, candidate: string): number {
+function fuzzyScore(query: string, candidate: string): number {
   if (!query) return 1;
   const q = query.toLowerCase();
   const c = candidate.toLowerCase();

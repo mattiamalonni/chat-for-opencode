@@ -4,9 +4,9 @@
  * These checks run on the data the extension already fetches (no extra requests) and name the
  * capabilities whose response shape does not match what the webview expects.
  */
-export type CapabilityId = "serverInfo" | "models" | "agents" | "skills" | "history" | "contextMeter" | "changedFiles" | "inbox";
+type CapabilityId = "serverInfo" | "models" | "agents" | "skills" | "history" | "contextMeter" | "changedFiles" | "inbox";
 
-export interface ContractFailure {
+interface ContractFailure {
   id: CapabilityId;
   detail: string;
 }
