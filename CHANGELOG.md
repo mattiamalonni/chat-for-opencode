@@ -4,7 +4,7 @@ Legend: **`User — …`** entries change something you can see or use. **`Inter
 build, CI or architecture work, condensed to one line; the reasoning lives in
 [DECISIONS.md](docs/DECISIONS.md) and [SPEC.md](SPEC.md).
 
-## Unreleased
+## 0.3.23 — 2026-11-23
 
 - **User — Removed:** the on-demand context sources (`problems`, `git`, `terminal`, `openEditors`,
   `symbol`) are gone: no `#` picker, no **Add context** button, no inline content chips, and no
