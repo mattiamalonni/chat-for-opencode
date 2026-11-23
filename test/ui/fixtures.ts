@@ -3,7 +3,7 @@
  *
  * With `OC_COVERAGE=1`, Chromium's precise JavaScript coverage is collected for every test and
  * written to `coverage/ui/*.json`. `scripts/ui-coverage.mjs` maps those V8 ranges back through the
- * esbuild source map, so the webview's ~5k lines stop being invisible to the coverage report.
+ * esbuild source map, so webview modules stop being invisible to the coverage report.
  * The fixture is a no-op in a normal `npm test` run (no extra CDP sessions, no artifacts).
  */
 import { test as base } from "@playwright/test";

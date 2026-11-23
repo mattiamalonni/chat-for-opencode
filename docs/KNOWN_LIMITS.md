@@ -42,7 +42,7 @@ test or a manual probe actually ran.
   release, because it needs a real binary and provider credentials. A failure now writes a
   run summary and opens (or comments on) a `contract-drift` issue, so it cannot pass unnoticed; all
   CI jobs also have explicit timeouts. The deterministic half is
-  now a blocking gate in release CI: a named CI step checks that all 989 recorded 2.2.7 SSE events
+  now a blocking gate in release CI: `test:unit` checks that all 989 recorded 2.2.7 SSE events
   still normalize and that the OpenAPI snapshot still lists every endpoint the client calls.
 - **Untrusting a workspace mid-session.** The 1.99 API exposes only `onDidGrantWorkspaceTrust`;
   removing trust takes effect in VS Code after a window reload. The extension re-checks `isTrusted`
@@ -55,7 +55,7 @@ test or a manual probe actually ran.
   server-event routing and webview command dispatch live in dedicated services (`ConnectionSupervisor`,
   `SessionListService`, `SubagentTracker`, `AttachmentService`, `DiffService`, `PermissionService`,
   `ExecutionStateService`, `ChatEventRouter`, `ChatCommandHandler`). The controller wires them
-  together and owns the session/conversation lifecycle; it is still ~1.9k lines, but the two previous
+  together and owns the session/conversation lifecycle; it is under 1,000 lines, but the two previous
   dispatch monoliths are now independently testable through explicit hooks objects. Turn state itself
   is no longer duplicated — see `src/chat/executionState.ts`.
 - **The webview's `busy` flag is still derived from server events**, not from the host's execution

@@ -31,8 +31,8 @@ The in-product walkthrough (**Help → Welcome → Get started with OpenCode**) 
 ## Screenshots
 
 `npm run test:ui` writes the full set of numbered PNGs to `test/ui/screenshots/`; CI uploads them as
-the `ui-screenshots` artifact. The PNGs are committed, not produced at build time; regenerate the set
-after a UI change.
+the `ui-screenshots` artifact. The PNGs are generated locally by the UI run and are gitignored; the
+repository keeps only `.gitkeep`.
 
 ## Generated artefacts
 

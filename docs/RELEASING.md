@@ -30,7 +30,7 @@ git push
 git tag vX.Y.Z
 git push origin vX.Y.Z
 # 3. ONLY AFTER the Release workflow finishes: drop the oldest section from CHANGELOG.md
-#    (keep the last three) and update the version in the "Older releases" pointer.
+#    (keep the recent ones) and update the version in the "Older releases" pointer.
 ```
 
 Do step 3 only after the workflow completes: it extracts the release notes from this file at tag time.
@@ -44,7 +44,7 @@ unit tests, coverage thresholds, a high-severity production `npm audit`, VS Code
 
 ## Notes
 
-- `CHANGELOG.md` keeps only the last three releases (step 3 above is not optional — without it the
+- `CHANGELOG.md` keeps only the recent releases (step 3 above is not optional — without it the
   file grows again). Older notes are not deleted: they were published as
   [GitHub Releases](https://github.com/mattiamalonni/chat-for-opencode/releases) from this file at
   tag time. The release workflow extracts the notes from the `## X.Y.Z — date` section of the version

@@ -10,7 +10,7 @@ keys and sends no telemetry.
 
 ```
 ┌──────────────────────── VS Code extension host (Node) ────────────────────────┐
-│ extension.ts ── registers commands, view, config listeners                     │
+│ extension.ts ── composition root; commands.ts registers the commands          │
 │   ServerRegistry ── one ServerHandle per workspace folder                     │
 │     ManagedServer   spawn `opencode serve --hostname 127.0.0.1 --port 0`      │
 │                     cwd = folder, env OPENCODE_PASSWORD = random per spawn    │
@@ -28,7 +28,7 @@ keys and sends no telemetry.
                      postMessage │ (typed protocol, src/shared/protocol.ts)
 ┌───────────────────────────────▼───────────── Webview View (Secondary Side Bar) ──────────┐
 │ Preact UI (src/webview)                                                       │
-│   chat reducer (src/shared/chatReducer.ts) folds history + live events        │
+│   chat reducer (src/shared/chatReducer/) folds history + live events        │
 │   markdown (marked + DOMPurify) + highlight.js                                │
 │   composer: context chips, @-file mentions, /-skill suggestions, IME-safe Enter│
 └───────────────────────────────────────────────────────────────────────────────┘
@@ -41,7 +41,7 @@ known message id in a descending history page (`messagesNewerThan`): if the over
 posts a `sessionDelta` with only the new messages, preserving scroll position, staged attachments and
 drafts; if history was trimmed/compacted it falls back to a full `session` load. The webview
 therefore doesn't need `retainContextWhenHidden`; the composer keeps a draft per session in
-`vscode.setState`.
+`workspaceState` through the `drafts` / `saveDraft` messages.
 
 An abort, a rejected permission or a cancelled question posts a **local idle** to the webview so the
 composer unlocks even when OpenCode emits no terminal event. Every resync path keeps it unlocked via
@@ -72,9 +72,9 @@ src/
   status/                 usage and account status-bar presenters
   server/                 process management (managed / external)
   client/                 HTTP client, SSE parser + stream, API types
-  chat/                   ChatController, ViewProvider, diff, context, l10n strings
+  chat/                   ChatController, ViewProvider, diff, context, feature services in services/
   shared/                 code shared by host and webview (protocol, reducer, patch, keys);
-                          the reducer is split into chatReducer/* behind chatReducer.ts
+                          the reducer is split into modules under chatReducer/
   webview/                Preact app (App orchestrator + focused view modules, bundled separately)
 test/
   unit/                   vitest unit tests (client, sse, reducer, patch, keys, server)
@@ -90,50 +90,21 @@ docs/                     documentation index, API notes, decisions, limits, tes
 
 All messages are JSON objects with a `type` discriminator, defined in `src/shared/protocol.ts`.
 
-### Host → webview
+### Message contract
 
-| type            | payload                                                                                                                                 | when                                                                                              |
-| --------------- | --------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
-| `init`          | `strings`, `platform`, `folders`, `activeFolder?`, `issuesUrl?`                                                                         | after `ready`                                                                                     |
-| `connection`    | `status: idle\|starting\|connected\|reconnecting\|error`, `error?`, `version?`, `compatibility?`, `compatibilityDismissed?`             | any status change                                                                                 |
-| `catalog`       | `models`, `agents`, `skills`, `selectedModel?`, `selectedAgent?`                                                                        | after connect / config change                                                                     |
-| `sessions`      | `items: SessionSummary[]` (with `folder?` in multi-root), `currentId?`, `hasMore?`                                                      | list changed / more pages loaded                                                                  |
-| `session`       | `session: SessionPayload \| null` (`id`, `title?`, `agent?`, `model?`, `busy`, normalised `messages`, `permissions`, `forms`, `usage?`) | session loaded / full resync                                                                      |
-| `sessionDelta`  | `delta: SessionDelta` (tail `messages` + updated pending items/usage)                                                                   | reconnect/reconcile found no or few new messages; merged by id, does not reset conversation state |
-| `event`         | `event` (raw server SSE event for the current session)                                                                                  | live                                                                                              |
-| `context`       | `items: ContextItem[]`                                                                                                                  | active editor / selection changed                                                                 |
-| `promptCatalog` | `items: PromptDefinition[]` (curated + `opencode.promptLibrary`, posted on init)                                                        | after `ready`                                                                                     |
-| `fileResults`   | `query`, `items`                                                                                                                        | answer to `searchFiles`                                                                           |
-| `addAttachment` | `item`                                                                                                                                  | file picker / drag & drop / paste in the chat                                                     |
-| `changedFiles`  | `files: FileDiff[]`                                                                                                                     | after a step that touched files                                                                   |
-| `autoApprove`   | `enabled: boolean`                                                                                                                      | per-chat auto-approval loaded / toggled                                                           |
-| `focusInput`    | –                                                                                                                                       | `opencode.focus`                                                                                  |
-| `notice`        | `error: UiError` (with optional `target` for a failed inline reply)                                                                     | transient error (e.g. prompt rejected)                                                            |
+`HostMessage` and `WebviewMessage` in `src/shared/protocol.ts` are the single source of truth for
+every message and payload; incoming webview messages are validated with `isWebviewMessage`. The main
+flows are:
 
-### Webview → host
+- **Connection and session**: `init`, `connection`, `catalog`, `sessions`, `session`, `sessionDelta`, `event`, `context`, `synced`.
+- **Turns and prompts**: `send`, `abort`, `compact`, `revertTo`, `forkTo`, `regenerate`, `action`.
+- **Inline cards**: `permissionReply`, `formReply`, `formCancel`, `inbox`, `setInboxDelivery`, `cancelInbox`.
+- **Files and attachments**: `addAttachment`, `dropFiles`, `pickFiles`, `openFile`, `openAttachment`, `openLink`, `openDiff`, `openDiffs`, `fileIcons`.
+- **Subagents**: `subagent`, `subagentEvent`, `linkSubagent`, `refreshSubagent`.
+- **UI state**: `autoApprove`, `drafts`, `draftRestored`, `prefillDraft`, `reverted`, `forked`, `revealMessage`, `dropzone`, `notice`, `focusInput`.
 
-| type                                                                                                                                              | payload                                                                                                |
-| ------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
-| `ready`                                                                                                                                           | –                                                                                                      |
-| `send`                                                                                                                                            | `text`, `attachments: Attachment[]`, `context: ContextItem[]`                                          |
-| `abort`                                                                                                                                           | –                                                                                                      |
-| `newSession`, `selectSession {id}`, `deleteSession {id}`, `deleteAllSessions`, `renameSession {id, title}`, `refreshSessions`, `loadMoreSessions` |                                                                                                        |
-| `setModel {model}`, `setAgent {agent}`                                                                                                            |                                                                                                        |
-| `setAutoApprove {enabled}`                                                                                                                        | per-chat auto-approval toggle                                                                          |
-| `permissionReply {requestId, sessionId, decision: once\|always\|reject}`                                                                          |                                                                                                        |
-| `formReply {formId, sessionId, answer}`, `formCancel {formId, sessionId}`                                                                         |                                                                                                        |
-| `usePrompt {id}`                                                                                                                                  | insert a library prompt into the composer, with `$variables` resolved by the host                      |
-| `saveInstruction {text}`                                                                                                                          | append a finished reply as a dated note to AGENTS.md (or a chosen workspace file)                      |
-| `applyCode {text, path?}`                                                                                                                         | apply a reply's code block: host previews in a diff and writes only after explicit Accept              |
-| `searchFiles {query}`                                                                                                                             |                                                                                                        |
-| `openDiff {file, patch, applied}`, `openDiffs {files: [{file, patch}]}`, `openFile {path}`, `openLink {href}`                                     |                                                                                                        |
-| `copy {text}`                                                                                                                                     | copy code block to clipboard                                                                           |
-| `action {id}`                                                                                                                                     | `reconnect`, `showLogs`, `openSettings`, `install`, `login`, `setPassword`, `openFolder`, `newSession` |
-| `selectFolder {uri}`                                                                                                                              | switch workspace folder                                                                                |
-| `refreshChanges`                                                                                                                                  | re-fetch the session diff                                                                              |
-| `dismissCompatibility {version}`                                                                                                                  | hide the version warning for this version                                                              |
-
-The composer draft is persisted in the webview with `vscode.setState`; it is not a protocol message.
+Composer drafts are mirrored to the host and persisted in `workspaceState`; `vscode.setState` remains
+a fast local cache.
 
 The composer splits its mention popup by trigger: `@` searches workspace files, and `/` covers skills,
 prompts and commands. When a file is picked from the `@` mention results, the composer removes the

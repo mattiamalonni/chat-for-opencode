@@ -10,7 +10,7 @@ a boundary (host ↔ server, host ↔ webview, or an async race). The checks bel
 node --version   # see .nvmrc
 npm ci
 npm run compile  # typecheck + esbuild bundles
-npm test         # lint, format, docs, types + unit, UI and integration (fast local loop)
+npm test         # lint, format, typecheck + unit, UI and integration (fast local loop)
 npm run verify   # the full CI gate, including audit, coverage floors and the production smoke test
 ```
 
@@ -22,17 +22,17 @@ work the deterministic mock server used by the tests is enough. Install the Play
 
 ## Where things live
 
-| Area                                        | Entry point                                                                       |
-| ------------------------------------------- | --------------------------------------------------------------------------------- |
-| Extension activation and composition root   | `src/extension.ts`                                                                |
-| Commands, status bars, auth CLI parsing     | `src/commands.ts`, `src/status/`, `src/auth/`                                     |
-| Chat orchestration and command dispatch     | `src/chat/controller.ts` + `src/chat/services/`                                   |
-| Turn state (status, generation, local idle) | `src/chat/executionState.ts`                                                      |
-| Server process, restart, credentials        | `src/server/server.ts`, `src/server/redact.ts`                                    |
-| HTTP client, SSE parser                     | `src/client/http.ts`, `src/client/sse.ts`                                         |
-| Picker, paging, search                      | `src/chat/sessionListService.ts`                                                  |
-| Webview UI and reducer                      | `src/webview/` (App + view modules), `src/shared/chatReducer.ts` + `chatReducer/` |
-| Protocol and runtime guards                 | `src/shared/protocol.ts`, `src/shared/protocolGuards.ts`                          |
+| Area                                        | Entry point                                                    |
+| ------------------------------------------- | -------------------------------------------------------------- |
+| Extension activation and composition root   | `src/extension.ts`                                             |
+| Commands, status bars, auth CLI parsing     | `src/commands.ts`, `src/status/`, `src/auth/`                  |
+| Chat orchestration and command dispatch     | `src/chat/controller.ts` + `src/chat/services/`                |
+| Turn state (status, generation, local idle) | `src/chat/executionState.ts`                                   |
+| Server process, restart, credentials        | `src/server/server.ts`, `src/server/redact.ts`                 |
+| HTTP client, SSE parser                     | `src/client/http.ts`, `src/client/sse.ts`                      |
+| Picker, paging, search                      | `src/chat/sessionListService.ts`                               |
+| Webview UI and reducer                      | `src/webview/` (App + view modules), `src/shared/chatReducer/` |
+| Protocol and runtime guards                 | `src/shared/protocol.ts`, `src/shared/protocolGuards.ts`       |
 
 Architecture notes and API facts: [docs/README.md](docs/README.md).
 
@@ -50,7 +50,7 @@ This is the single list of test commands. Other docs link here instead of repeat
 | `npm run test:coverage`    | Unit coverage                          | Thresholds in `vitest.config.mts`                                             |
 | `npm run test:coverage:ui` | UI suite + webview line coverage       | Maps Chromium V8 ranges through the source map; gate via `OC_UI_COVERAGE_MIN` |
 | `npm run test:ui:prod`     | Minified production bundle             | Smoke test for the artefact that actually ships                               |
-| `npm test`                 | The three deterministic suites         | `pretest` also runs lint, formatting, typecheck, docs and generated types     |
+| `npm test`                 | The three deterministic suites         | `pretest` also runs lint, formatting and typecheck                            |
 | `npm run verify`           | Everything above plus audit            | The full local equivalent of CI                                               |
 
 ### Real server — opt-in, needs a provider
