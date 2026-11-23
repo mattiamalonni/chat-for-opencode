@@ -62,7 +62,7 @@ const MODELS = [
     id: "mock-fast",
     modelID: "mock-fast",
     providerID: "mock",
-    name: process.env.MOCK_MODEL_NAME ?? "Mock Fast",
+    name: "Mock Fast",
     type: "chat",
     enabled: true,
     status: "active",
@@ -381,11 +381,9 @@ export function startMockServer(opts: MockOptions = {}): Promise<MockServer> {
       }, stepMs * 3);
     }
 
-    const reply = process.env.MOCK_REPLY
-      ? fs.readFileSync(process.env.MOCK_REPLY, "utf8").trim()
-      : text.includes("[slow]")
-        ? Array.from({ length: 200 }, (_, i) => `word${i}`).join(" ")
-        : `**Echo:** ${text.replace(/\[[a-z]+\]/g, "").trim() || "(empty)"}\n\n\`\`\`ts\nconst answer: number = 42;\n\`\`\`\n\n- item one\n- item two\n`;
+    const reply = text.includes("[slow]")
+      ? Array.from({ length: 200 }, (_, i) => `word${i}`).join(" ")
+      : `**Echo:** ${text.replace(/\[[a-z]+\]/g, "").trim() || "(empty)"}\n\n\`\`\`ts\nconst answer: number = 42;\n\`\`\`\n\n- item one\n- item two\n`;
     if (!(await streamText("text", reply, 0))) return interrupted(s, msgId);
     stepEnd("stop");
     emit({

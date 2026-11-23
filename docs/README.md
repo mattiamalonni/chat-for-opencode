@@ -31,15 +31,9 @@ The in-product walkthrough (**Help → Welcome → Get started with OpenCode**) 
 ## Screenshots
 
 `npm run test:ui` writes the full set of numbered PNGs to `test/ui/screenshots/`; CI uploads them as
-the `ui-screenshots` artifact. A curated subset lives in `docs/images/`, renamed without the numeric
-prefix. These copies are committed, not produced at build time: after a UI change,
-regenerate the set and refresh the curated images deliberately.
-
-The README hero (`docs/images/hero.png`) is a full-window screenshot of the real extension running in
-VS Code against the mock `opencode serve`. `npm run gen:hero` launches VS Code with the development
-extension and a mock server, sends a prompt through the real webview, opens the `/` command picker and
-captures the whole window over CDP (`test/integration/suite/hero.test.ts`). No UI chrome is mocked, so
-the image stays accurate when the interface changes.
+the `ui-screenshots` artifact. The two images embedded in [FEATURES.md](FEATURES.md) are committed
+copies from `docs/images/`, renamed without the numeric prefix. After a UI change, regenerate the set
+and refresh those copies deliberately.
 
 ## Generated artefacts
 

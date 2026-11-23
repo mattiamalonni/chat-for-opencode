@@ -9,13 +9,6 @@ coding agent. It is a **client** of the OpenCode v2 server (`opencode serve`) ru
 machine: it does not reimplement the agent, never reads or stores provider API keys and sends
 **no telemetry**.
 
-![Chat for OpenCode docked in the VS Code secondary side bar, answering about the open file with the slash-command picker open](docs/images/hero.png)
-
-> The chat lives in VS Code's secondary side bar (right). This is a real screenshot of the extension
-> running in VS Code against the mock `opencode serve`; regenerate it with `npm run gen:hero`. Other UI
-> states come from the automated tests (`npm run test:ui`). See
-> [docs/README.md](docs/README.md#screenshots) for details.
-
 ## Install
 
 - VS Code **1.99+** and a **trusted workspace** — before you trust the folder the extension starts
