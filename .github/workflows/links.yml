@@ -23,7 +23,9 @@ jobs:
         run: |
           grep -rhoE 'https?://[^[:space:])"<>]+' \
             README.md CONTRIBUTING.md SPEC.md CHANGELOG.md docs/*.md media/*.md \
-            | sed 's/[.,;]$//' | sort -u > external-links.txt
+            | sed 's/[.,;`]$//' \
+            | grep -vE '^https?://(127\.0\.0\.1|localhost|user:token@)' \
+            | sort -u > external-links.txt
           wc -l external-links.txt
       - uses: lycheeverse/lychee-action@v2
         with:
