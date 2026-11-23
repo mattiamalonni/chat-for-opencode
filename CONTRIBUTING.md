@@ -72,7 +72,7 @@ still leave to a human.
 | `npm run verify:types` | Fails if that generated file is stale                                                  |
 | `npm run gen:docs`     | Regenerates the tables in `docs/REFERENCE.md` from `package.json` + `package.nls.json` |
 | `npm run verify:docs`  | Fails if those tables are stale                                                        |
-| `npm run verify:links` | Fails if a local Markdown link or image path is broken                                 |
+| `npm run verify:links` | Fails on broken links, unknown npm scripts and `opencode.*` settings/commands in prose |
 
 Add a test next to the code you change. A bug fix without a regression test is not a fix. Tests for
 protocol changes must cover both valid messages and malformed ones — the runtime guards are a
