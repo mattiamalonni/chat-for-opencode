@@ -628,8 +628,8 @@
     "@playwright/test": "^1.65.1",
     "@types/mocha": "^10.0.10",
     "@types/node": "^22.20.5",
-    "@types/vscode": "1.99.0",
-    "@vitest/coverage-v8": "5.1.0",
+    "@types/vscode": "1.146.0",
+    "@vitest/coverage-v8": "5.1.1",
     "@vscode/test-electron": "^3.1.0",
     "@vscode/vsce": "^4.1.1",
     "cross-env": "^10.1.0",
@@ -639,6 +639,6 @@
     "prettier": "^3.10.1",
     "typescript": "~6.0.3",
     "typescript-eslint": "^8.73.0",
-    "vitest": "5.1.0"
+    "vitest": "5.1.1"
   }
 }
