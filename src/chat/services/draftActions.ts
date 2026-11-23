@@ -1,7 +1,7 @@
 import type * as vscode from "vscode";
-import type { HostMessage } from "../shared/protocol";
+import type { HostMessage } from "../../shared/protocol";
 import type { ControllerState } from "./controllerState";
-import { DRAFTS_KEY } from "./storageKeys";
+import { DRAFTS_KEY } from "../storageKeys";
 
 /** Drafts live in workspaceState so they survive a window reload (vscode.setState does not). */
 export class ChatDraftActions {

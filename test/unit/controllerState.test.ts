@@ -22,7 +22,7 @@ vi.mock("vscode", () => ({
 
 import { ChatController } from "../../src/chat/controller";
 import { ExecutionStateService } from "../../src/chat/executionState";
-import { ChatSessionService } from "../../src/chat/sessionService";
+import { ChatSessionService } from "../../src/chat/services/sessionService";
 
 const proto = ChatController.prototype as unknown as Record<string, (this: unknown, ...args: unknown[]) => unknown>;
 const call = (name: string, self: unknown, ...args: unknown[]): unknown => proto[name].apply(self, args);

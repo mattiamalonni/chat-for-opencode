@@ -36,24 +36,24 @@ import { BoundedSet } from "../shared/boundedSet";
 import { ChatEventRouter } from "./eventRouter";
 import { ChatCommandHandler } from "./commandHandler";
 import { ExecutionStateService, type ExecutionState } from "./executionState";
-import { createControllerState } from "./controllerState";
-import { ChatDraftActions } from "./draftActions";
-import { ChatFileActions } from "./fileActions";
-import { ChatServerActions } from "./serverActions";
-import { ChatBulkDelete } from "./bulkDelete";
-import { ChatConnectionService } from "./connectionService";
-import { ChatPromptActions } from "./promptActions";
-import { ChatSessionService } from "./sessionService";
-import { ChatPermissionActions } from "./permissionActions";
-import { ChatRefreshActions } from "./refreshActions";
+import { createControllerState } from "./services/controllerState";
+import { ChatDraftActions } from "./services/draftActions";
+import { ChatFileActions } from "./services/fileActions";
+import { ChatServerActions } from "./services/serverActions";
+import { ChatBulkDelete } from "./services/bulkDelete";
+import { ChatConnectionService } from "./services/connectionService";
+import { ChatPromptActions } from "./services/promptActions";
+import { ChatSessionService } from "./services/sessionService";
+import { ChatPermissionActions } from "./services/permissionActions";
+import { ChatRefreshActions } from "./services/refreshActions";
 
 export type { ExecutionState, ExecutionStatus, TerminalStatus } from "./executionState";
 
 import { SESSION_KEY, COMPAT_DISMISSED_KEY, CONTRACT_DISMISSED_KEY } from "./storageKeys";
 
-import { ServerRegistry, toUiError, translatedStrings } from "./controllerSupport";
+import { ServerRegistry, toUiError, translatedStrings } from "./services/controllerSupport";
 
-export { ServerRegistry, translatedStrings } from "./controllerSupport";
+export { ServerRegistry, translatedStrings } from "./services/controllerSupport";
 
 export type { SessionSearchResult } from "./sessionListService";
 

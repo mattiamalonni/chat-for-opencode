@@ -1,7 +1,7 @@
 import type * as vscode from "vscode";
-import type { ContractObservations, ContractReport } from "../shared/contract";
-import { emptyContract } from "../shared/contract";
-import type { Attachment, ConnectionStatus, ContextItem, UiError } from "../shared/protocol";
+import type { ContractObservations, ContractReport } from "../../shared/contract";
+import { emptyContract } from "../../shared/contract";
+import type { Attachment, ConnectionStatus, ContextItem, UiError } from "../../shared/protocol";
 
 /** Payload kept so the "Retry" action can resend exactly what the server refused. */
 export interface FailedPrompt {

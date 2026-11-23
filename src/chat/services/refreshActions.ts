@@ -1,9 +1,9 @@
-import type { OpenCodeClient } from "../client/http";
-import type { FileDiff, InboxItem } from "../shared/api";
-import { normalizeFileDiff, normalizeList } from "../shared/adapter";
-import type { HostMessage } from "../shared/protocol";
+import type { OpenCodeClient } from "../../client/http";
+import type { FileDiff, InboxItem } from "../../shared/api";
+import { normalizeFileDiff, normalizeList } from "../../shared/adapter";
+import type { HostMessage } from "../../shared/protocol";
 import type { ControllerState } from "./controllerState";
-import type { ChatLifecycle } from "./lifecycle";
+import type { ChatLifecycle } from "../lifecycle";
 
 /** Debounced refresh scheduling and the two read-only fetches triggered by it. */
 export interface RefreshActionDeps {

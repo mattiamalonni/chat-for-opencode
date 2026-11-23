@@ -1,22 +1,22 @@
 import * as vscode from "vscode";
-import type { Connection } from "../client/http";
-import type { ServerEvent } from "../shared/api";
-import type { HostMessage } from "../shared/protocol";
-import type { CatalogService } from "./catalogService";
+import type { Connection } from "../../client/http";
+import type { ServerEvent } from "../../shared/api";
+import type { HostMessage } from "../../shared/protocol";
+import type { CatalogService } from "../catalogService";
 import type { ControllerState } from "./controllerState";
-import { SESSION_KEY } from "./storageKeys";
-import { FileIndex } from "./context";
-import type { ChatViews } from "./views";
-import type { Generation } from "./generation";
-import type { ChatLifecycle } from "./lifecycle";
-import type { PermissionService } from "./permissionService";
-import type { SessionListService } from "./sessionListService";
-import type { SubagentTracker } from "./subagentTracker";
-import type { ConnectionSupervisor } from "./connectionSupervisor";
+import { SESSION_KEY } from "../storageKeys";
+import { FileIndex } from "../context";
+import type { ChatViews } from "../views";
+import type { Generation } from "../generation";
+import type { ChatLifecycle } from "../lifecycle";
+import type { PermissionService } from "../permissionService";
+import type { SessionListService } from "../sessionListService";
+import type { SubagentTracker } from "../subagentTracker";
+import type { ConnectionSupervisor } from "../connectionSupervisor";
 import type { ChatPermissionActions } from "./permissionActions";
 import type { ChatRefreshActions } from "./refreshActions";
 import type { ChatSessionService } from "./sessionService";
-import type { ServerHandle, ServerState } from "../server/server";
+import type { ServerHandle, ServerState } from "../../server/server";
 
 export interface ConnectionServiceDeps {
   state: ControllerState;

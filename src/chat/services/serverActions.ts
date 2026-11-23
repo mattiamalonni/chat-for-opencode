@@ -1,9 +1,9 @@
 import * as vscode from "vscode";
-import type { ActionId, Attachment, ContextItem, HostMessage } from "../shared/protocol";
+import type { ActionId, Attachment, ContextItem, HostMessage } from "../../shared/protocol";
 import type { ControllerState } from "./controllerState";
-import { quoteForShell } from "./shell";
-import { PASSWORD_KEY } from "./storageKeys";
-import { normalizeEndpoint } from "../server/endpoint";
+import { quoteForShell } from "../shell";
+import { PASSWORD_KEY } from "../storageKeys";
+import { normalizeEndpoint } from "../../server/endpoint";
 
 /** User-facing setup actions reachable from error cards and command palette. */
 export interface ServerActionDeps {

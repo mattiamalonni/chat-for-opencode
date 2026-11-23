@@ -17,7 +17,7 @@ vi.mock("vscode", () => ({
   },
 }));
 
-import { ChatSessionService } from "../../src/chat/sessionService";
+import { ChatSessionService } from "../../src/chat/services/sessionService";
 import { ChatViews } from "../../src/chat/views";
 
 function fakeView(kind: "sidebar" | "panel") {

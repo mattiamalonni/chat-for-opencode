@@ -1,12 +1,12 @@
 import * as vscode from "vscode";
-import { ApiError } from "../client/http";
-import { DEFAULT_STARTUP_TIMEOUT_MS } from "../shared/constants";
-import type { SessionMessage } from "../shared/api";
-import type { UiError, UiErrorKind } from "../shared/protocol";
-import { STRINGS, type Strings } from "../shared/strings";
-import { normalizeEndpoint } from "../server/endpoint";
-import { ExternalServer, ManagedServer, ServerError, type ServerHandle } from "../server/server";
-import { PASSWORD_KEY } from "./storageKeys";
+import { ApiError } from "../../client/http";
+import { DEFAULT_STARTUP_TIMEOUT_MS } from "../../shared/constants";
+import type { SessionMessage } from "../../shared/api";
+import type { UiError, UiErrorKind } from "../../shared/protocol";
+import { STRINGS, type Strings } from "../../shared/strings";
+import { normalizeEndpoint } from "../../server/endpoint";
+import { ExternalServer, ManagedServer, ServerError, type ServerHandle } from "../../server/server";
+import { PASSWORD_KEY } from "../storageKeys";
 
 /** Bounds for the bulk-delete walk: a broken server must not keep the extension host busy forever. */
 export const MAX_DELETE_PAGES = 100;

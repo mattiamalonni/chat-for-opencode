@@ -35,12 +35,12 @@ vi.mock("vscode", () => ({
   TextEditorRevealType: { InCenter: 1 },
 }));
 
-import { createControllerState } from "../../src/chat/controllerState";
-import { ChatDraftActions } from "../../src/chat/draftActions";
-import { ChatFileActions } from "../../src/chat/fileActions";
-import { ChatPermissionActions } from "../../src/chat/permissionActions";
-import { ChatRefreshActions } from "../../src/chat/refreshActions";
-import { ChatServerActions } from "../../src/chat/serverActions";
+import { createControllerState } from "../../src/chat/services/controllerState";
+import { ChatDraftActions } from "../../src/chat/services/draftActions";
+import { ChatFileActions } from "../../src/chat/services/fileActions";
+import { ChatPermissionActions } from "../../src/chat/services/permissionActions";
+import { ChatRefreshActions } from "../../src/chat/services/refreshActions";
+import { ChatServerActions } from "../../src/chat/services/serverActions";
 
 describe("extracted controller services", () => {
   it("createControllerState starts from an idle, empty snapshot", () => {

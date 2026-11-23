@@ -1,11 +1,11 @@
 import type * as vscode from "vscode";
-import type { OpenCodeClient } from "../client/http";
+import type { OpenCodeClient } from "../../client/http";
 import type { ControllerState } from "./controllerState";
 import { MAX_DELETE_IDS, MAX_DELETE_PAGES, translatedStrings } from "./controllerSupport";
-import type { Generation } from "./generation";
-import type { PermissionService } from "./permissionService";
-import type { SessionListService } from "./sessionListService";
-import { DRAFTS_KEY } from "./storageKeys";
+import type { Generation } from "../generation";
+import type { PermissionService } from "../permissionService";
+import type { SessionListService } from "../sessionListService";
+import { DRAFTS_KEY } from "../storageKeys";
 
 /** Bounded, cancelable walk over every session page in the current folder. */
 export interface BulkDeleteDeps {

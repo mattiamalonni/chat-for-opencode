@@ -7,7 +7,7 @@ vi.mock("vscode", () => ({
   commands: { executeCommand: vi.fn() },
 }));
 
-import { ChatBulkDelete } from "../../src/chat/bulkDelete";
+import { ChatBulkDelete } from "../../src/chat/services/bulkDelete";
 
 function fake(isCurrent = true) {
   const client = {

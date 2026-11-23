@@ -26,7 +26,7 @@ work the deterministic mock server used by the tests is enough. Install the Play
 | ------------------------------------------- | --------------------------------------------------------------------------------- |
 | Extension activation and composition root   | `src/extension.ts`                                                                |
 | Commands, status bars, auth CLI parsing     | `src/commands.ts`, `src/status/`, `src/auth/`                                     |
-| Chat orchestration and command dispatch     | `src/chat/controller.ts` + feature services in `src/chat/`                        |
+| Chat orchestration and command dispatch     | `src/chat/controller.ts` + `src/chat/services/`                                   |
 | Turn state (status, generation, local idle) | `src/chat/executionState.ts`                                                      |
 | Server process, restart, credentials        | `src/server/server.ts`, `src/server/redact.ts`                                    |
 | HTTP client, SSE parser                     | `src/client/http.ts`, `src/client/sse.ts`                                         |

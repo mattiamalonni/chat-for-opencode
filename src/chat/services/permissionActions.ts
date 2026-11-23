@@ -1,9 +1,9 @@
-import type { OpenCodeClient } from "../client/http";
-import type { PermissionRequest, ServerEvent } from "../shared/api";
-import type { HostMessage } from "../shared/protocol";
+import type { OpenCodeClient } from "../../client/http";
+import type { PermissionRequest, ServerEvent } from "../../shared/api";
+import type { HostMessage } from "../../shared/protocol";
 import type { ControllerState } from "./controllerState";
-import type { PermissionService } from "./permissionService";
-import type { SubagentTracker } from "./subagentTracker";
+import type { PermissionService } from "../permissionService";
+import type { SubagentTracker } from "../subagentTracker";
 
 /** Grants and auto-approval flows, owned by the chat rather than by a single session. */
 export interface PermissionActionDeps {

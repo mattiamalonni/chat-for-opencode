@@ -1,6 +1,6 @@
 import * as vscode from "vscode";
-import type { Attachment, DroppedFile, HostMessage } from "../shared/protocol";
-import type { AttachmentService } from "./attachmentService";
+import type { Attachment, DroppedFile, HostMessage } from "../../shared/protocol";
+import type { AttachmentService } from "../attachmentService";
 import { translatedStrings } from "./controllerSupport";
 import type { ControllerState } from "./controllerState";
 

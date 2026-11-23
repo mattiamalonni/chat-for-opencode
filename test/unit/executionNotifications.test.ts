@@ -18,7 +18,7 @@ vi.mock("vscode", () => ({
 import * as vscode from "vscode";
 import { ChatController, type ExecutionState } from "../../src/chat/controller";
 import { ExecutionStateService } from "../../src/chat/executionState";
-import { ChatPromptActions } from "../../src/chat/promptActions";
+import { ChatPromptActions } from "../../src/chat/services/promptActions";
 import { ChatEventRouter, type EventRouterHooks } from "../../src/chat/eventRouter";
 import { BoundedSet } from "../../src/shared/boundedSet";
 
