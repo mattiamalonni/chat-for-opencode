@@ -22,6 +22,7 @@ vi.mock("vscode", () => ({
 
 import { ChatController } from "../../src/chat/controller";
 import { ExecutionStateService } from "../../src/chat/executionState";
+import { ChatSessionService } from "../../src/chat/sessionService";
 
 const proto = ChatController.prototype as unknown as Record<string, (this: unknown, ...args: unknown[]) => unknown>;
 const call = (name: string, self: unknown, ...args: unknown[]): unknown => proto[name].apply(self, args);
@@ -49,6 +50,7 @@ function base(extra: Record<string, unknown> = {}) {
     execution: new ExecutionStateService(),
     post: vi.fn(),
     refreshActions: { scheduleSessions: vi.fn() },
+    sessionService: { scheduleReconcile: vi.fn(), syncNow: vi.fn() },
     scheduleReconcile: vi.fn(),
     output: { warn: vi.fn(), info: vi.fn(), error: vi.fn() },
     ctx: { globalState: { get: vi.fn(() => undefined), update: vi.fn() } },
@@ -84,7 +86,7 @@ describe("ChatController state machine", () => {
       type: "event",
       event: { type: "session.status", data: { sessionID: "s1", status: { type: "idle", local: true } } },
     });
-    expect(current.scheduleReconcile).toHaveBeenCalled();
+    expect((current.sessionService as { scheduleReconcile: ReturnType<typeof vi.fn> }).scheduleReconcile).toHaveBeenCalled();
   });
 
   it("stops servers and posts an untrusted notice when trust is revoked", async () => {
@@ -103,7 +105,8 @@ describe("ChatController state machine", () => {
 
   it("always releases the manual-sync button, even with no client", async () => {
     const c = base({ client: undefined, sessionId: undefined });
-    await call("syncNow", c);
+    const service = ChatSessionService.prototype as unknown as Record<string, (this: unknown, ...args: unknown[]) => unknown>;
+    await service["syncNow"].call({ d: { getClient: () => undefined, state: c.state, post: c.post } });
     expect(c.post).toHaveBeenCalledWith({ type: "synced" });
   });
 });

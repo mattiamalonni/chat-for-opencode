@@ -17,7 +17,7 @@ vi.mock("vscode", () => ({
   },
 }));
 
-import { ChatController } from "../../src/chat/controller";
+import { ChatSessionService } from "../../src/chat/sessionService";
 import { ChatViews } from "../../src/chat/views";
 
 function fakeView(kind: "sidebar" | "panel") {
@@ -135,10 +135,26 @@ describe("loadSession staleness", () => {
       refreshChanges: vi.fn().mockResolvedValue([]),
       startLivePoll: vi.fn(),
     };
-    const proto = ChatController.prototype as unknown as Record<string, (...args: unknown[]) => unknown>;
-    const fn = proto["loadSession"] as unknown as (this: typeof c, info: unknown, stale: () => boolean) => Promise<void>;
+    const deps = {
+      state: c.state,
+      getClient: () => c.client,
+      output: c.output,
+      observeContract: c.observeContract,
+      execution: c.execution,
+      subagents: c.subagents,
+      permissions: c.permissions,
+      ctx: c.ctx,
+      catalog: c.catalog,
+      post: c.post,
+      permissionActions: { post: c.postAutoApprove },
+      refreshActions: { publishInbox: c.publishInbox, refreshChanges: c.refreshChanges },
+      refreshSessions: c.refreshSessions,
+      lifecycle: { startInterval: vi.fn(), generations: {} },
+    };
+    const service = ChatSessionService.prototype as unknown as Record<string, (...args: unknown[]) => unknown>;
+    const fn = service["loadSession"] as unknown as (this: { d: typeof deps }, info: unknown, stale: () => boolean) => Promise<void>;
 
-    await fn.call(c, { id: "new", time: {} }, () => stale);
+    await fn.call({ d: deps }, { id: "new", time: {} }, () => stale);
 
     expect(c.ctx.workspaceState.update).not.toHaveBeenCalled();
     expect(c.post).not.toHaveBeenCalled();

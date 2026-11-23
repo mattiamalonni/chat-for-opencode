@@ -7,22 +7,11 @@ import { FileIconThemeService, type LanguageContribution } from "./fileIconTheme
 import { ChatLifecycle } from "./lifecycle";
 import { Generation } from "./generation";
 import { describeServerError, ExternalServer, ServerError, type ServerHandle, type ServerState } from "../server/server";
-import type {
-  AgentInfo,
-  FileAttachment,
-  FormRequest,
-  InboxItem,
-  ModelInfo,
-  PermissionRequest,
-  ServerEvent,
-  SessionInfo,
-  SessionMessage,
-} from "../shared/api";
-import { normalizeForm, normalizeList, normalizePermission, normalizeSessionInfo, normalizeSessionMessage } from "../shared/adapter";
-import { sessionIsBusy } from "../shared/chatReducer";
+import type { FileAttachment, ServerEvent } from "../shared/api";
+
 import { checkCompatibility } from "../shared/compatibility";
-import { jitteredDelay } from "../shared/constants";
-import { checkContract, contractSignature, emptyContract, type ContractObservations } from "../shared/contract";
+
+import { checkContract, contractSignature, type ContractObservations } from "../shared/contract";
 import { isWebviewMessage } from "../shared/protocolGuards";
 import type {
   ActionId,
@@ -60,6 +49,7 @@ import { createControllerState } from "./controllerState";
 import { ChatDraftActions } from "./draftActions";
 import { ChatFileActions } from "./fileActions";
 import { ChatServerActions } from "./serverActions";
+import { ChatSessionService } from "./sessionService";
 import { ChatPermissionActions } from "./permissionActions";
 import { ChatRefreshActions } from "./refreshActions";
 
@@ -67,15 +57,7 @@ export type { ExecutionState, ExecutionStatus, TerminalStatus } from "./executio
 
 import { SESSION_KEY, COMPAT_DISMISSED_KEY, CONTRACT_DISMISSED_KEY, DRAFTS_KEY } from "./storageKeys";
 
-import {
-  LIVE_POLL_MS,
-  MAX_DELETE_IDS,
-  MAX_DELETE_PAGES,
-  ServerRegistry,
-  subagentSessionsFromMessages,
-  toUiError,
-  translatedStrings,
-} from "./controllerSupport";
+import { MAX_DELETE_IDS, MAX_DELETE_PAGES, ServerRegistry, toUiError, translatedStrings } from "./controllerSupport";
 
 export { ServerRegistry, translatedStrings } from "./controllerSupport";
 
@@ -88,6 +70,7 @@ export class ChatController implements vscode.Disposable {
   private readonly refreshActions: ChatRefreshActions;
   private readonly draftActions: ChatDraftActions;
   private readonly serverActions: ChatServerActions;
+  private readonly sessionService: ChatSessionService;
   /** All live chats and their listeners; see views.ts. */
   private readonly chatViews: ChatViews;
   /** Server process, HTTP client and SSE stream ownership; see connectionSupervisor.ts. */
@@ -144,7 +127,7 @@ export class ChatController implements vscode.Disposable {
         // Back in view: the user can see the cards, so a later resync must not announce them again.
         this.announcedHiddenAttention.clear();
         // `resync()` also publishes a "connected" status, so never run it while still connecting.
-        if (this.state.status === "connected" && this.client) void this.resync();
+        if (this.state.status === "connected" && this.client) void this.sessionService.resync();
       },
     );
     this.supervisor = new ConnectionSupervisor({
@@ -165,11 +148,11 @@ export class ChatController implements vscode.Disposable {
         return this.useConnection(conn, stale);
       },
       onStreamReconnect: () => {
-        void this.resync();
+        void this.sessionService.resync();
       },
       onDetached: () => {
         this.state.lastKnownMessage = undefined;
-        this.stopLivePoll();
+        this.sessionService.stopLivePoll();
         this.clearTimers();
       },
       toUiError: (err, fallback) => {
@@ -363,10 +346,10 @@ export class ChatController implements vscode.Disposable {
       attention: this.announcedHiddenAttention,
       scheduleInbox: () => this.refreshActions.scheduleInbox(),
       scheduleSessions: () => this.refreshActions.scheduleSessions(),
-      scheduleReconcile: () => this.scheduleReconcile(),
+      scheduleReconcile: () => this.sessionService.scheduleReconcile(),
       scheduleChanges: () => this.refreshActions.scheduleChanges(),
       refreshSlashItems: async () => {
-        await this.refreshSlashItems();
+        await this.sessionService.refreshSlashItems();
       },
       autoApprove: (event, sid) => this.permissionActions.autoApprove(event, sid),
       newSession: () => this.newSession(),
@@ -411,8 +394,8 @@ export class ChatController implements vscode.Disposable {
       postDrafts: () => this.draftActions.post(),
       postLocalIdle: (sid, generation) => this.postLocalIdle(sid, generation),
       connect: () => this.connect(),
-      loadAll: () => this.loadAll(),
-      loadSession: (info, stale) => this.loadSession(info, stale),
+      loadAll: () => this.sessionService.loadAll(),
+      loadSession: (info, stale) => this.sessionService.loadSession(info, stale),
       send: (text, attachments, context, delivery) => this.send(text, attachments, context, delivery),
       newSession: () => this.newSession(),
       saveDraft: (sid, text) => this.draftActions.save(sid, text),
@@ -428,7 +411,7 @@ export class ChatController implements vscode.Disposable {
       runAction: (id) => this.serverActions.run(id),
       switchFolder: (folder) => this.switchFolder(folder),
       refreshChanges: () => this.refreshActions.refreshChanges(),
-      syncNow: () => this.syncNow(),
+      syncNow: () => this.sessionService.syncNow(),
       compact: () => this.compact(),
       revertToTurn: (sessionId, messageID, text, files) => this.revertToTurn(sessionId, messageID, text, files),
       forkToTurn: (sessionId, messageID) => this.forkToTurn(sessionId, messageID),
@@ -494,6 +477,29 @@ export class ChatController implements vscode.Disposable {
       send: (text, attachments, context, delivery) => this.send(text, attachments, context, delivery),
       saveDraft: (sid, text) => this.draftActions.save(sid, text),
       post: (msg) => this.post(msg),
+    });
+    this.sessionService = new ChatSessionService({
+      state: this.state,
+      ctx,
+      output,
+      lifecycle: this.lifecycle,
+      execution: this.execution,
+      catalog: this.catalog,
+      context: this.context,
+      subagents: this.subagents,
+      permissions: this.permissions,
+      attention: this.announcedHiddenAttention,
+      permissionActions: this.permissionActions,
+      refreshActions: this.refreshActions,
+      getClient: () => this.client,
+      isVisible: () => this.isVisible,
+      abortConnectionRequests: () => this.abortConnectionRequests(),
+      clearTimers: () => this.clearTimers(),
+      post: (msg) => this.post(msg),
+      setStatus: (status, error) => this.setStatus(status, error),
+      observeContract: (observations) => this.observeContract(observations),
+      bestEffort: (label, promise, fallback) => this.bestEffort(label, promise, fallback),
+      refreshSessions: () => this.refreshSessions(),
     });
     const refreshFileIcons = () => {
       this.fileIcons.invalidate();
@@ -670,7 +676,7 @@ export class ChatController implements vscode.Disposable {
     // The server may emit no terminal event for a local idle, and `onEvent` is the only other
     // place that refreshes the list and replaces the partial message with server history.
     this.refreshActions.scheduleSessions();
-    this.scheduleReconcile();
+    this.sessionService.scheduleReconcile();
   }
 
   private pickFolder(): vscode.WorkspaceFolder | undefined {
@@ -824,113 +830,12 @@ export class ChatController implements vscode.Disposable {
       (event) => this.onEvent(event as ServerEvent),
       (status, error) => this.supervisor.onStreamStatus(status, error),
     );
-    await this.loadAll();
+    await this.sessionService.loadAll();
     this.supervisor.markLoaded(conn);
-    this.startLivePoll();
-  }
-
-  private async loadAll(): Promise<void> {
-    const client = this.client;
-    if (!client || !this.state.folder) return;
-    const generation = this.lifecycle.generations.load.bump();
-    const stale = () => !this.lifecycle.generations.load.is(generation);
-    this.state.contractObservations = {};
-    this.state.contract = emptyContract;
-    let catalogError: string | undefined;
-    const signal = this.state.connectionAbort?.signal;
-    const [models, defaultModel, agents] = await Promise.all([
-      client.models(signal).catch((err: unknown) => {
-        catalogError = err instanceof Error ? err.message : String(err);
-        this.output.warn(`[chat] failed to load models: ${catalogError}`);
-        return [] as ModelInfo[];
-      }),
-      client.defaultModel(signal).catch(() => null),
-      client.agents(signal).catch((err: unknown) => {
-        this.output.warn(`[chat] failed to load agents: ${String(err)}`);
-        return [] as AgentInfo[];
-      }),
-    ]);
-    // The contract report still observes the raw values: an adapter that silently drops malformed
-    // entries must not hide a server version we cannot really support.
-    if (stale()) return;
-    this.catalog.setModelsAndAgents(models, defaultModel, agents);
-    const sessionId = this.state.sessionId ?? this.ctx.workspaceState.get<string>(SESSION_KEY(this.state.folder.uri.toString()));
-    let session: SessionInfo | undefined;
-    if (sessionId) {
-      session = await this.bestEffort("load stored session", client.getSession(sessionId, signal), undefined);
-      if (stale()) return;
-    }
-    // Plugin skills/commands are registered only once a session exists. With no session yet
-    // (fresh window, or right after "New session") create a throwaway one so the `/` picker is
-    // populated before the first prompt; the registrations survive deleting that session.
-    if (!session && !this.catalog.isWarmedUp) {
-      const tmp = await this.bestEffort(
-        "create warm-up session",
-        client.createSession({ directory: this.state.folder.uri.fsPath }),
-        undefined,
-      );
-      if (tmp) {
-        try {
-          this.catalog.markWarmedUp();
-          await this.catalog.refresh(client);
-        } finally {
-          await client.deleteSession(tmp.id).catch(() => {});
-        }
-      }
-    }
-    // Now that model/agent state is complete, a refreshed catalog (if any) can be posted safely.
-    await this.catalog.refresh(client);
-    if (stale()) return;
-    this.observeContract({ version: this.state.version, models, agents, skills: this.catalog.skills });
-
-    await this.refreshSessions();
-    if (stale()) return;
-    if (session) {
-      await this.loadSession(session, stale);
-    } else {
-      if (stale()) return;
-      this.state.sessionId = undefined;
-      this.subagents.reset();
-      this.catalog.publish();
-      this.post({ type: "session", session: null });
-      this.permissionActions.post();
-    }
-    if (catalogError !== undefined) {
-      // An empty array from a *failed* request is not evidence that the user has no provider.
-      const s = translatedStrings();
-      this.setStatus("error", {
-        kind: "requestFailed",
-        message: s["error.requestFailed"],
-        detail: catalogError,
-        actions: ["reconnect", "showLogs"],
-      });
-      if (this.state.catalogRetries < 2 && !stale()) {
-        this.state.catalogRetries++;
-        const wait = jitteredDelay(500 * this.state.catalogRetries);
-        this.lifecycle.schedule(
-          "catalogRetry",
-          () => {
-            if (!stale()) void this.loadAll();
-          },
-          wait,
-        );
-      }
-    } else {
-      this.state.catalogRetries = 0;
-      if (this.catalog.models.length === 0) {
-        const s = translatedStrings();
-        this.setStatus("error", { kind: "noProvider", message: s["error.noProvider"], actions: ["login", "reconnect", "showLogs"] });
-      } else {
-        this.setStatus("connected");
-      }
-    }
-    this.post({ type: "context", items: this.context.current() });
+    this.sessionService.startLivePoll();
   }
 
   /** OpenCode registers plugin catalog items only once a session exists; keep the picker fresh. */
-  private async refreshSlashItems(): Promise<void> {
-    if (this.client) await this.catalog.refresh(this.client);
-  }
 
   /**
    * Applies only the messages added since the last load. The SSE stream is live-only and has no
@@ -941,95 +846,14 @@ export class ChatController implements vscode.Disposable {
    * Returns `false` when the overlap is unknown (history trimmed/compacted) so the caller falls
    * back to a full load. This is best-effort: a failed tail fetch must never lose a conversation.
    */
-  private async resyncTail(
-    sid: string,
-    rawInfo: SessionInfo,
-    stale: () => boolean,
-    busyOverride?: boolean,
-    prefetched?: SessionMessage[],
-  ): Promise<boolean> {
-    const client = this.client;
-    if (!client || this.state.lastKnownMessage?.sessionId !== sid) return false;
-    const signal = this.state.connectionAbort?.signal;
-    const rawNewer =
-      prefetched ?? (await client.messagesNewerThan(sid, this.state.lastKnownMessage.id, undefined, signal).catch(() => undefined));
-    if (rawNewer === undefined || stale()) return false;
-    const [rawPermissions, rawForms] = await Promise.all([
-      client.permissions(sid, signal).catch(() => [] as PermissionRequest[]),
-      client.forms(sid, signal).catch(() => [] as FormRequest[]),
-    ]);
-    if (stale()) return true;
-    const info = normalizeSessionInfo(rawInfo) ?? rawInfo;
-    const newer = normalizeList(rawNewer, normalizeSessionMessage);
-    const pending = await this.permissions.filterPending(client, sid, normalizeList(rawPermissions, normalizePermission));
-    if (stale()) return true;
-    const last = newer.at(-1);
-    if (last) this.state.lastKnownMessage = { sessionId: sid, id: last.id };
-    this.permissionActions.post();
-    this.post({
-      type: "sessionDelta",
-      delta: {
-        sessionId: sid,
-        messages: newer,
-        permissions: pending,
-        forms: normalizeList(rawForms, normalizeForm),
-        usage: info.tokens ? { cost: info.cost ?? 0, tokens: info.tokens } : undefined,
-        busy: busyOverride ?? sessionIsBusy(info.time, newer),
-        title: info.title,
-        agent: info.agent,
-        model: info.model,
-      },
-    });
-    void this.refreshActions.refreshChanges().catch(() => {});
-    void this.refreshActions.refreshInbox(sid).catch(() => {});
-    return true;
-  }
 
   /** Live stream has no replay: re-fetch the current session after a reconnect. */
-  private async resync(): Promise<void> {
-    try {
-      const generation = this.lifecycle.generations.load.current();
-      // `resync()` is fire-and-forget from the stream status and view visibility handlers. Capture
-      // the connection too: a folder switch or a new connect during the awaits below must not let an
-      // old resync publish "connected" for a client we no longer own.
-      const connectGeneration = this.lifecycle.generations.connect.current();
-      const client = this.client;
-      const sid = this.state.sessionId;
-      await this.refreshSessions();
-      if (sid && sid === this.state.sessionId && client && client === this.client) {
-        const info = await client.getSession(sid);
-        if (!this.lifecycle.generations.load.is(generation) || sid !== this.state.sessionId || client !== this.client) return;
-        const busyOverride = this.execution.isLocallyIdle(sid) ? false : undefined;
-        const stale = () => !this.lifecycle.generations.load.is(generation) || sid !== this.state.sessionId || client !== this.client;
-        if (!(await this.resyncTail(sid, info, stale, busyOverride))) {
-          await this.loadSession(info, stale, busyOverride);
-        }
-      }
-      if (!this.lifecycle.generations.connect.is(connectGeneration) || client !== this.client) return;
-      if (this.state.status !== "error" || this.state.lastError?.kind === "connectionLost") this.setStatus("connected");
-    } catch (err) {
-      this.output.error(`[chat] resync failed: ${String(err)}`);
-    }
-  }
 
   /**
    * Manual sync from the header button: an authoritative reload from the server, meant to repair a
    * chat whose live state drifted. Unlike the visibility top-up, this rebuilds the webview state.
    * The completion notice is sent in `finally` so the button can never stay stuck on "syncing".
    */
-  private async syncNow(): Promise<void> {
-    try {
-      const client = this.client;
-      const sid = this.state.sessionId;
-      if (!client || !sid) return;
-      const generation = this.lifecycle.generations.load.bump();
-      const info = await client.getSession(sid);
-      if (!this.lifecycle.generations.load.is(generation) || sid !== this.state.sessionId) return;
-      await this.loadSession(info, () => !this.lifecycle.generations.load.is(generation) || sid !== this.state.sessionId);
-    } finally {
-      this.post({ type: "synced" });
-    }
-  }
 
   /**
    * The SSE stream is scoped to the server process we connected to. Another client (e.g. the TUI
@@ -1038,63 +862,18 @@ export class ChatController implements vscode.Disposable {
    * Poll the open session's tail instead and fold new messages in through the same `sessionDelta`
    * path used on reconnect, so an external conversation shows up live while the chat is visible.
    */
-  private startLivePoll(): void {
-    this.lifecycle.startInterval("livePoll", () => void this.pollSessionTail(), LIVE_POLL_MS);
-  }
-
-  private stopLivePoll(): void {
-    this.lifecycle.stopInterval("livePoll");
-  }
-
-  private async pollSessionTail(force = false): Promise<void> {
-    const client = this.client;
-    const sid = this.state.sessionId;
-    if (!client || !sid || this.state.status !== "connected" || (!force && !this.isVisible)) return;
-    // Local turns are driven by live events; polling them would only re-post partial snapshots and
-    // could pull a streaming card back to an older history state. Wait for the stream to go quiet.
-    if (!force && Date.now() - this.state.lastSessionEventAt < LIVE_POLL_MS) return;
-    const head = this.state.lastKnownMessage;
-    if (!head || head.sessionId !== sid) return;
-    try {
-      const generation = this.lifecycle.generations.load.current();
-      const stale = () => !this.lifecycle.generations.load.is(generation) || sid !== this.state.sessionId;
-      // The tail itself is authoritative. `time.updated` is not a reliable gate: it can stay equal
-      // on a coarse clock, or move for changes we do not render, which used to hide real messages.
-      const newer = await client.messagesNewerThan(sid, head.id).catch(() => undefined);
-      if (stale()) return;
-      if (newer === undefined) {
-        // `messagesNewerThan` looks at the newest page only. A burst of >200 messages from another
-        // client (or a compacted history) has no overlap with our mark: fall back to a full load.
-        // `getSession()` also gates transient tail failures — if the server is really down it throws
-        // and the catch below logs, so a broken poll cannot rebuild the chat every two seconds.
-        const info = await client.getSession(sid);
-        if (stale()) return;
-        await this.loadSession(info, stale, this.execution.isLocallyIdle(sid) ? false : undefined);
-        void this.refreshSessions().catch(() => {});
-        return;
-      }
-      if (newer.length === 0) return;
-      const info = await client.getSession(sid);
-      if (stale()) return;
-      const busyOverride = this.execution.isLocallyIdle(sid) ? false : undefined;
-      if (!(await this.resyncTail(sid, info, stale, busyOverride, newer))) {
-        await this.loadSession(info, stale, busyOverride);
-      }
-      void this.refreshSessions().catch(() => {});
-    } catch (err) {
-      // A transient failure must not kill the poll: the next tick tries again.
-      this.output.warn(`[chat] live poll failed: ${String(err)}`);
-    }
-  }
 
   /** Exposed for integration tests: run one poll now, independent of visibility and event quiet. */
-  pollNow(): Promise<void> {
-    return this.pollSessionTail(true);
-  }
 
   /** Exposed for integration tests: force the reconnect-style resync without touching VS Code UI. */
+
+  /** Integration-test hooks (kept on the controller's public API). */
+  pollNow(): Promise<void> {
+    return this.sessionService.pollNow();
+  }
+
   resyncNow(): Promise<void> {
-    return this.resync();
+    return this.sessionService.resyncNow();
   }
 
   // ---- subagents --------------------------------------------------------------------------
@@ -1139,37 +918,6 @@ export class ChatController implements vscode.Disposable {
    * incomplete turn forever. After each turn, re-read the session and replace the webview state.
    * Skipped when another prompt starts meanwhile, since its live events are newer than the snapshot.
    */
-  private scheduleReconcile(): void {
-    const sid = this.state.sessionId;
-    const generation = this.execution.generation.current();
-    this.lifecycle.schedule(
-      "reconcile",
-      () => {
-        if (!sid || sid !== this.state.sessionId || !this.execution.generation.is(generation)) return;
-        void this.reconcileSession(sid, generation);
-      },
-      350,
-    );
-  }
-
-  private async reconcileSession(sid: string, generation: number): Promise<void> {
-    if (!this.client || sid !== this.state.sessionId) return;
-    try {
-      const info = await this.client.getSession(sid, this.state.connectionAbort?.signal);
-      if (sid !== this.state.sessionId || !this.execution.generation.is(generation)) return;
-      // If the composer was cleared locally and no new turn has started, the server's timestamps
-      // are stale (a dismissed question can leave `busy` newer than `idle` with no idle message).
-      // Keep it unlocked instead of re-syncing back to "stop".
-      const busyOverride = this.execution.isLocallyIdle(sid) ? false : undefined;
-      const stale = () => sid !== this.state.sessionId || !this.execution.generation.is(generation);
-      if (!(await this.resyncTail(sid, info, stale, busyOverride))) {
-        await this.loadSession(info, stale, busyOverride);
-      }
-    } catch (err) {
-      // A failed reconcile is not worth surfacing: the live stream may still have delivered everything.
-      this.output.warn(`[chat] session reconcile failed: ${String(err)}`);
-    }
-  }
 
   async refreshSessions(): Promise<void> {
     await this.sessionList.refresh();
@@ -1306,7 +1054,10 @@ export class ChatController implements vscode.Disposable {
       const info = await client.getSession(sessionId);
       if (!this.lifecycle.generations.load.is(generation) || sessionId !== this.state.sessionId) return false;
       // A commit deletes messages, so a tail resync cannot detect it: rebuild from history.
-      await this.loadSession(info, () => !this.lifecycle.generations.load.is(generation) || sessionId !== this.state.sessionId);
+      await this.sessionService.loadSession(
+        info,
+        () => !this.lifecycle.generations.load.is(generation) || sessionId !== this.state.sessionId,
+      );
       return true;
     } catch (err) {
       const s = translatedStrings();
@@ -1335,7 +1086,7 @@ export class ChatController implements vscode.Disposable {
       const info = await client.forkSession(sessionId, messageID);
       if (!this.lifecycle.generations.load.is(generation) || client !== this.client) return;
       this.sessionList.addFork(info.id);
-      await this.loadSession(info, () => !this.lifecycle.generations.load.is(generation) || client !== this.client);
+      await this.sessionService.loadSession(info, () => !this.lifecycle.generations.load.is(generation) || client !== this.client);
       if (client !== this.client) return;
       this.post({ type: "forked", sessionId: info.id, title: info.title });
     } catch (err) {
@@ -1357,102 +1108,6 @@ export class ChatController implements vscode.Disposable {
    * catalog/session-list/diff round-trips. Those still run, but fire-and-forget with a generation
    * guard, so the webview is published as soon as history is available.
    */
-  private async loadSession(rawInfo: SessionInfo, stale?: () => boolean, busyOverride?: boolean, fast = false): Promise<void> {
-    const client = this.client;
-    if (!client || !this.state.folder) return;
-    const signal = this.state.connectionAbort?.signal;
-    const [rawMessages, rawPermissions, rawForms, rawInbox] = await Promise.all([
-      // The other fetches degrade to empty lists; history must too. `send()` awaits loadSession
-      // before posting, so a transient history error must not silently swallow the user's prompt.
-      client.messages(rawInfo.id, 2000, signal).catch((err) => {
-        this.output.warn(`[chat] could not load session history: ${String(err)}`);
-        return [];
-      }),
-      client.permissions(rawInfo.id, signal).catch(() => []),
-      client.forms(rawInfo.id, signal).catch(() => []),
-      client.inbox(rawInfo.id, signal).catch(() => [] as InboxItem[]),
-    ]);
-    // A newer prompt may have started while history was loading; its events are fresher.
-    if (stale?.()) return;
-    this.observeContract({ messages: rawMessages, inbox: rawInbox });
-    const info = normalizeSessionInfo(rawInfo) ?? rawInfo;
-    const messages = normalizeList(rawMessages, normalizeSessionMessage);
-    const forms = normalizeList(rawForms, normalizeForm);
-    const changed = this.state.sessionId !== info.id;
-    // Publish the new session before touching children: `loadSubagentSnapshot` captures the parent
-    // synchronously and drops its result if that id no longer matches the open session. Setting it
-    // afterwards made every subagent of a freshly selected session fail its own staleness guard.
-    this.state.sessionId = info.id;
-    if (changed) {
-      this.subagents.reset();
-      // Terminal events of the previous session cannot close its turn any more.
-      this.execution.ensureSession(info.id);
-    }
-    const newest = messages.at(-1);
-    this.state.lastKnownMessage = newest ? { sessionId: info.id, id: newest.id } : undefined;
-    // Requests granted automatically must not linger as cards when the chat's toggle is on.
-    const pending = await this.permissions.filterPending(client, info.id, normalizeList(rawPermissions, normalizePermission));
-    // `filterPending` performs real HTTP calls (auto-approve). A session switch while it is in
-    // flight bumps `loadGen`; without a second guard we would persist and post the stale session.
-    if (stale?.()) return;
-    await this.ctx.workspaceState.update(SESSION_KEY(this.state.folder.uri.toString()), info.id);
-    // Persist the selection carried by the open session, so a reload without a session uses the
-    // same model/agent. These are accepted values from the server, not an optimistic local choice.
-    if (info.model && this.catalog.models.some((m) => m.id === info.model?.id && m.providerID === info.model?.providerID)) {
-      this.catalog.selectModel(info.model);
-    }
-    if (info.agent && this.catalog.agents.some((a) => a.id === info.agent)) this.catalog.selectAgent(info.agent);
-    if (!fast) {
-      await this.refreshSlashItems();
-      if (stale?.()) return;
-    }
-    this.catalog.publish();
-    this.post({
-      type: "session",
-      session: {
-        id: info.id,
-        title: info.title,
-        agent: info.agent,
-        model: info.model,
-        busy: busyOverride ?? sessionIsBusy(info.time, messages),
-        messages,
-        permissions: pending,
-        forms,
-        // Cost/tokens also come from history, so a resync must not clear the composer's meter.
-        usage: info.tokens ? { cost: info.cost ?? 0, tokens: info.tokens } : undefined,
-      },
-    });
-    // Past subagents have no live stream on a reload; load their history for the inline cards.
-    // Track only after the `session` post: the webview clears its child state on a session switch,
-    // so a snapshot posted first would be wiped by the very message that opens the new chat.
-    for (const id of subagentSessionsFromMessages(messages)) this.subagents.track(id);
-    // A running child has no id in its tool metadata; find it via `parentID` so a pending `ask`
-    // permission is still answerable after the user switches back to this chat.
-    void this.subagents.discover();
-    this.permissionActions.post();
-    this.refreshActions.publishInbox(rawInbox);
-    if (fast) {
-      // Not on the critical path of the first prompt. The generation guard keeps a late response
-      // from overwriting state after a folder/session switch.
-      const guard = stale;
-      void this.refreshSlashItems().catch(() => {});
-      void this.refreshSessions().catch(() => {});
-      void this.refreshActions
-        .refreshChanges()
-        .then((diff) => {
-          if (!guard?.()) this.observeContract({ diff });
-        })
-        .catch(() => {});
-    } else {
-      await this.refreshSessions();
-      if (stale?.()) return;
-      const diff = await this.refreshActions.refreshChanges();
-      this.observeContract({ diff });
-    }
-    // Idempotent: a session opened without a connection change (e.g. after New Session + prompt)
-    // still needs to follow turns started by other clients sharing the same on-disk storage.
-    this.startLivePoll();
-  }
 
   // ---- commands ---------------------------------------------------------------------------
 
@@ -1460,17 +1115,6 @@ export class ChatController implements vscode.Disposable {
    * One teardown path for "the current work no longer matters". Callers used to repeat a different
    * subset of these steps in a different order; forgetting one was the source of stale-state races.
    */
-  private invalidateSessionState(): void {
-    this.announcedHiddenAttention.clear();
-    this.state.failedPrompt = undefined;
-    this.lifecycle.generations.load.bump();
-    this.abortConnectionRequests();
-    this.clearTimers();
-    this.stopLivePoll();
-    this.state.lastKnownMessage = undefined;
-    this.permissions.setPending(undefined);
-    this.execution.reset();
-  }
 
   /** A folder switch, server reset or dispose also ends the connection epoch and the picker. */
   private invalidateConnection(): void {
@@ -1482,11 +1126,11 @@ export class ChatController implements vscode.Disposable {
     this.state.deleteAllAbort?.abort();
     this.sessionList.reset();
     this.sessionList.cancelSearch();
-    this.invalidateSessionState();
+    this.sessionService.invalidateSessionState();
   }
 
   async newSession(): Promise<void> {
-    this.invalidateSessionState();
+    this.sessionService.invalidateSessionState();
     // No session is open any more: polling its tail would be a no-op every two seconds until the
     // next load. Loading that session starts the poll again.
     this.state.sessionId = undefined;
@@ -1506,7 +1150,7 @@ export class ChatController implements vscode.Disposable {
       this.postUntrusted();
       return;
     }
-    this.invalidateSessionState();
+    this.sessionService.invalidateSessionState();
     await this.supervisor.reconnect();
   }
 
@@ -1644,7 +1288,7 @@ export class ChatController implements vscode.Disposable {
         if (autoApprove !== undefined) {
           await this.permissions.write(info.id, autoApprove);
         }
-        await this.loadSession(info, () => !this.lifecycle.generations.load.is(loadGeneration), undefined, true);
+        await this.sessionService.loadSession(info, () => !this.lifecycle.generations.load.is(loadGeneration), undefined, true);
         if (!this.lifecycle.generations.load.is(loadGeneration)) {
           this.execution.fail(this.state.sessionId, turn.generation);
           return false;
