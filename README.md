@@ -171,7 +171,6 @@ loads the skill content.
 | Sync the current session                    | `Cmd/Ctrl+R` (chat focused)                                                                   |
 | OpenCode: Compact Conversation              | –                                                                                             |
 | OpenCode: Restart Server…                   | – (toolbar, with confirmation)                                                                |
-| OpenCode: Open Config File                  | – (toolbar file icon)                                                                         |
 | OpenCode: Open Extension Settings           | – (toolbar gear icon)                                                                         |
 | OpenCode: Move Chat View…                   | – (left/right side bar or panel)                                                              |
 | OpenCode: Show Logs                         | –                                                                                             |

@@ -5,7 +5,6 @@
   "view.chat": "Chat",
   "command.newSession": "New Session",
   "command.restart": "Restart Server…",
-  "command.openConfigFile": "Open OpenCode Config File",
   "command.openSettings": "Open Extension Settings",
   "command.compact": "Compact Conversation",
   "command.addSelectionToChat": "Add Selection to Chat",

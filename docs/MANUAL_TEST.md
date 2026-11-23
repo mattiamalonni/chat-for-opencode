@@ -83,8 +83,7 @@ screen readers and multi-window process management.
     12d. **Export and search**: use the header buttons to export the conversation as a `.md` file and to
     search for a word you used earlier; non-matching messages must be hidden and the result count
     shown. Add a large inline attachment and check the context meter shows a `~`-prefixed estimate.
-    12e. **Toolbar actions**: from the view title, the file icon opens the effective `opencode.json` in
-    the editor (a minimal one is created in the workspace if the server reports no config document);
+    12e. **Toolbar actions**: from the view title,
     the refresh icon opens **Restart Server…** with a modal confirmation that has exactly one
     _Cancel_ button (the native one) plus _Restart_; the gear icon opens the VS Code Settings view
     filtered to this extension. Cancelling the restart must leave the chat and its server connected.

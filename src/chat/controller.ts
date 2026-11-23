@@ -9,7 +9,6 @@ import { Generation } from "./generation";
 import { describeServerError, ExternalServer, ManagedServer, ServerError, type ServerHandle, type ServerState } from "../server/server";
 import type {
   AgentInfo,
-  ConfigEntry,
   FileAttachment,
   FileDiff,
   FormRequest,
@@ -66,7 +65,6 @@ import { quoteForShell } from "./shell";
 import { isWithinDirectory } from "./tempAttachments";
 import { isWithinDirectoryReal } from "./pathSafety";
 import { normalizeEndpoint } from "../server/endpoint";
-import { configTargetPaths } from "./configTarget";
 import { BoundedSet } from "../shared/boundedSet";
 import { ChatEventRouter } from "./eventRouter";
 import { ChatCommandHandler } from "./commandHandler";
@@ -2053,68 +2051,6 @@ export class ChatController implements vscode.Disposable {
       const detail = err instanceof Error ? err.message : String(err);
       await this.restoreFailedPrompt(text, attachments, context, delivery, this.sessionId, detail, turn.generation);
       return false;
-    }
-  }
-
-  /**
-   * Open the highest-priority OpenCode config document. With no document reported by the server,
-   * fall back to `opencode.json` in the workspace and create a minimal one if it is missing.
-   */
-  async openConfigFile(): Promise<void> {
-    let client = this.client;
-    if (!client) {
-      await this.connect();
-      client = this.client;
-    }
-    const folder = this.folder;
-    if (!folder) return;
-    const directory = folder.uri.fsPath;
-    let target: string | undefined;
-    if (client) {
-      const entries = await client.config(directory).catch(() => [] as ConfigEntry[]);
-      // The server's paths are untrusted: ignore anything that is not an OpenCode config file in
-      // this workspace, and resolve symlinks before accepting the highest-priority document.
-      for (const candidate of configTargetPaths(entries, directory)) {
-        if (await isWithinDirectoryReal(candidate, directory)) target = candidate;
-      }
-    }
-    // Creation is only ever performed for the in-workspace fallback, never for a server-supplied
-    // path that failed validation.
-    if (!target) target = path.join(directory, "opencode.json");
-    if (!(await isWithinDirectoryReal(target, directory))) {
-      const s = translatedStrings();
-      this.post({
-        type: "notice",
-        error: {
-          kind: "requestFailed",
-          message: s["error.requestFailed"],
-          detail: "Config path is outside the workspace",
-          actions: ["showLogs"],
-        },
-      });
-      return;
-    }
-    const uri = vscode.Uri.file(target);
-    try {
-      const doc = await vscode.workspace.openTextDocument(uri);
-      await vscode.window.showTextDocument(doc);
-    } catch {
-      try {
-        await vscode.workspace.fs.writeFile(uri, Buffer.from('{\n  "$schema": "https://opencode.ai/config.json"\n}\n', "utf8"));
-        const doc = await vscode.workspace.openTextDocument(uri);
-        await vscode.window.showTextDocument(doc);
-      } catch (err) {
-        const s = translatedStrings();
-        this.post({
-          type: "notice",
-          error: {
-            kind: "requestFailed",
-            message: s["error.requestFailed"],
-            detail: err instanceof Error ? err.message : String(err),
-            actions: ["showLogs"],
-          },
-        });
-      }
     }
   }
 

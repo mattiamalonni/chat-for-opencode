@@ -206,7 +206,6 @@ export function activate(context: vscode.ExtensionContext): ExtensionApi {
       if (choice === restart) await chat.resetServers();
     }),
     vscode.commands.registerCommand("opencode.install", () => chat.runAction("install")),
-    vscode.commands.registerCommand("opencode.openConfigFile", () => chat.openConfigFile()),
     vscode.commands.registerCommand("opencode.openSettings", () => chat.runAction("openSettings")),
     vscode.commands.registerCommand("opencode.compact", () => chat.compact()),
     vscode.commands.registerCommand("opencode.searchSessions", async () => {

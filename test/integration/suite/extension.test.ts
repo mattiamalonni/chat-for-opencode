@@ -56,7 +56,6 @@ describe("chat-for-opencode extension", () => {
     for (const c of [
       "opencode.newSession",
       "opencode.restart",
-      "opencode.openConfigFile",
       "opencode.openSettings",
       "opencode.addSelectionToChat",
       "opencode.addFileToChat",
@@ -78,22 +77,6 @@ describe("chat-for-opencode extension", () => {
       "opencode.continueInTerminal",
     ]) {
       assert.ok(all.includes(c), `missing command ${c}`);
-    }
-  });
-
-  it("opens the OpenCode config file from the toolbar command", async () => {
-    await vscode.commands.executeCommand("opencode.openConfigFile");
-    const opened = await waitFor(
-      () =>
-        vscode.window.activeTextEditor?.document.fileName.endsWith("opencode.json")
-          ? vscode.window.activeTextEditor.document.fileName
-          : undefined,
-      "config file opened",
-    );
-    try {
-      unlinkSync(opened);
-    } catch {
-      // The mock may point at a file already cleaned up by another test.
     }
   });
 

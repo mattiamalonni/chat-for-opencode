@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- **Removed:** the chat toolbar's _Open OpenCode Config File_ button and its `opencode.openConfigFile`
+  command are gone, along with the dedicated config endpoint call and path validation they needed.
+  OpenCode config files can still be edited directly in the workspace.
+
 - **OpenCode 2.3.0:** the supported server version, OpenAPI snapshot and generated wire types are
   now based on 2.3.0. The API contract is additive over 2.2.7 (new event types and optional fields),
   so recorded 2.2.7 fixtures and CI's live contract job keep covering the same endpoints. Servers on

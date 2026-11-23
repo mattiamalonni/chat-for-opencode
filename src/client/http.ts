@@ -1,7 +1,6 @@
 import type {
   AgentInfo,
   CommandInfo,
-  ConfigEntry,
   FileAttachment,
   FileDiff,
   FormRequest,
@@ -180,18 +179,6 @@ export class OpenCodeClient {
       throw new ApiError("Malformed server info response", 200, "malformedResponse");
     }
     return res as ServerInfo;
-  }
-
-  /** Config documents and discovery sources, from lowest to highest priority. */
-  async config(directory?: string): Promise<ConfigEntry[]> {
-    const res = await this.requestEndpoint<ConfigEntry[]>(
-      ENDPOINTS.config,
-      {},
-      {
-        query: directory ? { "location[directory]": directory } : undefined,
-      },
-    );
-    return Array.isArray(res) ? res : [];
   }
 
   /** One page of sessions plus the opaque cursor for the next page (if any). */

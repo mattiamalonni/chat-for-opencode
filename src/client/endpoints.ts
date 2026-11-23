@@ -13,7 +13,6 @@ export interface ApiEndpoint {
 
 export const ENDPOINTS = {
   info: { method: "GET", path: "api/info" },
-  config: { method: "GET", path: "api/config" },
   event: { method: "GET", path: "api/event" },
   models: { method: "GET", path: "api/model" },
   modelDefault: { method: "GET", path: "api/model/default" },
