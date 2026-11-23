@@ -38,12 +38,13 @@ settings, see [REFERENCE.md](REFERENCE.md).
 
 - **Editor context**: the active file and selection are attached automatically as removable chips,
   with your active file icon theme's icons (including dark/light/high-contrast and glyph fonts).
-- **`@` mentions** with fuzzy workspace search: picking a file attaches it as a chip and removes the
-  `@query` from the input. **Add Selection to Chat** / **Add File to Chat** work the same way.
+- **`@` mentions** are reserved for files, with fuzzy workspace search: picking a file attaches it as
+  a chip and removes the `@query` from the input. **Add Selection to Chat** / **Add File to Chat**
+  work the same way.
 
-- **Context sources on demand**: `@problems`, `@git`, `@terminal`, `@openEditors` or `@symbol`, or
-  the **Add context** button next to the composer's folder button. Their content is sent inline, so
-  it works even when the server's filesystem is not yours.
+- **Context sources on demand**: `#problems`, `#git`, `#terminal`, `#openEditors` or `#symbol` — typed
+  after `#` in the composer — or the **Add context** button next to the composer's folder button.
+  Their content is sent inline, so it works even when the server's filesystem is not yours.
 - **Attach external files** by dragging them into the chat (hold **Shift**: VS Code otherwise opens
   the file), pasting a file into the prompt, or using the folder button's native picker. Files
   outside the workspace — and all local files when using an external endpoint — are sent inline.

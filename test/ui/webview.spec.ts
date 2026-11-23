@@ -299,14 +299,34 @@ test("context sources attach inline content as chips and can be removed", async 
   expect(await lastPosted(page, "removeContextSource")).toMatchObject({ source: "problems" });
 });
 
-test("@ mentions suggest context sources and attach them", async ({ page }) => {
+test("# mentions suggest context sources and attach them", async ({ page }) => {
   await boot(page);
   const input = page.getByRole("textbox", { name: STRINGS.inputLabel });
-  await input.fill("@prob");
+  await input.fill("#prob");
   await expect(page.locator(".mention-popup")).toContainText("Problems");
   await page.locator(".mention-popup li").filter({ hasText: "Problems" }).click();
   expect(await lastPosted(page, "addContextSource")).toMatchObject({ source: "problems" });
   await expect(input).toHaveValue("");
+});
+
+test("@ and # keep files and context sources in separate pickers", async ({ page }) => {
+  await boot(page);
+  const input = page.getByRole("textbox", { name: STRINGS.inputLabel });
+
+  await input.fill("@app");
+  await expect.poll(async () => (await lastPosted(page, "searchFiles")) as unknown).toEqual({ type: "searchFiles", query: "app" });
+  await host(page, {
+    type: "fileResults",
+    query: "app",
+    items: [{ uri: "file:///work/src/app.ts", name: "app.ts", kind: "file", detail: "src/app.ts" }],
+  });
+  await expect(page.locator(".mention-popup")).toContainText("src/app.ts");
+  await expect(page.locator(".mention-popup")).not.toContainText("Problems");
+
+  await input.fill("#git");
+  await expect(page.locator(".mention-popup")).toContainText("Git diff");
+  await expect(page.locator(".mention-popup")).not.toContainText("app.ts");
+  expect((await posted(page)).filter((m) => m.type === "searchFiles" && m.query === "git")).toEqual([]);
 });
 
 test("dropping a file from outside shows an overlay and attaches it", async ({ page }) => {

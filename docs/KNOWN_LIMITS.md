@@ -88,8 +88,8 @@ test or a manual probe actually ran.
   output or symbol locations when you add it; later edits do not update it. Remove and re-add the
   chip to refresh. Their Markdown is capped at 12 000 characters (terminal output at 8 000) and is
   counted in the context meter like any other inline attachment.
-- **Some context sources need host features.** `@git` needs `git` on `PATH` and a repository at the
-  connected folder; `@symbol` needs a definition provider for the language; `@terminal` needs VS Code
+- **Some context sources need host features.** `#git` needs `git` on `PATH` and a repository at the
+  connected folder; `#symbol` needs a definition provider for the language; `#terminal` needs VS Code
   shell integration and only sees commands started after this extension activated. When the data is
   unavailable the chip is simply not added.
 

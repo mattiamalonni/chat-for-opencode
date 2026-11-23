@@ -55,6 +55,7 @@ export interface ComposerProps {
 }
 
 const FILE_MENTION_RE = /(^|\s)@([^\s@]*)$/;
+const CONTEXT_MENTION_RE = /(^|\s)#([^\s#]*)$/;
 const SKILL_COMMAND_RE = /(^|\s)\/([^\s/]*)$/;
 const COMMAND_TOKEN_RE = /(^|\s)\/([^\s/]+)/g;
 
@@ -77,7 +78,7 @@ type MentionItem =
   | { kind: "command"; item: CommandSuggestion }
   | { kind: "context"; item: ContextSource }
   | { kind: "prompt"; item: PromptDefinition };
-type Mention = { query: string; start: number; kind: "file" | "skill" };
+type Mention = { query: string; start: number; kind: "file" | "context" | "skill" };
 
 /**
  * Compact dropdown for OpenCode's built-in `build` and `plan` agents. It is always shown: older
@@ -212,7 +213,7 @@ export function Composer(props: ComposerProps) {
     if (mention.kind !== "file") return;
     const handle = setTimeout(() => post({ type: "searchFiles", query: mention.query }), 100);
     return () => clearTimeout(handle);
-  }, [mention?.query]);
+  }, [mention?.kind, mention?.query]);
 
   const fileResults = mention?.kind === "file" && props.fileResults.query === mention.query ? props.fileResults.items : [];
   const mentionQuery = mention?.kind === "skill" ? mention.query.trim().toLowerCase() : "";
@@ -243,10 +244,10 @@ export function Composer(props: ComposerProps) {
         : [],
     [mention?.kind, mention?.query, props.prompts],
   );
-  const sourceQuery = mention?.kind === "file" ? mention.query.trim().toLowerCase() : "";
+  const sourceQuery = mention?.kind === "context" ? mention.query.trim().toLowerCase() : "";
   const sourceResults: ContextSource[] = useMemo(
     () =>
-      mention?.kind === "file"
+      mention?.kind === "context"
         ? props.contextSources
             .filter((source) => `${source.id} ${source.label} ${source.description}`.toLowerCase().includes(sourceQuery))
             .slice(0, 8)
@@ -257,7 +258,7 @@ export function Composer(props: ComposerProps) {
     ...promptResults.map((item): MentionItem => ({ kind: "prompt", item })),
     ...sourceResults.map((item): MentionItem => ({ kind: "context", item })),
     ...commandResults.map((item): MentionItem => ({ kind: "command", item })),
-    ...(mention?.kind === "skill" || mention?.kind === "file" ? skillResults : []).map((item): MentionItem => ({ kind: "skill", item })),
+    ...skillResults.map((item): MentionItem => ({ kind: "skill", item })),
     ...fileResults.map((item): MentionItem => ({ kind: "file", item })),
   ];
   useEffect(() => setActive(0), [results.length, mention?.query]);
@@ -286,14 +287,15 @@ export function Composer(props: ComposerProps) {
   const updateMention = (value: string, caret: number) => {
     const beforeCaret = value.slice(0, caret);
     const skillMatch = SKILL_COMMAND_RE.exec(beforeCaret);
+    const contextMatch = CONTEXT_MENTION_RE.exec(beforeCaret);
     const fileMatch = FILE_MENTION_RE.exec(beforeCaret);
-    const match = skillMatch ?? fileMatch;
+    const match = skillMatch ?? contextMatch ?? fileMatch;
     setMention(
       match
         ? {
             query: match[2],
             start: caret - match[2].length - 1,
-            kind: skillMatch ? "skill" : "file",
+            kind: skillMatch ? "skill" : contextMatch ? "context" : "file",
           }
         : undefined,
     );
@@ -303,14 +305,10 @@ export function Composer(props: ComposerProps) {
     if (!mention) return;
     const el = ref.current;
     const caret = el?.selectionStart ?? text.length;
-    // Skills and slash commands stay in the text as `@skill` / `/command`. Files are attached as
-    // chips and sent separately as `files`, so drop the `@query` instead of leaving it in the input.
-    const label =
-      item.kind === "command"
-        ? `/${item.item.name} `
-        : item.kind === "skill"
-          ? `${mention.kind === "skill" ? "/" : "@"}${item.item.id} `
-          : "";
+    // Skills and slash commands stay in the text as `/skill` / `/command` (a skill is rewritten to
+    // `@skill` when the prompt is sent). Files are attached as chips and sent separately as `files`,
+    // so drop the `@query` instead of leaving it in the input. Context sources are added as chips too.
+    const label = item.kind === "command" ? `/${item.item.name} ` : item.kind === "skill" ? `/${item.item.id} ` : "";
     const next = text.slice(0, mention.start) + label + text.slice(caret);
     setText(next);
     setMention(undefined);
@@ -573,7 +571,7 @@ export function Composer(props: ComposerProps) {
                       {r.kind === "file"
                         ? r.item.detail
                         : r.kind === "context"
-                          ? `@${r.item.id} · ${r.item.description}`
+                          ? `#${r.item.id} · ${r.item.description}`
                           : r.kind === "prompt"
                             ? `/${r.item.id} · ${r.item.description}`
                             : r.kind === "command"

@@ -195,6 +195,10 @@ The five-source catalog is published once in `contextSources`; selecting one pos
 refresh. Chips are attached by default and removed through `removeContextSource` rather than the
 generic toggle, because a toggle would leave stale content cached in the host.
 
+The source ids above were originally typed as `@problems` and friends; the picker later split its
+triggers so that `@` is files-only and these sources are addressed with `#` instead. The chip and
+message protocol did not change.
+
 ## D20 — Applying a code block is a reviewable proposal, never a direct write
 
 The webview sends only the block text plus the nearest file reference it saw in the reply. The host
