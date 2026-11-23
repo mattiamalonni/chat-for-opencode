@@ -1,3 +1,4 @@
+import * as path from "node:path";
 import * as vscode from "vscode";
 import { isWithinDirectory } from "./tempAttachments";
 import { isWithinDirectoryReal } from "./pathSafety";
@@ -13,4 +14,10 @@ export async function isWithinWorkspace(file: string): Promise<boolean> {
     if (isWithinDirectory(file, folder.uri.fsPath) && (await isWithinDirectoryReal(file, folder.uri.fsPath))) return true;
   }
   return false;
+}
+
+/** Resolves a chat-supplied path inside a folder, or returns nothing when it escapes it. */
+export async function resolveWithinWorkspace(root: vscode.Uri, target: string): Promise<vscode.Uri | undefined> {
+  const uri = path.isAbsolute(target) ? vscode.Uri.file(target) : vscode.Uri.joinPath(root, target);
+  return (await isWithinWorkspace(uri.fsPath)) ? uri : undefined;
 }

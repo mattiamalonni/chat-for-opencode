@@ -34,7 +34,7 @@ import { ChatEventRouter } from "./eventRouter";
 import { ChatCommandHandler } from "./commandHandler";
 import { ExecutionStateService, type ExecutionState } from "./executionState";
 import { createControllerState } from "./services/controllerState";
-import { isWithinWorkspace } from "./workspacePath";
+import { isWithinWorkspace, resolveWithinWorkspace } from "./workspacePath";
 import { ChatDraftActions } from "./services/draftActions";
 import { ChatFileActions } from "./services/fileActions";
 import { ChatServerActions } from "./services/serverActions";
@@ -732,9 +732,9 @@ export class ChatController implements vscode.Disposable {
   private async resolveWorkspacePath(targetPath: string): Promise<{ uri: vscode.Uri; path: string } | undefined> {
     const root = this.state.folder?.uri;
     if (!root) return undefined;
-    const target = path.isAbsolute(targetPath) ? vscode.Uri.file(targetPath) : vscode.Uri.joinPath(root, targetPath);
-    if (!(await isWithinWorkspace(target.fsPath))) {
-      this.output.warn(`[chat] blocked a file outside the workspace: ${target.fsPath}`);
+    const target = await resolveWithinWorkspace(root, targetPath);
+    if (!target) {
+      this.output.warn(`[chat] blocked a file outside the workspace: ${targetPath}`);
       return undefined;
     }
     const owner = vscode.workspace.getWorkspaceFolder(target)?.name;

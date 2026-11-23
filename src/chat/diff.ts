@@ -2,7 +2,7 @@ import * as path from "node:path";
 import * as vscode from "vscode";
 import { evictableKey } from "../shared/diffCache";
 import { applyPatch, hunksSides, sidesFromPatch } from "../shared/patch";
-import { isWithinWorkspace } from "./workspacePath";
+import { resolveWithinWorkspace } from "./workspacePath";
 
 export const DIFF_SCHEME = "opencode-diff";
 const MAX_VIRTUAL_DOCS = 200;
@@ -36,14 +36,14 @@ export class DiffService implements vscode.TextDocumentContentProvider {
 
   /** Resolves an untrusted chat path inside the folder, or refuses it with a log line. */
   private async resolveTarget(root: vscode.Uri, file: string): Promise<vscode.Uri | undefined> {
-    const target = path.isAbsolute(file) ? vscode.Uri.file(file) : vscode.Uri.joinPath(root, file);
     // `file` comes from tool metadata produced by the model, i.e. untrusted chat content. Apply the
     // same workspace containment rule as the host's openFile(): no absolute path, `..` escape or
     // crafted tool output may make us read a file outside the folder and show it in a diff.
     // Relative paths are joined to the active folder; absolute paths may point at any folder the
     // user opened. Both are checked after resolving symlinks, so `../` escapes remain blocked.
-    if (!(await isWithinWorkspace(target.fsPath))) {
-      this.warn(`[chat] blocked a diff for a file outside the workspace: ${target.fsPath}`);
+    const target = await resolveWithinWorkspace(root, file);
+    if (!target) {
+      this.warn(`[chat] blocked a diff for a file outside the workspace: ${file}`);
       return undefined;
     }
     return target;
