@@ -61,7 +61,7 @@ function extensionOf(path: string | undefined): string {
 }
 
 /** Fallback used in standalone mode and whenever the theme has no icon for a path. */
-export function fileIcon(path: string | undefined): { Icon: Icon; className: string } {
+function fileIcon(path: string | undefined): { Icon: Icon; className: string } {
   const ext = extensionOf(path);
   if (CODE.has(ext)) return { Icon: IconFileCode, className: "code" };
   if (MARKDOWN.has(ext)) return { Icon: IconFileMarkdown, className: "markdown" };
@@ -159,7 +159,7 @@ function requestIcon(path: string): void {
   });
 }
 
-export function useFileIcon(path?: string): FileIconData | null | undefined {
+function useFileIcon(path?: string): FileIconData | null | undefined {
   const [, rerender] = useState(0);
   useEffect(() => {
     const listener = () => rerender((n) => n + 1);

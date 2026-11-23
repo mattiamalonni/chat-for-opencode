@@ -116,7 +116,7 @@ export function initialValue(f: FormField): FormValue | undefined {
 }
 
 /** External fields render only a link and carry no answer, so they must never block Submit. */
-export function isMissing(f: FormField, v: FormValue | undefined): boolean {
+function isMissing(f: FormField, v: FormValue | undefined): boolean {
   if (f.type === "external") return false;
   if (v === undefined || v === "") return true;
   // `initialValue` gives multiselects an empty array, so a required one must not be submittable
@@ -125,7 +125,7 @@ export function isMissing(f: FormField, v: FormValue | undefined): boolean {
   return (f.type === "number" || f.type === "integer") && typeof v === "number" && !Number.isFinite(v);
 }
 
-export function numericValue(raw: string): FormValue | undefined {
+function numericValue(raw: string): FormValue | undefined {
   if (raw === "") return undefined;
   const n = Number(raw);
   return Number.isFinite(n) ? n : undefined;
@@ -215,7 +215,7 @@ export function QuestionCard({
   );
 }
 
-export function FieldInput(props: {
+function FieldInput(props: {
   field: FormField;
   value: FormValue | undefined;
   onChange: (v: FormValue | undefined) => void;
@@ -332,7 +332,7 @@ export function FieldInput(props: {
 }
 
 /** Keeps the raw text while typing: `Number("-")` is NaN and would erase the sign mid-entry. */
-export function NumericFieldInput(props: {
+function NumericFieldInput(props: {
   id: string;
   field: FormField;
   value: FormValue | undefined;

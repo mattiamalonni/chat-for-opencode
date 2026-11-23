@@ -34,18 +34,18 @@ export function onHostMessage(handler: (msg: HostMessage) => void): () => void {
   return () => window.removeEventListener("message", listener);
 }
 
-export interface PersistedState {
+interface PersistedState {
   /** Legacy global draft, kept for old saved state and for the "no session" case. */
   draft?: string;
   /** Drafts keyed by session id. */
   drafts?: Record<string, string>;
 }
 
-export function getPersisted(): PersistedState {
+function getPersisted(): PersistedState {
   return (api.getState() as PersistedState | undefined) ?? {};
 }
 
-export function setPersisted(state: PersistedState): void {
+function setPersisted(state: PersistedState): void {
   api.setState(state);
 }
 

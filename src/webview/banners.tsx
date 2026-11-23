@@ -33,7 +33,7 @@ export function StatusBanner({ status, error }: { status: ConnectionStatus; erro
   return error ? <ErrorBlock error={error} /> : null;
 }
 
-export function ErrorBlock({ error, onDismiss }: { error: UiError; onDismiss?: () => void }) {
+function ErrorBlock({ error, onDismiss }: { error: UiError; onDismiss?: () => void }) {
   const t = useT();
   return (
     <div class="banner error" role="alert">

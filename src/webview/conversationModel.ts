@@ -20,7 +20,7 @@ export type ConversationItem =
   | { kind: "turnStats"; key: string; stats: TurnStats };
 
 /** The summary of a turn is emitted once, after the last assistant message it produced. */
-export function statsForTurn(turns: TurnStats[], msgs: UiAssistantMessage[]): TurnStats | undefined {
+function statsForTurn(turns: TurnStats[], msgs: UiAssistantMessage[]): TurnStats | undefined {
   const first = msgs[0]?.created;
   if (first === undefined) return undefined;
   const matches = turns.filter((t) => t.ended !== undefined && t.started <= first && first <= t.ended);
@@ -49,7 +49,7 @@ type StepPiece = { kind: "prose" | "details"; item: ConversationItem };
  * a text part in the same assistant message; grouping all thoughts first used to move that late
  * thought above the sentence it followed (visible until the next part re-rendered the step).
  */
-export function splitStep(items: ConversationItem[]): StepPiece[] {
+function splitStep(items: ConversationItem[]): StepPiece[] {
   const out: StepPiece[] = [];
   for (const it of items) {
     if (it.kind !== "assistant") {
@@ -87,7 +87,7 @@ export function splitStep(items: ConversationItem[]): StepPiece[] {
  * without reordering a thought that arrived after a sentence. The live step's fold stays expanded
  * while the turn streams; finished ones collapse.
  */
-export function stepBlocks(groups: ConversationItem[][], liveIndex: number, turnKey = ""): ConversationItem[] {
+function stepBlocks(groups: ConversationItem[][], liveIndex: number, turnKey = ""): ConversationItem[] {
   const out: ConversationItem[] = [];
   let pending: ConversationItem[] = [];
   let pendingFrom = -1;

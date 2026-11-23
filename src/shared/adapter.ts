@@ -11,6 +11,7 @@ import type {
   AssistantContent,
   CommandInfo,
   FormField,
+  FormValue,
   FormRequest,
   ModelInfo,
   ModelRef,
@@ -417,3 +418,4 @@ export function normalizeList<T>(items: unknown, normalize: (raw: unknown) => T 
 }
 
 // Keep FormValue referenced so a schema change that swaps its shape is caught at compile time.
+export type AdapterFormValue = FormValue;

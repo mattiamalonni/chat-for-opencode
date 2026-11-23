@@ -10,7 +10,7 @@ import { Picker } from "./picker";
 import { post } from "./vscode";
 
 /** Magnifier drawn locally so no new icon file/dependency is needed. */
-export function IconSearch() {
+function IconSearch() {
   return (
     <svg
       width="16"

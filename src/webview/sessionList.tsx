@@ -8,9 +8,9 @@ import { IconEdit, IconPlus, IconTrash, IconWarning } from "./icons";
 
 import { post } from "./vscode";
 
-export let relativeFormatter: Intl.RelativeTimeFormat | undefined;
-export let relativeFormatterLang: string | undefined;
-export function relativeTime(ts: number): string {
+let relativeFormatter: Intl.RelativeTimeFormat | undefined;
+let relativeFormatterLang: string | undefined;
+function relativeTime(ts: number): string {
   const diff = Date.now() - ts;
   // Intl formatter construction is expensive; building one per session row per render is waste.
   const lang = document.documentElement.lang || undefined;

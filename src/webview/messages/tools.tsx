@@ -16,7 +16,7 @@ export function toolSummary(part: ToolPart): string {
 }
 
 /** The file a tool was called on, when the input carries one. */
-export function toolFilePath(part: ToolPart): string | undefined {
+function toolFilePath(part: ToolPart): string | undefined {
   const input = part.input;
   if (!input) return undefined;
   for (const key of ["filePath", "path", "file"]) {
@@ -27,7 +27,7 @@ export function toolFilePath(part: ToolPart): string | undefined {
 }
 
 /** Ticks once a second only while a subagent is running, for the elapsed-time label. */
-export function useNow(active: boolean): number {
+function useNow(active: boolean): number {
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
     if (!active) return;
@@ -39,7 +39,7 @@ export function useNow(active: boolean): number {
 
 type T = ReturnType<typeof useT>;
 
-export function activityText(activity: SubagentActivity, t: T): string {
+function activityText(activity: SubagentActivity, t: T): string {
   switch (activity.kind) {
     case "thinking":
       return `${t("thinking")}…`;
@@ -54,7 +54,7 @@ export function activityText(activity: SubagentActivity, t: T): string {
   }
 }
 
-export function subagentDot(status: string): "running" | "error" | "completed" {
+function subagentDot(status: string): "running" | "error" | "completed" {
   return status === "error" ? "error" : status === "completed" || status === "cancelled" ? "completed" : "running";
 }
 
@@ -159,12 +159,12 @@ export function ToolCard(props: { part: ToolPart; state: ChatState; filteredOut?
 }
 
 /** The tool result wraps the child report in a `<subagent>` tag; the child's own text is plain. */
-export function stripSubagentWrapper(text: string): string {
+function stripSubagentWrapper(text: string): string {
   return text.replace(/^\s*<subagent\b[^>]*>\s*/i, "").replace(/\s*<\/subagent>\s*$/i, "");
 }
 
 /** A subagent call stays one line until expanded; its child's progress is shown on demand. */
-export function SubagentToolCard({
+function SubagentToolCard({
   part,
   state,
   filteredOut = false,
@@ -306,7 +306,7 @@ export function SubagentToolCard({
   );
 }
 
-export function GenericToolCard({
+function GenericToolCard({
   part,
   state,
   filteredOut = false,
@@ -397,7 +397,7 @@ export function GenericToolCard({
   );
 }
 
-export function TruncatedPre({ text, query = "" }: { text: string; query?: string }) {
+function TruncatedPre({ text, query = "" }: { text: string; query?: string }) {
   const [full, setFull] = useState(false);
   const limit = env.toolOutputLimit;
   const t = useT();

@@ -31,7 +31,7 @@ export class WebviewErrorBoundary extends Component<
   }
 }
 
-export function CrashFallback() {
+function CrashFallback() {
   const t = useT();
   return (
     <div class="app">

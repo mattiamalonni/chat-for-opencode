@@ -5,7 +5,7 @@ import { Picker } from "../picker";
 import { post } from "../vscode";
 import { ModePicker } from "./modePicker";
 
-export type ModelPickerItem = {
+type ModelPickerItem = {
   value: string;
   label: string;
   group: string;

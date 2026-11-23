@@ -9,7 +9,7 @@ import { post } from "../vscode";
 let clockFormatter: Intl.DateTimeFormat | undefined;
 let clockFormatterLang: string | undefined;
 /** HH:mm in the webview locale; the host passes VS Code's language as `document.documentElement.lang`. */
-export function formatClock(ts: number): string {
+function formatClock(ts: number): string {
   const lang = document.documentElement.lang || undefined;
   if (!clockFormatter || clockFormatterLang !== lang) {
     clockFormatter = new Intl.DateTimeFormat(lang, { hour: "2-digit", minute: "2-digit", hourCycle: "h23" });
@@ -25,7 +25,7 @@ export function TurnStatsRow({ stats, models }: { stats: TurnStats; models: Mode
 }
 
 /** Has to be a component: `useT` is a hook. The guard above keeps unfinished turns invisible. */
-export function StatsRow({ stats, ended, models }: { stats: TurnStats; ended: number; models: ModelInfo[] }) {
+function StatsRow({ stats, ended, models }: { stats: TurnStats; ended: number; models: ModelInfo[] }) {
   const t = useT();
   const total =
     stats.tokens && stats.tokens.input + stats.tokens.output + stats.tokens.reasoning + stats.tokens.cache.read + stats.tokens.cache.write;

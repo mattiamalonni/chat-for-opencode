@@ -28,7 +28,7 @@ export interface DragData {
 }
 
 /** Reads a dropped File's content as base64 (no data-URL prefix). */
-export type FileReader = (file: DropFileLike) => Promise<string>;
+type FileReader = (file: DropFileLike) => Promise<string>;
 
 export function hasFiles(drag: DragData | undefined | null): boolean {
   if (!drag) return false;

@@ -128,7 +128,7 @@ export function MessageView({
   );
 }
 
-export function NoticeView({ notice, filteredOut = false }: { notice: UiNotice; filteredOut?: boolean }) {
+function NoticeView({ notice, filteredOut = false }: { notice: UiNotice; filteredOut?: boolean }) {
   const t = useT();
   let text = notice.text;
   if (notice.code === "interrupted") text = t("interrupted");
