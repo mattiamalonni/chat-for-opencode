@@ -822,39 +822,9 @@ export class ChatController implements vscode.Disposable {
     this.connectionService.onServerState(state, server);
   }
 
-  /**
-   * Installs a connection owned by the supervisor, then loads chat state from it. A failed load
-   * leaves the client installed but *not* marked loaded, so the next reconnect retries instead of
-   * hitting the "same connection" no-op guard.
-   */
-
   /** OpenCode registers plugin catalog items only once a session exists; keep the picker fresh. */
 
-  /**
-   * Applies only the messages added since the last load. The SSE stream is live-only and has no
-   * replay, but the history endpoint can find the overlap by id (`order=desc`). When nothing (or
-   * only a few messages) changed, the webview keeps its scroll position, attachments and draft
-   * instead of being rebuilt from a full `session` payload.
-   *
-   * Returns `false` when the overlap is unknown (history trimmed/compacted) so the caller falls
-   * back to a full load. This is best-effort: a failed tail fetch must never lose a conversation.
-   */
-
   /** Live stream has no replay: re-fetch the current session after a reconnect. */
-
-  /**
-   * Manual sync from the header button: an authoritative reload from the server, meant to repair a
-   * chat whose live state drifted. Unlike the visibility top-up, this rebuilds the webview state.
-   * The completion notice is sent in `finally` so the button can never stay stuck on "syncing".
-   */
-
-  /**
-   * The SSE stream is scoped to the server process we connected to. Another client (e.g. the TUI
-   * running as a separate process) writes sessions to the same on-disk storage but emits no event
-   * on our stream, so its prompts are invisible until a manual Sync/Reconnect re-reads history.
-   * Poll the open session's tail instead and fold new messages in through the same `sessionDelta`
-   * path used on reconnect, so an external conversation shows up live while the chat is visible.
-   */
 
   /** Exposed for integration tests: run one poll now, independent of visibility and event quiet. */
 
@@ -870,13 +840,6 @@ export class ChatController implements vscode.Disposable {
   }
 
   // ---- subagents --------------------------------------------------------------------------
-
-  /**
-   * A child has no separate toggle of its own: it inherits the chat's auto-approve choice. Without
-   * this, a permission asked by a subagent would stay pending forever — the child session is not
-   * `this.state.sessionId`, so `PermissionService.enabled(childId)` would fall back to the global setting
-   * even when the user explicitly turned auto-approve on (or off) for this chat.
-   */
 
   /** Post a live event to the session that owns it: the main chat, or a tracked subagent's view. */
   private postSessionEvent(sid: string, event: ServerEvent): void {
@@ -896,11 +859,6 @@ export class ChatController implements vscode.Disposable {
   /** Grants requests that were already pending when auto-approval was turned on, in children too. */
 
   /** Enqueue/deliver/cancel events arrive in bursts; one refresh per burst is enough. */
-
-  /**
-   * Re-read the pending prompts from the server. A queued message is stored server-side, so the
-   * webview cannot reconstruct the list from the SSE events (which carry no replay).
-   */
 
   /**
    * The event stream is live-only, so a missed terminal event can leave the webview showing an
@@ -1006,28 +964,7 @@ export class ChatController implements vscode.Disposable {
 
   /** Shared boundary stage/commit/reload, used by both rollback and regenerate. */
 
-  /**
-   * Drop the reply after `messageID` without touching files, then resend the original prompt.
-   * The model/agent selection stays as the user left it, so the retry uses the current settings.
-   */
-
-  /**
-   * Copy the conversation up to `messageID` into a new sibling session and open it. The original
-   * keeps its full history and files, so unlike a rollback this is a non-destructive "what if".
-   */
-
-  /**
-   * `fast` is used by the first prompt: the user's text must reach the server without waiting for
-   * catalog/session-list/diff round-trips. Those still run, but fire-and-forget with a generation
-   * guard, so the webview is published as soon as history is available.
-   */
-
   // ---- commands ---------------------------------------------------------------------------
-
-  /**
-   * One teardown path for "the current work no longer matters". Callers used to repeat a different
-   * subset of these steps in a different order; forgetting one was the source of stale-state races.
-   */
 
   /** A folder switch, server reset or dispose also ends the connection epoch and the picker. */
 
@@ -1058,11 +995,6 @@ export class ChatController implements vscode.Disposable {
     await this.serverActions.setPassword();
   }
 
-  /**
-   * First-run help. A bare docs link used to be a dead end: now the command is visible and
-   * copyable, Windows users get platform-specific instructions, and the retry stays in the flow.
-   */
-
   /** Explain the terminal hand-off before it happens: sign-in is a prerequisite, not a side quest. */
 
   async runAction(id: ActionId): Promise<void> {
@@ -1074,15 +1006,6 @@ export class ChatController implements vscode.Disposable {
   private async handle(msg: WebviewMessage): Promise<void> {
     await this.commandHandler.handle(msg);
   }
-
-  /**
-   * Put a refused prompt back in the composer and offer an exact-payload retry.
-   *
-   * `generation` is the token published as "running" by `send()`. The server never accepted the
-   * prompt, so no terminal event will close that state: we must do it here or the status bar keeps
-   * spinning forever. The guard prevents an asynchronously restored draft from overwriting a newer
-   * turn that started in the meantime.
-   */
 
   /** Returns false when the prompt never reached the server (no notice is posted for stale loads). */
 
