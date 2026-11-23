@@ -1,6 +1,7 @@
 # Chat for OpenCode
 
 [![CI](https://github.com/mattiamalonni/chat-for-opencode/actions/workflows/ci.yml/badge.svg)](https://github.com/mattiamalonni/chat-for-opencode/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/mattiamalonni/chat-for-opencode)](https://github.com/mattiamalonni/chat-for-opencode/releases/latest)
 
 > **Unofficial.** This extension is a vibe-coded community project and is not affiliated with or endorsed by the OpenCode team.
 
