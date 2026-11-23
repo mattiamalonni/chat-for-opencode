@@ -28,6 +28,13 @@ The in-product walkthrough (**Help → Welcome → Get started with OpenCode**) 
 [trust](../media/walkthrough-trust.md), [install](../media/walkthrough-install.md),
 [provider](../media/walkthrough-provider.md) and [chat](../media/walkthrough-chat.md).
 
+## Screenshots
+
+`npm run test:ui` writes the full set of numbered PNGs to `test/ui/screenshots/`; CI uploads them as
+the `ui-screenshots` artifact. The README embeds a curated subset from `docs/images/`, renamed without
+the numeric prefix. These copies are committed, not produced at build time: after a UI change,
+regenerate the set and refresh the curated images deliberately.
+
 ## Generated artefacts
 
 - [REFERENCE.md](REFERENCE.md) — every command, default key and setting, plus in-chat keys.

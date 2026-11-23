@@ -14,7 +14,8 @@ machine: it does not reimplement the agent, never reads or stores provider API k
 | ![Conversation](docs/images/conversation-dark.png) | ![Permission](docs/images/permission-dark.png) | ![Model picker](docs/images/model-picker-dark.png) | ![Light](docs/images/permission-light.png) |
 
 > Screenshots come from the automated UI tests (`npm run test:ui`), which render recorded OpenCode
-> event streams in a fake VS Code host.
+> event streams in a fake VS Code host. See [docs/README.md](docs/README.md#screenshots) to regenerate
+> and curate them.
 
 ## Install
 
