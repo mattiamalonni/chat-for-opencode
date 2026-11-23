@@ -835,14 +835,6 @@ export class ChatController implements vscode.Disposable {
     this.connectionService.onServerState(state, server);
   }
 
-  /** OpenCode registers plugin catalog items only once a session exists; keep the picker fresh. */
-
-  /** Live stream has no replay: re-fetch the current session after a reconnect. */
-
-  /** Exposed for integration tests: run one poll now, independent of visibility and event quiet. */
-
-  /** Exposed for integration tests: force the reconnect-style resync without touching VS Code UI. */
-
   /** Integration-test hooks (kept on the controller's public API). */
   pollNow(): Promise<void> {
     return this.sessionService.pollNow();
@@ -864,14 +856,6 @@ export class ChatController implements vscode.Disposable {
   private onEvent(event: ServerEvent): void {
     this.eventRouter.route(event);
   }
-
-  /** Cancel all deferred work from the previous connection/session before switching or resetting. */
-
-  /** Drafts live in workspaceState so they survive a window reload (vscode.setState does not). */
-
-  /** Grants requests that were already pending when auto-approval was turned on, in children too. */
-
-  /** Enqueue/deliver/cancel events arrive in bursts; one refresh per burst is enough. */
 
   /**
    * The event stream is live-only, so a missed terminal event can leave the webview showing an
@@ -909,8 +893,6 @@ export class ChatController implements vscode.Disposable {
   async revertToTurn(sessionId: string, messageID: string, text: string, files: boolean): Promise<void> {
     await this.promptActions.revertToTurn(sessionId, messageID, text, files);
   }
-
-  /** Shared boundary stage/commit/reload, used by both rollback and regenerate. */
 
   // ---- commands ---------------------------------------------------------------------------
 

@@ -111,17 +111,6 @@ export class ChatConnectionService {
     this.d.state.catalogRetries = 0;
   }
 
-  /** Drafts live in workspaceState so they survive a window reload (vscode.setState does not). */
-
-  /** Grants requests that were already pending when auto-approval was turned on, in children too. */
-
-  /** Enqueue/deliver/cancel events arrive in bursts; one refresh per burst is enough. */
-
-  /**
-   * Re-read the pending prompts from the server. A queued message is stored server-side, so the
-   * webview cannot reconstruct the list from the SSE events (which carry no replay).
-   */
-
   /**
    * The event stream is live-only, so a missed terminal event can leave the webview showing an
    * incomplete turn forever. After each turn, re-read the session and replace the webview state.
