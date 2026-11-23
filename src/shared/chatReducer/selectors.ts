@@ -141,14 +141,3 @@ export function orphanPermissions(state: ChatState): PermissionRequest[] {
 export function formsForTool(state: ChatState, toolId: string): FormRequest[] {
   return state.forms.filter((f) => (f.metadata?.tool as { id?: string } | undefined)?.id === toolId);
 }
-
-export function orphanForms(state: ChatState): FormRequest[] {
-  const toolIds = new Set<string>();
-  for (const m of state.messages) {
-    if (m.kind === "assistant") for (const p of m.parts) if (p.kind === "tool") toolIds.add(p.id);
-  }
-  return state.forms.filter((f) => {
-    const id = (f.metadata?.tool as { id?: string } | undefined)?.id;
-    return !id || !toolIds.has(id);
-  });
-}

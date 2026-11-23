@@ -15,14 +15,6 @@ import type { Generation } from "./generation";
 import type { FileIconsResponse } from "./fileIconTheme";
 import { COMPAT_DISMISSED_KEY, CONTRACT_DISMISSED_KEY, DRAFTS_KEY } from "./storageKeys";
 
-export interface FailedPrompt {
-  text: string;
-  attachments: Attachment[];
-  context: ContextItem[];
-  delivery?: "steer" | "queue";
-  sessionId?: string;
-}
-
 export interface CommandHandlerHooks {
   getClient(): OpenCodeClient | undefined;
   getSessionId(): string | undefined;

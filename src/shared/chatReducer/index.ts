@@ -10,7 +10,6 @@ export { applyEvent } from "./events";
 export {
   formsForTool,
   mergeChangedFiles,
-  orphanForms,
   orphanPermissions,
   permissionsForTool,
   selectToolChangedFiles,
