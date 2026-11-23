@@ -5,12 +5,10 @@ import { composerAction } from "../shared/keys";
 import type { Attachment, ContextItem, PromptDefinition } from "../shared/protocol";
 import { isolateKeys } from "./env";
 import { formatTokens } from "../shared/format";
-import { ContextMeter } from "./contextMeter";
+
 import { collectPastedFiles, hasFiles, readFileAsBase64, type DragData } from "./dropFiles";
-import { FileTypeIcon } from "./fileIcons";
-import { Picker } from "./picker";
+
 import { useT } from "./i18n";
-import { IconClose, IconCompact, IconFolder, IconPlus, IconSelection, IconSend, IconShield, IconStop, IconTool } from "./icons";
 import { getDraft, post, setDraft } from "./vscode";
 
 export interface ComposerProps {
@@ -53,49 +51,11 @@ export interface ComposerProps {
   canCompact: boolean;
 }
 
-const FILE_MENTION_RE = /(^|\s)@([^\s@]*)$/;
-const SKILL_COMMAND_RE = /(^|\s)\/([^\s/]*)$/;
-const COMMAND_TOKEN_RE = /(^|\s)\/([^\s/]+)/g;
-
-type TokenRange = { start: number; end: number };
-
-/** Ranges of `/name` tokens that match an actual command or skill in the catalog. */
-function commandTokenRanges(text: string, names: Set<string>): TokenRange[] {
-  const ranges: TokenRange[] = [];
-  for (const match of text.matchAll(COMMAND_TOKEN_RE)) {
-    if (!names.has(match[2])) continue;
-    const slash = (match.index ?? 0) + match[1].length;
-    ranges.push({ start: slash, end: slash + match[2].length + 1 });
-  }
-  return ranges;
-}
-
-type MentionItem =
-  | { kind: "file"; item: Attachment }
-  | { kind: "skill"; item: SkillSuggestion }
-  | { kind: "command"; item: CommandSuggestion }
-  | { kind: "prompt"; item: PromptDefinition };
-type Mention = { query: string; start: number; kind: "file" | "skill" };
-
-/**
- * Compact dropdown for OpenCode's built-in `build` and `plan` agents. It is always shown: older
- * servers may not expose `/api/agent`, but both agents still exist and can be selected on a session.
- */
-function ModePicker(props: { selectedAgent?: string; onSelect: (agent: string) => void }) {
-  const t = useT();
-  return (
-    <Picker
-      label={t("mode")}
-      class="mode"
-      items={[
-        { value: "build", label: t("build"), description: t("buildModeTooltip") },
-        { value: "plan", label: t("plan"), description: t("planModeTooltip") },
-      ]}
-      value={props.selectedAgent === "plan" ? "plan" : "build"}
-      onChange={props.onSelect}
-    />
-  );
-}
+import { Chips } from "./composer/chips";
+import { commandTokenRanges, FILE_MENTION_RE, SKILL_COMMAND_RE, type Mention, type MentionItem } from "./composer/mention";
+import { MentionPopup } from "./composer/mentionPopup";
+import { StatusBar } from "./composer/statusBar";
+import { Toolbar } from "./composer/toolbar";
 
 export function Composer(props: ComposerProps) {
   const t = useT();
@@ -428,124 +388,18 @@ export function Composer(props: ComposerProps) {
   return (
     <div class="composer">
       <div class="composer-box">
-        {(props.context.length > 0 || props.attachments.length > 0) && (
-          <ul class="chips" aria-label={t("context")}>
-            {props.context.map((c) => {
-              const selected = props.selectedContext.has(c.id);
-              return (
-                <li class={`chip ${c.kind === "file" ? "implicit" : ""} ${selected ? "" : "off"}`} key={c.id} title={c.detail ?? c.uri}>
-                  {c.kind === "selection" ? <IconSelection /> : <FileTypeIcon path={c.label} />}
-                  <span>{c.label}</span>
-                  <span class="chip-kind">{c.kind === "file" ? t("currentFile") : t("selection")}</span>
-                  {selected ? (
-                    <button
-                      type="button"
-                      class="chip-remove tooltip-host"
-                      data-tooltip={`${t("removeContext")}: ${c.label}`}
-                      aria-label={`${t("removeContext")}: ${c.label}`}
-                      onClick={() => props.onToggleContext(c.id)}
-                    >
-                      <IconClose />
-                    </button>
-                  ) : (
-                    <button
-                      type="button"
-                      class="chip-add tooltip-host"
-                      aria-label={`${t("addContext")}: ${c.label}`}
-                      data-tooltip={`${t("addContext")}: ${c.label}`}
-                      onClick={() => props.onToggleContext(c.id)}
-                    >
-                      <IconPlus />
-                    </button>
-                  )}
-                </li>
-              );
-            })}
-            {props.attachments.map((a) => {
-              const openable = a.uri.startsWith("file:");
-              const open = () => {
-                if (openable) post({ type: "openAttachment", uri: a.uri });
-              };
-              return (
-                <li class="chip" key={a.uri} title={a.detail ?? a.uri}>
-                  <span
-                    class="chip-open"
-                    data-openable={openable ? "true" : "false"}
-                    role={openable ? "button" : undefined}
-                    tabIndex={openable ? 0 : undefined}
-                    aria-label={openable ? `${t("openFile")}: ${a.name}` : undefined}
-                    onClick={open}
-                    onKeyDown={(e) => {
-                      if (openable && e.key === "Enter") {
-                        e.preventDefault();
-                        open();
-                      }
-                    }}
-                  >
-                    {a.kind === "selection" ? <IconSelection /> : <FileTypeIcon path={a.name} />}
-                    <span>{a.kind === "selection" ? (a.detail ?? a.name) : a.name}</span>
-                  </span>
-                  <button
-                    type="button"
-                    class="chip-remove tooltip-host"
-                    data-tooltip={`${t("removeContext")}: ${a.name}`}
-                    aria-label={`${t("removeContext")}: ${a.name}`}
-                    onClick={() => props.onRemoveAttachment(a.uri)}
-                  >
-                    <IconClose />
-                  </button>
-                </li>
-              );
-            })}
-          </ul>
-        )}
+        <Chips
+          context={props.context}
+          attachments={props.attachments}
+          selectedContext={props.selectedContext}
+          onToggleContext={props.onToggleContext}
+          onRemoveAttachment={props.onRemoveAttachment}
+        />
         <div class="input-wrap">
           <div class="input-highlight" ref={highlightRef} aria-hidden="true">
             {highlightNodes()}
           </div>
-          {mention && (
-            <ul class="mention-popup" role="listbox" id={listId} aria-label={t("suggestions")}>
-              {results.length === 0 ? (
-                <li class="mention-empty" role="option" aria-disabled="true" aria-selected="false">
-                  {t("noFilesOrSkillsFound")}
-                </li>
-              ) : (
-                results.map((r, i) => (
-                  <li
-                    key={
-                      r.kind === "file"
-                        ? r.item.uri
-                        : r.kind === "command"
-                          ? `command:${r.item.name}`
-                          : r.kind === "prompt"
-                            ? `prompt:${r.item.id}`
-                            : `skill:${r.item.id}`
-                    }
-                    id={`mention-${i}`}
-                    role="option"
-                    aria-selected={i === active}
-                    class={i === active ? "active" : ""}
-                    onMouseDown={(e) => {
-                      e.preventDefault();
-                      pick(r);
-                    }}
-                  >
-                    {r.kind === "file" ? <FileTypeIcon path={r.item.detail ?? r.item.name} /> : <IconTool />}
-                    <span class="mention-name">{r.kind === "prompt" ? r.item.title : r.item.name}</span>
-                    <span class="mention-path">
-                      {r.kind === "file"
-                        ? r.item.detail
-                        : r.kind === "prompt"
-                          ? `/${r.item.id} · ${r.item.description}`
-                          : r.kind === "command"
-                            ? `/${r.item.name}${r.item.description ? ` · ${r.item.description}` : ""}`
-                            : `@${r.item.id}${r.item.description ? ` · ${r.item.description}` : ""}`}
-                    </span>
-                  </li>
-                ))
-              )}
-            </ul>
-          )}
+          {mention && <MentionPopup results={results} active={active} onPick={pick} listId={listId} />}
           <textarea
             ref={ref}
             class="input"
@@ -604,123 +458,33 @@ export function Composer(props: ComposerProps) {
             }}
           />
         </div>
-        <div class="toolbar">
-          <ModePicker selectedAgent={props.selectedAgent} onSelect={(agent) => post({ type: "setAgent", agent })} />
-          {hasExtraAgents && (
-            <Picker
-              label={t("agent")}
-              class="agent"
-              items={props.agents.map((a) => ({ value: a.id, label: a.name, description: a.description }))}
-              value={props.selectedAgent}
-              onChange={(agent) => post({ type: "setAgent", agent })}
-            />
-          )}
-          {props.models.length > 0 && (
-            <Picker
-              label={t("model")}
-              class="model"
-              searchable={props.models.length > 6}
-              searchPlaceholder={t("searchModels")}
-              emptyText={t("noModelsFound")}
-              placeholder={t("model")}
-              items={modelItems}
-              value={modelKey}
-              onChange={(key) => {
-                const [providerID, ...rest] = key.split("/");
-                post({ type: "setModel", model: { providerID, id: rest.join("/") } });
-              }}
-            />
-          )}
-          {currentModel && currentModel.variants.length > 0 && (
-            <Picker
-              label={t("variant")}
-              class="variant"
-              items={[{ value: "", label: t("defaultVariant") }, ...currentModel.variants.map((v) => ({ value: v.id, label: v.id }))]}
-              value={props.selectedModel?.variant ?? ""}
-              onChange={(v) =>
-                post({
-                  type: "setModel",
-                  model: { providerID: currentModel.providerID, id: currentModel.id, ...(v ? { variant: v } : {}) },
-                })
-              }
-            />
-          )}
-          {props.busy && (
-            <button
-              type="button"
-              class="send stop tooltip-host tooltip-above"
-              data-tooltip={`${t("stop")} (Esc)`}
-              aria-label={t("stop")}
-              onClick={() => post({ type: "abort" })}
-            >
-              <IconStop />
-            </button>
-          )}
-          <button
-            type="button"
-            class={`send ${props.busy ? "steer" : ""} tooltip-host tooltip-above`}
-            data-tooltip={props.busy ? t("steerTooltip") : `${t("send")} (Enter)`}
-            aria-label={props.busy ? t("steerTooltip") : t("send")}
-            disabled={props.disabled || !text.trim()}
-            onClick={() => (props.busy ? send("steer") : send())}
-          >
-            <IconSend />
-          </button>
-        </div>
-      </div>
-      <div class="drop-hint">
-        <button
-          type="button"
-          class="icon-button tooltip-host tooltip-above"
-          data-tooltip={t("pickFiles")}
-          aria-label={t("pickFiles")}
+        <Toolbar
+          selectedAgent={props.selectedAgent}
+          selectedModel={props.selectedModel}
+          agents={props.agents}
+          models={props.models}
+          busy={props.busy}
           disabled={props.disabled}
-          onClick={() => post({ type: "pickFiles" })}
-        >
-          <IconFolder />
-        </button>
-        <span>{props.busy && text.trim() ? t("queueHint") : t("dropFilesHint")}</span>
-        <div class="drop-hint-tools">
-          <button
-            type="button"
-            class={`auto-approve tooltip-host tooltip-above ${props.autoApprove ? "on" : ""}`}
-            data-tooltip={props.autoApprove ? t("autoApproveOn") : t("autoApproveOff")}
-            aria-label={t("autoApprove")}
-            aria-pressed={props.autoApprove}
-            onClick={() => props.onToggleAutoApprove(!props.autoApprove)}
-          >
-            <IconShield />
-            <span>{t("autoApprove")}</span>
-          </button>
-          <button
-            type="button"
-            class="icon-button compact tooltip-host tooltip-above"
-            data-tooltip={t("compactConversation")}
-            aria-label={t("compactConversation")}
-            disabled={props.disabled || props.busy || !props.canCompact}
-            onClick={() => post({ type: "compact" })}
-          >
-            <IconCompact />
-          </button>
-          {currentModel?.limit?.context ? (
-            <ContextMeter
-              used={props.contextTokens}
-              estimated={props.contextEstimated}
-              limit={currentModel.limit.context}
-              cost={props.cost}
-            />
-          ) : props.cost !== undefined ? (
-            <span
-              class="context-meter cost-only tooltip-host tooltip-above"
-              role="img"
-              aria-label={t("sessionCost", `$${props.cost.toFixed(2)}`)}
-              data-tooltip={t("sessionCost", `$${props.cost.toFixed(2)}`)}
-            >
-              ${props.cost.toFixed(2)}
-            </span>
-          ) : null}
-        </div>
+          hasExtraAgents={hasExtraAgents}
+          modelItems={modelItems}
+          modelKey={modelKey}
+          currentModel={currentModel}
+          text={text}
+          onSend={send}
+        />
       </div>
+      <StatusBar
+        busy={props.busy}
+        disabled={props.disabled}
+        text={text}
+        autoApprove={props.autoApprove}
+        onToggleAutoApprove={props.onToggleAutoApprove}
+        canCompact={props.canCompact}
+        contextTokens={props.contextTokens}
+        contextEstimated={props.contextEstimated}
+        cost={props.cost}
+        currentModel={currentModel}
+      />
     </div>
   );
 }
