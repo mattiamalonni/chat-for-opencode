@@ -1,15 +1,15 @@
 import type { VNode } from "preact";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "preact/hooks";
-import type { AgentInfo, CommandSuggestion, ModelInfo, ModelRef, SkillSuggestion } from "../shared/api";
-import { composerAction } from "../shared/keys";
-import type { Attachment, ContextItem, PromptDefinition } from "../shared/protocol";
-import { isolateKeys } from "./env";
-import { formatTokens } from "../shared/format";
+import type { AgentInfo, CommandSuggestion, ModelInfo, ModelRef, SkillSuggestion } from "../../shared/api";
+import { composerAction } from "../../shared/keys";
+import type { Attachment, ContextItem, PromptDefinition } from "../../shared/protocol";
+import { isolateKeys } from "../env";
+import { formatTokens } from "../../shared/format";
 
-import { collectPastedFiles, hasFiles, readFileAsBase64, type DragData } from "./dropFiles";
+import { collectPastedFiles, hasFiles, readFileAsBase64, type DragData } from "../dropFiles";
 
-import { useT } from "./i18n";
-import { getDraft, post, setDraft } from "./vscode";
+import { useT } from "../i18n";
+import { getDraft, post, setDraft } from "../vscode";
 
 export interface ComposerProps {
   /** Id of the session the composer belongs to; drafts are stored per session. */
@@ -51,11 +51,11 @@ export interface ComposerProps {
   canCompact: boolean;
 }
 
-import { Chips } from "./composer/chips";
-import { commandTokenRanges, FILE_MENTION_RE, SKILL_COMMAND_RE, type Mention, type MentionItem } from "./composer/mention";
-import { MentionPopup } from "./composer/mentionPopup";
-import { StatusBar } from "./composer/statusBar";
-import { Toolbar } from "./composer/toolbar";
+import { Chips } from "./chips";
+import { commandTokenRanges, FILE_MENTION_RE, SKILL_COMMAND_RE, type Mention, type MentionItem } from "./mention";
+import { MentionPopup } from "./mentionPopup";
+import { StatusBar } from "./statusBar";
+import { Toolbar } from "./toolbar";
 
 export function Composer(props: ComposerProps) {
   const t = useT();

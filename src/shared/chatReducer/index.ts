@@ -1,12 +1,12 @@
-import type { ChatAction, ChatState, ToolPart } from "./chatReducer/types";
-import { appendDelta, coalesceDeltas, loadHistory } from "./chatReducer/history";
-import { applyPendingSubagentLinks, linkToolToSubagent } from "./chatReducer/subagentLinks";
-import { applyEvent } from "./chatReducer/events";
+import type { ChatAction, ChatState, ToolPart } from "./types";
+import { appendDelta, coalesceDeltas, loadHistory } from "./history";
+import { applyPendingSubagentLinks, linkToolToSubagent } from "./subagentLinks";
+import { applyEvent } from "./events";
 
-export * from "./chatReducer/types";
-export { contextTokensOf, eventSessionId } from "./chatReducer/helpers";
-export { sessionIsBusy, sessionLooksBusy, toSessionSummary } from "./chatReducer/sessionStatus";
-export { applyEvent } from "./chatReducer/events";
+export * from "./types";
+export { contextTokensOf, eventSessionId } from "./helpers";
+export { sessionIsBusy, sessionLooksBusy, toSessionSummary } from "./sessionStatus";
+export { applyEvent } from "./events";
 export {
   formsForTool,
   mergeChangedFiles,
@@ -18,7 +18,7 @@ export {
   selectTodos,
   selectTurnFileChanges,
   selectTurnFiles,
-} from "./chatReducer/selectors";
+} from "./selectors";
 
 export function chatReducer(state: ChatState, action: ChatAction): ChatState {
   switch (action.type) {
