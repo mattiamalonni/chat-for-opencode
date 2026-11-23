@@ -108,6 +108,16 @@ function findMatch(lines: string[], expected: string[], preferred: number, min: 
   return undefined;
 }
 
+function appendHunkLines(hunks: ReturnType<typeof parseHunks>, before: string[], after: string[]): void {
+  for (const h of hunks) {
+    for (const raw of h.lines) {
+      const text = (raw.endsWith("\u0000") ? raw.slice(0, -1) : raw).slice(1);
+      if (raw[0] !== "+") before.push(text);
+      if (raw[0] !== "-") after.push(text);
+    }
+  }
+}
+
 /**
  * Builds the two sides of a diff from the changed hunks only (plus their context), with a header
  * per file. Feeding these to a native diff editor shows just the modifications, never whole files.
@@ -121,13 +131,7 @@ export function hunksSides(files: Array<{ file: string; patch: string }>): { bef
     const header = `===== ${file} =====`;
     before.push(header);
     after.push(header);
-    for (const h of hunks) {
-      for (const raw of h.lines) {
-        const text = (raw.endsWith("\u0000") ? raw.slice(0, -1) : raw).slice(1);
-        if (raw[0] !== "+") before.push(text);
-        if (raw[0] !== "-") after.push(text);
-      }
-    }
+    appendHunkLines(hunks, before, after);
   }
   return { before: before.join("\n"), after: after.join("\n") };
 }
@@ -136,12 +140,6 @@ export function hunksSides(files: Array<{ file: string; patch: string }>): { bef
 export function sidesFromPatch(patch: string): { before: string; after: string } {
   const before: string[] = [];
   const after: string[] = [];
-  for (const h of parseHunks(patch)) {
-    for (const raw of h.lines) {
-      const text = (raw.endsWith("\u0000") ? raw.slice(0, -1) : raw).slice(1);
-      if (raw[0] !== "+") before.push(text);
-      if (raw[0] !== "-") after.push(text);
-    }
-  }
+  appendHunkLines(parseHunks(patch), before, after);
   return { before: before.join("\n"), after: after.join("\n") };
 }

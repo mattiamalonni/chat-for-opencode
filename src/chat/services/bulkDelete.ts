@@ -1,11 +1,11 @@
 import type * as vscode from "vscode";
 import type { OpenCodeClient } from "../../client/http";
 import type { ControllerState } from "./controllerState";
+import { deleteDrafts } from "./draftActions";
 import { MAX_DELETE_IDS, MAX_DELETE_PAGES, translatedStrings } from "./controllerSupport";
 import type { Generation } from "../generation";
 import type { PermissionService } from "../permissionService";
 import type { SessionListService } from "../sessionListService";
-import { DRAFTS_KEY } from "../storageKeys";
 
 /** Bounded, cancelable walk over every session page in the current folder. */
 export interface BulkDeleteDeps {
@@ -70,15 +70,7 @@ export class ChatBulkDelete {
       if (stale()) return;
 
       this.d.sessionList.forget(deleted);
-      if (deleted.length > 0) {
-        const key = DRAFTS_KEY(folder.uri.toString());
-        const saved = this.d.workspaceState.get<{ drafts?: Record<string, string> }>(key) ?? {};
-        if (saved.drafts) {
-          const drafts = { ...saved.drafts };
-          for (const id of deleted) delete drafts[id];
-          await this.d.workspaceState.update(key, { ...saved, drafts });
-        }
-      }
+      await deleteDrafts(this.d.workspaceState, folder.uri, deleted);
 
       if (ids.size > 0 && deleted.length === 0) {
         // Nothing could be removed; keep the chat as it is and let the list re-sync from the server.

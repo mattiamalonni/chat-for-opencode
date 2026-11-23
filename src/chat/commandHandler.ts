@@ -13,7 +13,8 @@ import type { OpenCodeClient } from "../client/http";
 import type { ExecutionStateService } from "./executionState";
 import type { Generation } from "./generation";
 import type { FileIconsResponse } from "./fileIconTheme";
-import { COMPAT_DISMISSED_KEY, CONTRACT_DISMISSED_KEY, DRAFTS_KEY } from "./storageKeys";
+import { COMPAT_DISMISSED_KEY, CONTRACT_DISMISSED_KEY } from "./storageKeys";
+import { deleteDrafts } from "./services/draftActions";
 
 export interface CommandHandlerHooks {
   getClient(): OpenCodeClient | undefined;
@@ -335,11 +336,6 @@ export class ChatCommandHandler {
     const h = this.hooks;
     const folder = h.getFolder();
     if (!folder) return;
-    const key = DRAFTS_KEY(folder.uri.toString());
-    const saved = h.workspaceState.get<{ drafts?: Record<string, string> }>(key) ?? {};
-    if (saved.drafts?.[id] === undefined) return;
-    const drafts = { ...saved.drafts };
-    delete drafts[id];
-    await h.workspaceState.update(key, { ...saved, drafts });
+    await deleteDrafts(h.workspaceState, folder.uri, [id]);
   }
 }

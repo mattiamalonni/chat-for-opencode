@@ -34,3 +34,14 @@ export class ChatDraftActions {
     }
   }
 }
+
+/** Removes drafts of deleted sessions; shared by bulk delete and the delete-session command. */
+export async function deleteDrafts(workspaceState: vscode.Memento, folderUri: vscode.Uri, ids: string[]): Promise<void> {
+  if (ids.length === 0) return;
+  const key = DRAFTS_KEY(folderUri.toString());
+  const saved = workspaceState.get<{ drafts?: Record<string, string> }>(key) ?? {};
+  if (!saved.drafts) return;
+  const drafts = { ...saved.drafts };
+  for (const id of ids) delete drafts[id];
+  await workspaceState.update(key, { ...saved, drafts });
+}

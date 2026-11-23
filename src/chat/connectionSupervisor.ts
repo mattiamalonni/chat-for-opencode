@@ -184,10 +184,7 @@ export class ConnectionSupervisor {
     }
   }
 
-  /** Unsubscribe from a folder's server without disposing the registry (used when switching folders). */
-  detachServerOnly(): void {
-    // A connect() in flight from the previous folder must not be reused by the next one. Its
-    // generation is bumped by the caller, so the stale onReady guard still applies.
+  private clearConnection(): void {
     this.connecting = undefined;
     this.closeStream();
     this.clearLoaded();
@@ -197,16 +194,17 @@ export class ConnectionSupervisor {
     this.server = undefined;
   }
 
+  /** Unsubscribe from a folder's server without disposing the registry (used when switching folders). */
+  detachServerOnly(): void {
+    // A connect() in flight from the previous folder must not be reused by the next one. Its
+    // generation is bumped by the caller, so the stale onReady guard still applies.
+    this.clearConnection();
+  }
+
   /** Tear down the server/stream/client without binding a new connection. */
   async detach(): Promise<void> {
     this.hooks.generation.bump();
-    this.connecting = undefined;
-    this.closeStream();
-    this.clearLoaded();
-    this.wasDisconnected = false;
-    this.serverSub?.();
-    this.serverSub = undefined;
-    this.server = undefined;
+    this.clearConnection();
     await this.hooks.registry.reset();
     this.hooks.onDetached();
   }

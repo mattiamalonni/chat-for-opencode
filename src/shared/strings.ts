@@ -233,3 +233,8 @@ export type Strings = Record<StringKey, string>;
 export function format(template: string, ...args: (string | number)[]): string {
   return template.replace(/\{(\d+)\}/g, (_, i: string) => String(args[Number(i)] ?? ""));
 }
+
+/** Builds the same formatter used by the webview's `useT` from any string table. */
+export function makeTranslator(strings: Strings): (key: StringKey, ...args: (string | number)[]) => string {
+  return (key, ...args) => format(strings[key] ?? STRINGS[key], ...args);
+}

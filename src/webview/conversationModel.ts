@@ -1,3 +1,4 @@
+import { toolOutputLabel } from "../shared/toolOutput";
 import {
   selectTurnFileChanges,
   selectTurnFiles,
@@ -221,11 +222,7 @@ export function itemSearchText(item: ConversationItem): string {
     case "assistant":
       return item.parts.map((p) => p.text).join(" ");
     case "tool":
-      return [
-        item.part.name,
-        item.part.inputText,
-        ...item.part.output.map((c) => (c.type === "text" ? c.text : `[${c.mime}] ${c.name ?? c.uri}`)),
-      ].join(" ");
+      return [item.part.name, item.part.inputText, ...item.part.output.map((c) => toolOutputLabel(c))].join(" ");
     case "tools":
       return item.parts.map((p) => [p.name, p.inputText].join(" ")).join(" ");
     case "status":

@@ -1,3 +1,4 @@
+import { toolOutputLabel } from "../../shared/toolOutput";
 import type { ComponentChildren } from "preact";
 import { useMemo } from "preact/hooks";
 import { type TextPart, type UiAssistantMessage, type UiMessage } from "../../shared/chatReducer";
@@ -37,9 +38,7 @@ export function messageSearchText(message: UiMessage): string {
   let text: string;
   if (message.kind === "assistant") {
     const parts = message.parts.map((p) =>
-      p.kind === "tool"
-        ? [p.name, p.inputText, ...p.output.map((c) => (c.type === "text" ? c.text : `[${c.mime}] ${c.name ?? c.uri}`))].join(" ")
-        : p.text,
+      p.kind === "tool" ? [p.name, p.inputText, ...p.output.map((c) => toolOutputLabel(c))].join(" ") : p.text,
     );
     text = [...parts, message.error?.message ?? "", message.retry?.message ?? ""].join(" ");
   } else {

@@ -1,3 +1,4 @@
+import { toolOutputLabel } from "../../shared/toolOutput";
 import { useEffect, useMemo, useState } from "preact/hooks";
 import { formsForTool, permissionsForTool, selectToolFiles, type ChatState, type ToolPart } from "../../shared/chatReducer";
 import { fileRefToOpenPath, isFileRef } from "../../shared/fileRef";
@@ -333,10 +334,7 @@ function GenericToolCard({
     part.status === "completed" ? t("completed") : part.status === "error" ? t("failed") : needsUser ? t("pending") : t("running");
   // A completed tool's output can be large, and the card is usually collapsed. Only rebuild the
   // string when this part's output actually changes (the reducer keeps part identity stable).
-  const output = useMemo(
-    () => part.output.map((c) => (c.type === "text" ? c.text : `[${c.mime}] ${c.name ?? c.uri}`)).join("\n"),
-    [part.output],
-  );
+  const output = useMemo(() => part.output.map((c) => toolOutputLabel(c)).join("\n"), [part.output]);
   const id = `tool-${part.id}`;
   return (
     <section

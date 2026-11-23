@@ -1,10 +1,11 @@
+import { toolOutputLabel } from "../shared/toolOutput";
 import { chatReducer } from "../shared/chatReducer";
 
-import { format, STRINGS, type Strings } from "../shared/strings";
+import { makeTranslator, STRINGS, type Strings } from "../shared/strings";
 
 /** Turns the in-memory chat into a portable, readable Markdown transcript. */
 export function conversationMarkdown(messages: ReturnType<typeof chatReducer>["messages"], title: string, strings: Strings): string {
-  const text = (key: keyof Strings, ...args: (string | number)[]) => format(strings[key] ?? STRINGS[key], ...args);
+  const text = makeTranslator(strings);
   const lines: string[] = [`# ${title || STRINGS.appName}`, ""];
   for (const m of messages) {
     if (m.kind === "user") {
@@ -21,7 +22,7 @@ export function conversationMarkdown(messages: ReturnType<typeof chatReducer>["m
       if (p.kind === "tool") {
         lines.push(`> **${text("tool")}:** \`${p.name}\`${p.status === "error" ? ` (${text("failed")})` : ""}`);
         for (const l of p.inputText.split("\n")) lines.push(`> ${l}`);
-        const output = p.output.map((c) => (c.type === "text" ? c.text : `[${c.mime}] ${c.name ?? c.uri}`)).join("\n");
+        const output = p.output.map((c) => toolOutputLabel(c)).join("\n");
         for (const l of output.split("\n")) if (l) lines.push(`> ${l}`);
         lines.push("");
       } else if (p.kind === "text") {
