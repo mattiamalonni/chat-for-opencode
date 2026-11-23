@@ -9,13 +9,12 @@ coding agent. It is a **client** of the OpenCode v2 server (`opencode serve`) ru
 machine: it does not reimplement the agent, never reads or stores provider API keys and sends
 **no telemetry**.
 
-| Conversation                                       | Inline permission                              | Model picker                                       | Light theme                                |
-| -------------------------------------------------- | ---------------------------------------------- | -------------------------------------------------- | ------------------------------------------ |
-| ![Conversation](docs/images/conversation-dark.png) | ![Permission](docs/images/permission-dark.png) | ![Model picker](docs/images/model-picker-dark.png) | ![Light](docs/images/permission-light.png) |
+![Chat for OpenCode docked in the VS Code secondary side bar, answering about the open file with the slash-command picker open](docs/images/hero.png)
 
-> Screenshots come from the automated UI tests (`npm run test:ui`), which render recorded OpenCode
-> event streams in a fake VS Code host. See [docs/README.md](docs/README.md#screenshots) to regenerate
-> and curate them.
+> The chat lives in VS Code's secondary side bar (right). This is a real screenshot of the extension
+> running in VS Code against the mock `opencode serve`; regenerate it with `npm run gen:hero`. Other UI
+> states come from the automated tests (`npm run test:ui`). See
+> [docs/README.md](docs/README.md#screenshots) for details.
 
 ## Install
 
