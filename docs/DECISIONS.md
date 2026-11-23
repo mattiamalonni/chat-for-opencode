@@ -180,23 +180,7 @@ this stays consistent with the existing Explain/Find bugs/Optimize selection com
 injected action factory, so the integration test can drive the real `vscode.executeCodeActionProvider`
 while the unit tests stay host-free.
 
-## D19 — The demo runs in the webview, not in the host
-
-The first-run demo needed to work with **no** server, CLI, credentials or workspace trust, so adding
-a `startDemo` webview→host message would have made the onboarding path depend on the very setup it
-is meant to bypass. Instead `src/shared/demoSession.ts` bundles 37 real 2.2.7 events (the first turn
-of `test/fixtures/real-sse3.jsonl`, with a fixed demo session id) and `App` folds them with the same
-`{type:"event"}` reducer action used by live SSE. The host-message listener drops connection,
-catalog, session and event messages while the demo plays, and `send()` is a no-op that announces the
-demo hint, so the recording cannot be corrupted by a stray server event or a queued prompt. Exiting
-cancels the timers and posts the existing `sync` message to reload the real conversation.
-
-Trade-off: the demo is a fixed, non-interactive recording and each chat view plays its own copy.
-That is enough for a first impression; a scripted, interactive Q&A would need a host-side simulator
-and is deliberately out of scope. To refresh the recording, slice a fixture and rewrite its
-`sessionID` to `DEMO_SESSION_ID`.
-
-## D20 — Context sources travel as inline data URIs
+## D19 — Context sources travel as inline data URIs
 
 Content-based chips (`@problems`, `@git`, `@terminal`, `@openEditors`, `@symbol`) could have been
 sent as a new prompt-text block, but that would duplicate the attachment pipeline and break
@@ -211,7 +195,7 @@ The five-source catalog is published once in `contextSources`; selecting one pos
 refresh. Chips are attached by default and removed through `removeContextSource` rather than the
 generic toggle, because a toggle would leave stale content cached in the host.
 
-## D21 — Applying a code block is a reviewable proposal, never a direct write
+## D20 — Applying a code block is a reviewable proposal, never a direct write
 
 The webview sends only the block text plus the nearest file reference it saw in the reply. The host
 validates that path against the workspace (including the real-path check), reads the current file,
@@ -222,7 +206,7 @@ only after a separate **Accept** in a notification; **Reject** or dismissing it 
 This keeps the "nothing without review" policy of the permission cards, and lets the whole flow be
 unit-tested behind injected hooks (`ApplyCodeService`) rather than driving native notifications.
 
-## D22 — Prompt variables are resolved in the host, not the webview
+## D21 — Prompt variables are resolved in the host, not the webview
 
 A `/` prompt can refer to the selection, the active file, the working-tree diff or the editor
 diagnostics. The webview has no access to git or to diagnostics, and reimplementing those sources
@@ -232,7 +216,7 @@ and `build("problems")` for the other two, then posts the existing `prefillDraft
 keeps user-defined prompts (from `opencode.promptLibrary`) on the same path as the curated ones and
 makes the resolution a pure `resolvePromptVariables` function with unit tests.
 
-## D23 — Project instructions are appended as dated Markdown notes
+## D22 — Project instructions are appended as dated Markdown notes
 
 A useful reply is often a project rule worth keeping. The reply action posts only the visible
 response text; the host appends a dated `## OpenCode note` section to `AGENTS.md` by default, with a
@@ -241,7 +225,7 @@ and replies are capped at 2 000 characters so a long answer cannot take over the
 `ProjectInstructionService` keeps formatting, deduplication and the no-folder / outside-workspace
 refusals in pure hooks; the host only resolves the target path and performs the `WorkspaceEdit`.
 
-## D24 — Multi-root is a scope widening, not a second connection
+## D23 — Multi-root is a scope widening, not a second connection
 
 `ServerRegistry` already keeps one handle per folder and the controller already persists the last
 session per folder, so a full multi-connection chat was unnecessary for the main monorepo pain

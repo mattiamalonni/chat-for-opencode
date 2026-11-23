@@ -18,7 +18,6 @@ sends **no telemetry**.
 
 ## Features
 
-- **Try it before installing anything**: the empty state offers a **Play demo conversation** action that replays a real recorded turn (streaming, reasoning, tool calls, an approval, turn stats) entirely in the webview. It sends nothing and exits back to the real chat with one click.
 - **Streaming chat** with Markdown, syntax highlighting and copy buttons on code blocks.
 - **Collapsible reasoning** ("Thoughts") and **tool cards** that work with any tool name (input, output, errors).
 - **Sessions**: list, create, switch, resume, rename and delete, with _Load more sessions_ for older ones and a discreet trash icon to _Delete all sessions_ (with a native VS Code confirmation) to clear the workspace at once. The last session of each folder is restored when VS Code restarts.

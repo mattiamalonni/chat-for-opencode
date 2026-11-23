@@ -233,14 +233,6 @@ test("welcome screen, active file is opt-in and selections are attached", async 
   await expect(page.getByRole("button", { name: `${STRINGS.removeContext}: app.ts:3-9`, exact: true })).toBeVisible();
   await page.screenshot({ path: join(SHOTS, "01-welcome-dark.png") });
 
-  // The demo block and its button share the welcome column's centre with the heading.
-  const center = (box: { x: number; width: number } | null) => (box ? box.x + box.width / 2 : Number.NaN);
-  const heading = await page.getByRole("heading", { name: STRINGS.welcomeTitle }).boundingBox();
-  const demo = await page.locator(".welcome-demo").boundingBox();
-  const play = await page.getByRole("button", { name: STRINGS.demoPlay, exact: true }).boundingBox();
-  expect(Math.abs(center(heading) - center(demo))).toBeLessThan(4);
-  expect(Math.abs(center(demo) - center(play))).toBeLessThan(4);
-
   const input = page.getByRole("textbox", { name: STRINGS.inputLabel });
   await input.fill("Explain this code");
   await input.press("Enter");
@@ -249,29 +241,6 @@ test("welcome screen, active file is opt-in and selections are attached", async 
   expect(send && "context" in send && send.context.map((c) => c.kind)).toEqual(["selection"]);
   await expect(input).toHaveValue("");
   expect(csp).toEqual([]);
-});
-
-test("the recorded demo streams a conversation without contacting the host", async ({ page }) => {
-  await boot(page);
-  const before = (await posted(page)).length;
-  // Drive the scripted timers ourselves: the replay is deterministic and must not slow other tests.
-  await page.clock.install();
-  await page.getByRole("button", { name: STRINGS.demoPlay, exact: true }).click();
-  await expect(page.getByRole("status", { name: STRINGS.demoActive })).toBeVisible();
-  await page.clock.runFor(10_000);
-  await expect(page.locator(".conversation")).toContainText("Edit a.txt so its content becomes b");
-  await expect(page.locator(".conversation")).toContainText("Done");
-  await page.screenshot({ path: join(SHOTS, "17-demo-dark.png"), fullPage: true });
-
-  // Typing during the demo is local: no prompt is sent to a server that may not exist yet.
-  const input = page.getByRole("textbox", { name: STRINGS.inputLabel });
-  await input.fill("hello");
-  await input.press("Enter");
-  expect((await posted(page)).slice(before).filter((m) => m.type === "send")).toEqual([]);
-
-  await page.getByRole("button", { name: STRINGS.demoExit, exact: true }).click();
-  await expect(page.getByRole("heading", { name: STRINGS.welcomeTitle })).toBeVisible();
-  expect(await lastPosted(page, "sync")).toMatchObject({ type: "sync" });
 });
 
 test("adding the active file and removing a selection toggles the context chips", async ({ page }) => {

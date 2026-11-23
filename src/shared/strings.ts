@@ -93,13 +93,6 @@ export const STRINGS = {
   forkDone: "Forked conversation. You are now in the new branch.",
   welcomeStarters: "Try one of these",
   welcomeHint: "Enter to send · @ for files · / for skills",
-  // Recorded demo: lets a first-time visitor see the UI before installing or signing in.
-  demoTitle: "See it in action",
-  demoBody: "Play a real recorded conversation with thinking, tool calls and an approval — no setup needed.",
-  demoPlay: "Play demo conversation",
-  demoActive: "Demo conversation",
-  demoHint: "Recorded example — nothing was sent to a server.",
-  demoExit: "Exit demo",
   starterExplain: "Explain the active file",
   starterBugs: "Find bugs in the selection",
   starterTests: "Write tests for the active file",

@@ -6,10 +6,6 @@ A VS Code extension that provides a Copilot-style chat sidebar for **OpenCode v2
 client of `opencode serve`: it never re-implements the agent, never reads or stores provider API
 keys and sends no telemetry.
 
-The first-run empty state can also play a **recorded demo**: a bundled slice of a real 2.2.7 SSE
-turn is folded by the same webview reducer, with no host message and no server, so a visitor can
-evaluate the UI before installing the CLI or signing in to a provider.
-
 ## Architecture
 
 ```

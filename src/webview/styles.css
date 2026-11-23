@@ -851,25 +851,7 @@ details[open] > summary > .chevron,
   flex: 1;
 }
 
-/* The recorded demo sits apart from the setup steps: it needs no CLI and no provider. */
-.welcome-demo {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 6px;
-  width: min(100%, 320px);
-  /* Center the block in the welcome column; without auto margins a fixed-width block sits left. */
-  margin: 14px auto 0;
-  padding-top: 12px;
-  border-top: 1px solid var(--opencode-border);
-}
-
-.demo-banner-label {
-  flex: none;
-}
-
-.welcome-starter,
-.demo-play {
+.welcome-starter {
   width: min(100%, 280px);
   padding: 6px 10px;
   text-align: left;
@@ -880,15 +862,8 @@ details[open] > summary > .chevron,
   cursor: pointer;
 }
 
-/* The demo is the only left-aligned starter: keep it centred like the welcome text. */
-.demo-play {
-  text-align: center;
-}
-
 .welcome-starter:hover,
-.welcome-starter:focus-visible,
-.demo-play:hover,
-.demo-play:focus-visible {
+.welcome-starter:focus-visible {
   background: var(--vscode-button-secondaryHoverBackground, var(--vscode-input-background));
 }
 

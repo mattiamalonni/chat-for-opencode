@@ -93,11 +93,6 @@ test or a manual probe actually ran.
   shell integration and only sees commands started after this extension activated. When the data is
   unavailable the chip is simply not added.
 
-- **The recorded demo is not interactive.** It replays one fixed turn from a 2.2.7 fixture; typing
-  while it plays only announces the demo hint and sends nothing. Each open chat view plays its own
-  copy, and a second chat view opened mid-replay starts from the beginning. Exiting resyncs the real
-  conversation from the host, so the recording is never written to a session.
-
 - **Git commands read the workspace working tree, not a PR.** _Review My Changes_ / _Write Commit
   Message_ require `git` on `PATH` and a repository at the folder the chat is connected to. They
   send staged + unstaged **tracked** changes; untracked files are listed by name only (their content

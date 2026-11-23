@@ -16,7 +16,6 @@ import {
   type UiUserMessage,
 } from "../shared/chatReducer";
 import { SUPPORTED_SERVER_VERSION, type Compatibility } from "../shared/compatibility";
-import { DEMO_EVENTS, DEMO_SESSION, demoEventDelay } from "../shared/demoSession";
 import { estimateDataUrlTokens } from "../shared/format";
 import { isFindKey, isNewSessionKey, isSyncKey } from "../shared/keys";
 import { contractSignature, emptyContract, type ContractReport } from "../shared/contract";
@@ -176,22 +175,6 @@ export function App() {
   const lastSessionId = useRef<string | null | undefined>(undefined);
   // The message filter is kept per session: switching to compare two chats used to wipe it.
   const searchQueries = useRef(new Map<string, string>());
-  // The recorded demo is local to the webview: no host message, no server, no protocol changes.
-  const [demo, setDemo] = useState(false);
-  const demoRef = useRef(false);
-  const demoTimers = useRef<number[]>([]);
-  const statusBeforeDemo = useRef<{ status: ConnectionStatus; error?: UiError }>({ status: "idle" });
-  const stopDemo = () => {
-    for (const timer of demoTimers.current) clearTimeout(timer);
-    demoTimers.current = [];
-    queue.current = [];
-  };
-
-  useEffect(() => {
-    return () => {
-      for (const timer of demoTimers.current) clearTimeout(timer);
-    };
-  }, []);
 
   useEffect(() => {
     const requestResync = () => {
@@ -215,21 +198,6 @@ export function App() {
       if (childEvents.length > 0) subagentDispatch({ type: "events", events: childEvents });
     };
     const off = onHostMessage((msg: HostMessage) => {
-      // While the demo plays, the live server must not overwrite the recorded conversation. Other
-      // messages (init with translations, notices, actions) are still allowed through.
-      if (
-        demoRef.current &&
-        (msg.type === "connection" ||
-          msg.type === "catalog" ||
-          msg.type === "sessions" ||
-          msg.type === "session" ||
-          msg.type === "sessionDelta" ||
-          msg.type === "event" ||
-          msg.type === "context" ||
-          msg.type === "changedFiles" ||
-          msg.type === "inbox")
-      )
-        return;
       switch (msg.type) {
         case "init":
           setStrings({ ...STRINGS, ...msg.strings });
@@ -578,10 +546,6 @@ export function App() {
     [context, contextChoice],
   );
   const send = (text: string, delivery?: "steer" | "queue") => {
-    if (demoRef.current) {
-      announce(stringsRef.current.demoHint);
-      return;
-    }
     const ctx = context.filter((c) => selectedContext.has(c.id));
     const skillCommand = /(^|\s)\/(\S+)(?=\s|$)/.exec(text);
     const isCommand = skillCommand && catalog.commands.some((item) => item.name === skillCommand[2]);
@@ -726,42 +690,6 @@ export function App() {
   };
   syncNowRef.current = syncNow;
 
-  /** Play the bundled recording through the same reducer path as live SSE events. */
-  const startDemo = () => {
-    stopDemo();
-    statusBeforeDemo.current = status;
-    demoRef.current = true;
-    setDemo(true);
-    setStatus({ status: "connected" });
-    setNotice(undefined);
-    dispatch({
-      type: "load",
-      sessionId: DEMO_SESSION.id,
-      title: DEMO_SESSION.title,
-      agent: DEMO_SESSION.agent,
-      model: DEMO_SESSION.model,
-      busy: false,
-      messages: DEMO_SESSION.messages,
-      permissions: DEMO_SESSION.permissions,
-      forms: DEMO_SESSION.forms,
-    });
-    let at = 0;
-    for (const event of DEMO_EVENTS) {
-      at += demoEventDelay(event);
-      demoTimers.current.push(window.setTimeout(() => dispatch({ type: "event", event }), at));
-    }
-    announce(stringsRef.current.demoHint);
-  };
-  /** Leave the recording and ask the host for the real conversation again. */
-  const exitDemo = () => {
-    stopDemo();
-    demoRef.current = false;
-    setDemo(false);
-    setStatus(statusBeforeDemo.current);
-    dispatch({ type: "load", sessionId: null, messages: [], permissions: [], forms: [], busy: false });
-    post({ type: "sync" });
-  };
-
   /** Pull a queued prompt back into the composer (the API cannot patch its text in place). */
   const editQueued = (item: InboxItem) => {
     const sid = chat.sessionId;
@@ -838,21 +766,8 @@ export function App() {
                 <ContractBanner failures={contract.report.failures} issuesUrl={issuesUrl} />
               )}
               {notice && <NoticeBanner error={notice} onDismiss={() => setNotice(undefined)} />}
-              {demo && (
-                <div class="banner info" role="status" aria-label={strings.demoActive}>
-                  <div class="banner-main">
-                    <IconHistory />
-                    <strong class="demo-banner-label">{strings.demoActive}</strong>
-                    <span>{strings.demoHint}</span>
-                  </div>
-                  <button type="button" class="link-button" onClick={exitDemo}>
-                    {strings.demoExit}
-                  </button>
-                </div>
-              )}
               <Conversation
                 chat={chat}
-                onStartDemo={startDemo}
                 models={catalog.models}
                 status={status.status}
                 error={status.error}
@@ -1511,7 +1426,7 @@ function ErrorBlock({ error, onDismiss }: { error: UiError; onDismiss?: () => vo
  * Empty state for a setup blocker. The banner above explains the failure; this turns it into a
  * short checklist so a first-run user knows what to do next instead of staring at chat prompts.
  */
-function SetupWelcome({ error, onStartDemo }: { error: UiError; onStartDemo?: () => void }) {
+function SetupWelcome({ error }: { error: UiError }) {
   const t = useT();
   const steps: Array<{ label: string; done: boolean; action?: ActionId }> = [
     {
@@ -1547,15 +1462,6 @@ function SetupWelcome({ error, onStartDemo }: { error: UiError; onStartDemo?: ()
       </ol>
       <p class="welcome-hint">{error.message}</p>
       <p class="welcome-hint">{t("setupHint")}</p>
-      {onStartDemo && (
-        <div class="welcome-demo">
-          <strong>{t("demoTitle")}</strong>
-          <p class="welcome-hint">{t("demoBody")}</p>
-          <button type="button" class="demo-play" onClick={onStartDemo}>
-            {t("demoPlay")}
-          </button>
-        </div>
-      )}
     </div>
   );
 }
@@ -1958,7 +1864,6 @@ function Conversation({
   revealMessageId,
   onRevealed,
   onSuggestedPrompt,
-  onStartDemo,
 }: {
   chat: ReturnType<typeof chatReducer>;
   models: ModelInfo[];
@@ -1972,7 +1877,6 @@ function Conversation({
   revealMessageId?: string;
   onRevealed?: () => void;
   onSuggestedPrompt?: (text: string) => void;
-  onStartDemo?: () => void;
 }) {
   const t = useT();
   const ref = useRef<HTMLDivElement>(null);
@@ -2212,20 +2116,11 @@ function Conversation({
         >
           {chat.messages.length === 0 &&
             (error && SETUP_ERROR_KINDS.has(error.kind) ? (
-              <SetupWelcome error={error} onStartDemo={onStartDemo} />
+              <SetupWelcome error={error} />
             ) : (
               <div class="welcome">
                 <h2>{t("welcomeTitle")}</h2>
                 <p>{t("welcomeBody")}</p>
-                {onStartDemo && (
-                  <div class="welcome-demo">
-                    <strong>{t("demoTitle")}</strong>
-                    <p class="welcome-hint">{t("demoBody")}</p>
-                    <button type="button" class="demo-play" onClick={onStartDemo}>
-                      {t("demoPlay")}
-                    </button>
-                  </div>
-                )}
                 {(status === "error" || status === "reconnecting") && <p class="welcome-hint">{t("setupHint")}</p>}
                 {onSuggestedPrompt && (
                   <>
