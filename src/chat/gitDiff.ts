@@ -51,19 +51,3 @@ export async function workingDiff(cwd: string, run: GitRunner = defaultGitRunner
   if (untracked.length > MAX_UNTRACKED) untracked.length = MAX_UNTRACKED;
   return { diff: diff.trimEnd(), truncated, untracked };
 }
-
-export type DiffIntent = "review" | "commit";
-
-/** Turns the working diff into a self-contained prompt; pure so it is cheap to test and review. */
-export function diffPrompt(result: WorkingDiff, intent: DiffIntent): string {
-  const notes: string[] = [];
-  if (result.truncated) notes.push("The diff was truncated for length; say so if you need the rest.");
-  if (result.untracked.length) notes.push(`Untracked files (not in the diff): ${result.untracked.join(", ")}.`);
-
-  const task =
-    intent === "review"
-      ? "Review the uncommitted changes below for bugs, regressions, security issues, missing tests and unclear code. Be concise, reference file paths and line numbers, and say explicitly when you find nothing worth reporting."
-      : "Write a Conventional Commit message for the uncommitted changes below. Reply with only the message: an imperative subject line of at most 72 characters, a blank line, then a short body explaining what changed and why. No code fence, no preamble.";
-
-  return `${task}\n\n${notes.length ? `${notes.join("\n")}\n\n` : ""}\`\`\`diff\n${result.diff || "(no tracked changes)"}\n\`\`\``;
-}

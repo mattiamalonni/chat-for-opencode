@@ -144,36 +144,6 @@
         "category": "OpenCode"
       },
       {
-        "command": "opencode.addSelectionToChat",
-        "title": "%command.addSelectionToChat%",
-        "category": "OpenCode"
-      },
-      {
-        "command": "opencode.explainSelection",
-        "title": "%command.explainSelection%",
-        "category": "OpenCode"
-      },
-      {
-        "command": "opencode.findBugsSelection",
-        "title": "%command.findBugsSelection%",
-        "category": "OpenCode"
-      },
-      {
-        "command": "opencode.writeTestsSelection",
-        "title": "%command.writeTestsSelection%",
-        "category": "OpenCode"
-      },
-      {
-        "command": "opencode.optimizeSelection",
-        "title": "%command.optimizeSelection%",
-        "category": "OpenCode"
-      },
-      {
-        "command": "opencode.addFileToChat",
-        "title": "%command.addFileToChat%",
-        "category": "OpenCode"
-      },
-      {
         "command": "opencode.searchSessions",
         "title": "%command.searchSessions%",
         "category": "OpenCode",
@@ -238,50 +208,9 @@
         "command": "opencode.quickSwitchSession",
         "title": "%command.quickSwitchSession%",
         "category": "OpenCode"
-      },
-      {
-        "command": "opencode.askAboutFile",
-        "title": "%command.askAboutFile%",
-        "category": "OpenCode",
-        "icon": "$(question)"
-      },
-      {
-        "command": "opencode.fixDiagnostic",
-        "title": "%command.fixDiagnostic%",
-        "category": "OpenCode"
-      },
-      {
-        "command": "opencode.explainDiagnostic",
-        "title": "%command.explainDiagnostic%",
-        "category": "OpenCode"
-      },
-      {
-        "command": "opencode.reviewChanges",
-        "title": "%command.reviewChanges%",
-        "category": "OpenCode",
-        "icon": "$(eye)"
-      },
-      {
-        "command": "opencode.commitMessage",
-        "title": "%command.commitMessage%",
-        "category": "OpenCode",
-        "icon": "$(git-commit)"
-      },
-      {
-        "command": "opencode.continueInTerminal",
-        "title": "%command.continueInTerminal%",
-        "category": "OpenCode",
-        "icon": "$(terminal)"
       }
     ],
     "menus": {
-      "editor/title": [
-        {
-          "command": "opencode.askAboutFile",
-          "when": "resourceScheme == file",
-          "group": "navigation@5"
-        }
-      ],
       "view/title": [
         {
           "command": "opencode.restart",
@@ -295,11 +224,6 @@
         },
         {
           "command": "opencode.compact",
-          "when": "view == opencode.chatView",
-          "group": "overflow"
-        },
-        {
-          "command": "opencode.continueInTerminal",
           "when": "view == opencode.chatView",
           "group": "overflow"
         },
@@ -319,66 +243,7 @@
           "group": "overflow"
         }
       ],
-      "editor/context": [
-        {
-          "command": "opencode.addSelectionToChat",
-          "when": "editorHasSelection",
-          "group": "opencode@1"
-        },
-        {
-          "command": "opencode.addFileToChat",
-          "when": "resourceScheme == file",
-          "group": "opencode@2"
-        },
-        {
-          "command": "opencode.explainSelection",
-          "when": "editorHasSelection",
-          "group": "opencode@3"
-        },
-        {
-          "command": "opencode.findBugsSelection",
-          "when": "editorHasSelection",
-          "group": "opencode@4"
-        },
-        {
-          "command": "opencode.writeTestsSelection",
-          "when": "editorHasSelection",
-          "group": "opencode@5"
-        },
-        {
-          "command": "opencode.optimizeSelection",
-          "when": "editorHasSelection",
-          "group": "opencode@6"
-        }
-      ],
-      "explorer/context": [
-        {
-          "command": "opencode.addFileToChat",
-          "when": "resourceScheme == file",
-          "group": "opencode@1"
-        }
-      ],
       "commandPalette": [
-        {
-          "command": "opencode.addSelectionToChat",
-          "when": "editorHasSelection"
-        },
-        {
-          "command": "opencode.explainSelection",
-          "when": "editorHasSelection"
-        },
-        {
-          "command": "opencode.findBugsSelection",
-          "when": "editorHasSelection"
-        },
-        {
-          "command": "opencode.writeTestsSelection",
-          "when": "editorHasSelection"
-        },
-        {
-          "command": "opencode.optimizeSelection",
-          "when": "editorHasSelection"
-        },
         {
           "command": "opencode.ask"
         },
@@ -393,18 +258,6 @@
         },
         {
           "command": "opencode.openChatInEditor"
-        },
-        {
-          "command": "opencode.askAboutFile"
-        },
-        {
-          "command": "opencode.reviewChanges"
-        },
-        {
-          "command": "opencode.commitMessage"
-        },
-        {
-          "command": "opencode.continueInTerminal"
         }
       ]
     },
@@ -423,12 +276,6 @@
         "command": "opencode.searchSessions",
         "key": "ctrl+alt+f",
         "mac": "cmd+alt+f"
-      },
-      {
-        "command": "opencode.addSelectionToChat",
-        "key": "ctrl+alt+l",
-        "mac": "cmd+alt+l",
-        "when": "editorTextFocus && editorHasSelection"
       },
       {
         "command": "opencode.quickSwitchSession",

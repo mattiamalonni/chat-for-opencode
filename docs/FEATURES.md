@@ -39,23 +39,17 @@ settings, see [REFERENCE.md](REFERENCE.md).
 - **Editor context**: the active file and selection are attached automatically as removable chips,
   with your active file icon theme's icons (including dark/light/high-contrast and glyph fonts).
 - **`@` mentions** are reserved for files, with fuzzy workspace search: picking a file attaches it as
-  a chip and removes the `@query` from the input. **Add Selection to Chat** / **Add File to Chat**
-  work the same way.
+  a chip and removes the `@query` from the input.
 - **Attach external files** by dragging them into the chat (hold **Shift**: VS Code otherwise opens
   the file), pasting a file into the prompt, or using the folder button's native picker. Files
   outside the workspace — and all local files when using an external endpoint — are sent inline.
 - **Clickable file references**: `src/app.ts:42` in a reply, a tool's input path, a permission
   resource or a changed-file row opens the file at that line.
-- **Editor actions**: _Fix with OpenCode_ and _Explain with OpenCode_ Quick Fixes on diagnostics
-  (up to three at a time), **Ask OpenCode About This File** in the editor title bar, _Explain / Find
-  bugs / Write tests / Optimize Selection_ in the context menu. Everything prefills the chat;
-  nothing is sent until you press Enter.
-- **Review your uncommitted work**: _OpenCode: Review My Changes_ and _OpenCode: Write Commit Message_
-  send the staged + unstaged git diff with a review or Conventional Commit prompt. Untracked files
-  are listed by name and diffs are capped so a huge working tree cannot flood the context.
 - **Reusable prompt library**: `/` offers eight curated prompts (explain, tests, bugs, optimize,
   document, review, problems, commit) plus your `opencode.promptLibrary` entries. Picking one fills
   the composer with `$selection`, `$file`, `$diff` and `$problems` resolved — never sent automatically.
+  This is the single entry point for diagnostics, git diffs and editor selections: everything is
+  attached inside the chat, and nothing is sent until you press Enter.
 - **Save a reply as a project instruction**: an action beside **Copy response** appends a dated note
   to `AGENTS.md` (or a Markdown file you pick in the workspace), skipping duplicates.
 

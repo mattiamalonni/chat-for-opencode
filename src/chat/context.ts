@@ -7,13 +7,6 @@ export function fileUriWithRange(uri: vscode.Uri, start?: number, end?: number):
   return start !== undefined && end !== undefined ? `${base}?start=${start}&end=${end}` : base;
 }
 
-/** Whole-file attachment, used by the editor title action and other file-level commands. */
-export function fileAttachment(uri: vscode.Uri): Attachment | undefined {
-  if (uri.scheme !== "file") return undefined;
-  const name = path.basename(uri.fsPath);
-  return { uri: fileUriWithRange(uri), name, kind: "file", detail: name };
-}
-
 export function selectionAttachment(editor: vscode.TextEditor): Attachment | undefined {
   const sel = editor.selection;
   if (sel.isEmpty || editor.document.uri.scheme !== "file") return undefined;

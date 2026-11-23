@@ -60,7 +60,7 @@ The short version — full behaviour in [docs/FEATURES.md](docs/FEATURES.md):
   reasoning and tool cards, per-turn step folds, turn stats, queued messages, subagents in a
   read-only modal, `todowrite` lists.
 - [Context and files](docs/FEATURES.md#context-and-files) — editor/selection chips, `@` file search,
-  external files sent inline, clickable file references, Quick Fixes, prompt library, skills, replies
+  external files sent inline, clickable file references, prompt library, skills, replies
   saved to `AGENTS.md`.
 - [Diffs and permissions](docs/FEATURES.md#diffs-and-permissions) — Apply to file with a reviewable
   native diff, changed-files panel with combined read-only diffs, permission and question cards with
@@ -78,7 +78,6 @@ The short version — full behaviour in [docs/FEATURES.md](docs/FEATURES.md):
 | Quick switch session       | `Cmd/Ctrl+Alt+S`            |
 | Search all conversations   | `Cmd/Ctrl+Alt+F`            |
 | Ask OpenCode…              | `Cmd/Ctrl+Alt+Shift+O`      |
-| Add selection to chat      | `Cmd/Ctrl+Alt+L`            |
 | New session (chat focused) | `Cmd/Ctrl+N`                |
 | In-chat message search     | `Cmd/Ctrl+F`                |
 | Stop / next match / resync | `Esc` / `F3` / `Cmd/Ctrl+R` |

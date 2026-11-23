@@ -84,16 +84,6 @@ test or a manual probe actually ran.
   written. The diff preview and Accept notification are native VS Code UI, so automated tests can
   assert the preview but cannot click Accept.
 
-- **Git commands read the workspace working tree, not a PR.** _Review My Changes_ / _Write Commit
-  Message_ require `git` on `PATH` and a repository at the folder the chat is connected to. They
-  send staged + unstaged **tracked** changes; untracked files are listed by name only (their content
-  is not attached), and the diff is truncated at 24 000 characters with a note in the prompt. The
-  commit message is written in the chat — the extension does not fill the SCM input box for you.
-- **Quick Fixes depend on other extensions' diagnostics.** The Code Actions only see diagnostics
-  published by a language server or another VS Code extension for the open file — OpenCode itself
-  does not publish diagnostics. With no diagnostic on the line there is no lightbulb (the editor title
-  button still works). The two actions prefill the composer; they never apply a patch automatically.
-
 - **Queued prompts cannot be edited in place.** OpenCode's inbox `PATCH` only accepts `delivery`
   (`queue` or `steer`): the panel can promote an item to _send now_, but _Put back in composer to
   edit_ cancels the item and restores its text in the composer instead of patching it. The API also
@@ -168,11 +158,6 @@ test or a manual probe actually ran.
   `src/shared/adapter.ts` normalises missing/renamed fields so the UI degrades gracefully, and the
   raw wire types are generated from the snapshot with `npm run gen:types`, but neither can adapt to
   changed endpoints or event semantics. Supporting a new version means extending the adapter.
-- **The terminal hand-off needs the CLI on `PATH`.** _Continue This Session in Terminal_ uses the
-  configured `opencode.executablePath` and the TUI's own authentication — the extension's managed
-  server password is **not** passed. The TUI and the chat are two clients writing the same on-disk
-  session, so a permission or prompt answered in one is not rendered live in the other (the chat polls
-  the open session while visible). With no session open the command starts a fresh TUI.
 - **Status bar usage is the same estimate** as the composer's context meter (see API_NOTES). It is
   unknown until the first reply (and after a compaction), so the item stays hidden until OpenCode
   reports numbers. It mirrors the **open session** only and is cleared when that session closes;

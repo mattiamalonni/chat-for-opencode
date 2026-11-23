@@ -31,18 +31,6 @@ const COMMAND_NOTES = {
   "opencode.moveView": "left/right side bar or panel",
   "opencode.showLogs": "toolbar overflow menu",
   "opencode.setServerPassword": "external server only",
-  "opencode.addSelectionToChat": "editor with a selection",
-  "opencode.addFileToChat": "editor / explorer context menu",
-  "opencode.askAboutFile": "editor title button / command palette",
-  "opencode.explainSelection": "editor context menu; prefills the chat with the selection",
-  "opencode.findBugsSelection": "editor context menu; prefills the chat with the selection",
-  "opencode.writeTestsSelection": "editor context menu; prefills the chat with the selection",
-  "opencode.optimizeSelection": "editor context menu; prefills the chat with the selection",
-  "opencode.fixDiagnostic": "Quick Fix on a diagnostic; also the lightbulb",
-  "opencode.explainDiagnostic": "Quick Fix on a diagnostic",
-  "opencode.reviewChanges": "sends the workspace git diff with a review prompt",
-  "opencode.commitMessage": "sends the workspace git diff with a Conventional Commit prompt",
-  "opencode.continueInTerminal": "chat overflow menu; runs `opencode --session <id>`",
 };
 
 function resolveLocalised(value, key) {

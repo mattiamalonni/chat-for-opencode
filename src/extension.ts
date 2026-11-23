@@ -4,11 +4,8 @@ import { promisify } from "node:util";
 import * as vscode from "vscode";
 import { ChatController, ServerRegistry, type ExecutionStatus, type SessionSearchResult } from "./chat/controller";
 import { DIFF_SCHEME, DiffService } from "./chat/diff";
-import { fileAttachment, selectionAttachment } from "./chat/context";
-import { diffPrompt, workingDiff, type DiffIntent, type WorkingDiff } from "./chat/gitDiff";
+import { selectionAttachment } from "./chat/context";
 import { usageLabel, usageTooltip, usageUpdateFromMessage, type SessionUsage } from "./chat/usageStatus";
-import { openSessionCommand } from "./chat/terminal";
-import { diagnosticCodeActions, EXPLAIN_DIAGNOSTIC_COMMAND, FIX_DIAGNOSTIC_COMMAND, type DiagnosticCommandArgs } from "./chat/codeActions";
 import { ChatViewProvider } from "./chat/viewProvider";
 import { cleanupOrphanServers } from "./server/orphans";
 
@@ -61,9 +58,6 @@ export function activate(context: vscode.ExtensionContext): ExtensionApi {
   const diffs = new DiffService((line) => output.warn(line));
   controller = new ChatController(context, registry, diffs, output);
   const chat = controller;
-  // Declared here so host commands can warn when a turn is still active; the status bar listener
-  // below writes the same variable.
-  let executionStatus: ExecutionStatus = "idle";
 
   const focusView = () => vscode.commands.executeCommand(`${ChatViewProvider.viewId}.focus`);
   const readAuthLogins = async () => {
@@ -71,59 +65,6 @@ export function activate(context: vscode.ExtensionContext): ExtensionApi {
     const executable = vscode.workspace.getConfiguration("opencode").get<string>("executablePath", "opencode").trim() || "opencode";
     const { stdout } = await execFileAsync(executable, ["auth", "list", "--format", "json"], { timeout: 10_000 });
     return parseAuthLogins(stdout);
-  };
-
-  /** A Quick Fix selects the offending lines, then opens the chat with them attached. */
-  const runDiffCommand = async (intent: DiffIntent) => {
-    const cwd = chat.folderUri?.fsPath;
-    if (!cwd || !vscode.workspace.isTrusted) {
-      void vscode.window.showInformationMessage(vscode.l10n.t("Open a trusted workspace folder first."));
-      return;
-    }
-    let diff: WorkingDiff | undefined;
-    try {
-      const title =
-        intent === "review"
-          ? vscode.l10n.t("Reading git changes for a review…")
-          : vscode.l10n.t("Reading git changes for a commit message…");
-      diff = await vscode.window.withProgress({ location: vscode.ProgressLocation.Notification, title }, () => workingDiff(cwd));
-    } catch (err) {
-      output.error(`[git] ${String(err)}`);
-      void vscode.window.showErrorMessage(
-        vscode.l10n.t("Could not read the git diff. Check that git is installed and this folder is a repository."),
-      );
-      return;
-    }
-    if (!diff || !diff.diff.trim()) {
-      void vscode.window.showInformationMessage(vscode.l10n.t("No uncommitted changes found in this workspace."));
-      return;
-    }
-    await focusView();
-    await chat.receive({ type: "send", text: diffPrompt(diff, intent), attachments: [], context: [] });
-  };
-
-  const prefillDiagnostic = async (value: unknown, intent: "fix" | "explain") => {
-    if (!value || typeof value !== "object") return;
-    const args = value as Partial<DiagnosticCommandArgs>;
-    if (
-      typeof args.uri !== "string" ||
-      typeof args.startLine !== "number" ||
-      typeof args.endLine !== "number" ||
-      typeof args.message !== "string"
-    ) {
-      return;
-    }
-    const document = await vscode.workspace.openTextDocument(vscode.Uri.parse(args.uri));
-    const editor = await vscode.window.showTextDocument(document);
-    const lastLine = Math.max(0, editor.document.lineCount - 1);
-    const start = new vscode.Position(Math.min(lastLine, Math.max(0, args.startLine - 1)), 0);
-    const endLine = Math.min(lastLine, Math.max(0, args.endLine - 1));
-    editor.selection = new vscode.Selection(start, editor.document.lineAt(endLine).range.end);
-    const attachment = selectionAttachment(editor);
-    const prompt =
-      intent === "fix" ? vscode.l10n.t("Fix this error: {0}", args.message) : vscode.l10n.t("Explain this error: {0}", args.message);
-    await focusView();
-    chat.prefillDraft(prompt, attachment ? [attachment] : []);
   };
 
   // A second, quiet status item keeps the running cost visible even with the sidebar collapsed.
@@ -163,25 +104,6 @@ export function activate(context: vscode.ExtensionContext): ExtensionApi {
         chat.attachPanel(panel);
       },
     }),
-    // OpenCode's chat meets the user where the problem already is: on the squiggle. These are
-    // Quick Fixes only — the prompt is prefilled so nothing is sent without a review.
-    vscode.languages.registerCodeActionsProvider(
-      { scheme: "file" },
-      {
-        provideCodeActions(document, range, context) {
-          return diagnosticCodeActions(document, range, context.diagnostics, {
-            t: (message) => vscode.l10n.t(message),
-            create: (title, command, args, preferred) => {
-              const action = new vscode.CodeAction(title, vscode.CodeActionKind.QuickFix);
-              action.command = { command, title, arguments: [args] };
-              action.isPreferred = preferred;
-              return action;
-            },
-          });
-        },
-      },
-      { providedCodeActionKinds: [vscode.CodeActionKind.QuickFix] },
-    ),
     // 1.99 exposes only the "granted" event: untrusting a workspace requires a window reload, so
     // there is nothing to react to there. Reconnect/prompt paths re-check `isTrusted` themselves.
     vscode.workspace.onDidGrantWorkspaceTrust(() => void chat.onWorkspaceTrustChanged(true)),
@@ -322,54 +244,6 @@ export function activate(context: vscode.ExtensionContext): ExtensionApi {
       // prompt and the user gets to review (or extend) it before it reaches the agent.
       chat.prefillDraft(text.trim(), attachment ? [attachment] : []);
     }),
-    vscode.commands.registerCommand("opencode.reviewChanges", () => void runDiffCommand("review")),
-    vscode.commands.registerCommand("opencode.commitMessage", () => void runDiffCommand("commit")),
-    vscode.commands.registerCommand("opencode.continueInTerminal", async () => {
-      if (!vscode.workspace.isTrusted) {
-        void vscode.window.showInformationMessage(vscode.l10n.t("Trust this workspace before using OpenCode."));
-        return;
-      }
-      if (executionStatus === "running" || executionStatus === "needsInput") {
-        const anyway = vscode.l10n.t("Open in terminal anyway");
-        const choice = await vscode.window.showWarningMessage(
-          vscode.l10n.t(
-            "This session is still active in the chat. A terminal is a second client on the same session; both can write to it.",
-          ),
-          anyway,
-        );
-        if (choice !== anyway) return;
-      }
-      const executable = vscode.workspace.getConfiguration("opencode").get<string>("executablePath", "opencode").trim() || "opencode";
-      const sessionId = chat.currentSessionId;
-      let command: string;
-      try {
-        command = openSessionCommand(executable, sessionId);
-      } catch (err) {
-        output.error(`[terminal] ${String(err)}`);
-        void vscode.window.showErrorMessage(
-          vscode.l10n.t("The configured OpenCode executable path cannot be quoted safely in a terminal."),
-        );
-        return;
-      }
-      const terminal = vscode.window.createTerminal({
-        name: sessionId ? vscode.l10n.t("OpenCode session") : vscode.l10n.t("OpenCode"),
-        cwd: chat.folderUri,
-      });
-      terminal.show();
-      terminal.sendText(command);
-    }),
-    vscode.commands.registerCommand(FIX_DIAGNOSTIC_COMMAND, (args: unknown) => void prefillDiagnostic(args, "fix")),
-    vscode.commands.registerCommand(EXPLAIN_DIAGNOSTIC_COMMAND, (args: unknown) => void prefillDiagnostic(args, "explain")),
-    vscode.commands.registerCommand("opencode.askAboutFile", async () => {
-      const uri = vscode.window.activeTextEditor?.document.uri;
-      const attachment = uri && fileAttachment(uri);
-      if (!attachment) {
-        void vscode.window.showInformationMessage(vscode.l10n.t("Open a file in the editor first."));
-        return;
-      }
-      await focusView();
-      chat.prefillDraft(vscode.l10n.t("What does this file do? How could it be improved?"), [attachment]);
-    }),
     vscode.commands.registerCommand("opencode.account", async () => {
       let logins: vscode.QuickPickItem[];
       try {
@@ -400,35 +274,6 @@ export function activate(context: vscode.ExtensionContext): ExtensionApi {
         placeHolder: logins.length ? vscode.l10n.t("Saved OpenCode logins") : vscode.l10n.t("No saved OpenCode login found"),
       });
       if (selection?.command === "login") await chat.runAction("login");
-    }),
-    vscode.commands.registerCommand("opencode.addSelectionToChat", async () => {
-      await focusView();
-      if (!chat.addSelection(vscode.window.activeTextEditor)) {
-        void vscode.window.showInformationMessage(vscode.l10n.t("Select some text in a file first."));
-      }
-    }),
-    ...[
-      ["opencode.explainSelection", "Explain this code"],
-      ["opencode.findBugsSelection", "Find bugs in this code"],
-      ["opencode.writeTestsSelection", "Write tests for this code"],
-      ["opencode.optimizeSelection", "Optimize this code"],
-    ].map(([id, prompt]) =>
-      vscode.commands.registerCommand(id, async () => {
-        const editor = vscode.window.activeTextEditor;
-        if (!editor || editor.selection.isEmpty || editor.document.uri.scheme !== "file") {
-          void vscode.window.showInformationMessage(vscode.l10n.t("Select some text in a file first."));
-          return;
-        }
-        const attachment = selectionAttachment(editor);
-        await focusView();
-        chat.prefillDraft(vscode.l10n.t(prompt), attachment ? [attachment] : []);
-      }),
-    ),
-    vscode.commands.registerCommand("opencode.addFileToChat", async (uri?: vscode.Uri) => {
-      const target = uri ?? vscode.window.activeTextEditor?.document.uri;
-      if (!target || target.scheme !== "file") return;
-      await focusView();
-      await chat.addFile(target);
     }),
     vscode.commands.registerCommand("opencode.moveView", async () => {
       // `workbench.action.moveFocusedView` reads VS Code's internal `focusedView` context key,
@@ -462,6 +307,8 @@ export function activate(context: vscode.ExtensionContext): ExtensionApi {
   status.name = vscode.l10n.t("OpenCode account");
   status.text = "$(comment-discussion)";
   let authLogins: vscode.QuickPickItem[] | undefined;
+  // Only the tooltip reads it now; the icon itself comes straight from the execution event.
+  let executionStatus: ExecutionStatus = "idle";
   const statusDescriptions: Record<ExecutionStatus, string> = {
     idle: vscode.l10n.t("Idle"),
     running: vscode.l10n.t("Generating a response — click to stop"),

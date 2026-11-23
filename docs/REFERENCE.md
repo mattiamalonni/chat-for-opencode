@@ -13,12 +13,6 @@ Do not edit the generated blocks by hand; change the manifest and regenerate.
 | OpenCode: Open Extension Settings                      | –                    | toolbar gear icon                                                          |
 | OpenCode: Restart Server…                              | –                    | toolbar, with confirmation                                                 |
 | OpenCode: Compact Conversation                         | –                    |                                                                            |
-| OpenCode: Add Selection to Chat                        | Cmd/Ctrl+Alt+L       | editor with a selection                                                    |
-| OpenCode: Explain Selection                            | –                    | editor context menu; prefills the chat with the selection                  |
-| OpenCode: Find Bugs in Selection                       | –                    | editor context menu; prefills the chat with the selection                  |
-| OpenCode: Write Tests for Selection                    | –                    | editor context menu; prefills the chat with the selection                  |
-| OpenCode: Optimize Selection                           | –                    | editor context menu; prefills the chat with the selection                  |
-| OpenCode: Add File to Chat                             | –                    | editor / explorer context menu                                             |
 | OpenCode: Search All Session Conversations             | Cmd/Ctrl+Alt+F       | searches titles and message bodies across every session                    |
 | OpenCode: Focus Chat                                   | Cmd/Ctrl+Alt+O       | also the OpenCode icon in the status bar                                   |
 | OpenCode: Ask OpenCode…                                | Cmd/Ctrl+Alt+Shift+O | fills the composer from anywhere, with the current selection attached      |
@@ -31,12 +25,6 @@ Do not edit the generated blocks by hand; change the manifest and regenerate.
 | OpenCode: Move Chat View… (left/right side bar, panel) | –                    | left/right side bar or panel                                               |
 | OpenCode: Install OpenCode…                            | –                    | copy the install command, open platform instructions, retry the connection |
 | OpenCode: Quick Switch Session                         | Cmd/Ctrl+Alt+S       | recent sessions first; typing searches all conversations                   |
-| OpenCode: Ask OpenCode About This File                 | –                    | editor title button / command palette                                      |
-| OpenCode: Fix with OpenCode                            | –                    | Quick Fix on a diagnostic; also the lightbulb                              |
-| OpenCode: Explain with OpenCode                        | –                    | Quick Fix on a diagnostic                                                  |
-| OpenCode: Review My Changes                            | –                    | sends the workspace git diff with a review prompt                          |
-| OpenCode: Write Commit Message                         | –                    | sends the workspace git diff with a Conventional Commit prompt             |
-| OpenCode: Continue This Session in Terminal            | –                    | chat overflow menu; runs `opencode --session <id>`                         |
 
 <!-- END GENERATED: commands -->
 

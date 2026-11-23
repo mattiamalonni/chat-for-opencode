@@ -168,19 +168,7 @@ per concern (`connectGen`, `loadGen`, `childGen`, `executionGen`) plus client id
 server cannot make later reconnects no-ops. The first prompt uses a `fast` load path that skips the
 catalog/session-list/diff round-trips on the critical path and runs them fire-and-forget instead.
 
-## D18 — Reach the user on the squiggle, not only in the sidebar
-
-The chat participant API is deprecated (D15) and the Secondary Side Bar can be collapsed, so a chat
-that only lives in a view is invisible until the user decides to open it. A `CodeActionProvider` and
-an editor title button put OpenCode where an editor problem already has the user's attention. Both
-commands **prefill** the composer with the offending code attached instead of sending immediately:
-this stays consistent with the existing Explain/Find bugs/Optimize selection commands, honours the
-"nothing without review" policy of the permission cards, and keeps the feature testable as a posted
-`prefillDraft` message. The provider's diagnostic-to-arguments logic is a pure function with an
-injected action factory, so the integration test can drive the real `vscode.executeCodeActionProvider`
-while the unit tests stay host-free.
-
-## D19 — Applying a code block is a reviewable proposal, never a direct write
+## D18 — Applying a code block is a reviewable proposal, never a direct write
 
 The webview sends only the block text plus the nearest file reference it saw in the reply. The host
 validates that path against the workspace (including the real-path check), reads the current file,
@@ -191,7 +179,7 @@ only after a separate **Accept** in a notification; **Reject** or dismissing it 
 This keeps the "nothing without review" policy of the permission cards, and lets the whole flow be
 unit-tested behind injected hooks (`ApplyCodeService`) rather than driving native notifications.
 
-## D20 — Prompt variables are resolved in the host, not the webview
+## D19 — Prompt variables are resolved in the host, not the webview
 
 A `/` prompt can refer to the selection, the active file, the working-tree diff or the editor
 diagnostics. The webview has no access to git or to diagnostics, so selecting a prompt posts only its
@@ -200,7 +188,7 @@ and the diagnostics into the prompt text, then posts the existing `prefillDraft`
 keeps user-defined prompts (from `opencode.promptLibrary`) on the same path as the curated ones and
 makes the resolution a pure `resolvePromptVariables` function with unit tests.
 
-## D21 — Project instructions are appended as dated Markdown notes
+## D20 — Project instructions are appended as dated Markdown notes
 
 A useful reply is often a project rule worth keeping. The reply action posts only the visible
 response text; the host appends a dated `## OpenCode note` section to `AGENTS.md` by default, with a
@@ -209,7 +197,7 @@ and replies are capped at 2 000 characters so a long answer cannot take over the
 `ProjectInstructionService` keeps formatting, deduplication and the no-folder / outside-workspace
 refusals in pure hooks; the host only resolves the target path and performs the `WorkspaceEdit`.
 
-## D22 — Multi-root is a scope widening, not a second connection
+## D21 — Multi-root is a scope widening, not a second connection
 
 `ServerRegistry` already keeps one handle per folder and the controller already persists the last
 session per folder, so a full multi-connection chat was unnecessary for the main monorepo pain

@@ -49,7 +49,7 @@ import { resolveAttachment } from "./attachments";
 import { AttachmentService, mimeFromName } from "./attachmentService";
 import { SessionListService, type SessionSearchResult } from "./sessionListService";
 import { SubagentTracker } from "./subagentTracker";
-import { ContextTracker, FileIndex, selectionAttachment } from "./context";
+import { ContextTracker, FileIndex } from "./context";
 import { PromptLibraryService } from "./promptLibrary";
 import { formatPromptDiff, formatPromptDiagnostics } from "./promptContext";
 import { ApplyCodeService } from "./applyCode";
@@ -1735,24 +1735,12 @@ export class ChatController implements vscode.Disposable {
     this.output.warn(`[chat] skipped unreadable attachment ${name}: ${detail}`);
   }
 
-  async addFile(uri: vscode.Uri): Promise<void> {
-    await this.attachments.addFile(uri);
-  }
-
   private async dropFiles(files: DroppedFile[]): Promise<void> {
     await this.attachments.dropFiles(files);
   }
 
   async pickFiles(): Promise<void> {
     await this.attachments.pickFiles();
-  }
-
-  addSelection(editor: vscode.TextEditor | undefined): boolean {
-    if (!editor) return false;
-    const att = selectionAttachment(editor);
-    if (!att) return false;
-    this.addAttachment(att);
-    return true;
   }
 
   async setPassword(): Promise<void> {

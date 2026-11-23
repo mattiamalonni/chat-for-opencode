@@ -1,5 +1,4 @@
 import * as assert from "node:assert/strict";
-import { execFileSync } from "node:child_process";
 import { readFileSync, symlinkSync, unlinkSync, writeFileSync } from "node:fs";
 import * as path from "node:path";
 import * as vscode from "vscode";
@@ -57,8 +56,6 @@ describe("chat-for-opencode extension", () => {
       "opencode.newSession",
       "opencode.restart",
       "opencode.openSettings",
-      "opencode.addSelectionToChat",
-      "opencode.addFileToChat",
       "opencode.focus",
       "opencode.ask",
       "opencode.openChatInEditor",
@@ -69,12 +66,6 @@ describe("chat-for-opencode extension", () => {
       "opencode.moveView",
       "opencode.install",
       "opencode.quickSwitchSession",
-      "opencode.askAboutFile",
-      "opencode.fixDiagnostic",
-      "opencode.explainDiagnostic",
-      "opencode.reviewChanges",
-      "opencode.commitMessage",
-      "opencode.continueInTerminal",
     ]) {
       assert.ok(all.includes(c), `missing command ${c}`);
     }
@@ -268,26 +259,6 @@ describe("chat-for-opencode extension", () => {
     await vscode.commands.executeCommand("workbench.action.closeAllEditors");
   });
 
-  it("adds the editor selection to the chat from the command", async () => {
-    const doc = await vscode.workspace.openTextDocument(path.join(workspace, "src", "app.ts"));
-    const editor = await vscode.window.showTextDocument(doc);
-    editor.selection = new vscode.Selection(0, 0, 1, 5);
-    const mark = posted.length;
-    await vscode.commands.executeCommand("opencode.addSelectionToChat");
-    const add = await waitFor(() => lastPosted("addAttachment", mark), "addAttachment");
-    assert.match(add.item.uri, /app\.ts\?start=1&end=2$/);
-    assert.equal(add.item.kind, "selection");
-    const ctx = await waitFor(() => {
-      const c = lastPosted("context", mark);
-      return c && c.items.length === 2 && c;
-    }, "context with file + selection");
-    assert.deepEqual(
-      ctx.items.map((i) => i.kind),
-      ["file", "selection"],
-    );
-    await vscode.commands.executeCommand("workbench.action.closeAllEditors");
-  });
-
   it("searches workspace files for @ mentions", async () => {
     const mark = posted.length;
     await controller.receive({ type: "searchFiles", query: "app" });
@@ -381,22 +352,6 @@ describe("chat-for-opencode extension", () => {
     } finally {
       unlinkSync(link);
     }
-  });
-
-  it("adds the current file outside the workspace as an openable copy", async () => {
-    const mark = posted.length;
-    await vscode.commands.executeCommand("opencode.addFileToChat", vscode.Uri.file(path.join(workspace, "src", "app.ts")));
-    const inProject = await waitFor(() => lastPosted("addAttachment", mark), "addAttachment for a project file");
-    assert.match(inProject.item.uri, /^file:\/\//);
-    assert.equal(inProject.item.name, "app.ts");
-
-    const external = path.join(path.dirname(workspace), "oc-it-current-file.txt");
-    writeFileSync(external, "current file outside the workspace");
-    const mark2 = posted.length;
-    await vscode.commands.executeCommand("opencode.addFileToChat", vscode.Uri.file(external));
-    const outside = await waitFor(() => lastPosted("addAttachment", mark2), "addAttachment for an external file");
-    assert.match(outside.item.uri, /^file:\/\//);
-    assert.equal(readFileSync(vscode.Uri.parse(outside.item.uri).fsPath, "utf8"), "current file outside the workspace");
   });
 
   it("starts a new session and switches back to the previous one", async () => {
@@ -973,44 +928,6 @@ describe("chat-for-opencode extension", () => {
     }
   });
 
-  async function waitForAsync<T>(fn: () => Promise<T | undefined>, what: string, timeoutMs = 20_000): Promise<T> {
-    const start = Date.now();
-    for (;;) {
-      const value = await fn();
-      if (value) return value;
-      if (Date.now() - start > timeoutMs) throw new Error(`Timed out waiting for ${what}`);
-      await new Promise((r) => setTimeout(r, 100));
-    }
-  }
-
-  it("offers OpenCode Quick Fixes on a real diagnostic and prefills from one", async () => {
-    const uri = vscode.Uri.file(path.join(workspace, "src", "app.ts"));
-    const range = new vscode.Range(0, 0, 0, 5);
-    const collection = vscode.languages.createDiagnosticCollection("opencode-it");
-    try {
-      collection.set(uri, [new vscode.Diagnostic(range, "Integration diagnostic", vscode.DiagnosticSeverity.Error)]);
-      const actions = await waitForAsync(async () => {
-        const found = (await vscode.commands.executeCommand<vscode.CodeAction[]>("vscode.executeCodeActionProvider", uri, range)) ?? [];
-        const ours = found.filter(
-          (a) => a.command?.command === "opencode.fixDiagnostic" || a.command?.command === "opencode.explainDiagnostic",
-        );
-        return ours.length >= 2 ? ours : undefined;
-      }, "OpenCode code actions");
-      assert.equal(actions.length, 2);
-      assert.equal(actions[0].isPreferred, true, "the fix is the preferred Quick Fix");
-      assert.match(actions[0].title!, /Fix with OpenCode/);
-      assert.match(actions[1].title!, /Explain with OpenCode/);
-
-      const mark = posted.length;
-      await vscode.commands.executeCommand(actions[0].command!.command!, actions[0].command!.arguments![0]);
-      const prefill = await waitFor(() => lastPosted("prefillDraft", mark), "prefillDraft from the Quick Fix");
-      assert.match(prefill.text, /Integration diagnostic/);
-      assert.equal(prefill.attachments[0].kind, "selection");
-    } finally {
-      collection.dispose();
-    }
-  });
-
   it("publishes the prompt library and prefills a prompt with the active file", async () => {
     const document = await vscode.workspace.openTextDocument(path.join(workspace, "src", "app.ts"));
     await vscode.window.showTextDocument(document);
@@ -1026,48 +943,6 @@ describe("chat-for-opencode extension", () => {
     assert.match(prefill.text, /Explain/);
     assert.match(prefill.text, /src[\\/]app\.ts/);
     await vscode.commands.executeCommand("workbench.action.closeAllEditors");
-  });
-
-  it("prefills a prompt with the active file from the editor title action", async () => {
-    const document = await vscode.workspace.openTextDocument(path.join(workspace, "src", "app.ts"));
-    await vscode.window.showTextDocument(document);
-    const mark = posted.length;
-    await vscode.commands.executeCommand("opencode.askAboutFile");
-    const prefill = await waitFor(() => lastPosted("prefillDraft", mark), "prefillDraft from the editor title action");
-    assert.equal(prefill.attachments[0].kind, "file");
-    assert.equal(prefill.attachments[0].name, "app.ts");
-    await vscode.commands.executeCommand("workbench.action.closeAllEditors");
-  });
-
-  function postedUserTextContains(since: number, needle: string): boolean {
-    return posted.slice(since).some((m) => {
-      const messages = m.type === "session" ? m.session?.messages : m.type === "sessionDelta" ? m.delta.messages : undefined;
-      return messages?.some((item) => item.type === "user" && item.text.includes(needle));
-    });
-  }
-
-  it("sends a review prompt built from the uncommitted git diff", async () => {
-    execFileSync("git", ["init", "-q"], { cwd: workspace });
-    writeFileSync(path.join(workspace, "src", "review-fixture.txt"), "staged for review\n");
-    execFileSync("git", ["add", "src/review-fixture.txt"], { cwd: workspace });
-    const mark = posted.length;
-    await vscode.commands.executeCommand("opencode.reviewChanges");
-    await waitFor(
-      () =>
-        postedUserTextContains(mark, "Review the uncommitted changes") && postedUserTextContains(mark, "review-fixture.txt")
-          ? true
-          : undefined,
-      "review prompt with the git diff in the conversation",
-    );
-  });
-
-  it("sends a commit-message prompt built from the same changes", async () => {
-    const mark = posted.length;
-    await vscode.commands.executeCommand("opencode.commitMessage");
-    await waitFor(
-      () => (postedUserTextContains(mark, "Conventional Commit message") ? true : undefined),
-      "commit-message prompt in the conversation",
-    );
   });
 
   it("publishes session usage that feeds the status bar meter", async () => {

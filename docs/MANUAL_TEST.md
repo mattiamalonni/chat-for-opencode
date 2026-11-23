@@ -48,8 +48,7 @@ screen readers and multi-window process management.
    disable it again and confirm the cards return.
 9. **Context**: open `a.txt`, select the line. Chips `a.txt (Current file)` and `a.txt:1` appear;
    remove one with ×; send `What does the selection contain?`. The user bubble lists the attachment.
-   Right-click → _Add Selection to Chat_ adds a chip, and _Add File to Chat_ adds the whole file
-   (outside the workspace it is inlined, like a drop or a file-picker pick).
+   Pick `/bugs` and confirm the selection is resolved into the prefilled prompt (never sent).
 10. **@ mention and excludes**: type `@a.t`, choose `a.txt` with ↓/Enter. The file becomes a chip
     and the `@a.t` text **disappears from the composer**; the chip alone is sent with the message.
     In a repo with `node_modules` or `dist`, confirm those folders are **not** offered: the picker

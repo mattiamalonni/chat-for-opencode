@@ -55,24 +55,10 @@ build, CI or architecture work, condensed to one line; the reasoning lives in
   **Add context** button in the composer; content travels to the model as an inline Markdown data
   URI, so it works with both managed and external servers. Chips are attached by default and can be
   removed; the catalog and add/remove messages are guarded and covered by unit, UI and integration tests.
-- **User — Commands:** _OpenCode: Continue This Session in Terminal_ opens a terminal in the workspace and
-  runs `opencode --session <id>` for the open conversation (or a fresh TUI when none is open). The
-  executable path and session id are shell-quoted per platform, and a warning appears if the chat is
-  still generating. The pure command builder is unit-tested on POSIX and Windows.
 - **User — UI:** a second status bar item (`opencode.showUsageInStatusBar`, default on) shows the session's
   estimated context size and cost, fed by the server's `session` / `sessionDelta` usage payloads. It
   hides until OpenCode reports numbers, survives resyncs that omit usage, and clears when the session
   closes. Its tooltip carries the input/output/reasoning/cache breakdown.
-- **User — Commands:** _OpenCode: Review My Changes_ and _OpenCode: Write Commit Message_ read the workspace's
-  staged + unstaged git diff and send it to the agent with a purpose-built prompt (review checklist,
-  or a Conventional Commit message to paste into SCM). Untracked files are named in the prompt, the
-  diff is capped at 24 000 characters, and repositories without commits use a staged/unstaged fallback.
-- **User — Editor:** `vscode.languages.registerCodeActionsProvider` adds _Fix with OpenCode_ (preferred) and
-  _Explain with OpenCode_ Quick Fixes for diagnostics that touch the cursor/selection, up to three
-  at a time. Each one selects the offending lines and prefills the chat with the diagnostic message —
-  it never sends on its own. A new editor title button, _Ask OpenCode About This File_, attaches the
-  whole file with a starter prompt. Verified with a real diagnostic collection and
-  `vscode.executeCodeActionProvider` in the integration suite.
 - **User — UI:** the finished-turn footer leads with the friendly name of the model that started the turn
   (the first step's model, so a later switch does not change it).
 - **User — Fix:** in narrow panels the finished-turn footer stays on one line and ellipsizes instead of

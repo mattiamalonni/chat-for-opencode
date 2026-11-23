@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { diffPrompt, MAX_DIFF_CHARS, workingDiff, type GitRunner } from "../../src/chat/gitDiff";
+import { MAX_DIFF_CHARS, workingDiff, type GitRunner } from "../../src/chat/gitDiff";
 
 function runner(overrides: Partial<Record<string, string | Error>> = {}): GitRunner {
   return vi.fn(async (args: string[]) => {
@@ -51,29 +51,5 @@ describe("workingDiff", () => {
     expect(result!.diff.length).toBeLessThan(MAX_DIFF_CHARS + 200);
     expect(result!.truncated).toBe(true);
     expect(result!.untracked).toHaveLength(20);
-  });
-});
-
-describe("diffPrompt", () => {
-  const diff = { diff: "+changed", truncated: false, untracked: [] };
-
-  it("asks for a review with concrete guidance", () => {
-    const prompt = diffPrompt(diff, "review");
-    expect(prompt).toMatch(/Review the uncommitted changes/);
-    expect(prompt).toContain("```diff\n+changed\n```");
-    expect(prompt).not.toContain("Conventional Commit");
-  });
-
-  it("asks for a Conventional Commit message without a code fence in the answer", () => {
-    const prompt = diffPrompt(diff, "commit");
-    expect(prompt).toMatch(/Conventional Commit message/);
-    expect(prompt).toMatch(/No code fence/);
-  });
-
-  it("mentions truncation and untracked files when present", () => {
-    const prompt = diffPrompt({ diff: "", truncated: true, untracked: ["a.ts", "b.ts"] }, "review");
-    expect(prompt).toMatch(/truncated/);
-    expect(prompt).toMatch(/Untracked files \(not in the diff\): a\.ts, b\.ts/);
-    expect(prompt).toContain("(no tracked changes)");
   });
 });
