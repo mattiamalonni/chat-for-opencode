@@ -40,6 +40,9 @@ jobs:
         run: npm audit --omit=dev --audit-level=high
       - run: npm run lint
       - run: npm run format:check
+      - name: Generated docs and local links are up to date
+        if: runner.os == 'Linux'
+        run: npm run verify:docs && npm run verify:links
       - name: Generated OpenAPI types are up to date
         run: |
           npm run gen:types

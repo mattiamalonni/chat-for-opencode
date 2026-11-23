@@ -5,20 +5,13 @@ Prerequisites: OpenCode v2 on `PATH` (`opencode --version`), a provider configur
 
 ## What is already automated
 
-Run these first; they cover most of the contract with the **mock** server:
-
-- `npm test` — unit (reducer, adapter, client, SSE, permissions, patches), Playwright UI and
-  VS Code integration.
-- `npm run test:integration:e2e` — the **real webview inside VS Code** driven over CDP: typing a
-  prompt, streaming a reply and clicking _Allow once_ on a permission card in the panel above the
-  composer.
-- `npm run test:integration:real` — the extension inside VS Code against a **real** server
-  (streaming, permission approval, applied diff, resume after a server restart), but it drives the
-  controller through its message API rather than clicking the webview.
-- `npm run test:integration:real:e2e` — **real clicks plus a real server**: types a prompt in the
-  actual webview and waits for the real streamed reply.
-- UI tests also assert the accessibility tree of the composer and permission cards; this is not a
-  substitute for a real screen reader.
+Run the deterministic suites first — the [test matrix](../CONTRIBUTING.md#tests-which-suite-for-what)
+is the single list of commands and what each covers. Of the opt-in suites,
+`npm run test:integration:e2e` drives the **real webview inside VS Code** over CDP against the mock
+server (typing, streaming, approving), `npm run test:integration:real` uses a **real server** through
+the controller's message API, and `npm run test:integration:real:e2e` combines real clicks with a
+real server. UI tests also assert the accessibility tree of the composer and permission cards; this
+is not a substitute for a real screen reader.
 
 This checklist covers what automation still cannot: a full VS Code quit/relaunch, real IME,
 screen readers and multi-window process management.

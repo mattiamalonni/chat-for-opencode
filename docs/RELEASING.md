@@ -22,23 +22,28 @@ when a tag `vX.Y.Z` matching `package.json` `version` is pushed.
 ## Release
 
 ```sh
-# 1. bump version in package.json and add a "## X.Y.Z — date" section to CHANGELOG.md
-npm version 0.3.19 --no-git-tag-version
-git commit -am "Release 0.3.19"
+# 1. bump the version and add a "## X.Y.Z — date" section at the TOP of CHANGELOG.md
+npm version X.Y.Z --no-git-tag-version   # replace X.Y.Z with the version you are releasing
+git commit -am "Release X.Y.Z"
 git push
 # 2. tag → CI runs, then the .vsix is published and a GitHub release is created
-git tag v0.3.19
-git push origin v0.3.19
+git tag vX.Y.Z
+git push origin vX.Y.Z
 ```
 
 `Actions → Release → Run workflow` with _dry-run_ checked builds and uploads the `.vsix` artifact
 without publishing. To publish manually (without a tag), uncheck _dry-run_ and set **version** to the
 exact `package.json` version: the workflow refuses to publish when it is missing or mismatched.
-Every publish path is verified, and the `ci` job now blocks on lint, build, unit tests, coverage
-thresholds, a high-severity production `npm audit`, VS Code integration and `.vsix` packaging.
+Every publish path is verified, and the `ci` job blocks on generated docs and links, lint, build,
+unit tests, coverage thresholds, a high-severity production `npm audit`, VS Code integration and
+`.vsix` packaging.
 
 ## Notes
 
+- `CHANGELOG.md` keeps only the last three releases. Older notes are not deleted — they were
+  published as [GitHub Releases](https://github.com/mattiamalonni/chat-for-opencode/releases) from
+  this file at tag time. The release workflow extracts the notes from the `## X.Y.Z — date` section
+  of the version being published, so that section must exist before you tag.
 - The Marketplace requires both the extension `name` and the `displayName` to be unique across
   **all** publishers (`opencode-chat` and "OpenCode Chat" were already taken). Check before renaming:
   search https://marketplace.visualstudio.com/ for the exact name.

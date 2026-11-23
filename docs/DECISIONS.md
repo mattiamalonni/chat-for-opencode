@@ -76,6 +76,14 @@ Shift/Alt/Ctrl-on-mac variants are left alone (e.g. Cmd/Ctrl+Shift+F still runs 
 No todo endpoint/event exists; with `experimental.todo` the agent uses a `todowrite` tool whose
 input contains `todos[]`. The UI shows the latest call's list.
 
+## D9 — Permission requests are rendered in the attention overlay, not in the tool card
+
+`permission.asked.source.id` equals the tool call id, so the request is attached to that tool card
+_as a marker_; requests without a source are shown at the end of the conversation. The actionable
+`PermissionCard` is rendered once in the attention overlay above the composer, where it cannot be
+hidden inside a folded step or duplicated across cards. The tool card keeps only the `attention`
+marker pointing to it.
+
 ## D10 — Secondary Side Bar container
 
 `contributes.viewsContainers.secondarySidebar` exists only from VS Code 1.104 (checked in
@@ -108,14 +116,6 @@ canonical types used by the reducer, filling optional fields and dropping malfor
 wire types are generated from the checked-in OpenAPI snapshot (`npm run gen:types`, verified in CI).
 The two are deliberately separate: the adapter keeps the UI usable, the contract report keeps the
 version warning honest. Supporting a new server version should extend the adapter, not the reducer.
-
-## D9 — Permission requests are rendered in the attention overlay, not in the tool card
-
-`permission.asked.source.id` equals the tool call id, so the request is attached to that tool card
-_as a marker_; requests without a source are shown at the end of the conversation. The actionable
-`PermissionCard` is rendered once in the attention overlay above the composer, where it cannot be
-hidden inside a folded step or duplicated across cards. The tool card keeps only the `attention`
-marker pointing to it.
 
 ## D14 — File icons are resolved from the user's icon theme, inlined as data URIs
 

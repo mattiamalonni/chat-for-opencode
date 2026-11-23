@@ -79,7 +79,7 @@ test/
   e2e/                    real `opencode serve` test (skipped when no provider)
   ui/                     Playwright test of the webview with a fake VS Code host
 package.nls.json          manifest strings (English); `vscode.l10n.t` uses the source strings inline
-docs/                     API notes, decisions, known limits, manual test
+docs/                     documentation index, API notes, decisions, limits, test/release docs
 ```
 
 ## Extension ↔ webview protocol
