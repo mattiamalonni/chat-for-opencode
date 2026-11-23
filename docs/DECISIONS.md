@@ -180,26 +180,7 @@ this stays consistent with the existing Explain/Find bugs/Optimize selection com
 injected action factory, so the integration test can drive the real `vscode.executeCodeActionProvider`
 while the unit tests stay host-free.
 
-## D19 — Context sources travel as inline data URIs
-
-Content-based chips (`@problems`, `@git`, `@terminal`, `@openEditors`, `@symbol`) could have been
-sent as a new prompt-text block, but that would duplicate the attachment pipeline and break
-external servers, whose filesystem does not contain our paths. Instead the host formats each source
-as Markdown and builds a `data:text/markdown;base64,` `ContextItem.uri`. `resolveAttachment` already
-passes non-`file:` URIs through verbatim, so the same code path handles local and remote servers,
-and the webview's existing `estimateDataUrlTokens` counts their size. Content is capped at 12 000
-characters (base64 stays below the 32 768-character URI guard) and terminal output at 8 000.
-
-The five-source catalog is published once in `contextSources`; selecting one posts
-`addContextSource`, and the host recomputes the `context` list so the chip survives a context
-refresh. Chips are attached by default and removed through `removeContextSource` rather than the
-generic toggle, because a toggle would leave stale content cached in the host.
-
-The source ids above were originally typed as `@problems` and friends; the picker later split its
-triggers so that `@` is files-only and these sources are addressed with `#` instead. The chip and
-message protocol did not change.
-
-## D20 — Applying a code block is a reviewable proposal, never a direct write
+## D19 — Applying a code block is a reviewable proposal, never a direct write
 
 The webview sends only the block text plus the nearest file reference it saw in the reply. The host
 validates that path against the workspace (including the real-path check), reads the current file,
@@ -210,17 +191,16 @@ only after a separate **Accept** in a notification; **Reject** or dismissing it 
 This keeps the "nothing without review" policy of the permission cards, and lets the whole flow be
 unit-tested behind injected hooks (`ApplyCodeService`) rather than driving native notifications.
 
-## D21 — Prompt variables are resolved in the host, not the webview
+## D20 — Prompt variables are resolved in the host, not the webview
 
 A `/` prompt can refer to the selection, the active file, the working-tree diff or the editor
-diagnostics. The webview has no access to git or to diagnostics, and reimplementing those sources
-there would duplicate `ContextSourceService`. Selecting a prompt therefore posts only its `id`; the
-host resolves `$selection` / `$file` from the active editor and reuses `contextSources.build("git")`
-and `build("problems")` for the other two, then posts the existing `prefillDraft` message. This also
+diagnostics. The webview has no access to git or to diagnostics, so selecting a prompt posts only its
+`id`; the host resolves `$selection` / `$file` from the active editor, formats the working-tree diff
+and the diagnostics into the prompt text, then posts the existing `prefillDraft` message. This also
 keeps user-defined prompts (from `opencode.promptLibrary`) on the same path as the curated ones and
 makes the resolution a pure `resolvePromptVariables` function with unit tests.
 
-## D22 — Project instructions are appended as dated Markdown notes
+## D21 — Project instructions are appended as dated Markdown notes
 
 A useful reply is often a project rule worth keeping. The reply action posts only the visible
 response text; the host appends a dated `## OpenCode note` section to `AGENTS.md` by default, with a
@@ -229,7 +209,7 @@ and replies are capped at 2 000 characters so a long answer cannot take over the
 `ProjectInstructionService` keeps formatting, deduplication and the no-folder / outside-workspace
 refusals in pure hooks; the host only resolves the target path and performs the `WorkspaceEdit`.
 
-## D23 — Multi-root is a scope widening, not a second connection
+## D22 — Multi-root is a scope widening, not a second connection
 
 `ServerRegistry` already keeps one handle per folder and the controller already persists the last
 session per folder, so a full multi-connection chat was unnecessary for the main monorepo pain

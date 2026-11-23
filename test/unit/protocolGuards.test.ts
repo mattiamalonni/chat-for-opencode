@@ -18,8 +18,6 @@ describe("webview → host boundary", () => {
     expect(isWebviewMessage({ type: "formReply", sessionId: "s1", formId: "f1", answer: { a: "x", b: ["y"], c: 2, d: true } })).toBe(true);
     expect(isWebviewMessage({ type: "usePrompt", id: "review" })).toBe(true);
     expect(isWebviewMessage({ type: "saveInstruction", text: "Use tabs." })).toBe(true);
-    expect(isWebviewMessage({ type: "addContextSource", source: "problems" })).toBe(true);
-    expect(isWebviewMessage({ type: "removeContextSource", source: "git" })).toBe(true);
     expect(isWebviewMessage({ type: "openDiff", file: "a.txt", patch: "@@", applied: true })).toBe(true);
     expect(isWebviewMessage({ type: "dropFiles", files: [{ name: "a.txt", base64: "YQ==", mime: "text/plain" }] })).toBe(true);
     for (const id of ACTION_IDS) expect(isWebviewMessage({ type: "action", id })).toBe(true);
@@ -38,8 +36,6 @@ describe("webview → host boundary", () => {
     expect(isWebviewMessage({ type: "openLink", href: "x".repeat(32_769) })).toBe(false);
     expect(isWebviewMessage({ type: "usePrompt", id: 7 })).toBe(false);
     expect(isWebviewMessage({ type: "saveInstruction", text: 7 })).toBe(false);
-    expect(isWebviewMessage({ type: "addContextSource", source: "anything" })).toBe(false);
-    expect(isWebviewMessage({ type: "removeContextSource" })).toBe(false);
   });
 
   it("never dispatches an action outside the protocol whitelist", () => {
@@ -68,19 +64,13 @@ describe("host → webview boundary", () => {
     expect(isHostMessage({ type: "notice", error: { kind: "promptFailed", message: "failed", actions: ["retry"] } })).toBe(true);
     expect(isHostMessage({ type: "revealMessage", messageId: 'a"] [x', sessionId: "s1" })).toBe(true);
     expect(isHostMessage({ type: "linkSubagent", toolId: "tool-1", sessionId: "child-1" })).toBe(true);
-    expect(isHostMessage({ type: "contextSources", items: [{ id: "git", label: "Git diff", description: "Changes" }] })).toBe(true);
     expect(
       isHostMessage({
         type: "promptCatalog",
         items: [{ id: "review", title: "Review", description: "Changes", text: "Review $diff" }],
       }),
     ).toBe(true);
-    expect(
-      isHostMessage({
-        type: "context",
-        items: [{ id: "context:git", kind: "git", uri: "data:text/markdown;base64,YQ==", label: "Git diff" }],
-      }),
-    ).toBe(true);
+    expect(isHostMessage({ type: "context", items: [{ id: "c1", kind: "file", uri: "file:///a.txt", label: "a.txt" }] })).toBe(true);
     expect(isHostMessage({ type: "synced" })).toBe(true);
   });
 

@@ -1011,45 +1011,6 @@ describe("chat-for-opencode extension", () => {
     }
   });
 
-  it("publishes context sources and attaches diagnostics as an inline chip", async () => {
-    const uri = vscode.Uri.file(path.join(workspace, "src", "app.ts"));
-    const collection = vscode.languages.createDiagnosticCollection("opencode-it-context");
-    try {
-      collection.set(uri, [new vscode.Diagnostic(new vscode.Range(2, 0, 2, 5), "Context diagnostic", vscode.DiagnosticSeverity.Warning)]);
-      const document = await vscode.workspace.openTextDocument(uri);
-      await vscode.window.showTextDocument(document);
-
-      const catalog = await waitFor(
-        () => posted.find((m): m is Extract<HostMessage, { type: "contextSources" }> => m.type === "contextSources"),
-        "context source catalog",
-      );
-      assert.deepEqual(
-        catalog.items.map((s) => s.id),
-        ["problems", "git", "terminal", "openEditors", "symbol"],
-      );
-
-      const mark = posted.length;
-      await controller.receive({ type: "addContextSource", source: "problems" });
-      const context = await waitFor(() => lastPosted("context", mark), "context with the problems chip");
-      const item = context.items.find((i) => i.kind === "problems");
-      assert.ok(item, "the problems chip is published to the webview");
-      assert.ok(item!.uri.startsWith("data:text/markdown;base64,"));
-      const text = Buffer.from(item!.uri.split(",")[1], "base64").toString("utf8");
-      assert.match(text, /Context diagnostic/);
-
-      const afterRemove = posted.length;
-      await controller.receive({ type: "removeContextSource", source: "problems" });
-      const cleared = await waitFor(() => lastPosted("context", afterRemove), "context after removing the chip");
-      assert.equal(
-        cleared.items.some((i) => i.kind === "problems"),
-        false,
-      );
-    } finally {
-      collection.dispose();
-      await vscode.commands.executeCommand("workbench.action.closeAllEditors");
-    }
-  });
-
   it("publishes the prompt library and prefills a prompt with the active file", async () => {
     const document = await vscode.workspace.openTextDocument(path.join(workspace, "src", "app.ts"));
     await vscode.window.showTextDocument(document);

@@ -88,24 +88,23 @@ All messages are JSON objects with a `type` discriminator, defined in `src/share
 
 ### Host → webview
 
-| type             | payload                                                                                                                                 | when                                                                                              |
-| ---------------- | --------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
-| `init`           | `strings`, `platform`, `folders`, `activeFolder?`, `issuesUrl?`                                                                         | after `ready`                                                                                     |
-| `connection`     | `status: idle\|starting\|connected\|reconnecting\|error`, `error?`, `version?`, `compatibility?`, `compatibilityDismissed?`             | any status change                                                                                 |
-| `catalog`        | `models`, `agents`, `skills`, `selectedModel?`, `selectedAgent?`                                                                        | after connect / config change                                                                     |
-| `sessions`       | `items: SessionSummary[]` (with `folder?` in multi-root), `currentId?`, `hasMore?`                                                      | list changed / more pages loaded                                                                  |
-| `session`        | `session: SessionPayload \| null` (`id`, `title?`, `agent?`, `model?`, `busy`, normalised `messages`, `permissions`, `forms`, `usage?`) | session loaded / full resync                                                                      |
-| `sessionDelta`   | `delta: SessionDelta` (tail `messages` + updated pending items/usage)                                                                   | reconnect/reconcile found no or few new messages; merged by id, does not reset conversation state |
-| `event`          | `event` (raw server SSE event for the current session)                                                                                  | live                                                                                              |
-| `context`        | `items: ContextItem[]`                                                                                                                  | active editor / selection changed                                                                 |
-| `promptCatalog`  | `items: PromptDefinition[]` (curated + `opencode.promptLibrary`, posted on init)                                                        | after `ready`                                                                                     |
-| `contextSources` | `items: ContextSource[]` (catalog for `@` and the composer toolbar, posted on init)                                                     | after `ready`                                                                                     |
-| `fileResults`    | `query`, `items`                                                                                                                        | answer to `searchFiles`                                                                           |
-| `addAttachment`  | `item`                                                                                                                                  | "Add selection to chat" command                                                                   |
-| `changedFiles`   | `files: FileDiff[]`                                                                                                                     | after a step that touched files                                                                   |
-| `autoApprove`    | `enabled: boolean`                                                                                                                      | per-chat auto-approval loaded / toggled                                                           |
-| `focusInput`     | –                                                                                                                                       | `opencode.focus`                                                                                  |
-| `notice`         | `error: UiError` (with optional `target` for a failed inline reply)                                                                     | transient error (e.g. prompt rejected)                                                            |
+| type            | payload                                                                                                                                 | when                                                                                              |
+| --------------- | --------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
+| `init`          | `strings`, `platform`, `folders`, `activeFolder?`, `issuesUrl?`                                                                         | after `ready`                                                                                     |
+| `connection`    | `status: idle\|starting\|connected\|reconnecting\|error`, `error?`, `version?`, `compatibility?`, `compatibilityDismissed?`             | any status change                                                                                 |
+| `catalog`       | `models`, `agents`, `skills`, `selectedModel?`, `selectedAgent?`                                                                        | after connect / config change                                                                     |
+| `sessions`      | `items: SessionSummary[]` (with `folder?` in multi-root), `currentId?`, `hasMore?`                                                      | list changed / more pages loaded                                                                  |
+| `session`       | `session: SessionPayload \| null` (`id`, `title?`, `agent?`, `model?`, `busy`, normalised `messages`, `permissions`, `forms`, `usage?`) | session loaded / full resync                                                                      |
+| `sessionDelta`  | `delta: SessionDelta` (tail `messages` + updated pending items/usage)                                                                   | reconnect/reconcile found no or few new messages; merged by id, does not reset conversation state |
+| `event`         | `event` (raw server SSE event for the current session)                                                                                  | live                                                                                              |
+| `context`       | `items: ContextItem[]`                                                                                                                  | active editor / selection changed                                                                 |
+| `promptCatalog` | `items: PromptDefinition[]` (curated + `opencode.promptLibrary`, posted on init)                                                        | after `ready`                                                                                     |
+| `fileResults`   | `query`, `items`                                                                                                                        | answer to `searchFiles`                                                                           |
+| `addAttachment` | `item`                                                                                                                                  | "Add selection to chat" command                                                                   |
+| `changedFiles`  | `files: FileDiff[]`                                                                                                                     | after a step that touched files                                                                   |
+| `autoApprove`   | `enabled: boolean`                                                                                                                      | per-chat auto-approval loaded / toggled                                                           |
+| `focusInput`    | –                                                                                                                                       | `opencode.focus`                                                                                  |
+| `notice`        | `error: UiError` (with optional `target` for a failed inline reply)                                                                     | transient error (e.g. prompt rejected)                                                            |
 
 ### Webview → host
 
@@ -122,7 +121,6 @@ All messages are JSON objects with a `type` discriminator, defined in `src/share
 | `usePrompt {id}`                                                                                                                                  | insert a library prompt into the composer, with `$variables` resolved by the host                      |
 | `saveInstruction {text}`                                                                                                                          | append a finished reply as a dated note to AGENTS.md (or a chosen workspace file)                      |
 | `applyCode {text, path?}`                                                                                                                         | apply a reply's code block: host previews in a diff and writes only after explicit Accept              |
-| `addContextSource {source}` / `removeContextSource {source}`                                                                                      | attach/detach an on-demand context chip; host answers with `context`                                   |
 | `searchFiles {query}`                                                                                                                             |                                                                                                        |
 | `openDiff {file, patch, applied}`, `openDiffs {files: [{file, patch}]}`, `openFile {path}`, `openLink {href}`                                     |                                                                                                        |
 | `copy {text}`                                                                                                                                     | copy code block to clipboard                                                                           |
@@ -133,10 +131,10 @@ All messages are JSON objects with a `type` discriminator, defined in `src/share
 
 The composer draft is persisted in the webview with `vscode.setState`; it is not a protocol message.
 
-The composer splits its mention popup by trigger: `@` searches workspace files only, `#` filters the
-context-source catalog only, and `/` covers skills, prompts and commands. When a file is picked from
-the `@` mention results, the composer removes the `@query` from the text and adds the file as a chip:
-the prompt carries the attachment through the `attachments` field, not through an `@name` in the text.
+The composer splits its mention popup by trigger: `@` searches workspace files, and `/` covers skills,
+prompts and commands. When a file is picked from the `@` mention results, the composer removes the
+`@query` from the text and adds the file as a chip: the prompt carries the attachment through the
+`attachments` field, not through an `@name` in the text.
 `@skill` and `/command` selections instead keep their token in the text, which OpenCode resolves when
 the prompt is sent. Tokens matching a known command or skill are underlined like links by a
 transparent overlay above the textarea; unknown ones stay plain text.

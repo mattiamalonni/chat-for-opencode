@@ -73,25 +73,16 @@ test or a manual probe actually ran.
 - **Instruction notes are appended, not structured.** The reply is stored verbatim under a dated
   heading in `AGENTS.md`; there is no merge with existing rules or editor for the note before saving.
   A note longer than 2 000 characters is truncated, and duplicates are detected by exact text only.
-- **Prompt variables are snapshots.** `$diff` and `$problems` reuse the same on-demand context
-  sources as the chips: they reflect the workspace when you pick the prompt, not when you finally
-  press Enter. `$file` and `$selection` come from the editor active at pick time. A prompt whose id
-  matches a skill or command wins in the `/` picker; use a distinct id for custom prompts.
+- **Prompt variables are snapshots.** `$diff` and `$problems` reflect the workspace when you pick the
+  prompt, not when you finally press Enter; `$file` and `$selection` come from the editor active at
+  pick time. A prompt whose id matches a skill or command wins in the `/` picker; use a distinct id for
+  custom prompts.
 - **Applying a code block needs a target file.** The webview guesses the one referenced just above
   the block; when the guess is missing or wrong, a QuickPick of workspace files takes over. A
   full-file block replaces the entire file, so it is only appropriate when the reply really contains
   the whole file. The target must resolve inside the connected folder; files outside it cannot be
   written. The diff preview and Accept notification are native VS Code UI, so automated tests can
   assert the preview but cannot click Accept.
-
-- **Context sources are snapshots, not live feeds.** A chip captures diagnostics, the diff, terminal
-  output or symbol locations when you add it; later edits do not update it. Remove and re-add the
-  chip to refresh. Their Markdown is capped at 12 000 characters (terminal output at 8 000) and is
-  counted in the context meter like any other inline attachment.
-- **Some context sources need host features.** `#git` needs `git` on `PATH` and a repository at the
-  connected folder; `#symbol` needs a definition provider for the language; `#terminal` needs VS Code
-  shell integration and only sees commands started after this extension activated. When the data is
-  unavailable the chip is simply not added.
 
 - **Git commands read the workspace working tree, not a PR.** _Review My Changes_ / _Write Commit
   Message_ require `git` on `PATH` and a repository at the folder the chat is connected to. They

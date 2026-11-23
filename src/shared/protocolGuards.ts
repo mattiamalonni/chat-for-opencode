@@ -15,7 +15,6 @@
 import type { ModelRef } from "./api";
 import {
   ACTION_IDS,
-  CONTEXT_SOURCE_IDS,
   UI_ERROR_KINDS,
   type ActionId,
   type Attachment,
@@ -77,14 +76,8 @@ const isContextItem: Check = shape({
   id: str(),
   uri: str(MAX_URI),
   label: str(MAX_LABEL),
-  kind: oneOf(["file", "selection", ...CONTEXT_SOURCE_IDS] as const),
+  kind: oneOf(["file", "selection"] as const),
   detail: opt(str(MAX_TEXT)),
-});
-
-const isContextSource: Check = shape({
-  id: oneOf(CONTEXT_SOURCE_IDS),
-  label: str(MAX_LABEL),
-  description: str(MAX_TEXT),
 });
 
 const isPromptDefinition: Check = shape({
@@ -221,8 +214,6 @@ const WEBVIEW_VALIDATORS: Record<string, Check> = {
   formCancel: shape({ sessionId: str(), formId: str() }),
   searchFiles: shape({ query: str(MAX_LABEL) }),
   usePrompt: shape({ id: str() }),
-  addContextSource: shape({ source: oneOf(CONTEXT_SOURCE_IDS) }),
-  removeContextSource: shape({ source: oneOf(CONTEXT_SOURCE_IDS) }),
   fileIcons: shape({ paths: arr(str(MAX_URI)) }),
   dropFiles: shape({ files: arr(isDroppedFile, 100) }),
   pickFiles: () => true,
@@ -278,7 +269,6 @@ const HOST_VALIDATORS: Record<string, Check> = {
   subagentEvent: shape({ sessionId: str(), event: isEvent }),
   linkSubagent: shape({ toolId: str(), sessionId: str() }),
   context: shape({ items: arr(isContextItem) }),
-  contextSources: shape({ items: arr(isContextSource) }),
   promptCatalog: shape({ items: arr(isPromptDefinition) }),
   fileIcons: shape({
     icons: rec((value) => value === null || isFileIcon(value)),

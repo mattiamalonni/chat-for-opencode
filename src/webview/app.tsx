@@ -24,7 +24,6 @@ import type {
   Attachment,
   ConnectionStatus,
   ContextItem,
-  ContextSource,
   FolderInfo,
   HostMessage,
   PromptDefinition,
@@ -110,7 +109,6 @@ export function App() {
   const [sessionsHasMore, setSessionsHasMore] = useState(false);
   const [folders, setFolders] = useState<{ list: FolderInfo[]; active?: string }>({ list: [] });
   const [context, setContext] = useState<ContextItem[]>([]);
-  const [contextSources, setContextSources] = useState<ContextSource[]>([]);
   const [prompts, setPrompts] = useState<PromptDefinition[]>([]);
   // Explicit user choices per context chip: the active file is opt-in, selections are opt-out.
   const [contextChoice, setContextChoice] = useState<Map<string, boolean>>(new Map());
@@ -319,9 +317,6 @@ export function App() {
             const next = new Map([...prev].filter(([id]) => ids.has(id)));
             return next.size === prev.size ? prev : next;
           });
-          break;
-        case "contextSources":
-          setContextSources(msg.items);
           break;
         case "promptCatalog":
           setPrompts(msg.items);
@@ -541,8 +536,7 @@ export function App() {
   );
   // The active file is opt-in; selections stay attached until the user removes them.
   const selectedContext = useMemo(
-    () =>
-      new Set(context.filter((c) => contextChoice.get(c.id) ?? (c.id.startsWith("context:") || c.kind === "selection")).map((c) => c.id)),
+    () => new Set(context.filter((c) => contextChoice.get(c.id) ?? c.kind === "selection").map((c) => c.id)),
     [context, contextChoice],
   );
   const send = (text: string, delivery?: "steer" | "queue") => {
@@ -813,7 +807,6 @@ export function App() {
                 cost={chat.usage?.cost}
                 onToggleAutoApprove={(enabled) => post({ type: "setAutoApprove", enabled })}
                 context={context}
-                contextSources={contextSources}
                 prompts={prompts}
                 selectedContext={selectedContext}
                 onToggleContext={(id) =>

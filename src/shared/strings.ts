@@ -5,7 +5,7 @@
  */
 export const STRINGS = {
   appName: "OpenCode",
-  inputPlaceholder: "Ask OpenCode… (@ for files, # for context, / for skills, Enter to send, Shift+Enter for newline)",
+  inputPlaceholder: "Ask OpenCode… (@ for files, / for skills, Enter to send, Shift+Enter for newline)",
   inputLabel: "Message to OpenCode",
   send: "Send",
   stop: "Stop",
@@ -92,7 +92,7 @@ export const STRINGS = {
   forkTurnBusy: "Wait for the current response to finish before forking",
   forkDone: "Forked conversation. You are now in the new branch.",
   welcomeStarters: "Try one of these",
-  welcomeHint: "Enter to send · @ for files · # for context · / for skills",
+  welcomeHint: "Enter to send · @ for files · / for skills",
   starterExplain: "Explain the active file",
   starterBugs: "Find bugs in the selection",
   starterTests: "Write tests for the active file",
@@ -130,7 +130,6 @@ export const STRINGS = {
   addContext: "Add to message",
   currentFile: "Current file",
   selection: "Selection",
-  addContextSource: "Add context",
   pickFiles: "Attach files from disk",
   dropFilesOverlay: "Drop files to attach them to the message",
   dropFilesHint: "Shift+drag or paste files here, or click the folder to browse.",

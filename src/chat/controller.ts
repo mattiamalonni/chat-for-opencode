@@ -37,7 +37,6 @@ import type {
   Attachment,
   ConnectionStatus,
   ContextItem,
-  ContextSourceId,
   DroppedFile,
   HostMessage,
   SessionSummary,
@@ -51,11 +50,10 @@ import { AttachmentService, mimeFromName } from "./attachmentService";
 import { SessionListService, type SessionSearchResult } from "./sessionListService";
 import { SubagentTracker } from "./subagentTracker";
 import { ContextTracker, FileIndex, selectionAttachment } from "./context";
-import { ContextSourceService, decodeContextContent, type SymbolLike } from "./contextSources";
 import { PromptLibraryService } from "./promptLibrary";
+import { formatPromptDiff, formatPromptDiagnostics } from "./promptContext";
 import { ApplyCodeService } from "./applyCode";
 import { DEFAULT_INSTRUCTION_FILE, ProjectInstructionService } from "./projectInstructions";
-import { TerminalOutputTracker } from "./terminalOutput";
 import { workingDiff } from "./gitDiff";
 import { ChatViews, type ChatWebview } from "./views";
 import { DiffService } from "./diff";
@@ -209,16 +207,11 @@ export class ChatController implements vscode.Disposable {
   private readonly fileIcons: FileIconThemeService;
   private fileIndex: FileIndex | undefined;
   private readonly context: ContextTracker;
-  /** On-demand chips (diagnostics, diff, terminal, editors, symbol) and their inline content. */
-  private readonly contextSources: ContextSourceService;
   /** Applies a reply's code block as a reviewable, accepted-only WorkspaceEdit. */
   private readonly applyCode: ApplyCodeService<vscode.Uri>;
   /** Built-in + user prompts inserted into the composer with editor context resolved. */
   private readonly prompts: PromptLibraryService;
   private readonly projectInstructions: ProjectInstructionService<vscode.Uri>;
-  private readonly terminalOutput = new TerminalOutputTracker();
-  private readonly activeContextSources = new Set<ContextSourceId>();
-  private readonly contextSourceItems = new Map<ContextSourceId, ContextItem>();
   private readonly disposables: vscode.Disposable[] = [];
   /** Inline permissions: per-chat auto-approve, granted ids and pending-request filtering. */
   private readonly permissions: PermissionService;
@@ -330,33 +323,8 @@ export class ChatController implements vscode.Disposable {
       },
       () => (this.folder && (vscode.workspace.workspaceFolders?.length ?? 0) > 1 ? this.folder.name : undefined),
     );
-    this.context = new ContextTracker((items) => this.post({ type: "context", items: [...items, ...this.sourceContextItems()] }));
-    this.contextSources = new ContextSourceService({
-      t: (text) => vscode.l10n.t(text),
-      folder: () => this.folder?.uri,
-      activeEditor: () => vscode.window.activeTextEditor,
-      visibleEditors: () => vscode.window.visibleTextEditors,
-      diagnostics: () => vscode.languages.getDiagnostics().flatMap(([uri, list]) => list.map((diagnostic) => ({ uri, diagnostic }))),
-      symbolsAt: async (editor): Promise<SymbolLike[]> => {
-        const uri = editor.document.uri;
-        const position = editor.selection.active;
-        const word = editor.document.getWordRangeAtPosition(position);
-        const name = (word ? editor.document.getText(word) : editor.document.getText(editor.selection)) || path.basename(uri.fsPath);
-        const found =
-          (await vscode.commands.executeCommand<Array<vscode.Location | vscode.LocationLink>>(
-            "vscode.executeDefinitionProvider",
-            uri,
-            position,
-          )) ?? [];
-        return found.slice(0, 20).map((entry) => {
-          const target = "uri" in entry ? entry.uri : entry.targetUri;
-          const range = "range" in entry ? entry.range : (entry.targetSelectionRange ?? entry.targetRange);
-          return { name, uri: target.fsPath, line: range.start.line };
-        });
-      },
-      gitDiff: (cwd) => workingDiff(cwd),
-      terminal: () => this.terminalOutput.latest(),
-    });
+    this.context = new ContextTracker((items) => this.post({ type: "context", items }));
+
     this.applyCode = new ApplyCodeService<vscode.Uri>({
       t: (message, ...args) => vscode.l10n.t(message, ...args),
       folder: () => this.folder?.uri.fsPath,
@@ -417,12 +385,21 @@ export class ChatController implements vscode.Disposable {
         return editor?.document.uri.scheme === "file" ? vscode.workspace.asRelativePath(editor.document.uri, false) : undefined;
       },
       diff: async () => {
-        const item = await this.contextSources.build("git");
-        return item ? decodeContextContent(item.uri) : "";
+        const cwd = this.folder?.uri.fsPath;
+        if (!cwd) return "";
+        const diff = await workingDiff(cwd);
+        return diff ? formatPromptDiff(diff) : "";
       },
       problems: async () => {
-        const item = await this.contextSources.build("problems");
-        return item ? decodeContextContent(item.uri) : "";
+        const file = vscode.window.activeTextEditor?.document.uri.toString();
+        const items = vscode.languages
+          .getDiagnostics()
+          .flatMap(([uri, list]) =>
+            file && uri.toString() !== file
+              ? []
+              : list.map((d) => ({ uri: uri.path, startLine: d.range.start.line, message: d.message, severity: d.severity })),
+          );
+        return formatPromptDiagnostics(items);
       },
     });
     this.projectInstructions = new ProjectInstructionService<vscode.Uri>({
@@ -578,8 +555,6 @@ export class ChatController implements vscode.Disposable {
       execution: this.execution,
       generation: this.lifecycle.generations.load,
       getFileIndex: () => this.fileIndex,
-      addContextSource: (source) => this.addContextSource(source),
-      removeContextSource: (source) => this.removeContextSource(source),
       applyCode: (text, targetPath) => this.applyCode.apply(text, targetPath),
       usePrompt: (id) => this.usePrompt(id),
       saveInstruction: (text) => this.saveInstruction(text),
@@ -600,7 +575,6 @@ export class ChatController implements vscode.Disposable {
     };
     this.disposables.push(
       this.context,
-      this.terminalOutput,
       vscode.window.onDidChangeActiveColorTheme(refreshFileIcons),
       vscode.extensions.onDidChange(refreshFileIcons),
       vscode.workspace.onDidChangeWorkspaceFolders(() => {
@@ -804,34 +778,7 @@ export class ChatController implements vscode.Disposable {
       dropzone: this.dropzoneEnabled(),
       toolOutputLimit: vscode.workspace.getConfiguration("opencode", this.folder?.uri).get<number>("toolOutputLimit", 4000),
     });
-    this.post({ type: "contextSources", items: this.contextSources.catalog() });
     this.post({ type: "promptCatalog", items: this.prompts.catalog() });
-  }
-
-  private sourceContextItems(): ContextItem[] {
-    return [...this.activeContextSources]
-      .map((source) => this.contextSourceItems.get(source))
-      .filter((item): item is ContextItem => !!item);
-  }
-
-  private postContext(): void {
-    this.post({ type: "context", items: [...this.context.current(), ...this.sourceContextItems()] });
-  }
-
-  async addContextSource(source: ContextSourceId): Promise<ContextItem | undefined> {
-    const existing = this.contextSourceItems.get(source);
-    if (existing) return existing;
-    try {
-      const item = await this.contextSources.build(source);
-      if (!item) return undefined;
-      this.activeContextSources.add(source);
-      this.contextSourceItems.set(source, item);
-      this.postContext();
-      return item;
-    } catch (err) {
-      this.output.warn(`[chat] context source ${source}: ${String(err)}`);
-      return undefined;
-    }
   }
 
   /** True when a file really lives in any folder the user opened, after resolving symlinks. */
@@ -868,12 +815,6 @@ export class ChatController implements vscode.Disposable {
 
   async saveInstruction(text: string): Promise<void> {
     await this.projectInstructions.save(text);
-  }
-
-  removeContextSource(source: ContextSourceId): void {
-    if (!this.activeContextSources.delete(source)) return;
-    this.contextSourceItems.delete(source);
-    this.postContext();
   }
 
   private dropzoneEnabled(): boolean {

@@ -57,8 +57,6 @@ function setup(overrides: Partial<CommandHandlerHooks> = {}) {
     execution: new ExecutionStateService(),
     generation: { bump: vi.fn(() => 2), current: vi.fn(() => 2), is: vi.fn(() => true) } as never,
     getFileIndex: () => undefined,
-    addContextSource: vi.fn(async () => undefined),
-    removeContextSource: vi.fn(),
     applyCode: vi.fn(async () => undefined),
     usePrompt: vi.fn(async () => undefined),
     saveInstruction: vi.fn(async () => undefined),

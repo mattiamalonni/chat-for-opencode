@@ -60,8 +60,8 @@ The short version — full behaviour in [docs/FEATURES.md](docs/FEATURES.md):
   reasoning and tool cards, per-turn step folds, turn stats, queued messages, subagents in a
   read-only modal, `todowrite` lists.
 - [Context and files](docs/FEATURES.md#context-and-files) — editor/selection chips, `@` file search,
-  five on-demand context sources, external files sent inline, clickable file references, Quick Fixes,
-  prompt library, skills, replies saved to `AGENTS.md`.
+  external files sent inline, clickable file references, Quick Fixes, prompt library, skills, replies
+  saved to `AGENTS.md`.
 - [Diffs and permissions](docs/FEATURES.md#diffs-and-permissions) — Apply to file with a reviewable
   native diff, changed-files panel with combined read-only diffs, permission and question cards with
   keyboard shortcuts.

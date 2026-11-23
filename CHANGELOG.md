@@ -6,10 +6,11 @@ build, CI or architecture work, condensed to one line; the reasoning lives in
 
 ## Unreleased
 
-- **User — UI:** the composer's mention popup now uses separate triggers: `@` suggests workspace files
-  only, while `#` suggests the on-demand context sources (`problems`, `git`, `terminal`, `openEditors`,
-  `symbol`). The old `@problems`-style spellings are no longer offered; the **Add context** button is
-  unchanged. Hints, docs and UI tests were updated accordingly.
+- **User — Removed:** the on-demand context sources (`problems`, `git`, `terminal`, `openEditors`,
+  `symbol`) are gone: no `#` picker, no **Add context** button, no inline content chips, and no
+  `contextSources` / `addContextSource` / `removeContextSource` messages. The `$diff` and `$problems`
+  prompt variables still work — they are resolved directly into the prompt text. `@` remains the
+  trigger for workspace files, and `/` for skills, prompts and commands.
 - **User — UI:** the **Changed files** panel now starts folded. Its header, file totals and actions stay
   visible, but the file list is revealed only when you open it, and your choice is kept while the chat
   re-renders.

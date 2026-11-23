@@ -2,7 +2,7 @@ import type { VNode } from "preact";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "preact/hooks";
 import type { AgentInfo, CommandSuggestion, ModelInfo, ModelRef, SkillSuggestion } from "../shared/api";
 import { composerAction } from "../shared/keys";
-import type { Attachment, ContextItem, ContextSource, ContextSourceId, PromptDefinition } from "../shared/protocol";
+import type { Attachment, ContextItem, PromptDefinition } from "../shared/protocol";
 import { isolateKeys } from "./env";
 import { formatTokens } from "../shared/format";
 import { ContextMeter } from "./contextMeter";
@@ -32,7 +32,6 @@ export interface ComposerProps {
   autoApprove: boolean;
   onToggleAutoApprove: (enabled: boolean) => void;
   context: ContextItem[];
-  contextSources: ContextSource[];
   prompts: PromptDefinition[];
   selectedContext: Set<string>;
   onToggleContext: (id: string) => void;
@@ -55,7 +54,6 @@ export interface ComposerProps {
 }
 
 const FILE_MENTION_RE = /(^|\s)@([^\s@]*)$/;
-const CONTEXT_MENTION_RE = /(^|\s)#([^\s#]*)$/;
 const SKILL_COMMAND_RE = /(^|\s)\/([^\s/]*)$/;
 const COMMAND_TOKEN_RE = /(^|\s)\/([^\s/]+)/g;
 
@@ -76,9 +74,8 @@ type MentionItem =
   | { kind: "file"; item: Attachment }
   | { kind: "skill"; item: SkillSuggestion }
   | { kind: "command"; item: CommandSuggestion }
-  | { kind: "context"; item: ContextSource }
   | { kind: "prompt"; item: PromptDefinition };
-type Mention = { query: string; start: number; kind: "file" | "context" | "skill" };
+type Mention = { query: string; start: number; kind: "file" | "skill" };
 
 /**
  * Compact dropdown for OpenCode's built-in `build` and `plan` agents. It is always shown: older
@@ -104,7 +101,6 @@ export function Composer(props: ComposerProps) {
   const t = useT();
   const [text, setText] = useState(() => getDraft(props.sessionId));
   const [mention, setMention] = useState<Mention | undefined>();
-  const [sourcePickerOpen, setSourcePickerOpen] = useState(false);
   const [active, setActive] = useState(0);
   // null = not browsing history; otherwise index into `props.promptHistory`.
   const [historyIndex, setHistoryIndex] = useState<number | null>(null);
@@ -114,15 +110,6 @@ export function Composer(props: ComposerProps) {
   const composing = useRef(false);
   const blurTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   useEffect(() => () => clearTimeout(blurTimer.current), []);
-  useEffect(() => {
-    if (!sourcePickerOpen) return;
-    const close = (event: PointerEvent) => {
-      const target = event.target as HTMLElement | null;
-      if (!target?.closest(".context-source-wrap")) setSourcePickerOpen(false);
-    };
-    document.addEventListener("pointerdown", close);
-    return () => document.removeEventListener("pointerdown", close);
-  }, [sourcePickerOpen]);
   const cancelBlurClose = () => {
     clearTimeout(blurTimer.current);
     blurTimer.current = undefined;
@@ -244,19 +231,8 @@ export function Composer(props: ComposerProps) {
         : [],
     [mention?.kind, mention?.query, props.prompts],
   );
-  const sourceQuery = mention?.kind === "context" ? mention.query.trim().toLowerCase() : "";
-  const sourceResults: ContextSource[] = useMemo(
-    () =>
-      mention?.kind === "context"
-        ? props.contextSources
-            .filter((source) => `${source.id} ${source.label} ${source.description}`.toLowerCase().includes(sourceQuery))
-            .slice(0, 8)
-        : [],
-    [mention?.kind, sourceQuery, props.contextSources],
-  );
   const results: MentionItem[] = [
     ...promptResults.map((item): MentionItem => ({ kind: "prompt", item })),
-    ...sourceResults.map((item): MentionItem => ({ kind: "context", item })),
     ...commandResults.map((item): MentionItem => ({ kind: "command", item })),
     ...skillResults.map((item): MentionItem => ({ kind: "skill", item })),
     ...fileResults.map((item): MentionItem => ({ kind: "file", item })),
@@ -287,15 +263,14 @@ export function Composer(props: ComposerProps) {
   const updateMention = (value: string, caret: number) => {
     const beforeCaret = value.slice(0, caret);
     const skillMatch = SKILL_COMMAND_RE.exec(beforeCaret);
-    const contextMatch = CONTEXT_MENTION_RE.exec(beforeCaret);
     const fileMatch = FILE_MENTION_RE.exec(beforeCaret);
-    const match = skillMatch ?? contextMatch ?? fileMatch;
+    const match = skillMatch ?? fileMatch;
     setMention(
       match
         ? {
             query: match[2],
             start: caret - match[2].length - 1,
-            kind: skillMatch ? "skill" : contextMatch ? "context" : "file",
+            kind: skillMatch ? "skill" : "file",
           }
         : undefined,
     );
@@ -307,13 +282,12 @@ export function Composer(props: ComposerProps) {
     const caret = el?.selectionStart ?? text.length;
     // Skills and slash commands stay in the text as `/skill` / `/command` (a skill is rewritten to
     // `@skill` when the prompt is sent). Files are attached as chips and sent separately as `files`,
-    // so drop the `@query` instead of leaving it in the input. Context sources are added as chips too.
+    // so drop the `@query` instead of leaving it in the input.
     const label = item.kind === "command" ? `/${item.item.name} ` : item.kind === "skill" ? `/${item.item.id} ` : "";
     const next = text.slice(0, mention.start) + label + text.slice(caret);
     setText(next);
     setMention(undefined);
     if (item.kind === "file") props.onAddAttachment(item.item);
-    if (item.kind === "context") post({ type: "addContextSource", source: item.item.id });
     if (item.kind === "prompt") post({ type: "usePrompt", id: item.item.id });
     requestAnimationFrame(() => {
       const pos = mention.start + label.length;
@@ -458,23 +432,18 @@ export function Composer(props: ComposerProps) {
           <ul class="chips" aria-label={t("context")}>
             {props.context.map((c) => {
               const selected = props.selectedContext.has(c.id);
-              const isSource = c.id.startsWith("context:");
               return (
                 <li class={`chip ${c.kind === "file" ? "implicit" : ""} ${selected ? "" : "off"}`} key={c.id} title={c.detail ?? c.uri}>
-                  {isSource ? <IconTool /> : c.kind === "selection" ? <IconSelection /> : <FileTypeIcon path={c.label} />}
+                  {c.kind === "selection" ? <IconSelection /> : <FileTypeIcon path={c.label} />}
                   <span>{c.label}</span>
-                  <span class="chip-kind">
-                    {c.kind === "file" ? t("currentFile") : c.kind === "selection" ? t("selection") : t("context")}
-                  </span>
+                  <span class="chip-kind">{c.kind === "file" ? t("currentFile") : t("selection")}</span>
                   {selected ? (
                     <button
                       type="button"
                       class="chip-remove tooltip-host"
                       data-tooltip={`${t("removeContext")}: ${c.label}`}
                       aria-label={`${t("removeContext")}: ${c.label}`}
-                      onClick={() =>
-                        isSource ? post({ type: "removeContextSource", source: c.kind as ContextSourceId }) : props.onToggleContext(c.id)
-                      }
+                      onClick={() => props.onToggleContext(c.id)}
                     >
                       <IconClose />
                     </button>
@@ -548,11 +517,9 @@ export function Composer(props: ComposerProps) {
                         ? r.item.uri
                         : r.kind === "command"
                           ? `command:${r.item.name}`
-                          : r.kind === "context"
-                            ? `source:${r.item.id}`
-                            : r.kind === "prompt"
-                              ? `prompt:${r.item.id}`
-                              : `skill:${r.item.id}`
+                          : r.kind === "prompt"
+                            ? `prompt:${r.item.id}`
+                            : `skill:${r.item.id}`
                     }
                     id={`mention-${i}`}
                     role="option"
@@ -564,19 +531,15 @@ export function Composer(props: ComposerProps) {
                     }}
                   >
                     {r.kind === "file" ? <FileTypeIcon path={r.item.detail ?? r.item.name} /> : <IconTool />}
-                    <span class="mention-name">
-                      {r.kind === "context" ? r.item.label : r.kind === "prompt" ? r.item.title : r.item.name}
-                    </span>
+                    <span class="mention-name">{r.kind === "prompt" ? r.item.title : r.item.name}</span>
                     <span class="mention-path">
                       {r.kind === "file"
                         ? r.item.detail
-                        : r.kind === "context"
-                          ? `#${r.item.id} · ${r.item.description}`
-                          : r.kind === "prompt"
-                            ? `/${r.item.id} · ${r.item.description}`
-                            : r.kind === "command"
-                              ? `/${r.item.name}${r.item.description ? ` · ${r.item.description}` : ""}`
-                              : `@${r.item.id}${r.item.description ? ` · ${r.item.description}` : ""}`}
+                        : r.kind === "prompt"
+                          ? `/${r.item.id} · ${r.item.description}`
+                          : r.kind === "command"
+                            ? `/${r.item.name}${r.item.description ? ` · ${r.item.description}` : ""}`
+                            : `@${r.item.id}${r.item.description ? ` · ${r.item.description}` : ""}`}
                     </span>
                   </li>
                 ))
@@ -706,39 +669,6 @@ export function Composer(props: ComposerProps) {
         </div>
       </div>
       <div class="drop-hint">
-        <div class="context-source-wrap">
-          <button
-            type="button"
-            class="icon-button tooltip-host tooltip-above"
-            data-tooltip={t("addContextSource")}
-            aria-label={t("addContextSource")}
-            aria-expanded={sourcePickerOpen}
-            disabled={props.disabled || props.contextSources.length === 0}
-            onClick={() => setSourcePickerOpen((open) => !open)}
-          >
-            <IconPlus />
-          </button>
-          {sourcePickerOpen && (
-            <ul class="mention-popup context-source-menu" role="listbox" aria-label={t("context")}>
-              {props.contextSources.map((source) => (
-                <li
-                  key={source.id}
-                  role="option"
-                  aria-selected="false"
-                  onMouseDown={(e) => {
-                    e.preventDefault();
-                    post({ type: "addContextSource", source: source.id });
-                    setSourcePickerOpen(false);
-                  }}
-                >
-                  <IconTool />
-                  <span class="mention-name">{source.label}</span>
-                  <span class="mention-path">{source.description}</span>
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
         <button
           type="button"
           class="icon-button tooltip-host tooltip-above"

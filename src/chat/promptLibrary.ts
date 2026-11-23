@@ -3,7 +3,7 @@ import type { PromptDefinition } from "../shared/protocol";
 /**
  * A small, reusable prompt library: curated prompts ship with the extension and users can add their
  * own in `opencode.promptLibrary`. Selecting one prefills the composer with `$variables` resolved
- * from the current editor and context sources — it never sends on its own.
+ * from the current editor, working-tree diff and diagnostics — it never sends on its own.
  */
 
 export const PROMPT_VARIABLES = ["selection", "file", "diff", "problems"] as const;
