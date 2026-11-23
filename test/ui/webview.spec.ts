@@ -188,8 +188,12 @@ test("file chips use the icon resolved by the host from the user's file icon the
 test("changed-files rows use the themed file icon instead of the diff glyph", async ({ page }) => {
   await bootWithOwnedChanges(page, ["src/app.ts"]);
   await host(page, { type: "changedFiles", files: [{ file: "src/app.ts", patch: "@@", additions: 1, deletions: 1, status: "modified" }] });
-  // The panel opens by default: changed files must not be hidden until discovered.
-  await expect(page.locator(".panel.changes")).toHaveAttribute("open", "");
+  // The panel starts folded; the user decides when to reveal the changed files.
+  const panel = page.locator(".panel.changes");
+  await expect(panel).not.toHaveAttribute("open", "");
+  await expect(panel.locator(".file-row")).toBeAttached();
+  await panel.locator("summary").click();
+  await expect(panel).toHaveAttribute("open", "");
   await expect.poll(async () => (await posted(page)).some((m) => m.type === "fileIcons" && m.paths.includes("src/app.ts"))).toBe(true);
 
   const svg = `data:image/svg+xml;base64,${Buffer.from('<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16"/>').toString("base64")}`;

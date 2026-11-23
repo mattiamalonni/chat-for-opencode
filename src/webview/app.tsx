@@ -2397,7 +2397,9 @@ function ChangesPanel({ files, onDismiss }: { files: FileDiff[]; onDismiss: () =
     // `<summary>` stays the only child of `<details>` that toggles it: nesting buttons inside a
     // summary gives them unreliable keyboard/screen-reader semantics. The action row is a sibling.
     <div class="changes-panel">
-      <details class="panel changes" open>
+      {/* Start collapsed: the user decides when to look at the edits, and the
+          DOM keeps their choice across re-renders (no controlled `open` prop). */}
+      <details class="panel changes">
         <summary>
           <IconChevron class="chevron" />
           {files.length === 1 ? t("changedFile", files.length) : t("changedFiles", files.length)}

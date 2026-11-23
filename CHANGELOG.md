@@ -4,6 +4,12 @@ Legend: **`User — …`** entries change something you can see or use. **`Inter
 build, CI or architecture work, condensed to one line; the reasoning lives in
 [DECISIONS.md](docs/DECISIONS.md) and [SPEC.md](SPEC.md).
 
+## Unreleased
+
+- **User — UI:** the **Changed files** panel now starts folded. Its header, file totals and actions stay
+  visible, but the file list is revealed only when you open it, and your choice is kept while the chat
+  re-renders.
+
 ## 0.3.22 — 2026-11-23
 
 - **User — Fix:** step folds now follow the turn lifecycle consistently. While a reply streams, only its

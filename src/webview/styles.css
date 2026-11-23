@@ -1858,7 +1858,8 @@ button:disabled {
   margin-left: auto;
 }
 
-/* The changes panel opens by default: edits made by the agent should not be a discovery game. */
+/* The changes panel starts folded so edits stay out of the way until the user opens the header.
+   Its actions row sits over the summary and remains usable either way. */
 .changes-panel {
   position: relative;
   margin: 0 8px;
