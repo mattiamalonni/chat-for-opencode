@@ -1,30 +1,21 @@
 import * as path from "node:path";
 import * as vscode from "vscode";
-import { OpenCodeClient, type Connection, type PermissionRule } from "../client/http";
+import { OpenCodeClient, type Connection } from "../client/http";
 import { CatalogService } from "./catalogService";
 import { ConnectionSupervisor } from "./connectionSupervisor";
 import { FileIconThemeService, type LanguageContribution } from "./fileIconTheme";
 import { ChatLifecycle } from "./lifecycle";
 import { Generation } from "./generation";
-import { describeServerError, ExternalServer, ServerError, type ServerHandle, type ServerState } from "../server/server";
-import type { FileAttachment, ServerEvent } from "../shared/api";
+import { describeServerError, ServerError, type ServerHandle, type ServerState } from "../server/server";
+import type { ServerEvent } from "../shared/api";
 
 import { checkCompatibility } from "../shared/compatibility";
 
 import { checkContract, contractSignature, type ContractObservations } from "../shared/contract";
 import { isWebviewMessage } from "../shared/protocolGuards";
-import type {
-  ActionId,
-  Attachment,
-  ConnectionStatus,
-  ContextItem,
-  HostMessage,
-  SessionSummary,
-  UiError,
-  WebviewMessage,
-} from "../shared/protocol";
-import { resolveAttachment } from "./attachments";
-import { AttachmentService, mimeFromName } from "./attachmentService";
+import type { ActionId, Attachment, ConnectionStatus, HostMessage, SessionSummary, UiError, WebviewMessage } from "../shared/protocol";
+
+import { AttachmentService } from "./attachmentService";
 import { SessionListService, type SessionSearchResult } from "./sessionListService";
 import { SubagentTracker } from "./subagentTracker";
 import { ContextTracker, FileIndex } from "./context";
@@ -35,7 +26,7 @@ import { DEFAULT_INSTRUCTION_FILE, ProjectInstructionService } from "./projectIn
 import { workingDiff } from "./gitDiff";
 import { ChatViews, type ChatWebview } from "./views";
 import { DiffService } from "./diff";
-import { DEFAULT_SESSION_PERMISSIONS } from "./permissions";
+
 import { PermissionService } from "./permissionService";
 
 import { isWithinDirectory } from "./tempAttachments";
@@ -49,6 +40,7 @@ import { createControllerState } from "./controllerState";
 import { ChatDraftActions } from "./draftActions";
 import { ChatFileActions } from "./fileActions";
 import { ChatServerActions } from "./serverActions";
+import { ChatPromptActions } from "./promptActions";
 import { ChatSessionService } from "./sessionService";
 import { ChatPermissionActions } from "./permissionActions";
 import { ChatRefreshActions } from "./refreshActions";
@@ -71,6 +63,7 @@ export class ChatController implements vscode.Disposable {
   private readonly draftActions: ChatDraftActions;
   private readonly serverActions: ChatServerActions;
   private readonly sessionService: ChatSessionService;
+  private readonly promptActions: ChatPromptActions;
   /** All live chats and their listeners; see views.ts. */
   private readonly chatViews: ChatViews;
   /** Server process, HTTP client and SSE stream ownership; see connectionSupervisor.ts. */
@@ -396,7 +389,7 @@ export class ChatController implements vscode.Disposable {
       connect: () => this.connect(),
       loadAll: () => this.sessionService.loadAll(),
       loadSession: (info, stale) => this.sessionService.loadSession(info, stale),
-      send: (text, attachments, context, delivery) => this.send(text, attachments, context, delivery),
+      send: (text, attachments, context, delivery) => this.promptActions.send(text, attachments, context, delivery),
       newSession: () => this.newSession(),
       saveDraft: (sid, text) => this.draftActions.save(sid, text),
       refreshSessions: () => this.refreshSessions(),
@@ -412,10 +405,11 @@ export class ChatController implements vscode.Disposable {
       switchFolder: (folder) => this.switchFolder(folder),
       refreshChanges: () => this.refreshActions.refreshChanges(),
       syncNow: () => this.sessionService.syncNow(),
-      compact: () => this.compact(),
-      revertToTurn: (sessionId, messageID, text, files) => this.revertToTurn(sessionId, messageID, text, files),
-      forkToTurn: (sessionId, messageID) => this.forkToTurn(sessionId, messageID),
-      regenerateTurn: (sessionId, messageID, text, attachments) => this.regenerateTurn(sessionId, messageID, text, attachments),
+      compact: () => this.promptActions.compact(),
+      revertToTurn: (sessionId, messageID, text, files) => this.promptActions.revertToTurn(sessionId, messageID, text, files),
+      forkToTurn: (sessionId, messageID) => this.promptActions.forkToTurn(sessionId, messageID),
+      regenerateTurn: (sessionId, messageID, text, attachments) =>
+        this.promptActions.regenerateTurn(sessionId, messageID, text, attachments),
       refreshInbox: (sid) => this.refreshActions.refreshInbox(sid),
       deleteAllSessions: () => this.deleteAllSessions(),
       catalog: this.catalog,
@@ -426,8 +420,8 @@ export class ChatController implements vscode.Disposable {
       generation: this.lifecycle.generations.load,
       getFileIndex: () => this.fileIndex,
       applyCode: (text, targetPath) => this.applyCode.apply(text, targetPath),
-      usePrompt: (id) => this.usePrompt(id),
-      saveInstruction: (text) => this.saveInstruction(text),
+      usePrompt: (id) => this.promptActions.usePrompt(id),
+      saveInstruction: (text) => this.promptActions.saveInstruction(text),
       fileIcons: this.fileIcons,
       diffs: this.diffs,
       workspaceState: ctx.workspaceState,
@@ -474,7 +468,7 @@ export class ChatController implements vscode.Disposable {
       reconnect: () => this.reconnect(),
       resetServers: () => this.resetServers(),
       newSession: () => this.newSession(),
-      send: (text, attachments, context, delivery) => this.send(text, attachments, context, delivery),
+      send: (text, attachments, context, delivery) => this.promptActions.send(text, attachments, context, delivery),
       saveDraft: (sid, text) => this.draftActions.save(sid, text),
       post: (msg) => this.post(msg),
     });
@@ -500,6 +494,25 @@ export class ChatController implements vscode.Disposable {
       observeContract: (observations) => this.observeContract(observations),
       bestEffort: (label, promise, fallback) => this.bestEffort(label, promise, fallback),
       refreshSessions: () => this.refreshSessions(),
+    });
+    this.promptActions = new ChatPromptActions({
+      state: this.state,
+      execution: this.execution,
+      lifecycle: this.lifecycle,
+      catalog: this.catalog,
+      permissions: this.permissions,
+      sessionList: this.sessionList,
+      prompts: this.prompts,
+      projectInstructions: this.projectInstructions,
+      fileActions: this.fileActions,
+      draftActions: this.draftActions,
+      sessionService: this.sessionService,
+      output,
+      getClient: () => this.client,
+      getServer: () => this.server,
+      connect: () => this.connect(),
+      prefillDraft: (text, attachments) => this.prefillDraft(text, attachments),
+      post: (msg) => this.post(msg),
     });
     const refreshFileIcons = () => {
       this.fileIcons.invalidate();
@@ -720,20 +733,6 @@ export class ChatController implements vscode.Disposable {
     const owner = vscode.workspace.getWorkspaceFolder(target)?.name;
     const relative = vscode.workspace.asRelativePath(target, false);
     return { uri: target, path: owner ? `${owner}/${relative}` : relative };
-  }
-
-  async usePrompt(id: string): Promise<void> {
-    if (!id) return;
-    const text = await this.prompts.resolve(id);
-    if (text === undefined) {
-      this.output.warn(`[chat] unknown prompt: ${id}`);
-      return;
-    }
-    this.prefillDraft(text, []);
-  }
-
-  async saveInstruction(text: string): Promise<void> {
-    await this.projectInstructions.save(text);
   }
 
   private dropzoneEnabled(): boolean {
@@ -1003,23 +1002,7 @@ export class ChatController implements vscode.Disposable {
 
   /** Ask the server to compact the current session (runs at the next step boundary). */
   async compact(): Promise<void> {
-    const sid = this.state.sessionId;
-    if (!sid || !this.client) return;
-    try {
-      await this.client.compact(sid);
-      this.output.info("[chat] compaction requested");
-    } catch (err) {
-      const s = translatedStrings();
-      this.post({
-        type: "notice",
-        error: {
-          kind: "requestFailed",
-          message: s["error.compactFailed"],
-          detail: err instanceof Error ? err.message : String(err),
-          actions: ["showLogs"],
-        },
-      });
-    }
+    await this.promptActions.compact();
   }
 
   /**
@@ -1028,80 +1011,20 @@ export class ChatController implements vscode.Disposable {
    * tests can exercise the flow without the native confirmation dialog.
    */
   async revertToTurn(sessionId: string, messageID: string, text: string, files: boolean): Promise<void> {
-    if (await this.revertBoundary(sessionId, messageID, files)) this.post({ type: "reverted", sessionId, text });
+    await this.promptActions.revertToTurn(sessionId, messageID, text, files);
   }
 
   /** Shared boundary stage/commit/reload, used by both rollback and regenerate. */
-  private async revertBoundary(sessionId: string, messageID: string, files: boolean): Promise<boolean> {
-    const client = this.client;
-    if (!client || sessionId !== this.state.sessionId) return false;
-    this.execution.generation.bump();
-    const generation = this.lifecycle.generations.load.bump();
-    try {
-      // Staging is rejected while the agent loop runs, and an interrupt can acknowledge before
-      // execution settles; wait for idle just like OpenCode's own rewind does.
-      await client.interrupt(sessionId).catch(() => false);
-      await client.waitIdle(sessionId).catch(() => undefined);
-      await client.revertStage(sessionId, messageID, files);
-      try {
-        await client.revertCommit(sessionId);
-      } catch (err) {
-        // `stage` already restored the files: undo that side effect if the commit did not land.
-        await client.revertClear(sessionId).catch(() => undefined);
-        throw err;
-      }
-      if (!this.lifecycle.generations.load.is(generation) || sessionId !== this.state.sessionId) return false;
-      const info = await client.getSession(sessionId);
-      if (!this.lifecycle.generations.load.is(generation) || sessionId !== this.state.sessionId) return false;
-      // A commit deletes messages, so a tail resync cannot detect it: rebuild from history.
-      await this.sessionService.loadSession(
-        info,
-        () => !this.lifecycle.generations.load.is(generation) || sessionId !== this.state.sessionId,
-      );
-      return true;
-    } catch (err) {
-      const s = translatedStrings();
-      throw new Error(`${s["error.revertFailed"]} ${err instanceof Error ? err.message : String(err)}`, { cause: err });
-    }
-  }
 
   /**
    * Drop the reply after `messageID` without touching files, then resend the original prompt.
    * The model/agent selection stays as the user left it, so the retry uses the current settings.
    */
-  async regenerateTurn(sessionId: string, messageID: string, text: string, attachments: Attachment[]): Promise<void> {
-    if (!(await this.revertBoundary(sessionId, messageID, false))) return;
-    await this.send(text, attachments, [], undefined);
-  }
 
   /**
    * Copy the conversation up to `messageID` into a new sibling session and open it. The original
    * keeps its full history and files, so unlike a rollback this is a non-destructive "what if".
    */
-  async forkToTurn(sessionId: string, messageID: string): Promise<void> {
-    const client = this.client;
-    if (!client || sessionId !== this.state.sessionId) return;
-    const generation = this.lifecycle.generations.load.bump();
-    try {
-      const info = await client.forkSession(sessionId, messageID);
-      if (!this.lifecycle.generations.load.is(generation) || client !== this.client) return;
-      this.sessionList.addFork(info.id);
-      await this.sessionService.loadSession(info, () => !this.lifecycle.generations.load.is(generation) || client !== this.client);
-      if (client !== this.client) return;
-      this.post({ type: "forked", sessionId: info.id, title: info.title });
-    } catch (err) {
-      const s = translatedStrings();
-      this.post({
-        type: "notice",
-        error: {
-          kind: "requestFailed",
-          message: s["error.forkFailed"],
-          detail: err instanceof Error ? err.message : String(err),
-          actions: ["showLogs"],
-        },
-      });
-    }
-  }
 
   /**
    * `fast` is used by the first prompt: the user's text must reach the server without waiting for
@@ -1215,113 +1138,8 @@ export class ChatController implements vscode.Disposable {
    * spinning forever. The guard prevents an asynchronously restored draft from overwriting a newer
    * turn that started in the meantime.
    */
-  private async restoreFailedPrompt(
-    text: string,
-    attachments: Attachment[],
-    context: ContextItem[],
-    delivery: "steer" | "queue" | undefined,
-    sid: string | undefined,
-    detail: string,
-    generation?: number,
-  ): Promise<void> {
-    this.state.failedPrompt = { text, attachments, context, delivery, sessionId: sid };
-    if (sid) await this.draftActions.save(sid, text).catch(() => undefined);
-    this.execution.fail(sid, generation);
-    this.post({ type: "draftRestored", sessionId: sid, text });
-    const s = translatedStrings();
-    this.post({
-      type: "notice",
-      error: { kind: "promptFailed", message: s["error.promptFailed"], detail, actions: ["retry", "reconnect", "showLogs"] },
-    });
-  }
 
   /** Returns false when the prompt never reached the server (no notice is posted for stale loads). */
-  private async send(text: string, attachments: Attachment[], context: ContextItem[], delivery?: "steer" | "queue"): Promise<boolean> {
-    // A queued message starts no turn yet: leave the current turn's reconcile generation alone.
-    const turn = { generation: delivery === "queue" ? undefined : this.execution.start(this.state.sessionId) };
-    if (delivery !== "queue") this.lifecycle.cancel("reconcile");
-    if (!this.client) await this.connect();
-    const client = this.client;
-    if (!client || !this.state.folder) {
-      await this.restoreFailedPrompt(
-        text,
-        attachments,
-        context,
-        delivery,
-        this.state.sessionId,
-        translatedStrings()["error.connectionLost"],
-        turn.generation,
-      );
-      return false;
-    }
-    const files: FileAttachment[] = [];
-    const seen = new Set<string>();
-    // An external server cannot stat our local `file:` URIs, so those attachments are sent inline.
-    const externalServer = this.server instanceof ExternalServer;
-    for (const item of [...context, ...attachments]) {
-      if (seen.has(item.uri)) continue;
-      seen.add(item.uri);
-      const resolved = await resolveAttachment(item, externalServer, mimeFromName);
-      if (resolved.status === "tooLarge") {
-        this.fileActions.noticeTooLarge(resolved.name);
-        continue;
-      }
-      if (resolved.status === "unreadable") {
-        this.fileActions.noticeUnreadable(resolved.name, resolved.detail);
-        continue;
-      }
-      files.push(resolved.attachment);
-    }
-    try {
-      if (!this.state.sessionId) {
-        const permissions = vscode.workspace
-          .getConfiguration("opencode", this.state.folder.uri)
-          .get<PermissionRule[]>("sessionPermissions", DEFAULT_SESSION_PERMISSIONS);
-        const autoApprove = this.permissions.takePending();
-        const loadGeneration = this.lifecycle.generations.load.bump();
-        const info = await client.createSession({
-          directory: this.state.folder.uri.fsPath,
-          agent: this.catalog.selectedAgent,
-          model: this.catalog.selectedModel,
-          permissions,
-        });
-        if (autoApprove !== undefined) {
-          await this.permissions.write(info.id, autoApprove);
-        }
-        await this.sessionService.loadSession(info, () => !this.lifecycle.generations.load.is(loadGeneration), undefined, true);
-        if (!this.lifecycle.generations.load.is(loadGeneration)) {
-          this.execution.fail(this.state.sessionId, turn.generation);
-          return false;
-        }
-        // Loading the freshly created session changes `sessionId`, which correctly closes the
-        // previous session's turn. This prompt is still in flight, so re-arm it for the new id.
-        if (turn.generation !== undefined && !this.execution.is(turn.generation)) {
-          turn.generation = this.execution.start(this.state.sessionId);
-        }
-      }
-      const sid = this.state.sessionId;
-      if (!sid) {
-        this.execution.fail(this.state.sessionId, turn.generation);
-        return false;
-      }
-      const slash = /^\/(\S+)(?:\s+([\s\S]*))?$/.exec(text);
-      const command = slash && this.catalog.commands.find((c) => c.name === slash[1]);
-      // A steer replaces the current answer: interrupt first, then send with the server's
-      // steering delivery so OpenCode skips the rest of the old turn.
-      if (delivery === "steer") await client.interrupt(sid).catch(() => false);
-      if (command && slash) {
-        await client.command(sid, command.name, (slash[2] ?? "").trim(), files, delivery);
-      } else {
-        await client.prompt(sid, text, files, delivery);
-      }
-      this.state.failedPrompt = undefined;
-      return true;
-    } catch (err) {
-      const detail = err instanceof Error ? err.message : String(err);
-      await this.restoreFailedPrompt(text, attachments, context, delivery, this.state.sessionId, detail, turn.generation);
-      return false;
-    }
-  }
 
   async dispose(): Promise<void> {
     // Use the hard detach: `detachServerOnly()` left `connecting` alive, so a `server.ensure()` still

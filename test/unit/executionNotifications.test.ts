@@ -18,6 +18,7 @@ vi.mock("vscode", () => ({
 import * as vscode from "vscode";
 import { ChatController, type ExecutionState } from "../../src/chat/controller";
 import { ExecutionStateService } from "../../src/chat/executionState";
+import { ChatPromptActions } from "../../src/chat/promptActions";
 import { ChatEventRouter, type EventRouterHooks } from "../../src/chat/eventRouter";
 import { BoundedSet } from "../../src/shared/boundedSet";
 
@@ -85,12 +86,16 @@ describe("host-side execution state", () => {
   });
 
   it("closes the running state when a prompt is refused, but never overrides a newer turn", async () => {
-    const restoreFailedPrompt = proto["restoreFailedPrompt"] as unknown as (
+    const restoreFailedPrompt = (ChatPromptActions.prototype as unknown as Record<string, (...args: unknown[]) => unknown>)[
+      "restoreFailedPrompt"
+    ] as unknown as (
       this: {
-        state: { failedPrompt: unknown };
-        draftActions: { save: (sid: string, text: string) => Promise<void> };
-        execution: ExecutionStateService;
-        post: (msg: unknown) => void;
+        d: {
+          state: { failedPrompt: unknown };
+          draftActions: { save: (sid: string, text: string) => Promise<void> };
+          execution: ExecutionStateService;
+          post: (msg: unknown) => void;
+        };
       },
       text: string,
       attachments: unknown[],
@@ -111,12 +116,12 @@ describe("host-side execution state", () => {
       post: vi.fn(),
     };
 
-    await restoreFailedPrompt.call(c, "hello", [], [], undefined, "s1", "boom", token);
+    await restoreFailedPrompt.call({ d: c }, "hello", [], [], undefined, "s1", "boom", token);
     expect(published.at(-1)).toEqual({ status: "failed", sessionId: "s1" });
     expect(c.state.failedPrompt).toMatchObject({ text: "hello", sessionId: "s1" });
 
     published.length = 0;
-    await restoreFailedPrompt.call(c, "hello", [], [], undefined, "s1", "boom", token - 1);
+    await restoreFailedPrompt.call({ d: c }, "hello", [], [], undefined, "s1", "boom", token - 1);
     // A stale refusal must not overwrite the current turn's state.
     expect(published).toEqual([]);
   });
