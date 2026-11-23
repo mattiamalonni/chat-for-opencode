@@ -136,7 +136,7 @@ export function truncateSubagentStack(stack: readonly string[], depth: number): 
   return stack.slice(0, Math.max(0, depth + 1));
 }
 
-function str(value: unknown): string {
+function asString(value: unknown): string {
   return typeof value === "string" ? value : "";
 }
 
@@ -227,9 +227,9 @@ function reportOf(child: ChatState | undefined): string | undefined {
 export function subagentView(part: ToolPart, child?: ChatState, meta?: SubagentMeta, reports?: Record<string, string>): SubagentView {
   const input = toolObject(part);
   const sessionId = subagentChildId(part);
-  const title = str(input.description) || meta?.title || "";
-  const agent = str(input.agent) || child?.agent || meta?.agent || "";
-  const metaStatus = str(part.metadata?.status);
+  const title = asString(input.description) || meta?.title || "";
+  const agent = asString(input.agent) || child?.agent || meta?.agent || "";
+  const metaStatus = asString(part.metadata?.status);
   const messages = child?.messages ?? [];
 
   let status: SubagentStatus;
