@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.3.22 — 2026-11-23
 
 - **Fix:** step folds now follow the turn lifecycle consistently. While a reply streams, only its
   current step is expanded; when the turn ends, every fold closes — including the last step's — while
