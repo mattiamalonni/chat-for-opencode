@@ -29,14 +29,12 @@ import { DiffService } from "./diff";
 
 import { PermissionService } from "./permissionService";
 
-import { isWithinDirectory } from "./tempAttachments";
-import { isWithinDirectoryReal } from "./pathSafety";
-
 import { BoundedSet } from "../shared/boundedSet";
 import { ChatEventRouter } from "./eventRouter";
 import { ChatCommandHandler } from "./commandHandler";
 import { ExecutionStateService, type ExecutionState } from "./executionState";
 import { createControllerState } from "./services/controllerState";
+import { isWithinWorkspace } from "./workspacePath";
 import { ChatDraftActions } from "./services/draftActions";
 import { ChatFileActions } from "./services/fileActions";
 import { ChatServerActions } from "./services/serverActions";
@@ -450,7 +448,7 @@ export class ChatController implements vscode.Disposable {
       attachments: this.attachments,
       post: (msg) => this.post(msg),
       logWarn: (line) => output.warn(line),
-      isWithinWorkspace: (file) => this.isWithinWorkspace(file),
+      isWithinWorkspace: (file) => isWithinWorkspace(file),
     });
     this.refreshActions = new ChatRefreshActions({
       state: this.state,
@@ -747,20 +745,12 @@ export class ChatController implements vscode.Disposable {
     this.post({ type: "promptCatalog", items: this.prompts.catalog() });
   }
 
-  /** True when a file really lives in any folder the user opened, after resolving symlinks. */
-  private async isWithinWorkspace(file: string): Promise<boolean> {
-    for (const folder of vscode.workspace.workspaceFolders ?? []) {
-      if (isWithinDirectory(file, folder.uri.fsPath) && (await isWithinDirectoryReal(file, folder.uri.fsPath))) return true;
-    }
-    return false;
-  }
-
   /** Resolves an untrusted path against the connected folder, with the real-path escape check. */
   private async resolveWorkspacePath(targetPath: string): Promise<{ uri: vscode.Uri; path: string } | undefined> {
     const root = this.state.folder?.uri;
     if (!root) return undefined;
     const target = path.isAbsolute(targetPath) ? vscode.Uri.file(targetPath) : vscode.Uri.joinPath(root, targetPath);
-    if (!(await this.isWithinWorkspace(target.fsPath))) {
+    if (!(await isWithinWorkspace(target.fsPath))) {
       this.output.warn(`[chat] blocked a file outside the workspace: ${target.fsPath}`);
       return undefined;
     }
