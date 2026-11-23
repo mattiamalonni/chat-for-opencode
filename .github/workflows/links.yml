@@ -1,0 +1,31 @@
+name: Docs links (external)
+
+# Advisory only: a dead third-party page must never block a PR or a release.
+on:
+  schedule:
+    - cron: "0 7 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  external-links:
+    name: Check external documentation links
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      # Local links are already checked by `npm run verify:links` on every PR.
+      # Feed lychee only the external URLs, so relative Markdown paths cannot
+      # produce false failures here.
+      - name: Collect external URLs
+        run: |
+          grep -rhoE 'https?://[^[:space:])"<>]+' \
+            README.md CONTRIBUTING.md SPEC.md CHANGELOG.md docs/*.md media/*.md \
+            | sed 's/[.,;]$//' | sort -u > external-links.txt
+          wc -l external-links.txt
+      - uses: lycheeverse/lychee-action@v2
+        with:
+          args: --no-progress --accept 200,204,206,301,302,403,429 external-links.txt
+          fail: false
