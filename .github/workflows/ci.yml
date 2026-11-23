@@ -1,22 +1,18 @@
 name: CI
 
+# CI is the release gate: release.yml calls this workflow before publishing a tag.
+# Everything else is local (`npm test` / `npm run verify`) or a manual dispatch.
 on:
-  push:
-    branches: [main]
-  pull_request:
   workflow_call:
-  # Contract tests need a real `opencode` binary and a provider, so they are opt-in
-  # (manual) and also run nightly instead of on every push/PR.
+  # Contract tests need a real `opencode` binary and a provider, so they are opt-in.
   workflow_dispatch:
-  schedule:
-    - cron: "0 6 * * *"
 
 permissions:
   contents: read
 
 concurrency:
   group: ci-${{ github.ref }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+  cancel-in-progress: false
 
 jobs:
   test:
@@ -156,8 +152,8 @@ jobs:
 
   contract:
     name: Contract (opencode@2.3.0)
-    # Only on manual/scheduled runs: these tests hit a real `opencode serve` and a provider.
-    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    # Only on manual dispatch: these tests hit a real `opencode serve` and a provider.
+    if: github.event_name == 'workflow_dispatch'
     timeout-minutes: 20
     runs-on: ubuntu-latest
     permissions:

@@ -37,12 +37,12 @@ test or a manual probe actually ran.
   their metadata, touched files) and the webview's live-event queues are bounded to prevent unbounded
   growth, but a single conversation with very large messages or patches is still not profiled.
 - **External server mode with a real remote server** — tested only against the mock server (unit).
-- **Real OpenCode contract drift.** CI runs a dedicated `contract` job nightly and on manual dispatch
-  against a pinned `opencode@2.3.0`, with `continue-on-error`: it reports a regression but does not
-  block a merge, because it needs a real binary and provider credentials. A failure now writes a
+- **Real OpenCode contract drift.** The `contract` job runs only on manual CI dispatch against a
+  pinned `opencode@2.3.0`, with `continue-on-error`: it reports a regression but does not block a
+  release, because it needs a real binary and provider credentials. A failure now writes a
   run summary and opens (or comments on) a `contract-drift` issue, so it cannot pass unnoticed; all
   CI jobs also have explicit timeouts. The deterministic half is
-  now a blocking gate on every push/PR: a named CI step checks that all 989 recorded 2.2.7 SSE events
+  now a blocking gate in release CI: a named CI step checks that all 989 recorded 2.2.7 SSE events
   still normalize and that the OpenAPI snapshot still lists every endpoint the client calls.
 - **Untrusting a workspace mid-session.** The 1.99 API exposes only `onDidGrantWorkspaceTrust`;
   removing trust takes effect in VS Code after a window reload. The extension re-checks `isTrusted`

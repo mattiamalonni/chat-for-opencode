@@ -39,7 +39,7 @@ Architecture notes and API facts: [docs/README.md](docs/README.md).
 
 This is the single list of test commands. Other docs link here instead of repeating it.
 
-### Deterministic — run on every push/PR
+### Deterministic — run locally, enforced at release
 
 | Command                    | Covers                                 | Notes                                                                         |
 | -------------------------- | -------------------------------------- | ----------------------------------------------------------------------------- |
@@ -56,7 +56,7 @@ This is the single list of test commands. Other docs link here instead of repeat
 
 | Command                             | Covers                                                                                  |
 | ----------------------------------- | --------------------------------------------------------------------------------------- |
-| `npm run test:e2e`                  | Live OpenCode 2.3.0 contract; advisory nightly job in CI                                |
+| `npm run test:e2e`                  | Live OpenCode 2.3.0 contract; advisory, manual CI dispatch only                         |
 | `npm run test:integration:e2e`      | Real webview inside VS Code, CDP clicks against the **mock** server                     |
 | `npm run test:integration:real`     | Extension inside VS Code against a real server, driven through its message API          |
 | `npm run test:integration:real:e2e` | Real webview clicks plus a real server: types a prompt and waits for the streamed reply |
@@ -92,7 +92,7 @@ Keep `README.md` short: a feature becomes a one-line pointer to the relevant sec
 [docs/FEATURES.md](docs/FEATURES.md), with the explanation living there. `docs/REFERENCE.md` contains
 two generated blocks delimited by `<!-- BEGIN GENERATED: … -->` comments. Change a command,
 keybinding or setting in `package.json` / `package.nls.json`, then run `npm run gen:docs` and commit
-the result. CI runs `npm run verify:docs` and `npm run verify:links` on every PR.
+the result. The release CI runs `npm run verify:docs` and `npm run verify:links` before publishing.
 
 See [docs/README.md](docs/README.md) for the index of the contributor documentation.
 
