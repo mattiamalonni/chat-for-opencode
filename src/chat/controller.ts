@@ -48,22 +48,24 @@ import { ChatViews, type ChatWebview } from "./views";
 import { DiffService } from "./diff";
 import { DEFAULT_SESSION_PERMISSIONS } from "./permissions";
 import { PermissionService } from "./permissionService";
-import { quoteForShell } from "./shell";
+
 import { isWithinDirectory } from "./tempAttachments";
 import { isWithinDirectoryReal } from "./pathSafety";
-import { normalizeEndpoint } from "../server/endpoint";
+
 import { BoundedSet } from "../shared/boundedSet";
 import { ChatEventRouter } from "./eventRouter";
 import { ChatCommandHandler } from "./commandHandler";
 import { ExecutionStateService, type ExecutionState } from "./executionState";
 import { createControllerState } from "./controllerState";
+import { ChatDraftActions } from "./draftActions";
 import { ChatFileActions } from "./fileActions";
+import { ChatServerActions } from "./serverActions";
 import { ChatPermissionActions } from "./permissionActions";
 import { ChatRefreshActions } from "./refreshActions";
 
 export type { ExecutionState, ExecutionStatus, TerminalStatus } from "./executionState";
 
-import { PASSWORD_KEY, SESSION_KEY, COMPAT_DISMISSED_KEY, CONTRACT_DISMISSED_KEY, DRAFTS_KEY } from "./storageKeys";
+import { SESSION_KEY, COMPAT_DISMISSED_KEY, CONTRACT_DISMISSED_KEY, DRAFTS_KEY } from "./storageKeys";
 
 import {
   LIVE_POLL_MS,
@@ -84,6 +86,8 @@ export class ChatController implements vscode.Disposable {
   private readonly permissionActions: ChatPermissionActions;
   private readonly fileActions: ChatFileActions;
   private readonly refreshActions: ChatRefreshActions;
+  private readonly draftActions: ChatDraftActions;
+  private readonly serverActions: ChatServerActions;
   /** All live chats and their listeners; see views.ts. */
   private readonly chatViews: ChatViews;
   /** Server process, HTTP client and SSE stream ownership; see connectionSupervisor.ts. */
@@ -404,24 +408,24 @@ export class ChatController implements vscode.Disposable {
       post: (msg) => this.post(msg),
       postInit: () => this.postInit(),
       postConnection: () => this.postConnection(),
-      postDrafts: () => this.postDrafts(),
+      postDrafts: () => this.draftActions.post(),
       postLocalIdle: (sid, generation) => this.postLocalIdle(sid, generation),
       connect: () => this.connect(),
       loadAll: () => this.loadAll(),
       loadSession: (info, stale) => this.loadSession(info, stale),
       send: (text, attachments, context, delivery) => this.send(text, attachments, context, delivery),
       newSession: () => this.newSession(),
-      saveDraft: (sid, text) => this.saveDraft(sid, text),
+      saveDraft: (sid, text) => this.draftActions.save(sid, text),
       refreshSessions: () => this.refreshSessions(),
       loadMoreSessions: () => this.loadMoreSessions(),
       setAutoApprove: (enabled) => this.permissionActions.set(enabled),
-      setPassword: () => this.setPassword(),
+      setPassword: () => this.serverActions.setPassword(),
       dropFiles: (files) => this.fileActions.dropFiles(files),
       pickFiles: () => this.fileActions.pickFiles(),
       openFile: (file) => this.fileActions.openFile(file),
       openAttachment: (uri) => this.fileActions.openAttachment(uri),
       openLink: (href) => this.fileActions.openLink(href),
-      runAction: (id) => this.runAction(id),
+      runAction: (id) => this.serverActions.run(id),
       switchFolder: (folder) => this.switchFolder(folder),
       refreshChanges: () => this.refreshActions.refreshChanges(),
       syncNow: () => this.syncNow(),
@@ -474,6 +478,22 @@ export class ChatController implements vscode.Disposable {
       getClient: () => this.client,
       post: (msg) => this.post(msg),
       refreshSessions: () => this.refreshSessions(),
+    });
+    this.draftActions = new ChatDraftActions({
+      state: this.state,
+      workspaceState: ctx.workspaceState,
+      post: (msg) => this.post(msg),
+    });
+    this.serverActions = new ChatServerActions({
+      state: this.state,
+      secrets: ctx.secrets,
+      output,
+      reconnect: () => this.reconnect(),
+      resetServers: () => this.resetServers(),
+      newSession: () => this.newSession(),
+      send: (text, attachments, context, delivery) => this.send(text, attachments, context, delivery),
+      saveDraft: (sid, text) => this.draftActions.save(sid, text),
+      post: (msg) => this.post(msg),
     });
     const refreshFileIcons = () => {
       this.fileIcons.invalidate();
@@ -1104,24 +1124,6 @@ export class ChatController implements vscode.Disposable {
   }
 
   /** Drafts live in workspaceState so they survive a window reload (vscode.setState does not). */
-  private postDrafts(): void {
-    if (!this.state.folder) return;
-    const saved = this.ctx.workspaceState.get<{ drafts?: Record<string, string>; globalDraft?: string }>(
-      DRAFTS_KEY(this.state.folder.uri.toString()),
-    );
-    this.post({ type: "drafts", drafts: saved?.drafts ?? {}, globalDraft: saved?.globalDraft });
-  }
-
-  private async saveDraft(sessionId: string | undefined, text: string): Promise<void> {
-    if (!this.state.folder) return;
-    const key = DRAFTS_KEY(this.state.folder.uri.toString());
-    const saved = this.ctx.workspaceState.get<{ drafts?: Record<string, string>; globalDraft?: string }>(key) ?? {};
-    if (sessionId === undefined) {
-      await this.ctx.workspaceState.update(key, { ...saved, globalDraft: text });
-    } else {
-      await this.ctx.workspaceState.update(key, { ...saved, drafts: { ...saved.drafts, [sessionId]: text } });
-    }
-  }
 
   /** Grants requests that were already pending when auto-approval was turned on, in children too. */
 
@@ -1541,121 +1543,18 @@ export class ChatController implements vscode.Disposable {
   }
 
   async setPassword(): Promise<void> {
-    // Use the same folder scope as ServerRegistry.get(), otherwise a per-folder endpoint in a
-    // multi-root workspace is invisible here (and the secret would be stored under the wrong key).
-    const endpoint = normalizeEndpoint(
-      vscode.workspace.getConfiguration("opencode", this.state.folder?.uri).get<string>("endpoint", "").trim(),
-    ).baseUrl;
-    if (!endpoint) {
-      void vscode.window.showInformationMessage(
-        vscode.l10n.t(
-          "A password is only needed for an external server (setting opencode.endpoint). The managed server uses a random password automatically.",
-        ),
-      );
-      return;
-    }
-    const value = await vscode.window.showInputBox({
-      prompt: vscode.l10n.t("Password for the OpenCode server at {0}", endpoint),
-      password: true,
-      ignoreFocusOut: true,
-    });
-    if (value === undefined) return;
-    if (value) await this.ctx.secrets.store(PASSWORD_KEY(endpoint), value);
-    else await this.ctx.secrets.delete(PASSWORD_KEY(endpoint));
-    await this.resetServers();
+    await this.serverActions.setPassword();
   }
 
   /**
    * First-run help. A bare docs link used to be a dead end: now the command is visible and
    * copyable, Windows users get platform-specific instructions, and the retry stays in the flow.
    */
-  private async install(): Promise<void> {
-    const isWindows = process.platform === "win32";
-    const command = "curl -fsSL https://opencode.ai/v2/install | bash";
-    const copy = vscode.l10n.t("Copy install command");
-    const docs = vscode.l10n.t("Open install instructions");
-    const retry = vscode.l10n.t("Retry connection");
-    const message = isWindows
-      ? vscode.l10n.t(
-          "OpenCode is not installed or is not on PATH. Follow the Windows install instructions (PowerShell or WSL), then retry.",
-        )
-      : vscode.l10n.t("OpenCode is not installed or is not on PATH. Install it, then retry.\n\n{0}", command);
-    const choice = await vscode.window.showInformationMessage(message, { modal: true }, ...(isWindows ? [] : [copy]), docs, retry);
-    if (choice === copy) await vscode.env.clipboard.writeText(command);
-    else if (choice === docs) await vscode.env.openExternal(vscode.Uri.parse("https://opencode.ai/docs/#installation"));
-    else if (choice === retry) await this.reconnect();
-  }
 
   /** Explain the terminal hand-off before it happens: sign-in is a prerequisite, not a side quest. */
-  private async login(): Promise<void> {
-    const openTerminal = vscode.l10n.t("Open terminal");
-    const learnMore = vscode.l10n.t("Learn more");
-    const choice = await vscode.window.showInformationMessage(
-      vscode.l10n.t(
-        "OpenCode needs a model provider before it can answer. This opens a VS Code terminal where you sign in with `opencode auth login`. Come back to the chat once sign-in finishes.",
-      ),
-      { modal: true },
-      openTerminal,
-      learnMore,
-    );
-    if (choice === learnMore) {
-      await vscode.env.openExternal(vscode.Uri.parse("https://opencode.ai/docs/providers/"));
-      return;
-    }
-    if (choice !== openTerminal) return;
-    const exe =
-      vscode.workspace.getConfiguration("opencode", this.state.folder?.uri).get<string>("executablePath", "opencode").trim() || "opencode";
-    let command: string;
-    try {
-      command = `${quoteForShell(exe)} auth login`;
-    } catch (err) {
-      void vscode.window.showErrorMessage(
-        vscode.l10n.t("Cannot run OpenCode sign-in: {0}", err instanceof Error ? err.message : String(err)),
-      );
-      return;
-    }
-    const terminal = vscode.window.createTerminal({ name: "OpenCode auth", cwd: this.state.folder?.uri });
-    terminal.show();
-    terminal.sendText(command);
-  }
 
   async runAction(id: ActionId): Promise<void> {
-    switch (id) {
-      case "reconnect":
-        return this.reconnect();
-      case "showLogs":
-        this.output.show(true);
-        return;
-      case "openSettings":
-        await vscode.commands.executeCommand("workbench.action.openSettings", "@ext:mattiamalonni.chat-for-opencode");
-        return;
-      case "install":
-        return this.install();
-      case "login":
-        return this.login();
-      case "setPassword":
-        return this.setPassword();
-      case "openFolder":
-        await vscode.commands.executeCommand("vscode.openFolder");
-        return;
-      case "trustWorkspace":
-        // `workspace.requestWorkspaceTrust()` is not in the 1.99 API; the built-in command opens
-        // the same Workspace Trust editor with the current folder selected.
-        await vscode.commands.executeCommand("workbench.trust.manage");
-        return;
-      case "newSession":
-        return this.newSession();
-      case "retry": {
-        const failed = this.state.failedPrompt;
-        if (!failed) return;
-        if (await this.send(failed.text, failed.attachments, failed.context, failed.delivery)) {
-          // The restored text is no longer needed: clear it from both the composer and storage.
-          if (failed.sessionId) await this.saveDraft(failed.sessionId, "").catch(() => undefined);
-          this.post({ type: "draftRestored", sessionId: failed.sessionId, text: "", force: true });
-        }
-        return;
-      }
-    }
+    await this.serverActions.run(id);
   }
 
   // ---- webview messages -------------------------------------------------------------------
@@ -1682,7 +1581,7 @@ export class ChatController implements vscode.Disposable {
     generation?: number,
   ): Promise<void> {
     this.state.failedPrompt = { text, attachments, context, delivery, sessionId: sid };
-    if (sid) await this.saveDraft(sid, text).catch(() => undefined);
+    if (sid) await this.draftActions.save(sid, text).catch(() => undefined);
     this.execution.fail(sid, generation);
     this.post({ type: "draftRestored", sessionId: sid, text });
     const s = translatedStrings();

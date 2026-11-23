@@ -88,7 +88,7 @@ describe("host-side execution state", () => {
     const restoreFailedPrompt = proto["restoreFailedPrompt"] as unknown as (
       this: {
         state: { failedPrompt: unknown };
-        saveDraft: (sid: string, text: string) => Promise<void>;
+        draftActions: { save: (sid: string, text: string) => Promise<void> };
         execution: ExecutionStateService;
         post: (msg: unknown) => void;
       },
@@ -106,7 +106,7 @@ describe("host-side execution state", () => {
     const token = execution.generation.bump();
     const c = {
       state: { failedPrompt: undefined },
-      saveDraft: vi.fn(async () => undefined),
+      draftActions: { save: vi.fn(async () => undefined) },
       execution,
       post: vi.fn(),
     };
