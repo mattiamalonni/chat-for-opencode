@@ -7,9 +7,7 @@ vi.mock("vscode", () => ({
   commands: { executeCommand: vi.fn() },
 }));
 
-import { ChatController } from "../../src/chat/controller";
-
-const proto = ChatController.prototype as unknown as Record<string, (...args: unknown[]) => unknown>;
+import { ChatBulkDelete } from "../../src/chat/bulkDelete";
 
 function fake(isCurrent = true) {
   const client = {
@@ -38,7 +36,20 @@ function fake(isCurrent = true) {
   return { self, client };
 }
 
-const callDeleteAll = (self: unknown): Promise<void> => (proto["deleteAllSessions"] as (this: unknown) => Promise<void>).call(self);
+const callDeleteAll = (self: ReturnType<typeof fake>["self"]): Promise<void> =>
+  (ChatBulkDelete.prototype as unknown as Record<string, (this: unknown, ...args: unknown[]) => unknown>)["run"].call({
+    d: {
+      state: self.state,
+      deleteGeneration: self.deleteGeneration,
+      permissions: self.permissions,
+      sessionList: self.sessionList,
+      workspaceState: self.ctx.workspaceState,
+      getClient: () => self.client,
+      logWarn: (line: string) => self.output.warn(line),
+      refreshSessions: self.refreshSessions,
+      newSession: self.newSession,
+    },
+  }) as Promise<void>;
 
 describe("deleteAllSessions", () => {
   it("stops after a bounded number of pages instead of following an endless cursor", async () => {

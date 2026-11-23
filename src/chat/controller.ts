@@ -40,6 +40,7 @@ import { createControllerState } from "./controllerState";
 import { ChatDraftActions } from "./draftActions";
 import { ChatFileActions } from "./fileActions";
 import { ChatServerActions } from "./serverActions";
+import { ChatBulkDelete } from "./bulkDelete";
 import { ChatConnectionService } from "./connectionService";
 import { ChatPromptActions } from "./promptActions";
 import { ChatSessionService } from "./sessionService";
@@ -48,9 +49,9 @@ import { ChatRefreshActions } from "./refreshActions";
 
 export type { ExecutionState, ExecutionStatus, TerminalStatus } from "./executionState";
 
-import { SESSION_KEY, COMPAT_DISMISSED_KEY, CONTRACT_DISMISSED_KEY, DRAFTS_KEY } from "./storageKeys";
+import { SESSION_KEY, COMPAT_DISMISSED_KEY, CONTRACT_DISMISSED_KEY } from "./storageKeys";
 
-import { MAX_DELETE_IDS, MAX_DELETE_PAGES, ServerRegistry, toUiError, translatedStrings } from "./controllerSupport";
+import { ServerRegistry, toUiError, translatedStrings } from "./controllerSupport";
 
 export { ServerRegistry, translatedStrings } from "./controllerSupport";
 
@@ -66,6 +67,7 @@ export class ChatController implements vscode.Disposable {
   private readonly sessionService: ChatSessionService;
   private readonly promptActions: ChatPromptActions;
   private readonly connectionService: ChatConnectionService;
+  private readonly bulkDelete: ChatBulkDelete;
   /** All live chats and their listeners; see views.ts. */
   private readonly chatViews: ChatViews;
   /** Server process, HTTP client and SSE stream ownership; see connectionSupervisor.ts. */
@@ -542,6 +544,17 @@ export class ChatController implements vscode.Disposable {
       setStatus: (status) => this.setStatus(status),
       refreshSessions: () => this.refreshSessions(),
     });
+    this.bulkDelete = new ChatBulkDelete({
+      state: this.state,
+      deleteGeneration: this.deleteGeneration,
+      permissions: this.permissions,
+      sessionList: this.sessionList,
+      workspaceState: ctx.workspaceState,
+      getClient: () => this.client,
+      logWarn: (line) => output.warn(line),
+      refreshSessions: () => this.refreshSessions(),
+      newSession: () => this.connectionService.newSession(),
+    });
     const refreshFileIcons = () => {
       this.fileIcons.invalidate();
       this.post({ type: "fileIcons", icons: {}, fonts: {}, reset: true });
@@ -880,72 +893,7 @@ export class ChatController implements vscode.Disposable {
    * walking the pages would shift the offsets and skip sessions.
    */
   async deleteAllSessions(): Promise<void> {
-    const client = this.client;
-    const folder = this.state.folder;
-    if (!client || !folder) return;
-    const directory = folder.uri.fsPath;
-    this.state.deleteAllAbort?.abort();
-    const abort = new AbortController();
-    this.state.deleteAllAbort = abort;
-    const token = this.deleteGeneration.current();
-    const stale = () => abort.signal.aborted || !this.deleteGeneration.is(token) || this.state.folder !== folder || this.client !== client;
-    const ids = new Set<string>();
-    const seenCursors = new Set<string>();
-    let cursor: string | undefined;
-    try {
-      let exhausted = false;
-      for (let page = 0; page < MAX_DELETE_PAGES; page++) {
-        if (stale()) return;
-        const { items, next } = await client.listSessionsPage(directory, 100, cursor, abort.signal);
-        if (stale()) return;
-        for (const info of items) ids.add(info.id);
-        if (ids.size > MAX_DELETE_IDS) throw new Error("Too many sessions to delete");
-        if (!next || seenCursors.has(next)) {
-          exhausted = true;
-          break;
-        }
-        seenCursors.add(next);
-        cursor = next;
-      }
-      if (!exhausted) throw new Error("Too many session pages to delete");
-
-      const currentId = this.state.sessionId;
-      const deleted: string[] = [];
-      for (const id of ids) {
-        if (stale()) return;
-        try {
-          await client.deleteSession(id);
-          deleted.push(id);
-          await this.permissions.write(id, undefined);
-        } catch (err) {
-          // A child already removed with its parent (or a stale session) must not abort the cleanup.
-          this.output.warn(`[chat] failed to delete session ${id}: ${String(err)}`);
-        }
-      }
-      if (stale()) return;
-
-      this.sessionList.forget(deleted);
-      if (deleted.length > 0) {
-        const key = DRAFTS_KEY(folder.uri.toString());
-        const saved = this.ctx.workspaceState.get<{ drafts?: Record<string, string> }>(key) ?? {};
-        if (saved.drafts) {
-          const drafts = { ...saved.drafts };
-          for (const id of deleted) delete drafts[id];
-          await this.ctx.workspaceState.update(key, { ...saved, drafts });
-        }
-      }
-
-      if (ids.size > 0 && deleted.length === 0) {
-        // Nothing could be removed; keep the chat as it is and let the list re-sync from the server.
-        await this.refreshSessions();
-        throw new Error(translatedStrings()["error.requestFailed"]);
-      }
-      // Clear the current chat when its session was among the deleted ones (also covers "no session").
-      if (!currentId || ids.has(currentId)) await this.connectionService.newSession();
-      else await this.refreshSessions();
-    } finally {
-      if (this.state.deleteAllAbort === abort) this.state.deleteAllAbort = undefined;
-    }
+    await this.bulkDelete.run();
   }
 
   /** Ask the server to compact the current session (runs at the next step boundary). */
