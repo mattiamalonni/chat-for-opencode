@@ -66,12 +66,16 @@ drops malformed entries cannot hide an unsupported server.
 
 ```
 src/
-  extension.ts            activation, commands
+  extension.ts            activation and composition root
+  commands.ts             command/palette registration
+  auth/                   `opencode auth list` parsing
+  status/                 usage and account status-bar presenters
   server/                 process management (managed / external)
   client/                 HTTP client, SSE parser + stream, API types
   chat/                   ChatController, ViewProvider, diff, context, l10n strings
-  shared/                 code shared by host and webview (protocol, reducer, patch, keys)
-  webview/                Preact app (bundled separately for the browser)
+  shared/                 code shared by host and webview (protocol, reducer, patch, keys);
+                          the reducer is split into chatReducer/* behind chatReducer.ts
+  webview/                Preact app (App orchestrator + focused view modules, bundled separately)
 test/
   unit/                   vitest unit tests (client, sse, reducer, patch, keys, server)
   mock/                   mock OpenCode server (HTTP + scripted SSE)

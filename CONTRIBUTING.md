@@ -22,16 +22,17 @@ work the deterministic mock server used by the tests is enough. Install the Play
 
 ## Where things live
 
-| Area                                        | Entry point                                              |
-| ------------------------------------------- | -------------------------------------------------------- |
-| Extension activation, commands, status bar  | `src/extension.ts`                                       |
-| Chat orchestration and command dispatch     | `src/chat/controller.ts`                                 |
-| Turn state (status, generation, local idle) | `src/chat/executionState.ts`                             |
-| Server process, restart, credentials        | `src/server/server.ts`, `src/server/redact.ts`           |
-| HTTP client, SSE parser                     | `src/client/http.ts`, `src/client/sse.ts`                |
-| Picker, paging, search                      | `src/chat/sessionListService.ts`                         |
-| Webview UI and reducer                      | `src/webview/`, `src/shared/chatReducer.ts`              |
-| Protocol and runtime guards                 | `src/shared/protocol.ts`, `src/shared/protocolGuards.ts` |
+| Area                                        | Entry point                                                                       |
+| ------------------------------------------- | --------------------------------------------------------------------------------- |
+| Extension activation and composition root   | `src/extension.ts`                                                                |
+| Commands, status bars, auth CLI parsing     | `src/commands.ts`, `src/status/`, `src/auth/`                                     |
+| Chat orchestration and command dispatch     | `src/chat/controller.ts`                                                          |
+| Turn state (status, generation, local idle) | `src/chat/executionState.ts`                                                      |
+| Server process, restart, credentials        | `src/server/server.ts`, `src/server/redact.ts`                                    |
+| HTTP client, SSE parser                     | `src/client/http.ts`, `src/client/sse.ts`                                         |
+| Picker, paging, search                      | `src/chat/sessionListService.ts`                                                  |
+| Webview UI and reducer                      | `src/webview/` (App + view modules), `src/shared/chatReducer.ts` + `chatReducer/` |
+| Protocol and runtime guards                 | `src/shared/protocol.ts`, `src/shared/protocolGuards.ts`                          |
 
 Architecture notes and API facts: [docs/README.md](docs/README.md).
 
