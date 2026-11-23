@@ -31,9 +31,8 @@ The in-product walkthrough (**Help → Welcome → Get started with OpenCode**) 
 ## Screenshots
 
 `npm run test:ui` writes the full set of numbered PNGs to `test/ui/screenshots/`; CI uploads them as
-the `ui-screenshots` artifact. The two images embedded in [FEATURES.md](FEATURES.md) are committed
-copies from `docs/images/`, renamed without the numeric prefix. After a UI change, regenerate the set
-and refresh those copies deliberately.
+the `ui-screenshots` artifact. The PNGs are committed, not produced at build time; regenerate the set
+after a UI change.
 
 ## Generated artefacts
 
