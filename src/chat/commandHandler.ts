@@ -35,7 +35,6 @@ export interface CommandHandlerHooks {
   refreshSessions(): Promise<void>;
   loadMoreSessions(): Promise<void>;
   setAutoApprove(enabled: boolean): Promise<void>;
-  setPassword(): Promise<void>;
   dropFiles(files: DroppedFile[]): Promise<void>;
   pickFiles(): Promise<void>;
   openFile(path: string): Promise<void>;

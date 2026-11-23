@@ -35,7 +35,7 @@ export interface SupervisorHooks {
  * Owns the server process handle, the HTTP client and the SSE stream: who we are connected to and
  * when that connection is stale. The controller keeps the chat-state work (`useConnection`,
  * `loadAll`, resync) and reacts through hooks, so connection ownership is no longer interleaved with
- * state publication in one 2,000-line class.
+ * state publication in the monolithic controller.
  */
 export class ConnectionSupervisor {
   private server: ServerHandle | undefined;

@@ -12,19 +12,7 @@
  * access to the current session and can report an actionable error.
  */
 
-import type { ModelRef } from "./api";
-import {
-  ACTION_IDS,
-  UI_ERROR_KINDS,
-  type ActionId,
-  type Attachment,
-  type ContextItem,
-  type DroppedFile,
-  type HostMessage,
-  type SessionSummary,
-  type UiError,
-  type WebviewMessage,
-} from "./protocol";
+import { ACTION_IDS, UI_ERROR_KINDS, type ActionId, type HostMessage, type WebviewMessage } from "./protocol";
 
 /** Generous caps: large prompts and patches are legitimate, unbounded arrays are not. */
 const MAX_ID = 4096;
@@ -305,34 +293,16 @@ export function isHostMessage(value: unknown): value is HostMessage {
 }
 
 /** Exported for tests: validate an attachment without needing a full message wrapper. */
-export function isAttachmentValue(value: unknown): value is Attachment {
-  return isAttachment(value);
-}
 
 /** Exported for tests: validate a context item without needing a full message wrapper. */
-export function isContextItemValue(value: unknown): value is ContextItem {
-  return isContextItem(value);
-}
 
 /** Exported for tests: validate a dropped file without needing a full message wrapper. */
-export function isDroppedFileValue(value: unknown): value is DroppedFile {
-  return isDroppedFile(value);
-}
 
 /** Exported for tests: validate a session row without needing a full message wrapper. */
-export function isSessionSummaryValue(value: unknown): value is SessionSummary {
-  return isSessionRow(value);
-}
 
 /** Exported for tests: validate a UI error without needing a full message wrapper. */
-export function isUiErrorValue(value: unknown): value is UiError {
-  return isUiError(value);
-}
 
 /** Exported for tests: validate a model reference without needing a full message wrapper. */
-export function isModelRefValue(value: unknown): value is ModelRef {
-  return isModelRef(value);
-}
 
 /** Exported for tests: check a single action id against the protocol whitelist. */
 export function isActionId(value: unknown): value is ActionId {

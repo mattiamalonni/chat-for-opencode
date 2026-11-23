@@ -18,7 +18,6 @@ import type {
   OtherMessageType,
   PermissionRequest,
   ServerEvent,
-  ServerInfo,
   SessionInfo,
   SessionMessage,
   SkillInfo,
@@ -401,13 +400,6 @@ export function normalizeFileDiff(raw: unknown): FileDiff | undefined {
     deletions: num(o.deletions) ?? 0,
     status: status === "added" || status === "deleted" ? status : "modified",
   };
-}
-
-export function normalizeServerInfo(raw: unknown): ServerInfo | undefined {
-  const o = obj(raw);
-  const version = o && str(o.version);
-  if (!o || !version) return undefined;
-  return { version, pid: num(o.pid) ?? 0, urls: arr(o.urls).filter((v): v is string => typeof v === "string") };
 }
 
 /** Applies a normaliser to an array, dropping entries that do not match the expected shape. */

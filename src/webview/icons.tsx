@@ -67,7 +67,6 @@ export const IconWarning = svg("M8 1 15 14H1zm-.7 4v4.5h1.4V5zm0 5.8v1.4h1.4v-1.
 export const IconInfo = svg("M8 1a7 7 0 1 1 0 14A7 7 0 0 1 8 1zm-.7 6v5h1.4V7zm0-2.7v1.4h1.4V4.3z");
 export const IconTrash = svg("M6 1h4v1h4v1H2V2h4zM3 4h10l-1 11H4zm2 1 .6 9h1L6 5zm4.4 0L9 14h1l.6-9z");
 export const IconEdit = svg("M11.9 1.6a1.5 1.5 0 0 1 2.1 0l.4.4a1.5 1.5 0 0 1 0 2.1L5.7 12.8 2 14l1.2-3.7z");
-export const IconDiff = svg("M4 1h1v3h3v1H5v3H4V5H1V4h3zm-3 10h7v1H1zm9-10 5 5-5 5V1z");
 /** Two circular arrows: reads as "refresh" even at 16px. */
 export const IconRefresh = function IconRefresh(props: P) {
   return (

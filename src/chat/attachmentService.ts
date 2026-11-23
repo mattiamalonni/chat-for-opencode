@@ -56,7 +56,6 @@ export class AttachmentService {
 
   private unreadable(name: string, detail: string): void {
     this.notice("unreadable", name, detail);
-    this.log(`[chat] skipped unreadable attachment ${name}: ${detail}`);
   }
 
   /** Persists inline bytes to an extension-owned temp file so its chip can be opened in an editor. */

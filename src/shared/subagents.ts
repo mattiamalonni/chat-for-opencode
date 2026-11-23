@@ -1,13 +1,5 @@
 import type { ServerEvent } from "./api";
-import {
-  chatReducer,
-  eventSessionId,
-  initialChatState,
-  type ChatState,
-  type ToolPart,
-  type ToolStatus,
-  type UiAssistantMessage,
-} from "./chatReducer";
+import { chatReducer, initialChatState, type ChatState, type ToolPart, type ToolStatus, type UiAssistantMessage } from "./chatReducer";
 import type { SubagentSnapshot } from "./protocol";
 import { parseSubagentReport } from "./subagentReport";
 
@@ -275,10 +267,7 @@ export function subagentView(part: ToolPart, child?: ChatState, meta?: SubagentM
   const started = messages[0]?.created;
   let ended: number | undefined;
   if (started !== undefined && child && !child.busy) {
-    for (let i = messages.length - 1; i >= 0; i--) {
-      ended = messages[i].created;
-      break;
-    }
+    ended = messages[messages.length - 1].created;
   }
 
   return {
@@ -297,7 +286,3 @@ export function subagentView(part: ToolPart, child?: ChatState, meta?: SubagentM
 }
 
 /** Whether an event belongs to a child session we track (host-side helper). */
-export function isChildEvent(event: ServerEvent, childIds: ReadonlySet<string>): boolean {
-  const sid = eventSessionId(event);
-  return !!sid && childIds.has(sid);
-}

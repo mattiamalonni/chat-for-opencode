@@ -34,7 +34,6 @@ function setup(overrides: Partial<CommandHandlerHooks> = {}) {
     refreshSessions: vi.fn(async () => undefined),
     loadMoreSessions: vi.fn(async () => undefined),
     setAutoApprove: vi.fn(async () => undefined),
-    setPassword: vi.fn(async () => undefined),
     dropFiles: vi.fn(async () => undefined),
     pickFiles: vi.fn(async () => undefined),
     openFile: vi.fn(async () => undefined),
