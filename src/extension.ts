@@ -1,44 +1,12 @@
-import { execFile } from "node:child_process";
 import * as path from "node:path";
-import { promisify } from "node:util";
 import * as vscode from "vscode";
-import { ChatController, ServerRegistry, type ExecutionStatus, type SessionSearchResult } from "./chat/controller";
+import { registerCommands } from "./commands";
+import { ChatController, ServerRegistry } from "./chat/controller";
 import { DIFF_SCHEME, DiffService } from "./chat/diff";
-import { selectionAttachment } from "./chat/context";
-import { usageLabel, usageTooltip, usageUpdateFromMessage, type SessionUsage } from "./chat/usageStatus";
 import { ChatViewProvider } from "./chat/viewProvider";
 import { cleanupOrphanServers } from "./server/orphans";
-
-const execFileAsync = promisify(execFile);
-
-type AuthMenuItem = vscode.QuickPickItem & { command?: "login" };
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
-function parseAuthLogins(output: string): vscode.QuickPickItem[] {
-  const parsed: unknown = JSON.parse(output);
-  if (!Array.isArray(parsed)) throw new Error("Expected an array from `opencode auth list --format json`.");
-
-  const items: vscode.QuickPickItem[] = [];
-  for (const integration of parsed) {
-    if (!isRecord(integration) || typeof integration.id !== "string") {
-      throw new Error("Unexpected integration format from `opencode auth list --format json`.");
-    }
-    if (integration.id !== "opencode") continue;
-    if (typeof integration.name !== "string" || !Array.isArray(integration.connections)) {
-      throw new Error("Unexpected OpenCode login format from `opencode auth list --format json`.");
-    }
-    for (const connection of integration.connections) {
-      if (!isRecord(connection)) throw new Error("Unexpected login format from `opencode auth list --format json`.");
-      const description = typeof connection.label === "string" ? connection.label : undefined;
-      const detail = [connection.method, connection.type].filter((value): value is string => typeof value === "string").join(" · ");
-      items.push({ label: integration.name, description, detail: detail || undefined });
-    }
-  }
-  return items;
-}
+import { createAccountStatus } from "./status/account";
+import { createUsageStatus } from "./status/usage";
 
 let registry: ServerRegistry | undefined;
 let controller: ChatController | undefined;
@@ -50,6 +18,7 @@ export interface ExtensionApi {
 export function activate(context: vscode.ExtensionContext): ExtensionApi {
   const output = vscode.window.createOutputChannel("OpenCode", { log: true });
   const log = (line: string) => output.info(line);
+  const logError = (line: string) => output.error(line);
   const recordsDir = path.join(context.globalStorageUri.fsPath, "servers");
   // A server whose extension host died (VS Code crash) cannot clean up after itself. Reap it
   // before starting any new one, but leave servers owned by other live VS Code windows alone.
@@ -60,42 +29,14 @@ export function activate(context: vscode.ExtensionContext): ExtensionApi {
   const chat = controller;
 
   const focusView = () => vscode.commands.executeCommand(`${ChatViewProvider.viewId}.focus`);
-  const readAuthLogins = async () => {
-    if (!vscode.workspace.isTrusted) throw new Error("Workspace is not trusted");
-    const executable = vscode.workspace.getConfiguration("opencode").get<string>("executablePath", "opencode").trim() || "opencode";
-    const { stdout } = await execFileAsync(executable, ["auth", "list", "--format", "json"], { timeout: 10_000 });
-    return parseAuthLogins(stdout);
-  };
-
-  // A second, quiet status item keeps the running cost visible even with the sidebar collapsed.
-  // It mirrors the server's session usage; the webview's context meter remains the detailed view.
-  const usageItem = vscode.window.createStatusBarItem("opencode.usage", vscode.StatusBarAlignment.Right, 99);
-  usageItem.name = vscode.l10n.t("OpenCode session usage");
-  usageItem.command = "opencode.focus";
-  let sessionUsage: SessionUsage | undefined;
-  const renderUsage = () => {
-    const enabled = vscode.workspace.getConfiguration("opencode").get<boolean>("showUsageInStatusBar", true);
-    if (!sessionUsage || !enabled || !vscode.workspace.isTrusted) {
-      usageItem.hide();
-      return;
-    }
-    usageItem.text = usageLabel(sessionUsage);
-    usageItem.tooltip = usageTooltip(sessionUsage, (message) => vscode.l10n.t(message));
-    usageItem.show();
-  };
-  renderUsage();
+  const usage = createUsageStatus();
+  const account = createAccountStatus(logError);
 
   context.subscriptions.push(
-    usageItem,
-    chat.onDidPost((msg) => {
-      const update = usageUpdateFromMessage(msg);
-      if (update.kind === "keep") return;
-      sessionUsage = update.kind === "set" ? update.usage : undefined;
-      renderUsage();
-    }),
-    vscode.workspace.onDidChangeConfiguration((e) => {
-      if (e.affectsConfiguration("opencode.showUsageInStatusBar")) renderUsage();
-    }),
+    usage.item,
+    account.item,
+    chat.onDidPost((msg) => usage.onMessage(msg)),
+    vscode.workspace.onDidChangeConfiguration((e) => usage.onConfigurationChanged(e)),
     output,
     vscode.workspace.registerTextDocumentContentProvider(DIFF_SCHEME, diffs),
     vscode.window.registerWebviewViewProvider(ChatViewProvider.viewId, new ChatViewProvider(context.extensionUri, chat)),
@@ -107,266 +48,11 @@ export function activate(context: vscode.ExtensionContext): ExtensionApi {
     // 1.99 exposes only the "granted" event: untrusting a workspace requires a window reload, so
     // there is nothing to react to there. Reconnect/prompt paths re-check `isTrusted` themselves.
     vscode.workspace.onDidGrantWorkspaceTrust(() => void chat.onWorkspaceTrustChanged(true)),
-    vscode.commands.registerCommand("opencode.newSession", async () => {
-      await focusView();
-      await chat.newSession();
-    }),
-    vscode.commands.registerCommand("opencode.restart", async () => {
-      const restart = vscode.l10n.t("Restart");
-      // A modal showWarningMessage already gets a native Cancel button: adding one as an action
-      // would show it twice.
-      const choice = await vscode.window.showWarningMessage(
-        vscode.l10n.t("Restart the OpenCode server?"),
-        {
-          modal: true,
-          detail: vscode.l10n.t(
-            "The current server and its event stream are torn down and started again. Running turns are interrupted and pending approvals are cancelled.",
-          ),
-        },
-        restart,
-      );
-      if (choice === restart) await chat.resetServers();
-    }),
-    vscode.commands.registerCommand("opencode.install", () => chat.runAction("install")),
-    vscode.commands.registerCommand("opencode.openSettings", () => chat.runAction("openSettings")),
-    vscode.commands.registerCommand("opencode.compact", () => chat.compact()),
-    vscode.commands.registerCommand("opencode.searchSessions", async () => {
-      const query = await vscode.window.showInputBox({
-        title: vscode.l10n.t("Search all OpenCode conversations"),
-        prompt: vscode.l10n.t("Search session titles and messages in this workspace"),
-      });
-      if (!query?.trim()) return;
-      const hits = await vscode.window.withProgress(
-        { location: vscode.ProgressLocation.Notification, title: vscode.l10n.t("Searching conversations…") },
-        () => chat.searchSessions(query),
-      );
-      if (hits.length === 0) {
-        void vscode.window.showInformationMessage(vscode.l10n.t("No conversation matched “{0}”.", query));
-        return;
-      }
-      type HitItem = vscode.QuickPickItem & { hit: SessionSearchResult };
-      const items: HitItem[] = hits.map((hit) => ({
-        label: hit.title,
-        description: new Date(hit.updated).toLocaleString(),
-        detail: hit.snippet,
-        hit,
-      }));
-      const picked = await vscode.window.showQuickPick(items, {
-        title: vscode.l10n.t("Conversations matching “{0}”", query),
-        matchOnDetail: true,
-      });
-      if (picked) await chat.openSearchResult(picked.hit);
-    }),
-    // Single-modal MRU switcher: recent sessions appear immediately, and typing extends the search
-    // to all conversations in place instead of opening a second dialog on top of the first.
-    vscode.commands.registerCommand("opencode.quickSwitchSession", () => {
-      type Pick = vscode.QuickPickItem & { sessionId: string; messageId?: string };
-      const picker = vscode.window.createQuickPick<Pick>();
-      const recent = chat.recentSessions();
-      const recentItems = (query: string): Pick[] =>
-        recent
-          .filter((s) => !query || s.title.toLowerCase().includes(query.toLowerCase()))
-          .map((s) => ({
-            label: s.title || vscode.l10n.t("Untitled session"),
-            description: s.needsInput
-              ? vscode.l10n.t("Needs your input")
-              : s.busy
-                ? vscode.l10n.t("Running")
-                : new Date(s.updated).toLocaleString(),
-            sessionId: s.id,
-          }));
-      const hitItems = (hits: SessionSearchResult[]): Pick[] =>
-        hits.map((hit) => ({
-          label: hit.title,
-          description: new Date(hit.updated).toLocaleString(),
-          detail: hit.snippet,
-          sessionId: hit.sessionId,
-          messageId: hit.messageId,
-        }));
-      picker.title = vscode.l10n.t("Switch OpenCode session");
-      picker.placeholder = vscode.l10n.t("Type to filter recent sessions, or search all conversations…");
-      picker.items = recentItems("");
-      let timer: ReturnType<typeof setTimeout> | undefined;
-      let token = 0;
-      picker.onDidChangeValue((value) => {
-        if (timer) clearTimeout(timer);
-        const query = value.trim();
-        const local = recentItems(query);
-        picker.items = local;
-        if (!query) return;
-        const current = ++token;
-        timer = setTimeout(() => {
-          void chat.searchSessions(query).then((hits) => {
-            if (current !== token) return;
-            const known = new Set(local.map((item) => item.sessionId));
-            picker.items = [...local, ...hitItems(hits).filter((hit) => !known.has(hit.sessionId))];
-          });
-        }, 250);
-      });
-      picker.onDidAccept(async () => {
-        const picked = picker.activeItems[0];
-        picker.hide();
-        if (!picked) return;
-        await chat.openSearchResult({
-          sessionId: picked.sessionId,
-          title: picked.label,
-          snippet: picked.detail ?? "",
-          updated: Date.now(),
-          messageId: picked.messageId,
-        });
-      });
-      picker.onDidHide(() => {
-        if (timer) clearTimeout(timer);
-        token++;
-        picker.dispose();
-      });
-      picker.show();
-    }),
-    vscode.commands.registerCommand("opencode.focus", async () => {
-      await focusView();
-      chat.post({ type: "focusInput" });
-    }),
-    // Bound to the status bar while a turn is running, so the spinner itself is actionable.
-    vscode.commands.registerCommand("opencode.stopTurn", () => void chat.receive({ type: "abort" })),
-    vscode.commands.registerCommand("opencode.openChatInEditor", () => chat.openChatInEditor()),
-    vscode.commands.registerCommand("opencode.ask", async () => {
-      const text = await vscode.window.showInputBox({
-        title: vscode.l10n.t("Ask OpenCode"),
-        prompt: vscode.l10n.t("Send a prompt without leaving your editor"),
-        placeHolder: vscode.l10n.t("Describe what you want OpenCode to do…"),
-      });
-      if (!text?.trim()) return;
-      const editor = vscode.window.activeTextEditor;
-      const attachment =
-        editor && !editor.selection.isEmpty && editor.document.uri.scheme === "file" ? selectionAttachment(editor) : undefined;
-      await focusView();
-      // Fill the composer instead of sending straight away: the selection must travel with the
-      // prompt and the user gets to review (or extend) it before it reaches the agent.
-      chat.prefillDraft(text.trim(), attachment ? [attachment] : []);
-    }),
-    vscode.commands.registerCommand("opencode.account", async () => {
-      let logins: vscode.QuickPickItem[];
-      try {
-        logins = await readAuthLogins();
-      } catch (err) {
-        output.error(`[auth] failed to read OpenCode logins: ${String(err)}`);
-        authLogins = undefined;
-        updateStatusTooltip();
-        const action = await vscode.window.showErrorMessage(
-          vscode.l10n.t("Could not load OpenCode login information. Check the OpenCode installation and executable path."),
-          vscode.l10n.t("Open settings"),
-        );
-        if (action) await vscode.commands.executeCommand("workbench.action.openSettings", "opencode.executablePath");
-        return;
-      }
-
-      authLogins = logins;
-      updateStatusTooltip();
-      const items: AuthMenuItem[] = logins.map((login) => ({ ...login }));
-      if (items.length) items.push({ label: vscode.l10n.t("Actions"), kind: vscode.QuickPickItemKind.Separator });
-      items.push({
-        label: vscode.l10n.t("Sign in or add an OpenCode login"),
-        description: vscode.l10n.t("Run opencode auth login"),
-        command: "login",
-      });
-      const selection = await vscode.window.showQuickPick(items, {
-        title: vscode.l10n.t("OpenCode login"),
-        placeHolder: logins.length ? vscode.l10n.t("Saved OpenCode logins") : vscode.l10n.t("No saved OpenCode login found"),
-      });
-      if (selection?.command === "login") await chat.runAction("login");
-    }),
-    vscode.commands.registerCommand("opencode.moveView", async () => {
-      // `workbench.action.moveFocusedView` reads VS Code's internal `focusedView` context key,
-      // which is cleared when focus enters a webview iframe (and by the overflow menu itself).
-      // `trackFocus` fires that blur on a 0ms timer, so even setting the key right before the
-      // command is racy. The non-focused variant passes the view id explicitly to the
-      // destination picker and never errors on a missing focus; it preselects our view when
-      // the key happens to be set.
-      await vscode.commands.executeCommand("setContext", "focusedView", ChatViewProvider.viewId);
-      await vscode.commands.executeCommand("workbench.action.moveView");
-    }),
-    vscode.commands.registerCommand("opencode.showLogs", () => output.show(true)),
-    vscode.commands.registerCommand("opencode.setServerPassword", () => chat.setPassword()),
-    // Reset only the registry would leave the controller holding a disposed handle and an SSE
-    // stream reconnecting to a dead port; tear down the whole connection through the controller.
-    vscode.commands.registerCommand("opencode.stopServer", () => chat.stopServer()),
-    vscode.workspace.onDidChangeConfiguration((e) => {
-      if (
-        e.affectsConfiguration("opencode.executablePath") ||
-        e.affectsConfiguration("opencode.endpoint") ||
-        e.affectsConfiguration("opencode.startupTimeout") ||
-        e.affectsConfiguration("opencode.autoRestart")
-      ) {
-        void chat.resetServers();
-      }
-    }),
+    ...registerCommands({ chat, account, output, logError }),
+    chat.onDidChangeExecution((state) => account.setExecution(state)),
   );
 
-  // Keep account access visible even when the Secondary Side Bar is closed.
-  const status = vscode.window.createStatusBarItem("opencode.status", vscode.StatusBarAlignment.Right, 100);
-  status.name = vscode.l10n.t("OpenCode account");
-  status.text = "$(comment-discussion)";
-  let authLogins: vscode.QuickPickItem[] | undefined;
-  // Only the tooltip reads it now; the icon itself comes straight from the execution event.
-  let executionStatus: ExecutionStatus = "idle";
-  const statusDescriptions: Record<ExecutionStatus, string> = {
-    idle: vscode.l10n.t("Idle"),
-    running: vscode.l10n.t("Generating a response — click to stop"),
-    needsInput: vscode.l10n.t("Waiting for your approval or answer — click to open the chat"),
-    succeeded: vscode.l10n.t("Response complete — click to open the chat"),
-    failed: vscode.l10n.t("Response failed — click to open the chat"),
-    interrupted: vscode.l10n.t("Response interrupted — click to open the chat"),
-  };
-  const updateStatusTooltip = () => {
-    if (!vscode.workspace.isTrusted) {
-      status.tooltip = vscode.l10n.t("Trust this workspace to use OpenCode");
-      return;
-    }
-    const loginHint =
-      authLogins === undefined
-        ? vscode.l10n.t("Click to view OpenCode login information")
-        : authLogins.length
-          ? vscode.l10n.t(
-              "OpenCode logins: {0}\nClick to manage logins",
-              [...new Set(authLogins.map((login) => [login.label, login.description, login.detail].filter(Boolean).join(" —")))].join(", "),
-            )
-          : vscode.l10n.t("No saved OpenCode login. Click to sign in");
-    status.tooltip = executionStatus === "idle" ? loginHint : `${statusDescriptions[executionStatus]}\n${loginHint}`;
-  };
-  updateStatusTooltip();
-  status.command = "opencode.account";
-  const executionIcons: Record<ExecutionStatus, string> = {
-    idle: "$(comment-discussion)",
-    running: "$(sync~spin)",
-    needsInput: "$(question)",
-    succeeded: "$(check)",
-    failed: "$(alert)",
-    interrupted: "$(stop)",
-  };
-  status.text = executionIcons.idle;
-  context.subscriptions.push(
-    status,
-    chat.onDidChangeExecution((state) => {
-      status.text = executionIcons[state.status];
-      executionStatus = state.status;
-      status.command = state.status === "running" ? "opencode.stopTurn" : state.status === "idle" ? "opencode.account" : "opencode.focus";
-      status.color = state.status === "needsInput" ? new vscode.ThemeColor("charts.yellow") : undefined;
-      updateStatusTooltip();
-    }),
-  );
-  status.show();
-  if (vscode.workspace.isTrusted)
-    void readAuthLogins().then(
-      (logins) => {
-        authLogins = logins;
-        updateStatusTooltip();
-      },
-      (err: unknown) => {
-        authLogins = undefined;
-        output.error(`[auth] failed to read OpenCode logins: ${String(err)}`);
-        status.tooltip = vscode.l10n.t("Could not load OpenCode login information. Click to retry");
-      },
-    );
+  account.loadLogins();
 
   const REVEALED_KEY = "opencode.revealedOnce";
   if (!context.globalState.get<boolean>(REVEALED_KEY)) {
