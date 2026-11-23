@@ -189,6 +189,31 @@ export class ChatController implements vscode.Disposable {
     );
     this.context = new ContextTracker((items) => this.post({ type: "context", items }));
 
+    const readUri = async (uri: vscode.Uri): Promise<string | undefined> => {
+      try {
+        return new TextDecoder().decode(await vscode.workspace.fs.readFile(uri));
+      } catch {
+        return undefined;
+      }
+    };
+    const writeUri = async (uri: vscode.Uri, content: string): Promise<void> => {
+      const edit = new vscode.WorkspaceEdit();
+      let document: vscode.TextDocument | undefined;
+      try {
+        document = await vscode.workspace.openTextDocument(uri);
+      } catch {
+        document = undefined;
+      }
+      if (document) {
+        edit.set(uri, [new vscode.TextEdit(new vscode.Range(0, 0, document.lineCount, 0), content)]);
+      } else {
+        edit.createFile(uri);
+        edit.insert(uri, new vscode.Position(0, 0), content);
+      }
+      await vscode.workspace.applyEdit(edit);
+    };
+    const warn = (message: string) => this.output.warn(message);
+    const info = (message: string) => void vscode.window.showInformationMessage(message);
     this.applyCode = new ApplyCodeService<vscode.Uri>({
       t: (message, ...args) => vscode.l10n.t(message, ...args),
       folder: () => this.state.folder?.uri.fsPath,
@@ -202,37 +227,16 @@ export class ChatController implements vscode.Disposable {
         const items = [...new Set([...candidates, ...files.map((uri) => vscode.workspace.asRelativePath(uri, false))])];
         return vscode.window.showQuickPick(items, { placeHolder: vscode.l10n.t("Choose a file to apply this code to") });
       },
-      read: async (uri) => {
-        try {
-          return new TextDecoder().decode(await vscode.workspace.fs.readFile(uri));
-        } catch {
-          return undefined;
-        }
-      },
+      read: readUri,
       preview: (uri, current, proposed) => this.diffs.openProposal(uri, current, proposed),
       confirm: async () => {
         const accept = vscode.l10n.t("Accept");
         const choice = await vscode.window.showInformationMessage(vscode.l10n.t("Apply this change?"), accept, vscode.l10n.t("Reject"));
         return choice === accept;
       },
-      write: async (uri, content) => {
-        let document: vscode.TextDocument | undefined;
-        try {
-          document = await vscode.workspace.openTextDocument(uri);
-        } catch {
-          document = undefined;
-        }
-        const edit = new vscode.WorkspaceEdit();
-        if (document) {
-          edit.set(uri, [new vscode.TextEdit(new vscode.Range(0, 0, document.lineCount, 0), content)]);
-        } else {
-          edit.createFile(uri);
-          edit.insert(uri, new vscode.Position(0, 0), content);
-        }
-        await vscode.workspace.applyEdit(edit);
-      },
-      warn: (message) => this.output.warn(message),
-      info: (message) => void vscode.window.showInformationMessage(message),
+      write: writeUri,
+      warn,
+      info,
     });
     this.prompts = new PromptLibraryService({
       t: (text) => vscode.l10n.t(text),
@@ -288,32 +292,11 @@ export class ChatController implements vscode.Disposable {
         });
       },
       resolveTarget: (targetPath) => this.resolveWorkspacePath(targetPath),
-      read: async (uri) => {
-        try {
-          return new TextDecoder().decode(await vscode.workspace.fs.readFile(uri));
-        } catch {
-          return undefined;
-        }
-      },
-      write: async (uri, content) => {
-        const edit = new vscode.WorkspaceEdit();
-        let document: vscode.TextDocument | undefined;
-        try {
-          document = await vscode.workspace.openTextDocument(uri);
-        } catch {
-          document = undefined;
-        }
-        if (document) {
-          edit.set(uri, [new vscode.TextEdit(new vscode.Range(0, 0, document.lineCount, 0), content)]);
-        } else {
-          edit.createFile(uri);
-          edit.insert(uri, new vscode.Position(0, 0), content);
-        }
-        await vscode.workspace.applyEdit(edit);
-      },
+      read: readUri,
+      write: writeUri,
       now: () => new Date(),
-      warn: (message) => this.output.warn(message),
-      info: (message) => void vscode.window.showInformationMessage(message),
+      warn,
+      info,
     });
     this.permissions = new PermissionService(
       ctx,
