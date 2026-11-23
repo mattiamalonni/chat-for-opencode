@@ -9,6 +9,8 @@ coding agent. It is a **client** of the OpenCode v2 server (`opencode serve`) ru
 machine: it does not reimplement the agent, never reads or stores provider API keys and sends
 **no telemetry**.
 
+**[Install Chat for OpenCode from the Visual Studio Marketplace](https://marketplace.visualstudio.com/items?itemName=mattiamalonni.chat-for-opencode)**
+
 ## Install
 
 - VS Code **1.99+** and a **trusted workspace** — before you trust the folder the extension starts
