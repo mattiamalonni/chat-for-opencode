@@ -28,7 +28,7 @@ machine: it does not reimplement the agent, never reads or stores provider API k
 code --install-extension chat-for-opencode-<version>.vsix
 ```
 
-From source: `npm install && npm run compile && npx @vscode/vsce package`, or press **F5** in this
+From source: `npm ci && npm run compile && npx @vscode/vsce package`, or press **F5** in this
 repository to launch an Extension Development Host.
 
 ## First conversation
