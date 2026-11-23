@@ -10,7 +10,6 @@ import { describeServerError, ExternalServer, ServerError, type ServerHandle, ty
 import type {
   AgentInfo,
   FileAttachment,
-  FileDiff,
   FormRequest,
   InboxItem,
   ModelInfo,
@@ -19,14 +18,7 @@ import type {
   SessionInfo,
   SessionMessage,
 } from "../shared/api";
-import {
-  normalizeFileDiff,
-  normalizeForm,
-  normalizeList,
-  normalizePermission,
-  normalizeSessionInfo,
-  normalizeSessionMessage,
-} from "../shared/adapter";
+import { normalizeForm, normalizeList, normalizePermission, normalizeSessionInfo, normalizeSessionMessage } from "../shared/adapter";
 import { sessionIsBusy } from "../shared/chatReducer";
 import { checkCompatibility } from "../shared/compatibility";
 import { jitteredDelay } from "../shared/constants";
@@ -37,7 +29,6 @@ import type {
   Attachment,
   ConnectionStatus,
   ContextItem,
-  DroppedFile,
   HostMessage,
   SessionSummary,
   UiError,
@@ -66,6 +57,9 @@ import { ChatEventRouter } from "./eventRouter";
 import { ChatCommandHandler } from "./commandHandler";
 import { ExecutionStateService, type ExecutionState } from "./executionState";
 import { createControllerState } from "./controllerState";
+import { ChatFileActions } from "./fileActions";
+import { ChatPermissionActions } from "./permissionActions";
+import { ChatRefreshActions } from "./refreshActions";
 
 export type { ExecutionState, ExecutionStatus, TerminalStatus } from "./executionState";
 
@@ -87,6 +81,9 @@ export type { SessionSearchResult } from "./sessionListService";
 
 export class ChatController implements vscode.Disposable {
   private readonly state = createControllerState();
+  private readonly permissionActions: ChatPermissionActions;
+  private readonly fileActions: ChatFileActions;
+  private readonly refreshActions: ChatRefreshActions;
   /** All live chats and their listeners; see views.ts. */
   private readonly chatViews: ChatViews;
   /** Server process, HTTP client and SSE stream ownership; see connectionSupervisor.ts. */
@@ -179,10 +176,11 @@ export class ChatController implements vscode.Disposable {
       },
     });
     this.attachments = new AttachmentService(
-      (item) => this.addAttachment(item),
-      (kind, name, detail) => (kind === "tooLarge" ? this.noticeTooLarge(name) : this.noticeUnreadable(name, detail)),
+      (item) => this.fileActions.addAttachment(item),
+      (kind, name, detail) =>
+        kind === "tooLarge" ? this.fileActions.noticeTooLarge(name) : this.fileActions.noticeUnreadable(name, detail),
       (line) => output.warn(line),
-      (editor, line) => this.revealLine(editor, line),
+      (editor, line) => this.fileActions.revealLine(editor, line),
     );
     this.subagents = new SubagentTracker(
       () => this.client,
@@ -192,7 +190,7 @@ export class ChatController implements vscode.Disposable {
       (msg) => this.post(msg),
       (line) => output.warn(line),
       (client, childId, requests, autoApprove) => this.permissions.filterPending(client, childId, requests, autoApprove),
-      () => this.autoApproveEnabled(),
+      () => this.permissionActions.enabled(),
     );
     this.sessionList = new SessionListService(
       () => this.client,
@@ -359,14 +357,14 @@ export class ChatController implements vscode.Disposable {
       permissions: this.permissions,
       execution: this.execution,
       attention: this.announcedHiddenAttention,
-      scheduleInbox: () => this.scheduleInbox(),
-      scheduleSessions: () => this.scheduleSessions(),
+      scheduleInbox: () => this.refreshActions.scheduleInbox(),
+      scheduleSessions: () => this.refreshActions.scheduleSessions(),
       scheduleReconcile: () => this.scheduleReconcile(),
-      scheduleChanges: () => this.scheduleChanges(),
+      scheduleChanges: () => this.refreshActions.scheduleChanges(),
       refreshSlashItems: async () => {
         await this.refreshSlashItems();
       },
-      autoApprove: (event, sid) => this.autoApprove(event, sid),
+      autoApprove: (event, sid) => this.permissionActions.autoApprove(event, sid),
       newSession: () => this.newSession(),
     });
     this.fileIcons = new FileIconThemeService({
@@ -416,22 +414,22 @@ export class ChatController implements vscode.Disposable {
       saveDraft: (sid, text) => this.saveDraft(sid, text),
       refreshSessions: () => this.refreshSessions(),
       loadMoreSessions: () => this.loadMoreSessions(),
-      setAutoApprove: (enabled) => this.setAutoApprove(enabled),
+      setAutoApprove: (enabled) => this.permissionActions.set(enabled),
       setPassword: () => this.setPassword(),
-      dropFiles: (files) => this.dropFiles(files),
-      pickFiles: () => this.pickFiles(),
-      openFile: (file) => this.openFile(file),
-      openAttachment: (uri) => this.openAttachment(uri),
-      openLink: (href) => this.openLink(href),
+      dropFiles: (files) => this.fileActions.dropFiles(files),
+      pickFiles: () => this.fileActions.pickFiles(),
+      openFile: (file) => this.fileActions.openFile(file),
+      openAttachment: (uri) => this.fileActions.openAttachment(uri),
+      openLink: (href) => this.fileActions.openLink(href),
       runAction: (id) => this.runAction(id),
       switchFolder: (folder) => this.switchFolder(folder),
-      refreshChanges: () => this.refreshChanges(),
+      refreshChanges: () => this.refreshActions.refreshChanges(),
       syncNow: () => this.syncNow(),
       compact: () => this.compact(),
       revertToTurn: (sessionId, messageID, text, files) => this.revertToTurn(sessionId, messageID, text, files),
       forkToTurn: (sessionId, messageID) => this.forkToTurn(sessionId, messageID),
       regenerateTurn: (sessionId, messageID, text, attachments) => this.regenerateTurn(sessionId, messageID, text, attachments),
-      refreshInbox: (sid) => this.refreshInbox(sid),
+      refreshInbox: (sid) => this.refreshActions.refreshInbox(sid),
       deleteAllSessions: () => this.deleteAllSessions(),
       catalog: this.catalog,
       sessionList: this.sessionList,
@@ -454,6 +452,29 @@ export class ChatController implements vscode.Disposable {
       getWorkspaces: () => vscode.workspace.workspaceFolders ?? [],
       log: (line) => output.warn(line),
     });
+    this.permissionActions = new ChatPermissionActions({
+      state: this.state,
+      permissions: this.permissions,
+      subagents: this.subagents,
+      getClient: () => this.client,
+      post: (msg) => this.post(msg),
+      postSessionEvent: (sid, event) => this.postSessionEvent(sid, event),
+      log: (line) => output.info(line),
+    });
+    this.fileActions = new ChatFileActions({
+      state: this.state,
+      attachments: this.attachments,
+      post: (msg) => this.post(msg),
+      logWarn: (line) => output.warn(line),
+      isWithinWorkspace: (file) => this.isWithinWorkspace(file),
+    });
+    this.refreshActions = new ChatRefreshActions({
+      state: this.state,
+      lifecycle: this.lifecycle,
+      getClient: () => this.client,
+      post: (msg) => this.post(msg),
+      refreshSessions: () => this.refreshSessions(),
+    });
     const refreshFileIcons = () => {
       this.fileIcons.invalidate();
       this.post({ type: "fileIcons", icons: {}, fonts: {}, reset: true });
@@ -474,8 +495,8 @@ export class ChatController implements vscode.Disposable {
       }),
       vscode.workspace.onDidChangeConfiguration((e) => {
         if (e.affectsConfiguration("opencode.autoApprovePermissions")) {
-          this.postAutoApprove();
-          if (this.permissions.enabled(this.state.sessionId)) void this.approvePending();
+          this.permissionActions.post();
+          if (this.permissions.enabled(this.state.sessionId)) void this.permissionActions.approvePending();
         }
         if (e.affectsConfiguration("opencode.dropzone")) {
           this.post({ type: "dropzone", enabled: this.dropzoneEnabled() });
@@ -628,7 +649,7 @@ export class ChatController implements vscode.Disposable {
     });
     // The server may emit no terminal event for a local idle, and `onEvent` is the only other
     // place that refreshes the list and replaces the partial message with server history.
-    this.scheduleSessions();
+    this.refreshActions.scheduleSessions();
     this.scheduleReconcile();
   }
 
@@ -852,7 +873,7 @@ export class ChatController implements vscode.Disposable {
       this.subagents.reset();
       this.catalog.publish();
       this.post({ type: "session", session: null });
-      this.postAutoApprove();
+      this.permissionActions.post();
     }
     if (catalogError !== undefined) {
       // An empty array from a *failed* request is not evidence that the user has no provider.
@@ -924,7 +945,7 @@ export class ChatController implements vscode.Disposable {
     if (stale()) return true;
     const last = newer.at(-1);
     if (last) this.state.lastKnownMessage = { sessionId: sid, id: last.id };
-    this.postAutoApprove();
+    this.permissionActions.post();
     this.post({
       type: "sessionDelta",
       delta: {
@@ -939,8 +960,8 @@ export class ChatController implements vscode.Disposable {
         model: info.model,
       },
     });
-    void this.refreshChanges().catch(() => {});
-    void this.refreshInbox(sid).catch(() => {});
+    void this.refreshActions.refreshChanges().catch(() => {});
+    void this.refreshActions.refreshInbox(sid).catch(() => {});
     return true;
   }
 
@@ -1064,9 +1085,6 @@ export class ChatController implements vscode.Disposable {
    * `this.state.sessionId`, so `PermissionService.enabled(childId)` would fall back to the global setting
    * even when the user explicitly turned auto-approve on (or off) for this chat.
    */
-  private autoApproveEnabled(): boolean {
-    return this.permissions.enabled(this.state.sessionId);
-  }
 
   /** Post a live event to the session that owns it: the main chat, or a tracked subagent's view. */
   private postSessionEvent(sid: string, event: ServerEvent): void {
@@ -1083,10 +1101,6 @@ export class ChatController implements vscode.Disposable {
   private clearTimers(): void {
     this.lifecycle.clearAll();
     this.state.catalogRetries = 0;
-  }
-
-  private postAutoApprove(): void {
-    this.post({ type: "autoApprove", enabled: this.permissions.enabled(this.state.sessionId) });
   }
 
   /** Drafts live in workspaceState so they survive a window reload (vscode.setState does not). */
@@ -1109,68 +1123,14 @@ export class ChatController implements vscode.Disposable {
     }
   }
 
-  private async setAutoApprove(enabled: boolean): Promise<void> {
-    if (this.state.sessionId) await this.permissions.write(this.state.sessionId, enabled);
-    else this.permissions.setPending(enabled);
-    this.postAutoApprove();
-    if (enabled) await this.approvePending();
-  }
-
-  private async autoApprove(event: ServerEvent, sessionId: string): Promise<void> {
-    const request = event.data as PermissionRequest;
-    const client = this.client;
-    if (!client || !(await this.permissions.approveOnce(client, sessionId, request.id))) {
-      // The grant failed: show the card in the session that owns the request, main chat or child.
-      this.postSessionEvent(sessionId, event);
-      return;
-    }
-    this.output.info(`[chat] auto-approved ${request.action} (${sessionId})`);
-  }
-
   /** Grants requests that were already pending when auto-approval was turned on, in children too. */
-  private async approvePending(): Promise<void> {
-    const client = this.client;
-    const sid = this.state.sessionId;
-    if (!client || !sid || !this.autoApproveEnabled()) return;
-    for (const id of [sid, ...this.subagents.ids()]) {
-      const pending = await client.permissions(id).catch(() => [] as PermissionRequest[]);
-      for (const request of pending) {
-        if (!(await this.permissions.approveOnce(client, id, request.id))) {
-          // The grant failed: make sure a card is shown instead of silently leaving the agent blocked.
-          this.postSessionEvent(id, { type: "permission.asked", data: request });
-        }
-      }
-    }
-  }
-
-  private scheduleSessions(): void {
-    this.lifecycle.schedule("sessions", () => void this.refreshSessions().catch(() => {}), 250);
-  }
-
-  private scheduleChanges(): void {
-    this.lifecycle.schedule("changes", () => void this.refreshChanges().catch(() => {}), 400);
-  }
 
   /** Enqueue/deliver/cancel events arrive in bursts; one refresh per burst is enough. */
-  private scheduleInbox(): void {
-    this.lifecycle.schedule("inbox", () => void this.refreshInbox().catch(() => {}), 150);
-  }
 
   /**
    * Re-read the pending prompts from the server. A queued message is stored server-side, so the
    * webview cannot reconstruct the list from the SSE events (which carry no replay).
    */
-  private async refreshInbox(sid = this.state.sessionId): Promise<void> {
-    const client = this.client;
-    if (!client || !sid || sid !== this.state.sessionId) return;
-    const items = await client.inbox(sid).catch(() => [] as InboxItem[]);
-    if (sid !== this.state.sessionId || client !== this.client) return;
-    this.publishInbox(items);
-  }
-
-  private publishInbox(items: InboxItem[]): void {
-    this.post({ type: "inbox", items });
-  }
 
   /**
    * The event stream is live-only, so a missed terminal event can leave the webview showing an
@@ -1289,20 +1249,6 @@ export class ChatController implements vscode.Disposable {
     } finally {
       if (this.state.deleteAllAbort === abort) this.state.deleteAllAbort = undefined;
     }
-  }
-
-  async refreshChanges(): Promise<FileDiff[]> {
-    const sid = this.state.sessionId;
-    const client = this.client;
-    let files: FileDiff[] = [];
-    if (client && sid) {
-      files = normalizeList(await client.diff(sid).catch(() => [] as FileDiff[]), normalizeFileDiff);
-    }
-    // The fetch is async: a session switch, new chat or folder change can happen while it is in
-    // flight. Posting a diff fetched for the old session would overwrite the new chat's panel.
-    if (sid !== this.state.sessionId || client !== this.client) return files;
-    this.post({ type: "changedFiles", files });
-    return files;
   }
 
   /** Ask the server to compact the current session (runs at the next step boundary). */
@@ -1481,15 +1427,16 @@ export class ChatController implements vscode.Disposable {
     // A running child has no id in its tool metadata; find it via `parentID` so a pending `ask`
     // permission is still answerable after the user switches back to this chat.
     void this.subagents.discover();
-    this.postAutoApprove();
-    this.publishInbox(rawInbox);
+    this.permissionActions.post();
+    this.refreshActions.publishInbox(rawInbox);
     if (fast) {
       // Not on the critical path of the first prompt. The generation guard keeps a late response
       // from overwriting state after a folder/session switch.
       const guard = stale;
       void this.refreshSlashItems().catch(() => {});
       void this.refreshSessions().catch(() => {});
-      void this.refreshChanges()
+      void this.refreshActions
+        .refreshChanges()
         .then((diff) => {
           if (!guard?.()) this.observeContract({ diff });
         })
@@ -1497,7 +1444,7 @@ export class ChatController implements vscode.Disposable {
     } else {
       await this.refreshSessions();
       if (stale?.()) return;
-      const diff = await this.refreshChanges();
+      const diff = await this.refreshActions.refreshChanges();
       this.observeContract({ diff });
     }
     // Idempotent: a session opened without a connection change (e.g. after New Session + prompt)
@@ -1545,8 +1492,8 @@ export class ChatController implements vscode.Disposable {
     if (this.state.folder) await this.ctx.workspaceState.update(SESSION_KEY(this.state.folder.uri.toString()), undefined);
     this.post({ type: "session", session: null });
     this.post({ type: "changedFiles", files: [] });
-    this.publishInbox([]);
-    this.postAutoApprove();
+    this.refreshActions.publishInbox([]);
+    this.permissionActions.post();
     this.catalog.publish();
     await this.refreshSessions().catch(() => {});
     this.post({ type: "focusInput" });
@@ -1589,34 +1536,8 @@ export class ChatController implements vscode.Disposable {
     this.postInit();
     this.post({ type: "session", session: null });
     this.post({ type: "changedFiles", files: [] });
-    this.postAutoApprove();
+    this.permissionActions.post();
     await this.connect();
-  }
-
-  addAttachment(item: Attachment): void {
-    this.post({ type: "addAttachment", item });
-  }
-
-  private noticeTooLarge(name: string): void {
-    const s = translatedStrings();
-    this.post({ type: "notice", error: { kind: "requestFailed", message: s["error.attachmentTooLarge"], detail: name, actions: [] } });
-  }
-
-  private noticeUnreadable(name: string, detail: string): void {
-    const s = translatedStrings();
-    this.post({
-      type: "notice",
-      error: { kind: "requestFailed", message: s["error.attachmentUnreadable"], detail, actions: ["showLogs"] },
-    });
-    this.output.warn(`[chat] skipped unreadable attachment ${name}: ${detail}`);
-  }
-
-  private async dropFiles(files: DroppedFile[]): Promise<void> {
-    await this.attachments.dropFiles(files);
-  }
-
-  async pickFiles(): Promise<void> {
-    await this.attachments.pickFiles();
   }
 
   async setPassword(): Promise<void> {
@@ -1799,11 +1720,11 @@ export class ChatController implements vscode.Disposable {
       seen.add(item.uri);
       const resolved = await resolveAttachment(item, externalServer, mimeFromName);
       if (resolved.status === "tooLarge") {
-        this.noticeTooLarge(resolved.name);
+        this.fileActions.noticeTooLarge(resolved.name);
         continue;
       }
       if (resolved.status === "unreadable") {
-        this.noticeUnreadable(resolved.name, resolved.detail);
+        this.fileActions.noticeUnreadable(resolved.name, resolved.detail);
         continue;
       }
       files.push(resolved.attachment);
@@ -1857,45 +1778,6 @@ export class ChatController implements vscode.Disposable {
       await this.restoreFailedPrompt(text, attachments, context, delivery, this.state.sessionId, detail, turn.generation);
       return false;
     }
-  }
-
-  private async openFile(p: string): Promise<void> {
-    if (!this.state.folder) return;
-    const m = /^(.*?)(?::(\d+)(?::(\d+))?)?$/.exec(p);
-    const file = m?.[1] ?? p;
-    const line = m?.[2] ? Number(m[2]) - 1 : undefined;
-    const uri = file.startsWith("file:")
-      ? vscode.Uri.parse(file)
-      : /^([a-zA-Z]:[\\/]|\/)/.test(file)
-        ? vscode.Uri.file(file)
-        : vscode.Uri.joinPath(this.state.folder.uri, file);
-    // Rendered chat content is untrusted model output. Never open a path outside any opened folder,
-    // even through `../` or a symlink that lexically points inside but resolves elsewhere.
-    if (!(await this.isWithinWorkspace(uri.fsPath))) {
-      this.output.warn(`[chat] blocked an attempt to open a file outside the workspace: ${uri.fsPath}`);
-      return;
-    }
-    const doc = await vscode.workspace.openTextDocument(uri.with({ query: "" }));
-    const editor = await vscode.window.showTextDocument(doc, { preview: true });
-    if (line !== undefined) this.revealLine(editor, line);
-  }
-
-  private revealLine(editor: vscode.TextEditor, line: number): void {
-    const pos = new vscode.Position(line, 0);
-    editor.selection = new vscode.Selection(pos, pos);
-    editor.revealRange(new vscode.Range(pos, pos), vscode.TextEditorRevealType.InCenter);
-  }
-
-  private async openAttachment(uri: string): Promise<void> {
-    await this.attachments.open(uri);
-  }
-
-  private async openLink(href: string): Promise<void> {
-    if (/^https?:\/\//i.test(href) || href.startsWith("mailto:")) {
-      await vscode.env.openExternal(vscode.Uri.parse(href));
-      return;
-    }
-    await this.openFile(href.replace(/^\.\//, "").replace(/#L(\d+).*$/, ":$1"));
   }
 
   async dispose(): Promise<void> {

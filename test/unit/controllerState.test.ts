@@ -48,6 +48,7 @@ function base(extra: Record<string, unknown> = {}) {
     wasDisconnected: false,
     execution: new ExecutionStateService(),
     post: vi.fn(),
+    refreshActions: { scheduleSessions: vi.fn() },
     scheduleReconcile: vi.fn(),
     output: { warn: vi.fn(), info: vi.fn(), error: vi.fn() },
     ctx: { globalState: { get: vi.fn(() => undefined), update: vi.fn() } },
