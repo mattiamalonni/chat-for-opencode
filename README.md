@@ -5,6 +5,10 @@
 [![License: MIT](https://img.shields.io/github/license/mattiamalonni/chat-for-opencode)](LICENSE)
 [![VS Code 1.99+](https://img.shields.io/badge/VS_Code-1.99%2B-007ACC?logo=visualstudiocode)](https://marketplace.visualstudio.com/items?itemName=mattiamalonni.chat-for-opencode)
 [![Last commit](https://img.shields.io/github/last-commit/mattiamalonni/chat-for-opencode)](https://github.com/mattiamalonni/chat-for-opencode/commits/main)
+[![Release date](https://img.shields.io/github/release-date/mattiamalonni/chat-for-opencode)](https://github.com/mattiamalonni/chat-for-opencode/releases/latest)
+[![OpenCode v2](https://img.shields.io/badge/OpenCode-v2-blueviolet)](https://opencode.ai)
+[![Telemetry: none](https://img.shields.io/badge/telemetry-none-brightgreen)](#privacy--security)
+[![TypeScript](https://img.shields.io/github/languages/top/mattiamalonni/chat-for-opencode)](https://www.typescriptlang.org/)
 
 > **Unofficial.** This extension is a vibe-coded community project and is not affiliated with or endorsed by the OpenCode team.
 
