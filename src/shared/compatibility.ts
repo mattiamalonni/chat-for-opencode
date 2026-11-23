@@ -11,7 +11,7 @@ export type Compatibility = "ok" | "untested" | "unsupported" | "unknown";
 
 const VERSION = /^v?(\d+)\.(\d+)\.(\d+)(?:[-+].*)?$/;
 
-/** `2.2.7-mock` and `v2.2.7+build` are still 2.2.7 for our purposes. */
+/** `2.3.0-mock` and `v2.3.0+build` are still 2.3.0 for our purposes. */
 function core(version: string): { major: number; minor: number } | undefined {
   const m = VERSION.exec(version.trim());
   return m ? { major: Number(m[1]), minor: Number(m[2]) } : undefined;

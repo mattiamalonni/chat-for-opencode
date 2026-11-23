@@ -294,7 +294,7 @@ function coalesceDeltas(events: ServerEvent[]): ServerEvent[] {
 
 /**
  * Tokens the conversation occupies after a step: the prompt (`input` excludes cached tokens, as
- * verified against opencode 2.2.7) plus what the model produced in that step.
+ * verified against opencode 2.3.0) plus what the model produced in that step.
  */
 export function contextTokensOf(tokens: TokenUsage | undefined): number | undefined {
   if (!tokens) return undefined;

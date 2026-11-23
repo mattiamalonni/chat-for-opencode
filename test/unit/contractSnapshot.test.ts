@@ -6,7 +6,7 @@ import { REQUIRED_ENDPOINTS } from "../../src/client/endpoints";
 import { normalizeServerEvent } from "../../src/shared/adapter";
 
 const FIXTURES = join(__dirname, "../fixtures");
-const OPENAPI = JSON.parse(readFileSync(join(__dirname, "../../docs/openapi-2.2.7.json"), "utf8")) as {
+const OPENAPI = JSON.parse(readFileSync(join(__dirname, "../../docs/openapi-2.3.0.json"), "utf8")) as {
   paths: Record<string, unknown>;
 };
 
@@ -22,9 +22,10 @@ const recorded = readdirSync(FIXTURES)
 /**
  * Deterministic half of the contract gate: the live suite needs a real server and provider and
  * stays opt-in, but these recorded 2.2.7 artifacts must always survive the wire adapter and keep
- * exposing every endpoint the client calls. Drift here fails CI on every platform and every run.
+ * exposing every endpoint the client calls (checked against the 2.3.0 OpenAPI snapshot). Drift here
+ * fails CI on every platform and every run.
  */
-describe("recorded OpenCode 2.2.7 contract", () => {
+describe("recorded OpenCode 2.2.7 contract against the 2.3.0 snapshot", () => {
   it("has recorded event fixtures to check", () => {
     expect(recorded.length).toBeGreaterThan(500);
   });

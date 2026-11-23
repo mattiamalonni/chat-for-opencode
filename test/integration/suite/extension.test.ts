@@ -138,7 +138,7 @@ describe("chat-for-opencode extension", () => {
 
   it("remembers a dismissed compatibility warning for that server version", async () => {
     const mark = posted.length;
-    await controller.receive({ type: "dismissCompatibility", version: "2.2.7-mock" });
+    await controller.receive({ type: "dismissCompatibility", version: "2.3.0-mock" });
     await controller.receive({ type: "ready" });
     const conn = await waitFor(() => lastPosted("connection", mark), "connection");
     assert.equal(conn.compatibilityDismissed, true);
@@ -636,7 +636,7 @@ describe("chat-for-opencode extension", () => {
     const mark = posted.length;
     const hook = controller as unknown as { onServerState(state: unknown, server?: unknown): void };
     hook.onServerState(
-      { status: "running", conn: { baseUrl: "http://127.0.0.1:1", password: "stale" }, version: "2.2.7" },
+      { status: "running", conn: { baseUrl: "http://127.0.0.1:1", password: "stale" }, version: "2.3.0" },
       { folder: "detached" },
     );
     await new Promise((r) => setTimeout(r, 100));

@@ -537,7 +537,7 @@ export function startMockServer(opts: MockOptions = {}): Promise<MockServer> {
       return;
     }
 
-    if (path === "/api/info") return send(res, 200, { version: "2.2.7-mock", pid: process.pid, urls: [], paths: {}, capabilities: {} });
+    if (path === "/api/info") return send(res, 200, { version: "2.3.0-mock", pid: process.pid, urls: [], paths: {}, capabilities: {} });
     if (path === "/api/location") return send(res, 200, { directory, project: { id: "proj_mock", directory } });
     if (path === "/api/config") {
       return send(res, 200, [{ type: "document", path: `${directory}/opencode.json`, info: { shell: "/bin/sh" } }]);

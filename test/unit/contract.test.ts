@@ -7,7 +7,7 @@ const skill = { id: "review" };
 const message = { type: "user", time: { created: 1 } };
 
 function healthy(): ContractObservations {
-  return { version: "2.2.7", models: [model], agents: [agent], skills: [skill], messages: [message] };
+  return { version: "2.3.0", models: [model], agents: [agent], skills: [skill], messages: [message] };
 }
 
 function ids(report: ReturnType<typeof checkContract>): string[] {
@@ -21,7 +21,7 @@ describe("checkContract", () => {
     expect(report.checked).toBe(5);
   });
 
-  it("passes a healthy 2.2.7-shaped observation set", () => {
+  it("passes a healthy 2.3.0-shaped observation set", () => {
     const report = checkContract(healthy());
     expect(report.failures).toEqual([]);
     expect(report.checked).toBe(6); // contextMeter is checked when models are present

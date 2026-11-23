@@ -5,14 +5,14 @@ import { checkCompatibility, SUPPORTED_SERVER_VERSION } from "../../src/shared/c
 
 describe("checkCompatibility", () => {
   it.each([
-    ["2.2.7", "ok"],
-    ["v2.2.7", "ok"],
-    ["2.2.7-mock", "ok"],
-    ["2.2.7+build.5", "ok"],
-    ["2.2.8", "ok"],
-    ["2.2.0", "ok"],
-    ["2.3.0", "untested"],
-    ["2.1.9", "untested"],
+    ["2.3.0", "ok"],
+    ["v2.3.0", "ok"],
+    ["2.3.0-mock", "ok"],
+    ["2.3.0+build.5", "ok"],
+    ["2.3.8", "ok"],
+    ["2.3.1", "ok"],
+    ["2.2.7", "untested"],
+    ["2.4.0", "untested"],
     ["3.0.0", "unsupported"],
     ["1.9.9", "unsupported"],
     ["not-a-version", "unknown"],

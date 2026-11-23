@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- **OpenCode 2.3.0:** the supported server version, OpenAPI snapshot and generated wire types are
+  now based on 2.3.0. The API contract is additive over 2.2.7 (new event types and optional fields),
+  so recorded 2.2.7 fixtures and CI's live contract job keep covering the same endpoints. Servers on
+  another minor still show the dismissible version banner.
 - **Multi-root:** `@` file search now indexes **every** workspace folder and qualifies duplicate
   names with the folder name, so files unique to another package are suggested too. Files from any
   open folder can be attached, opened from a reply and shown in a diff (the real-path containment

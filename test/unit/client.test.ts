@@ -12,7 +12,7 @@ describe("OpenCodeClient against the mock server", () => {
   afterEach(() => mock.close());
 
   it("sends Basic auth with the fixed username 'opencode'", async () => {
-    expect((await client.info()).version).toBe("2.2.7-mock");
+    expect((await client.info()).version).toBe("2.3.0-mock");
     const bad = new OpenCodeClient({ baseUrl: mock.url, password: "wrong" });
     await expect(bad.info()).rejects.toMatchObject({ status: 401, tag: "UnauthorizedError" });
   });
@@ -277,7 +277,7 @@ describe("OpenCodeClient at the trust boundary", () => {
   });
 
   it("rejects a missing data envelope and a wrong list shape", async () => {
-    const missing = new OpenCodeClient({ baseUrl: "http://localhost/" }, fetchText('{"version":"2.2.7"}'));
+    const missing = new OpenCodeClient({ baseUrl: "http://localhost/" }, fetchText('{"version":"2.3.0"}'));
     await expect(missing.listSessions()).rejects.toMatchObject({ status: 200, tag: "malformedResponse" });
     const wrong = new OpenCodeClient({ baseUrl: "http://localhost/" }, fetchText('{"data":"not-an-array"}'));
     await expect(wrong.inbox("s1")).rejects.toMatchObject({ status: 200, tag: "malformedResponse" });

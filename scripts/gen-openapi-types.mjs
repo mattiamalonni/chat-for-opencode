@@ -8,7 +8,7 @@ import path from "node:path";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const urlIndex = process.argv.indexOf("--url");
-const source = urlIndex >= 0 ? process.argv[urlIndex + 1] : path.join(root, "docs", "openapi-2.2.7.json");
+const source = urlIndex >= 0 ? process.argv[urlIndex + 1] : path.join(root, "docs", "openapi-2.3.0.json");
 const target = path.join(root, "src", "shared", "openapi.generated.ts");
 
 if (!source) throw new Error("Missing --url value");

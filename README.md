@@ -13,8 +13,8 @@ sends **no telemetry**.
 | -------------------------------------------------- | ---------------------------------------------- | -------------------------------------------------- | ------------------------------------------ |
 | ![Conversation](docs/images/conversation-dark.png) | ![Permission](docs/images/permission-dark.png) | ![Model picker](docs/images/model-picker-dark.png) | ![Light](docs/images/permission-light.png) |
 
-> Screenshots come from the automated UI tests (`npm run test:ui`). They render real OpenCode
-> 2.2.7 event streams in a fake VS Code host.
+> Screenshots come from the automated UI tests (`npm run test:ui`). They render recorded OpenCode
+> event streams in a fake VS Code host.
 
 ## Features
 
@@ -41,7 +41,7 @@ sends **no telemetry**.
   _send now_, put it back in the composer to edit it, or remove it. A queued prompt stays in the
   panel only — it joins the conversation once the agent actually starts working on it. Composer
   drafts are stored per session **and survive a window reload**.
-- A **contract smoke test** on connect names the features that a non-2.2.7 server cannot support, instead of only warning about the version number.
+- A **contract smoke test** on connect names the features that a non-2.3.0 server cannot support, instead of only warning about the version number.
 - **Editor context**: the active file and selection are attached automatically as chips you can remove before sending. File chips use the icons of your active VS Code file icon theme, the same as the Explorer (including dark/light/high-contrast variants and glyph fonts such as Seti).
 - **`@` mentions** with fuzzy workspace file search: picking a file attaches it as a chip and removes the `@query` from the input, so only the chip is sent with the message. **Add Selection to Chat** / **Add File to Chat** in the editor and explorer context menus work the same way.
 - **Context sources on demand**: type `@problems`, `@git`, `@terminal`, `@openEditors` or `@symbol`, or use the **Add context** button next to the composer's folder button. Diagnostics, the uncommitted diff, the last terminal command's output, the open editors and the symbol definitions at the cursor become removable chips whose content is sent inline to the model (no path the remote server cannot read).
@@ -89,9 +89,9 @@ sends **no telemetry**.
 - VS Code **1.99** or newer.
 - A **trusted workspace**: the extension will not start `opencode serve`, read saved logins or use
   workspace-specific settings (`opencode.executablePath`, `opencode.endpoint`) until you trust the folder.
-- **OpenCode v2** installed and on your `PATH` (tested with 2.2.7):
+- **OpenCode v2** installed and on your `PATH` (contract matched to 2.3.0):
   `curl -fsSL https://opencode.ai/v2/install | bash` (see https://opencode.ai/docs/). The chat shows
-  a dismissible warning if your server's minor or major version differs from the tested one.
+  a dismissible warning if your server's minor or major version differs from the supported one.
 - At least one model provider configured in OpenCode (`opencode auth login`). The extension
   shows a _Configure a provider_ button that runs it in a terminal for you.
 

@@ -15,7 +15,7 @@ npm run verify   # the full CI gate, including audit, generated types, coverage 
 ```
 
 Press <kbd>F5</kbd> in VS Code to launch an Extension Development Host. The chat opens in the
-secondary side bar. For a real server, install `opencode` 2.2.7 and configure a provider; for most
+secondary side bar. For a real server, install `opencode` 2.3.0 and configure a provider; for most
 work the deterministic mock server used by the tests is enough.
 
 ## Where things live

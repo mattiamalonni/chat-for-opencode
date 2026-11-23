@@ -2,15 +2,15 @@
 
 ## D1 — Direct HTTP/SSE instead of an SDK
 
-- `@opencode-ai/sdk` (1.19.x) targets the **v1** API (`/session`, `/event`); the installed server is
-  v2.2.7 and exposes everything under `/api/*`. Incompatible.
+- `@opencode-ai/sdk` (1.19.x) targets the **v1** API (`/session`, `/event`); the supported server is
+  v2.3.0 and exposes everything under `/api/*`. Incompatible.
 - `@opencode/client` (2.3.0) is the v2 client but: it is described on npm as a _"Private
-  generation target"_, it is ESM-only (VS Code extensions load CJS), it is newer than the
-  installed server (2.2.7) so generated types may not match, it pulls `@opencode/schema` and
-  `@opencode/protocol` (~1.2 MB unpacked for the client alone), and its event subscriptions have
-  "no replay or automatic reconnection" anyway.
+  generation target"_, it is ESM-only (VS Code extensions load CJS), it pulls `@opencode/schema` and
+  `@opencode/protocol` (~1.2 MB unpacked for the client alone), it would duplicate the contract we
+  can take straight from the server's own schema, and its event subscriptions have "no replay or
+  automatic reconnection" anyway.
 - We use ~20 endpoints. A thin hand-written client with types taken from the server's own
-  `/openapi.json` (saved in `docs/openapi-2.2.7.json`) is small, testable against a mock server,
+  `/openapi.json` (saved in `docs/openapi-2.3.0.json`) is small, testable against a mock server,
   and lets us implement reconnection exactly as we need.
 
 ## D2 — Managed server: random password via `OPENCODE_PASSWORD`

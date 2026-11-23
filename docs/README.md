@@ -10,6 +10,7 @@
 - [MANUAL_TEST.md](MANUAL_TEST.md) — manual verification checklist.
 - [RELEASING.md](RELEASING.md) — release and marketplace steps.
 
-The generated OpenAPI snapshot lives in [`openapi-2.2.7.json`](openapi-2.2.7.json); the TypeScript
+The supported OpenAPI snapshot lives in [`openapi-2.3.0.json`](openapi-2.3.0.json); the TypeScript
 types derived from it (`src/shared/openapi.generated.ts`) are checked in and verified in CI by
-`npm run gen:types`.
+`npm run gen:types`. [`openapi-2.2.7.json`](openapi-2.2.7.json) is kept as the snapshot the recorded
+SSE fixtures were captured against.

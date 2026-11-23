@@ -57,7 +57,7 @@ describe("ManagedServer", () => {
     expect(conn.baseUrl).toMatch(/^http:\/\/127\.0\.0\.1:\d+$/);
     expect(conn.password).toBeTruthy();
     expect(server.state.status).toBe("running");
-    expect((await new OpenCodeClient(conn).info()).version).toBe("2.2.7-mock");
+    expect((await new OpenCodeClient(conn).info()).version).toBe("2.3.0-mock");
     expect(logs.join("\n")).not.toContain(conn.password!);
     // ensure() is idempotent
     expect(await server.ensure()).toBe(conn);
