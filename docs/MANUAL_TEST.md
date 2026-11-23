@@ -38,6 +38,9 @@ screen readers and multi-window process management.
    _OpenCode: Show Logs_ shows `server listening on http://127.0.0.1:<port>` and the password as `***`.
 4. **Streaming**: send `Explain what a git commit is in 3 bullet points`. Expect text appearing
    progressively, a collapsible _Thoughts_ block if the model reasons, the stop button while running.
+   When the reply finishes, the step folds close on their own while the answer stays visible; click a
+   **Step N** header or **Expand all steps in this turn** to reopen its reasoning and tool calls.
+   Send another prompt and confirm the new reply's folds open and close independently of the previous one.
 5. **Stop**: send `Write a 2000 word essay about compilers` and press `Esc` (or the stop button).
    Expect "Response interrupted." and the composer to become usable again.
 6. **Permission + diff**: send `Change a.txt so it contains b instead of a`. An `edit` tool card shows

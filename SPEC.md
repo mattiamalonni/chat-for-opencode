@@ -148,6 +148,20 @@ OpenCode includes its global skill sources. The webview receives only each skill
 description. Selecting `/skill-id` converts it to `@skill-id` when sending, which is the syntax
 OpenCode uses to load a skill; unrelated slash commands remain unchanged.
 
+### Step folds
+
+OpenCode emits one assistant message per step. Each step's prose stays in the conversation while its
+thoughts and tool calls go into a collapsible labelled **Step N** (or **Steps N–M** when consecutive
+textless steps share one fold). Prose breaks a run, so a thought emitted after a sentence stays below
+it in its own fold.
+
+While a turn streams, only the current step's fold is expanded. As soon as the turn ends, every fold
+in it closes — including the last step's — leaving the answer's prose on screen. Finished turns
+therefore start folded; **Expand all / Collapse all steps in this turn** toggles them together and
+each header toggles its own fold. Search temporarily opens folds that contain a hit. Manual overrides
+are keyed by the turn's first assistant message id plus the fold indices, so expanding or collapsing
+one reply never changes the automatic state of another.
+
 ### Changed files and cost
 
 `changedFiles` normally comes from `GET /session/{id}/diff`, but that endpoint is empty outside git

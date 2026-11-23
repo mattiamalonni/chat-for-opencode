@@ -204,7 +204,7 @@ async function openSession(page: Page, id: string, events: ServerEvent[]): Promi
   for (const event of events) await host(page, { type: "event", event });
 }
 
-/** The latest finished turn starts expanded; older expectations can still open every fold. */
+/** Finished turns start folded; open whatever the test needs to inspect. */
 async function expandSteps(page: Page): Promise<void> {
   // History and live events can still be folding into step groups on the next animation frame.
   // Click whatever is collapsed and retry until every header is actually expanded.
@@ -663,26 +663,28 @@ test("a finished turn folds its intermediate steps and can expand them", async (
 
   await host(page, { type: "event", event: { type: "session.execution.succeeded", created: 1300, data: base } });
 
-  // Finished: the latest turn stays open so its work is reviewable, and one control folds it all.
+  // Finished: every fold closes, including the final step's; both prose blocks stay visible.
   const headers = blocks.locator(".step-fold-header");
-  await expect(headers.nth(0)).toHaveAttribute("aria-expanded", "true");
-  await expect(headers.nth(1)).toHaveAttribute("aria-expanded", "true");
-  await expect(page.locator(".conversation")).toContainText("thinking hard");
-  await expect(page.locator(".conversation")).toContainText("final thought");
-  await expect(blocks.first().locator(".step-fold-all")).toHaveAttribute("aria-label", STRINGS.collapseAllSteps);
-
-  await blocks.first().locator(".step-fold-all").click();
   await expect(headers.nth(0)).toHaveAttribute("aria-expanded", "false");
   await expect(headers.nth(1)).toHaveAttribute("aria-expanded", "false");
   await expect(page.locator(".conversation")).not.toContainText("thinking hard");
   await expect(page.locator(".conversation")).not.toContainText("final thought");
   await expect(page.locator(".conversation")).toContainText("final answer");
   await expect(page.locator(".conversation")).toContainText("intermediate narration");
+  await expect(blocks.first().locator(".step-fold-all")).toHaveAttribute("aria-label", STRINGS.expandAllSteps);
+
+  // One control can still reopen the whole turn, and each fold stays independently toggleable.
+  await blocks.first().locator(".step-fold-all").click();
+  await expect(headers.nth(0)).toHaveAttribute("aria-expanded", "true");
+  await expect(headers.nth(1)).toHaveAttribute("aria-expanded", "true");
+  await expect(page.locator(".conversation")).toContainText("thinking hard");
+  await expect(page.locator(".conversation")).toContainText("final thought");
+  await expect(blocks.first().locator(".step-fold-all")).toHaveAttribute("aria-label", STRINGS.collapseAllSteps);
 
   await headers.first().click();
-  await expect(headers.first()).toHaveAttribute("aria-expanded", "true");
-  await expect(blocks.first().locator(".step-fold-body")).toContainText("thinking hard");
-  await expect(blocks.nth(1).locator(".step-fold-body")).toHaveCount(0);
+  await expect(headers.first()).toHaveAttribute("aria-expanded", "false");
+  await expect(blocks.first().locator(".step-fold-body")).toHaveCount(0);
+  await expect(blocks.nth(1).locator(".step-fold-body")).toContainText("final thought");
 });
 
 test("a running turn keeps following its steps after switching to another chat and back", async ({ page }) => {
@@ -893,6 +895,99 @@ test("folds past steps while streaming and keeps the accordion open as new steps
   await expect(fold(2)).toHaveAttribute("aria-expanded", "false");
   await expect(fold(3)).toHaveAttribute("aria-expanded", "true");
   await expect(page.locator(".conversation")).toContainText("four");
+});
+
+test("a manual fold in one turn does not leak into the next reply", async ({ page }) => {
+  await boot(page);
+  const sid = "ses_fold_keys";
+  const base = { sessionID: sid };
+  const ev = (type: ServerEvent["type"], created: number, data: Record<string, unknown>): ServerEvent =>
+    ({ type, created, data }) as ServerEvent;
+  const step = (id: string, created: number, thought: string, text: string): ServerEvent[] => [
+    ev("session.step.started", created, { ...base, assistantMessageID: id, agent: "build" }),
+    ev("session.reasoning.ended", created + 1, { ...base, assistantMessageID: id, ordinal: 0, text: thought }),
+    ev("session.text.ended", created + 2, { ...base, assistantMessageID: id, ordinal: 0, text }),
+  ];
+  const prompt = (id: string, created: number, text: string): ServerEvent =>
+    ev("session.inbox.enqueued", created, { ...base, inboxID: id, item: { type: "user", payload: { text } } });
+  const headers = page.locator(".step-block .step-fold-header");
+  const states = () => headers.evaluateAll((els) => els.map((el) => el.getAttribute("aria-expanded")));
+
+  await openSession(page, sid, [
+    prompt("u1", 1000, "first"),
+    ev("session.execution.started", 1010, base),
+    ...step("m1", 1100, "thought one", "answer one"),
+  ]);
+  await expect(headers).toHaveCount(1);
+  await expect(headers.first()).toHaveAttribute("aria-expanded", "true"); // live step
+  await headers.first().click();
+  await expect(headers.first()).toHaveAttribute("aria-expanded", "false");
+  for (const event of [
+    ev("session.step.ended", 1150, { ...base, assistantMessageID: "m1", finish: "stop" }),
+    ev("session.execution.succeeded", 1200, base),
+  ])
+    await host(page, { type: "event", event });
+  await expect.poll(states).toEqual(["false"]);
+
+  // Same group/step indices in a new turn must not inherit the previous turn's override: the live
+  // step expands on its own, then folds again once the turn is over.
+  for (const event of [
+    prompt("u2", 2000, "second"),
+    ev("session.execution.started", 2010, base),
+    ...step("m2", 2100, "thought two", "answer two"),
+  ])
+    await host(page, { type: "event", event });
+  await expect.poll(states).toEqual(["false", "true"]);
+
+  for (const event of [
+    ev("session.step.ended", 2150, { ...base, assistantMessageID: "m2", finish: "stop" }),
+    ev("session.execution.succeeded", 2200, base),
+    prompt("u3", 3000, "third"),
+    ev("session.execution.started", 3010, base),
+    ...step("m3", 3100, "thought three", "answer three"),
+  ])
+    await host(page, { type: "event", event });
+  await expect.poll(states).toEqual(["false", "false", "true"]);
+});
+
+test("expanding an older turn does not stop later turns from auto-folding", async ({ page }) => {
+  await boot(page);
+  const sid = "ses_fold_review";
+  const base = { sessionID: sid };
+  const ev = (type: ServerEvent["type"], created: number, data: Record<string, unknown>): ServerEvent =>
+    ({ type, created, data }) as ServerEvent;
+  const step = (id: string, created: number, thought: string, text: string): ServerEvent[] => [
+    ev("session.step.started", created, { ...base, assistantMessageID: id, agent: "build" }),
+    ev("session.reasoning.ended", created + 1, { ...base, assistantMessageID: id, ordinal: 0, text: thought }),
+    ev("session.text.ended", created + 2, { ...base, assistantMessageID: id, ordinal: 0, text }),
+  ];
+  const headers = page.locator(".step-block .step-fold-header");
+  const states = () => headers.evaluateAll((els) => els.map((el) => el.getAttribute("aria-expanded")));
+
+  await openSession(page, sid, [
+    ev("session.inbox.enqueued", 1000, { ...base, inboxID: "u1", item: { type: "user", payload: { text: "first" } } }),
+    ev("session.execution.started", 1010, base),
+    ...step("m1", 1100, "thought one", "answer one"),
+    ev("session.step.ended", 1150, { ...base, assistantMessageID: "m1", finish: "stop" }),
+    ev("session.execution.succeeded", 1200, base),
+    ev("session.inbox.enqueued", 2000, { ...base, inboxID: "u2", item: { type: "user", payload: { text: "second" } } }),
+    ev("session.execution.started", 2010, base),
+    ...step("m2", 2100, "thought two", "answer two"),
+    ev("session.step.ended", 2150, { ...base, assistantMessageID: "m2", finish: "stop" }),
+    ev("session.execution.succeeded", 2200, base),
+  ]);
+  await expect.poll(states).toEqual(["false", "false"]);
+  // Reviewing the old reply must not keep later replies expanded when they are no longer current.
+  await headers.first().click();
+  await expect(headers.first()).toHaveAttribute("aria-expanded", "true");
+
+  for (const event of [
+    ev("session.inbox.enqueued", 3000, { ...base, inboxID: "u3", item: { type: "user", payload: { text: "third" } } }),
+    ev("session.execution.started", 3010, base),
+    ...step("m3", 3100, "thought three", "answer three"),
+  ])
+    await host(page, { type: "event", event });
+  await expect.poll(states).toEqual(["true", "false", "true"]);
 });
 
 test("a new prompt follows the latest message even after scrolling up", async ({ page }) => {
@@ -1268,9 +1363,8 @@ test("a pending permission stays visible after its step is folded", async ({ pag
   await openSession(page, S2, events.slice(0, asked + 1));
   await expect(page.locator(".attention-overlay .card.permission")).toBeVisible();
   await expect(page.locator(".step-fold-body")).toHaveCount(1);
-  // The turn ends with the request still pending: folding the step must not hide the overlay.
+  // The turn ends with the request still pending: closing the fold must not hide the overlay.
   await host(page, { type: "event", event: { type: "session.execution.succeeded", data: { sessionID: S2 }, created: 1794853100000 } });
-  await page.locator(".step-block .step-fold-header").first().click();
   await expect(page.locator(".step-fold-body")).toHaveCount(0);
   await expect(page.locator(".attention-overlay .card.permission")).toBeVisible();
 });

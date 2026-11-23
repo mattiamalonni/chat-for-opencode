@@ -214,10 +214,12 @@ when the agent is waiting for an approval or an answer, then a check/alert/stop 
 see at a glance whether the agent is still working, blocked on you, or done. Clicking while blocked
 opens the chat instead of stopping the turn.
 
-The latest finished turn keeps its steps expanded so its reasoning and tool calls are reviewable;
-one **Collapse all steps in this turn** control folds them again. The changed-files panel also opens
-by default, and **View all session changes** uses VS Code's native multi-file diff (full-file context)
-when a workspace folder is available.
+While a reply streams, only its current step is expanded; when the turn ends, all of its step folds
+close, leaving the prose of the answer visible. Each **Step N** header (or **Steps N–M** for a run of
+textless steps) reopens its reasoning and tool calls on demand, and **Expand all steps in this turn**
+opens them together. Manual choices stay with that turn and never change another reply's folds. The
+changed-files panel also opens by default, and **View all session changes** uses VS Code's native
+multi-file diff (full-file context) when a workspace folder is available.
 
 By default new sessions ask before editing files, running shell commands or accessing files outside
 the workspace: OpenCode's base policy (`{"action":"*","effect":"allow"}`) would otherwise approve

@@ -1630,7 +1630,7 @@ function splitStep(items: ConversationItem[]): StepPiece[] {
  * without reordering a thought that arrived after a sentence. The live step's fold stays expanded
  * while the turn streams; finished ones collapse.
  */
-function stepBlocks(groups: ConversationItem[][], liveIndex: number, allLive = false): ConversationItem[] {
+function stepBlocks(groups: ConversationItem[][], liveIndex: number, turnKey = ""): ConversationItem[] {
   const out: ConversationItem[] = [];
   let pending: ConversationItem[] = [];
   let pendingFrom = -1;
@@ -1641,11 +1641,13 @@ function stepBlocks(groups: ConversationItem[][], liveIndex: number, allLive = f
     if (pendingFrom < 0) return;
     out.push({
       kind: "step",
-      key: `steps:${pendingFrom}:${pendingTo}:${foldSeq++}`,
+      // `pendingFrom`/`pendingTo` restart at 0 for every turn: without the turn key, an override
+      // made in one reply would silently drive the auto fold state of a later one.
+      key: `steps:${turnKey}:${pendingFrom}:${pendingTo}:${foldSeq++}`,
       index: pendingFrom,
       lastIndex: pendingTo,
       details: pending,
-      live: allLive || (liveIndex >= pendingFrom && liveIndex <= pendingTo),
+      live: liveIndex >= pendingFrom && liveIndex <= pendingTo,
     });
     pending = [];
     pendingFrom = -1;
@@ -1676,13 +1678,6 @@ function stepBlocks(groups: ConversationItem[][], liveIndex: number, allLive = f
 function conversationItems(messages: UiMessage[], turns: TurnStats[]): ConversationItem[] {
   const items: ConversationItem[] = [];
   let turn: UiAssistantMessage[] = [];
-  let lastAssistant = -1;
-  for (let i = messages.length - 1; i >= 0; i--) {
-    if (messages[i].kind === "assistant") {
-      lastAssistant = i;
-      break;
-    }
-  }
 
   const flushTurn = () => {
     if (turn.length === 0) return;
@@ -1739,12 +1734,12 @@ function conversationItems(messages: UiMessage[], turns: TurnStats[]): Conversat
     }
 
     const stats = statsForTurn(turns, turn);
-    // While streaming, the last step stays open. Once a turn finishes, keep *its* steps open —
-    // that is exactly what someone reviewing the reply wants to see — and fold older turns.
-    const isLatestTurn = lastAssistant >= 0 && turn.includes(messages[lastAssistant] as UiAssistantMessage);
-    const allLive = !!stats && isLatestTurn;
-    const liveIndex = stats ? (allLive ? groups.length - 1 : -1) : groups.length - 1;
-    items.push(...stepBlocks(groups, liveIndex, allLive));
+    // While the reply streams, its current step stays open so the work is visible. The moment the
+    // turn ends, every fold closes — the answer itself is prose and stays on screen, while the
+    // thoughts/tools of all steps, including the last one, are available on demand.
+    const liveIndex = stats ? -1 : groups.length - 1;
+    // The first assistant message id is stable for the whole turn, including while it streams.
+    items.push(...stepBlocks(groups, liveIndex, turn[0]?.id));
     if (stats) items.push({ kind: "turnStats", key: `stats:${stats.id}`, stats });
     turn = [];
   };

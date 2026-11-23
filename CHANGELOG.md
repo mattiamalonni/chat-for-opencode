@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- **Fix:** step folds now follow the turn lifecycle consistently. While a reply streams, only its
+  current step is expanded; when the turn ends, every fold closes — including the last step's — while
+  the answer's prose stays visible. Fold overrides are keyed per turn, so expanding or collapsing one
+  reply no longer leaks into the next one's automatic state. Regression-tested in the UI suite.
 - **Removed:** the chat toolbar's _Open OpenCode Config File_ button and its `opencode.openConfigFile`
   command are gone, along with the dedicated config endpoint call and path validation they needed.
   OpenCode config files can still be edited directly in the workspace.
