@@ -1,11 +1,13 @@
 import type {
   AgentInfo,
   CommandSuggestion,
+  CredentialSummary,
   FileDiff,
   FormRequest,
   FormValue,
   InboxDelivery,
   InboxItem,
+  IntegrationInfo,
   ModelInfo,
   ModelRef,
   PermissionDecision,
@@ -318,3 +320,51 @@ export type WebviewMessage =
   | { type: "refreshSubagent"; sessionId: string }
   | { type: "dismissCompatibility"; version: string }
   | { type: "dismissContract"; signature: string };
+
+/**
+ * Messages of the dedicated Connect panel. They are separate from the chat protocol: a different
+ * bundle owns that webview, and credentials/OAuth codes must never be mixed with conversation data.
+ */
+export interface ConnectAttemptView {
+  kind: "oauth" | "command";
+  integrationID: string;
+  integrationName: string;
+  /** Kept so the host can look up the server-advertised command instead of trusting the webview. */
+  methodID: string;
+  methodLabel: string;
+  attemptID: string;
+  url?: string;
+  instructions?: string;
+  mode?: "auto" | "code";
+  paste?: boolean;
+  command?: string[];
+}
+
+export type ConnectHostMessage =
+  | { type: "init"; strings: Strings; platform: "mac" | "windows" | "linux" }
+  | { type: "integrations"; items: IntegrationInfo[]; credentials: CredentialSummary[] }
+  | { type: "attempt"; attempt: ConnectAttemptView }
+  | { type: "attemptStatus"; status: "pending" | "complete" | "failed" | "needs_auth"; message?: string; url?: string }
+  /** The attempt ended (completed, failed or cancelled): leave the code-entry screen. */
+  | { type: "attemptClosed" }
+  | { type: "notice"; kind: "success" | "error"; message: string }
+  | { type: "busy"; busy: boolean };
+
+export type ConnectWebviewMessage =
+  | { type: "ready" }
+  | { type: "refresh" }
+  | { type: "connectKey"; integrationID: string; key: string; answer: Record<string, FormValue>; label?: string }
+  | { type: "connectExternal"; integrationID: string; methodID: string; answer: Record<string, FormValue>; label?: string }
+  | { type: "startOAuth"; integrationID: string; methodID: string; answer: Record<string, FormValue>; label?: string }
+  | { type: "startCommand"; integrationID: string; methodID: string; label?: string }
+  | { type: "completeOAuth"; code: string }
+  /** Ask the host to poll now (device-code flows where the user acts in the browser). */
+  | { type: "checkAttempt" }
+  | { type: "cancelAttempt" }
+  /** Runs the command advertised by the selected integration method, never a webview-supplied string. */
+  | { type: "runCommand" }
+  | { type: "activateCredential"; id: string }
+  | { type: "renameCredential"; id: string; label: string }
+  | { type: "deleteCredential"; id: string }
+  | { type: "openLink"; href: string }
+  | { type: "copy"; text: string };

@@ -5,6 +5,13 @@ test or a manual probe actually ran.
 
 ## Not verified by me
 
+- **Connect panel — provider coverage.** The panel is driven by `/api/integration` and
+  `/api/credential`; its protocol, form rendering, key submission and account actions are covered by
+  automated tests. A full live OAuth login was manually verified with **GitHub Copilot**; other
+  providers' OAuth/command/external methods follow the same API but have not been tried one by one.
+  Environment-variable methods are deliberately hidden from the panel because a webview cannot set
+  a variable on the server process — configure those on `opencode serve` (or `opencode service set
+env`) and refresh.
 - **Clicking the real sidebar with a real server.** `npm run test:integration:e2e` attaches to the
   real VS Code webview over CDP against the **mock** server (typing, streaming, permission approval).
   `npm run test:integration:real` runs the extension inside real VS Code against a real

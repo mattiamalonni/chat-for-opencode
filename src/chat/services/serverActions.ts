@@ -1,7 +1,6 @@
 import * as vscode from "vscode";
 import type { ActionId, Attachment, ContextItem, HostMessage } from "../../shared/protocol";
 import type { ControllerState } from "./controllerState";
-import { quoteForShell } from "../shell";
 import { PASSWORD_KEY } from "../storageKeys";
 import { normalizeEndpoint } from "../../server/endpoint";
 
@@ -11,6 +10,7 @@ export interface ServerActionDeps {
   secrets: vscode.SecretStorage;
   output: vscode.LogOutputChannel;
   reconnect(): Promise<void>;
+  openConnect(): void;
   resetServers(): Promise<void>;
   newSession(): Promise<void>;
   send(text: string, attachments: Attachment[], context: ContextItem[], delivery?: "steer" | "queue"): Promise<boolean>;
@@ -68,38 +68,9 @@ export class ChatServerActions {
     else if (choice === retry) await this.d.reconnect();
   }
 
-  /** Explain the terminal hand-off before it happens: sign-in is a prerequisite, not a side quest. */
+  /** Sign-in is a prerequisite, not a side quest: open the dedicated provider panel. */
   private async login(): Promise<void> {
-    const d = this.d;
-    const openTerminal = vscode.l10n.t("Open terminal");
-    const learnMore = vscode.l10n.t("Learn more");
-    const choice = await vscode.window.showInformationMessage(
-      vscode.l10n.t(
-        "OpenCode needs a model provider before it can answer. This opens a VS Code terminal where you sign in with `opencode auth login`. Come back to the chat once sign-in finishes.",
-      ),
-      { modal: true },
-      openTerminal,
-      learnMore,
-    );
-    if (choice === learnMore) {
-      await vscode.env.openExternal(vscode.Uri.parse("https://opencode.ai/docs/providers/"));
-      return;
-    }
-    if (choice !== openTerminal) return;
-    const exe =
-      vscode.workspace.getConfiguration("opencode", d.state.folder?.uri).get<string>("executablePath", "opencode").trim() || "opencode";
-    let command: string;
-    try {
-      command = `${quoteForShell(exe)} auth login`;
-    } catch (err) {
-      void vscode.window.showErrorMessage(
-        vscode.l10n.t("Cannot run OpenCode sign-in: {0}", err instanceof Error ? err.message : String(err)),
-      );
-      return;
-    }
-    const terminal = vscode.window.createTerminal({ name: "OpenCode auth", cwd: d.state.folder?.uri });
-    terminal.show();
-    terminal.sendText(command);
+    this.d.openConnect();
   }
 
   async run(id: ActionId): Promise<void> {

@@ -29,6 +29,21 @@ screen readers and multi-window process management.
    so edits require approval.
 3. **Open the sidebar**: click the OpenCode icon. Expect "Starting OpenCode…" then the welcome text.
    _OpenCode: Show Logs_ shows `server listening on http://127.0.0.1:<port>` and the password as `***`.
+   3b. **Connect panel**: run _OpenCode: Connect Provider…_ from the palette (or the plug icon in the
+   chat header). The provider grid loads and saved accounts, if any, appear in a **Connected
+   accounts** card at the top, active first. The chat must stay connected — no "Starting OpenCode…"
+   banner while the panel loads or after signing in. Environment-variable methods must not be
+   offered.
+   - Click a provider card with one sign-in method (e.g. GitHub Copilot): the form opens directly.
+     A provider with two methods (e.g. OpenAI: API key + ChatGPT) shows the small method picker;
+     fields with options (GitHub deployment type) are `<select>`s and the Enterprise URL appears
+     only when _enterprise_ is chosen.
+   - Complete a GitHub Copilot browser sign-in: the code screen **closes by itself** on success, the
+     new account appears in the list and the chat model picker updates. Close the panel while an
+     attempt is pending and reopen it: no stale spinner and no error notice from the cancelled poll.
+   - On a saved account try _Use this account_, _Rename account_ and _Remove account_ (the last one
+     asks for confirmation). Then check the status bar tooltip and _OpenCode: Account_: they must
+     show the same accounts as the panel.
 4. **Streaming**: send `Explain what a git commit is in 3 bullet points`. Expect text appearing
    progressively, a collapsible _Thoughts_ block if the model reasons, the stop button while running.
    When the reply finishes, the step folds close on their own while the answer stays visible; click a

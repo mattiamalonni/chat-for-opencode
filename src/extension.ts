@@ -4,6 +4,7 @@ import { registerCommands } from "./commands";
 import { ChatController, ServerRegistry } from "./chat/controller";
 import { DIFF_SCHEME, DiffService } from "./chat/diff";
 import { ChatViewProvider } from "./chat/viewProvider";
+import { ConnectController } from "./connect/controller";
 import { cleanupOrphanServers } from "./server/orphans";
 import { createAccountStatus } from "./status/account";
 import { createUsageStatus } from "./status/usage";
@@ -30,12 +31,30 @@ export function activate(context: vscode.ExtensionContext): ExtensionApi {
 
   const focusView = () => vscode.commands.executeCommand(`${ChatViewProvider.viewId}.focus`);
   const usage = createUsageStatus();
-  const account = createAccountStatus(logError);
+  const account = createAccountStatus(logError, () => chat.credentials());
+  const connect = new ConnectController(context.extensionUri, {
+    getClient: () => chat.apiClient,
+    ensureClient: async () => {
+      await chat.connect();
+      return chat.apiClient;
+    },
+    getFolder: () => chat.folderUri,
+    onChanged: async () => {
+      await chat.refreshCatalog();
+      account.loadLogins();
+    },
+    output,
+  });
 
   context.subscriptions.push(
     usage.item,
     account.item,
-    chat.onDidPost((msg) => usage.onMessage(msg)),
+    chat.onDidPost((msg) => {
+      usage.onMessage(msg);
+      // The account tooltip now uses the same server API as the Connect panel. Refresh it once the
+      // chat has a live client, without starting a server just to populate a status bar.
+      if (msg.type === "connection" && msg.status === "connected") void account.loadLogins();
+    }),
     vscode.workspace.onDidChangeConfiguration((e) => usage.onConfigurationChanged(e)),
     output,
     vscode.workspace.registerTextDocumentContentProvider(DIFF_SCHEME, diffs),
@@ -45,14 +64,20 @@ export function activate(context: vscode.ExtensionContext): ExtensionApi {
         chat.attachPanel(panel);
       },
     }),
+    vscode.window.registerWebviewPanelSerializer("opencode.connect", {
+      async deserializeWebviewPanel(panel: vscode.WebviewPanel): Promise<void> {
+        connect.attachPanel(panel);
+      },
+    }),
+    connect,
     // 1.99 exposes only the "granted" event: untrusting a workspace requires a window reload, so
     // there is nothing to react to there. Reconnect/prompt paths re-check `isTrusted` themselves.
     vscode.workspace.onDidGrantWorkspaceTrust(() => void chat.onWorkspaceTrustChanged(true)),
-    ...registerCommands({ chat, account, output, logError }),
+    ...registerCommands({ chat, account, connect, output, logError }),
     chat.onDidChangeExecution((state) => account.setExecution(state)),
   );
 
-  account.loadLogins();
+  // `loadLogins()` runs on the first "connected" event above; at activation there is no client yet.
 
   const REVEALED_KEY = "opencode.revealedOnce";
   if (!context.globalState.get<boolean>(REVEALED_KEY)) {

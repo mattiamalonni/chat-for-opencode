@@ -1,19 +1,21 @@
 import * as vscode from "vscode";
-import { type AuthMenuItem, readAuthLogins } from "./auth/logins";
+import { type AuthMenuItem, type AuthQuickPickItem, toAuthItems } from "./auth/logins";
 import { type ChatController, type SessionSearchResult } from "./chat/controller";
 import { ChatViewProvider } from "./chat/viewProvider";
+import type { ConnectController } from "./connect/controller";
 import type { AccountStatus } from "./status/account";
 
 export interface CommandDependencies {
   chat: ChatController;
   account: AccountStatus;
+  connect: ConnectController;
   output: vscode.OutputChannel;
   logError(line: string): void;
 }
 
 /** Registers every contributed command plus the config listener that recreates servers. */
 export function registerCommands(deps: CommandDependencies): vscode.Disposable[] {
-  const { chat, account, output, logError } = deps;
+  const { chat, account, connect, output, logError } = deps;
   const focusView = () => vscode.commands.executeCommand(`${ChatViewProvider.viewId}.focus`);
 
   return [
@@ -71,9 +73,9 @@ export function registerCommands(deps: CommandDependencies): vscode.Disposable[]
     vscode.commands.registerCommand("opencode.stopTurn", () => void chat.receive({ type: "abort" })),
     vscode.commands.registerCommand("opencode.openChatInEditor", () => chat.openChatInEditor()),
     vscode.commands.registerCommand("opencode.account", async () => {
-      let logins: vscode.QuickPickItem[];
+      let logins: AuthQuickPickItem[];
       try {
-        logins = await readAuthLogins();
+        logins = toAuthItems(await chat.credentials());
       } catch (err) {
         logError(`[auth] failed to read OpenCode logins: ${String(err)}`);
         account.clearLogins();
@@ -90,15 +92,16 @@ export function registerCommands(deps: CommandDependencies): vscode.Disposable[]
       if (items.length) items.push({ label: vscode.l10n.t("Actions"), kind: vscode.QuickPickItemKind.Separator });
       items.push({
         label: vscode.l10n.t("Sign in or add an OpenCode login"),
-        description: vscode.l10n.t("Run opencode auth login"),
+        description: vscode.l10n.t("Open the provider sign-in panel"),
         command: "login",
       });
       const selection = await vscode.window.showQuickPick(items, {
         title: vscode.l10n.t("OpenCode login"),
         placeHolder: logins.length ? vscode.l10n.t("Saved OpenCode logins") : vscode.l10n.t("No saved OpenCode login found"),
       });
-      if (selection?.command === "login") await chat.runAction("login");
+      if (selection?.command === "login") connect.open();
     }),
+    vscode.commands.registerCommand("opencode.connect", () => connect.open()),
     vscode.commands.registerCommand("opencode.moveView", async () => {
       // `workbench.action.moveFocusedView` reads VS Code's internal `focusedView` context key,
       // which is cleared when focus enters a webview iframe (and by the overflow menu itself).

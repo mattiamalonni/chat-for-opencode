@@ -155,8 +155,9 @@ the overlay.
 
 `untrustedWorkspaces.supported: "limited"` restricts `opencode.executablePath` and `opencode.endpoint`,
 but VS Code would still let the extension spawn the default `opencode` binary and read `SecretStorage`.
-The `isTrusted` check therefore sits before `server.ensure()` / `server.restart()` and before
-`readAuthLogins()`, and publishes an error card with a _Trust workspace_ action. VS Code 1.99 only
+The `isTrusted` check therefore sits before `server.ensure()` / `server.restart()` and before any
+credential listing (`ChatController.credentials()` / `GET /api/credential`), and publishes an error
+card with a _Trust workspace_ action. VS Code 1.99 only
 exposes `onDidGrantWorkspaceTrust`, so gaining trust reconnects without a reload while losing trust
 takes effect on the next reload (all entry points re-check `isTrusted` in the meantime).
 

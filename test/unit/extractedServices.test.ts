@@ -161,6 +161,7 @@ describe("extracted controller services", () => {
       secrets: { store: vi.fn(async () => {}), delete: vi.fn(async () => {}) } as never,
       output: { show: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() } as never,
       reconnect: vi.fn(async () => {}),
+      openConnect: vi.fn(),
       resetServers: vi.fn(async () => {}),
       newSession: vi.fn(async () => {}),
       send: vi.fn(async () => true),

@@ -157,6 +157,12 @@ export interface FormOption {
   description?: string;
 }
 
+export interface FormWhen {
+  key: string;
+  op: "eq" | "neq";
+  value: string | number | boolean;
+}
+
 export interface FormField {
   key: string;
   type: "string" | "number" | "integer" | "boolean" | "multiselect" | "external";
@@ -171,6 +177,65 @@ export interface FormField {
   url?: string;
   minimum?: number;
   maximum?: number;
+  when?: FormWhen[];
+}
+
+/** Integration methods returned by `GET /api/integration`, used by the Connect panel. */
+export type IntegrationMethodType = "oauth" | "command" | "key" | "external" | "env";
+
+export interface IntegrationMethod {
+  /** Key and env methods have no id; the other methods need it to start a connection. */
+  id?: string;
+  type: IntegrationMethodType;
+  label?: string;
+  form?: FormField[];
+  command?: string[];
+  names?: string[];
+}
+
+export interface ConnectionInfo {
+  type: "credential" | "env";
+  id?: string;
+  name?: string;
+  label?: string;
+  method?: string;
+  status?: { status: string; message: string; url?: string };
+}
+
+export interface IntegrationInfo {
+  id: string;
+  name: string;
+  methods: IntegrationMethod[];
+  connections: ConnectionInfo[];
+  metadata?: Record<string, unknown>;
+}
+
+/** OAuth/command attempt returned when a connection starts (never contains a secret). */
+export interface ConnectAttempt {
+  attemptID: string;
+  url?: string;
+  instructions?: string;
+  mode?: "auto" | "code";
+  paste?: boolean;
+  command?: string[];
+}
+
+export interface AttemptStatus {
+  status: "pending" | "complete" | "failed" | "needs_auth";
+  message?: string;
+  url?: string;
+}
+
+/**
+ * Safe projection of a stored credential. `GET /api/credential` also returns the secret value;
+ * the host must strip it before posting anything to a webview.
+ */
+export interface CredentialSummary {
+  id: string;
+  integrationID: string;
+  label: string;
+  active: boolean;
+  type: "key" | "oauth" | "external";
 }
 
 export interface FormRequest {

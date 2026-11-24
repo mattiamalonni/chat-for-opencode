@@ -34,6 +34,20 @@ const builds = [
     loader: { ".css": "css" },
     logLevel: "warning",
   },
+  {
+    entryPoints: ["src/webview/connect/main.tsx"],
+    bundle: true,
+    format: "iife",
+    platform: "browser",
+    target: "es2022",
+    outfile: "dist/connect.js",
+    jsx: "automatic",
+    jsxImportSource: "preact",
+    sourcemap: !production,
+    minify: production,
+    loader: { ".css": "css" },
+    logLevel: "warning",
+  },
 ];
 
 if (watch) {

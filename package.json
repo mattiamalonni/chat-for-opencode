@@ -100,7 +100,7 @@
             "id": "provider",
             "title": "%walkthrough.provider.title%",
             "description": "%walkthrough.provider.description%",
-            "command": "opencode.account",
+            "command": "opencode.connect",
             "commandTitle": "%walkthrough.provider.command%",
             "media": {
               "markdown": "media/walkthrough-provider.md"
@@ -167,6 +167,12 @@
         "category": "OpenCode"
       },
       {
+        "command": "opencode.connect",
+        "title": "%command.connect%",
+        "category": "OpenCode",
+        "icon": "$(plug)"
+      },
+      {
         "command": "opencode.showLogs",
         "title": "%command.showLogs%",
         "category": "OpenCode",
@@ -217,6 +223,11 @@
           "group": "overflow"
         },
         {
+          "command": "opencode.connect",
+          "when": "view == opencode.chatView",
+          "group": "navigation@3"
+        },
+        {
           "command": "opencode.openChatInEditor",
           "when": "view == opencode.chatView",
           "group": "navigation@4"
@@ -233,6 +244,9 @@
         },
         {
           "command": "opencode.install"
+        },
+        {
+          "command": "opencode.connect"
         },
         {
           "command": "opencode.openChatInEditor"

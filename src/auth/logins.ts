@@ -1,41 +1,28 @@
-import { execFile } from "node:child_process";
-import { promisify } from "node:util";
-import * as vscode from "vscode";
+import type * as vscode from "vscode";
+import type { CredentialSummary } from "../shared/api";
 
-const execFileAsync = promisify(execFile);
-
-export type AuthMenuItem = vscode.QuickPickItem & { command?: "login" };
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
+/** A saved provider account, projected from the server credential list (never its secret). */
+export interface AuthQuickPickItem extends vscode.QuickPickItem {
+  id: string;
+  integrationID: string;
 }
 
-function parseAuthLogins(output: string): vscode.QuickPickItem[] {
-  const parsed: unknown = JSON.parse(output);
-  if (!Array.isArray(parsed)) throw new Error("Expected an array from `opencode auth list --format json`.");
+/** Picker rows: real accounts plus the separator and the "sign in" action. */
+export type AuthMenuItem = vscode.QuickPickItem & { id?: string; integrationID?: string; command?: "login" };
 
-  const items: vscode.QuickPickItem[] = [];
-  for (const integration of parsed) {
-    if (!isRecord(integration) || typeof integration.id !== "string") {
-      throw new Error("Unexpected integration format from `opencode auth list --format json`.");
-    }
-    if (integration.id !== "opencode") continue;
-    if (typeof integration.name !== "string" || !Array.isArray(integration.connections)) {
-      throw new Error("Unexpected OpenCode login format from `opencode auth list --format json`.");
-    }
-    for (const connection of integration.connections) {
-      if (!isRecord(connection)) throw new Error("Unexpected login format from `opencode auth list --format json`.");
-      const description = typeof connection.label === "string" ? connection.label : undefined;
-      const detail = [connection.method, connection.type].filter((value): value is string => typeof value === "string").join(" · ");
-      items.push({ label: integration.name, description, detail: detail || undefined });
-    }
-  }
-  return items;
-}
-
-export async function readAuthLogins(): Promise<vscode.QuickPickItem[]> {
-  if (!vscode.workspace.isTrusted) throw new Error("Workspace is not trusted");
-  const executable = vscode.workspace.getConfiguration("opencode").get<string>("executablePath", "opencode").trim() || "opencode";
-  const { stdout } = await execFileAsync(executable, ["auth", "list", "--format", "json"], { timeout: 10_000 });
-  return parseAuthLogins(stdout);
+/**
+ * Both the status bar and the Account picker use this projection of `GET /api/credential`, the same
+ * source as the Connect panel. Reading the CLI's `auth list --format json` here used to hide every
+ * provider except the built-in `opencode` one, so the two views could disagree.
+ */
+export function toAuthItems(credentials: CredentialSummary[]): AuthQuickPickItem[] {
+  return [...credentials]
+    .sort((a, b) => Number(b.active) - Number(a.active) || a.label.localeCompare(b.label))
+    .map((credential) => ({
+      id: credential.id,
+      integrationID: credential.integrationID,
+      label: credential.label,
+      description: credential.integrationID,
+      detail: `${credential.type}${credential.active ? " · active" : ""}`,
+    }));
 }

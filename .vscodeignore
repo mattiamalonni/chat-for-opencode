@@ -1,9 +1,12 @@
 **
 # vsce applies `!` patterns after all ignore patterns: a broad `!dist/**` would also re-include
-# source maps and any stale build artifact. List the three files esbuild actually produces.
+# source maps and any stale build artifact. List the five files esbuild actually produces
+# (extension host, chat webview, Connect webview).
 !dist/extension.js
 !dist/webview.js
 !dist/webview.css
+!dist/connect.js
+!dist/connect.css
 !media/**
 !package.json
 !package.nls*.json

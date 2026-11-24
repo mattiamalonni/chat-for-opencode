@@ -45,6 +45,21 @@ export const ENDPOINTS = {
   formReply: { method: "POST", path: "api/session/{sessionID}/form/{formID}/reply" },
   formCancel: { method: "DELETE", path: "api/session/{sessionID}/form/{formID}" },
   diff: { method: "GET", path: "api/session/{sessionID}/diff" },
+  integrationList: { method: "GET", path: "api/integration" },
+  integrationGet: { method: "GET", path: "api/integration/{integrationID}" },
+  connectKey: { method: "POST", path: "api/integration/{integrationID}/connect/key" },
+  connectExternal: { method: "POST", path: "api/integration/{integrationID}/connect/external" },
+  connectOAuth: { method: "POST", path: "api/integration/{integrationID}/connect/oauth" },
+  connectOAuthStatus: { method: "GET", path: "api/integration/{integrationID}/connect/oauth/{attemptID}" },
+  connectOAuthCancel: { method: "DELETE", path: "api/integration/{integrationID}/connect/oauth/{attemptID}" },
+  connectOAuthComplete: { method: "POST", path: "api/integration/{integrationID}/connect/oauth/{attemptID}/complete" },
+  connectCommand: { method: "POST", path: "api/integration/{integrationID}/connect/command" },
+  connectCommandStatus: { method: "GET", path: "api/integration/{integrationID}/connect/command/{attemptID}" },
+  connectCommandCancel: { method: "DELETE", path: "api/integration/{integrationID}/connect/command/{attemptID}" },
+  credentialList: { method: "GET", path: "api/credential" },
+  credentialUpdate: { method: "PATCH", path: "api/credential/{credentialID}" },
+  credentialRemove: { method: "DELETE", path: "api/credential/{credentialID}" },
+  credentialActivate: { method: "POST", path: "api/credential/{credentialID}/activate" },
 } as const satisfies Record<string, ApiEndpoint>;
 
 export const REQUIRED_ENDPOINTS: readonly ApiEndpoint[] = Object.values(ENDPOINTS);

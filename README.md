@@ -14,7 +14,8 @@
 
 A Copilot-style chat in the VS Code sidebar for [OpenCode](https://opencode.ai), the open-source
 coding agent. It is a **client** of the OpenCode v2 server (`opencode serve`) running on your
-machine: it does not reimplement the agent, never reads or stores provider API keys and sends
+machine: it does not reimplement the agent, never stores provider API keys itself (the **Connect**
+panel forwards them once to the local OpenCode server, which owns credential storage) and sends
 **no telemetry**.
 
 **[Install Chat for OpenCode from the Visual Studio Marketplace](https://marketplace.visualstudio.com/items?itemName=mattiamalonni.chat-for-opencode)**
@@ -25,7 +26,7 @@ machine: it does not reimplement the agent, never reads or stores provider API k
   no process, reads no saved login and ignores workspace-specific settings.
 - **OpenCode v2** on your `PATH` (contract matched to 2.4.0); follow the
   [official installation instructions](https://opencode.ai/docs/#installation). A dismissible banner reports version drift.
-- One provider configured with `opencode auth login`, or use the _Configure a provider_ button in chat.
+- One provider configured from the **OpenCode: Connect Provider…** panel (or with `opencode auth login`).
 
 ```sh
 code --install-extension chat-for-opencode-<version>.vsix
@@ -96,9 +97,11 @@ Every command, default key and setting: [docs/REFERENCE.md](docs/REFERENCE.md).
 
 ## Privacy & security
 
-No telemetry or network calls beyond the configured server; provider authentication stays in
-OpenCode. Workspace Trust gates every server and secret access, the webview has a strict nonce CSP
-with sanitised Markdown, and paths from model output are confined to the workspace.
+No telemetry or network calls beyond the configured server; provider credentials stay in
+OpenCode. The Connect panel sends a key once, over the authenticated local connection, and never
+stores or logs it in the extension. Workspace Trust gates every server and secret access, webviews
+have a strict nonce CSP with sanitised Markdown, and paths from model output are confined to the
+workspace.
 
 ## Development
 

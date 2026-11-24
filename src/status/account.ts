@@ -1,6 +1,7 @@
 import * as vscode from "vscode";
-import { readAuthLogins } from "../auth/logins";
+import { toAuthItems } from "../auth/logins";
 import type { ExecutionState, ExecutionStatus } from "../chat/executionState";
+import type { CredentialSummary } from "../shared/api";
 
 /** The account status item: always visible, even when the Secondary Side Bar is closed. */
 export interface AccountStatus {
@@ -12,7 +13,7 @@ export interface AccountStatus {
   loadLogins(): Promise<void>;
 }
 
-export function createAccountStatus(logError: (line: string) => void): AccountStatus {
+export function createAccountStatus(logError: (line: string) => void, readCredentials: () => Promise<CredentialSummary[]>): AccountStatus {
   const item = vscode.window.createStatusBarItem("opencode.status", vscode.StatusBarAlignment.Right, 100);
   item.name = vscode.l10n.t("OpenCode account");
   item.text = "$(comment-discussion)";
@@ -78,7 +79,7 @@ export function createAccountStatus(logError: (line: string) => void): AccountSt
     async loadLogins() {
       if (!vscode.workspace.isTrusted) return;
       try {
-        authLogins = await readAuthLogins();
+        authLogins = toAuthItems(await readCredentials());
         refreshTooltip();
       } catch (err) {
         authLogins = undefined;

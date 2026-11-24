@@ -3,8 +3,9 @@
 ## Goal
 
 A VS Code extension that provides a Copilot-style chat sidebar for **OpenCode v2**. It is a pure
-client of `opencode serve`: it never re-implements the agent, never reads or stores provider API
-keys and sends no telemetry.
+client of `opencode serve`: it never re-implements the agent, never stores provider API keys itself
+and sends no telemetry. Its Connect panel collects a key or starts an OAuth/command flow and sends
+the credential once to the local server, which remains the sole owner of credential storage.
 
 ## Architecture
 

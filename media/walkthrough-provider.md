@@ -1,7 +1,3 @@
-OpenCode cannot answer until at least one model provider is configured. The quickest path is:
+OpenCode cannot answer until at least one model provider is configured. Click **Open Connect panel** to sign in graphically: pick a provider, choose a method (API key, browser sign-in, sign-in command or external credentials) and follow the instructions. Credentials are stored by the OpenCode server, not by this extension.
 
-```bash
-opencode auth login
-```
-
-Click **Open OpenCode account** to pick a saved login or start the sign-in flow in a VS Code terminal. After signing in, the chat reconnects automatically; if the provider list looks empty, use the reconnect action in the status banner.
+After signing in, the chat model list refreshes automatically. If it still looks empty, use the reconnect action in the status banner. The CLI equivalent remains `opencode auth login`.

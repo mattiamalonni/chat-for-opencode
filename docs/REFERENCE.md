@@ -17,6 +17,7 @@ Do not edit the generated blocks by hand; change the manifest and regenerate.
 | OpenCode: Stop current response                        | –              | also click the status bar while a turn runs                                |
 | OpenCode: Open Chat in Editor                          | –              |                                                                            |
 | OpenCode: Account                                      | –              | view saved logins or sign in                                               |
+| OpenCode: Connect Provider…                            | –              |                                                                            |
 | OpenCode: Show Logs                                    | –              | toolbar overflow menu                                                      |
 | OpenCode: Set Server Password…                         | –              | external server only                                                       |
 | OpenCode: Stop Server                                  | –              |                                                                            |

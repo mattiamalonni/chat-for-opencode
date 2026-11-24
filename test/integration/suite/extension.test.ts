@@ -58,6 +58,7 @@ describe("chat-for-opencode extension", () => {
       "opencode.openSettings",
       "opencode.openChatInEditor",
       "opencode.account",
+      "opencode.connect",
       "opencode.showLogs",
       "opencode.setServerPassword",
       "opencode.stopServer",
@@ -94,6 +95,21 @@ describe("chat-for-opencode extension", () => {
     assert.deepEqual(catalog.selectedModel, { id: "mock-fast", providerID: "mock" });
     const sessions = await waitFor(() => lastPosted("sessions"), "sessions");
     assert.deepEqual(sessions.items, []);
+  });
+
+  it("keeps the connected server when the Connect panel loads", async () => {
+    await waitFor(() => controller.debugState.status === "connected", "connected before Connect panel");
+    const mark = posted.length;
+    const baseUrl = controller.debugState.baseUrl;
+    await vscode.commands.executeCommand("opencode.connect");
+    // Give the panel's `ready` handler time to load integrations before checking the chat state.
+    await new Promise((resolve) => setTimeout(resolve, 500));
+    assert.equal(controller.debugState.status, "connected", "the panel must not restart/reconnect the server");
+    assert.equal(controller.debugState.baseUrl, baseUrl);
+    assert.ok(
+      !posted.slice(mark).some((m) => m.type === "connection" && m.status === "starting"),
+      "no 'Starting OpenCode…' status from the Connect panel",
+    );
   });
 
   it("lives in the secondary side bar (right) on VS Code >= 1.104", async function () {

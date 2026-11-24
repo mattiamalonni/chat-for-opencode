@@ -7,7 +7,7 @@ import { FileIconThemeService, type LanguageContribution } from "./fileIconTheme
 import { ChatLifecycle } from "./lifecycle";
 import { Generation } from "./generation";
 import { describeServerError, ServerError, type ServerHandle, type ServerState } from "../server/server";
-import type { ServerEvent } from "../shared/api";
+import type { CredentialSummary, ServerEvent } from "../shared/api";
 
 import { checkCompatibility, compatibilityKey } from "../shared/compatibility";
 
@@ -450,6 +450,7 @@ export class ChatController implements vscode.Disposable {
       secrets: ctx.secrets,
       output,
       reconnect: () => this.connectionService.reconnect(),
+      openConnect: () => void vscode.commands.executeCommand("opencode.connect"),
       resetServers: () => this.connectionService.resetServers(),
       newSession: () => this.connectionService.newSession(),
       send: (text, attachments, context, delivery) => this.promptActions.send(text, attachments, context, delivery),
@@ -652,6 +653,38 @@ export class ChatController implements vscode.Disposable {
   /** Session shown in the chat, for commands that hand the conversation to another client. */
   get currentSessionId(): string | undefined {
     return this.state.sessionId;
+  }
+
+  /** Same HTTP client and password as the chat, for host features that call other server APIs. */
+  get apiClient(): OpenCodeClient | undefined {
+    return this.client;
+  }
+
+  /**
+   * Saved accounts from the server, shared by the status bar, the Account picker and the Connect
+   * panel. Reuses the live client; only starts a connection when there isn't one yet.
+   */
+  async credentials(): Promise<CredentialSummary[]> {
+    let client = this.client;
+    if (!client) {
+      await this.connect();
+      client = this.client;
+    }
+    return client ? client.credentials() : [];
+  }
+
+  /** Re-read models and agents after the Connect panel adds or switches a provider. */
+  async refreshCatalog(): Promise<void> {
+    const client = this.client;
+    if (!client) return;
+    const [models, defaultModel, agents] = await Promise.all([
+      client.models().catch(() => []),
+      client.defaultModel().catch(() => null),
+      client.agents().catch(() => []),
+    ]);
+    this.catalog.setModelsAndAgents(models, defaultModel, agents);
+    this.catalog.publish();
+    await this.catalog.refresh(client);
   }
 
   post(msg: HostMessage): void {

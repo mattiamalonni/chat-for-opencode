@@ -1,10 +1,14 @@
 import type {
   AgentInfo,
+  AttemptStatus,
   CommandInfo,
+  ConnectAttempt,
+  CredentialSummary,
   FileAttachment,
   FileDiff,
   FormRequest,
   FormValue,
+  IntegrationInfo,
   InboxDelivery,
   InboxItem,
   ModelInfo,
@@ -434,6 +438,176 @@ export class OpenCodeClient {
   async commands(): Promise<CommandInfo[]> {
     const res = await this.requestEndpoint<unknown>(ENDPOINTS.commands);
     return this.dataArray<CommandInfo>(res, "command list");
+  }
+
+  // ---- integrations / credentials (Connect panel) -----------------------------------------
+
+  /**
+   * `location.directory` must use dot notation: the deepObject query parser ignores brackets, and
+   * without it OpenCode returns an empty integration list even when providers are configured.
+   */
+  async integrations(directory?: string, signal?: AbortSignal): Promise<IntegrationInfo[]> {
+    const res = await this.requestEndpoint<unknown>(ENDPOINTS.integrationList, {}, { query: { "location.directory": directory }, signal });
+    return this.dataArray<IntegrationInfo>(res, "integration list");
+  }
+
+  private location(directory?: string): Query {
+    return { "location.directory": directory };
+  }
+
+  async integration(id: string, directory?: string, signal?: AbortSignal): Promise<IntegrationInfo> {
+    const res = await this.requestEndpoint<unknown>(
+      ENDPOINTS.integrationGet,
+      { integrationID: id },
+      { query: this.location(directory), signal },
+    );
+    return this.data<IntegrationInfo>(res, "integration");
+  }
+
+  /**
+   * A key is sent only over the authenticated local server connection. The client never stores it
+   * and the response has no body, so no secret can leak back into the extension or the webview.
+   */
+  async connectKey(
+    id: string,
+    key: string,
+    answer?: Record<string, FormValue>,
+    label?: string,
+    directory?: string,
+    signal?: AbortSignal,
+  ): Promise<void> {
+    await this.requestEndpoint(
+      ENDPOINTS.connectKey,
+      { integrationID: id },
+      { query: this.location(directory), body: { key, answer: answer ?? null, label: label ?? null }, signal },
+    );
+  }
+
+  async connectExternal(
+    id: string,
+    methodID: string,
+    answer?: Record<string, FormValue>,
+    label?: string,
+    directory?: string,
+    signal?: AbortSignal,
+  ): Promise<void> {
+    await this.requestEndpoint(
+      ENDPOINTS.connectExternal,
+      { integrationID: id },
+      { query: this.location(directory), body: { methodID, answer: answer ?? null, label: label ?? null }, signal },
+    );
+  }
+
+  async startOAuth(
+    id: string,
+    methodID: string,
+    answer?: Record<string, FormValue>,
+    label?: string,
+    directory?: string,
+    signal?: AbortSignal,
+  ): Promise<ConnectAttempt> {
+    const res = await this.requestEndpoint<unknown>(
+      ENDPOINTS.connectOAuth,
+      { integrationID: id },
+      { query: this.location(directory), body: { methodID, answer: answer ?? null, label: label ?? null }, signal },
+    );
+    return this.data<ConnectAttempt>(res, "OAuth attempt");
+  }
+
+  async oauthStatus(id: string, attemptID: string, directory?: string, signal?: AbortSignal): Promise<AttemptStatus> {
+    const res = await this.requestEndpoint<unknown>(
+      ENDPOINTS.connectOAuthStatus,
+      { integrationID: id, attemptID },
+      {
+        query: this.location(directory),
+        signal,
+      },
+    );
+    return this.data<AttemptStatus>(res, "OAuth attempt status");
+  }
+
+  async completeOAuth(id: string, attemptID: string, code: string, directory?: string, signal?: AbortSignal): Promise<void> {
+    await this.requestEndpoint(
+      ENDPOINTS.connectOAuthComplete,
+      { integrationID: id, attemptID },
+      {
+        query: this.location(directory),
+        body: { code },
+        signal,
+      },
+    );
+  }
+
+  async cancelOAuth(id: string, attemptID: string, directory?: string, signal?: AbortSignal): Promise<void> {
+    await this.requestEndpoint(ENDPOINTS.connectOAuthCancel, { integrationID: id, attemptID }, { query: this.location(directory), signal });
+  }
+
+  async startCommand(id: string, methodID: string, label?: string, directory?: string, signal?: AbortSignal): Promise<ConnectAttempt> {
+    const res = await this.requestEndpoint<unknown>(
+      ENDPOINTS.connectCommand,
+      { integrationID: id },
+      {
+        query: this.location(directory),
+        body: { methodID, label: label ?? null },
+        signal,
+      },
+    );
+    return this.data<ConnectAttempt>(res, "command attempt");
+  }
+
+  async commandStatus(id: string, attemptID: string, directory?: string, signal?: AbortSignal): Promise<AttemptStatus> {
+    const res = await this.requestEndpoint<unknown>(
+      ENDPOINTS.connectCommandStatus,
+      { integrationID: id, attemptID },
+      {
+        query: this.location(directory),
+        signal,
+      },
+    );
+    return this.data<AttemptStatus>(res, "command attempt status");
+  }
+
+  async cancelCommand(id: string, attemptID: string, directory?: string, signal?: AbortSignal): Promise<void> {
+    await this.requestEndpoint(
+      ENDPOINTS.connectCommandCancel,
+      { integrationID: id, attemptID },
+      { query: this.location(directory), signal },
+    );
+  }
+
+  /** Raw credentials include secrets; callers must project them before crossing the webview boundary. */
+  async credentials(signal?: AbortSignal): Promise<CredentialSummary[]> {
+    const res = await this.requestEndpoint<unknown>(ENDPOINTS.credentialList, {}, { signal });
+    const raw = this.dataArray<{ id?: unknown; integrationID?: unknown; label?: unknown; active?: unknown; value?: unknown }>(
+      res,
+      "credential list",
+    );
+    return raw.flatMap((item): CredentialSummary[] => {
+      if (
+        typeof item.id !== "string" ||
+        typeof item.integrationID !== "string" ||
+        typeof item.label !== "string" ||
+        typeof item.active !== "boolean"
+      ) {
+        return [];
+      }
+      const value = item.value;
+      const type = value && typeof value === "object" && "type" in value && typeof value.type === "string" ? value.type : "";
+      if (type !== "key" && type !== "oauth" && type !== "external") return [];
+      return [{ id: item.id, integrationID: item.integrationID, label: item.label, active: item.active, type }];
+    });
+  }
+
+  async renameCredential(id: string, label: string, signal?: AbortSignal): Promise<void> {
+    await this.requestEndpoint(ENDPOINTS.credentialUpdate, { credentialID: id }, { body: { label }, signal });
+  }
+
+  async deleteCredential(id: string, signal?: AbortSignal): Promise<void> {
+    await this.requestEndpoint(ENDPOINTS.credentialRemove, { credentialID: id }, { signal });
+  }
+
+  async activateCredential(id: string, signal?: AbortSignal): Promise<void> {
+    await this.requestEndpoint(ENDPOINTS.credentialActivate, { credentialID: id }, { signal });
   }
 
   eventUrl(): string {

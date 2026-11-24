@@ -6,6 +6,20 @@ build, CI or architecture work, condensed to one line; the reasoning lives in
 
 ## Unreleased
 
+- **User — Connect:** new **OpenCode: Connect Provider…** panel, a graphical equivalent of `/connect`,
+  replaces the terminal hand-off for sign-in. Click a provider card to sign in with an API key (including
+  provider-specific forms), browser OAuth, a sign-in command or external credentials. Environment-variable
+  methods are hidden because they must be set on the server process. Saved accounts are listed at the top
+  (active first) and can be activated, renamed or removed; one-method providers skip the method picker.
+- **User — Consistency:** the status bar tooltip and **OpenCode: Account** now list every saved provider
+  account from the same server API as the Connect panel, instead of showing only the built-in OpenCode login.
+  Signing in or switching accounts keeps the chat connected and refreshes its model list; the Connect
+  code screen closes by itself when the browser flow finishes.
+- **Internal — Connect:** added integration/credential endpoints and client methods, a dedicated webview
+  bundle with validated host/webview protocols, cancellation of in-flight requests when the panel closes,
+  and tests (unit, UI, integration). Fixed `.vscodeignore` so the new `connect.js`/`connect.css` bundles are
+  included in the VSIX.
+
 - **User — Shortcut:** `Cmd/Ctrl+L` toggles the in-chat session list while the chat has focus (instead
   of VS Code's Expand Line Selection). `↑`/`↓` walk the sessions from the filter field, `Enter`
   selects one and focus returns to the composer; `Esc` or the shortcut closes the list. `Cmd/Ctrl+M`

@@ -12,7 +12,15 @@
  * access to the current session and can report an actionable error.
  */
 
-import { ACTION_IDS, UI_ERROR_KINDS, type ActionId, type HostMessage, type WebviewMessage } from "./protocol";
+import {
+  ACTION_IDS,
+  UI_ERROR_KINDS,
+  type ActionId,
+  type ConnectHostMessage,
+  type ConnectWebviewMessage,
+  type HostMessage,
+  type WebviewMessage,
+} from "./protocol";
 
 /** Generous caps: large prompts and patches are legitimate, unbounded arrays are not. */
 const MAX_ID = 4096;
@@ -21,6 +29,8 @@ const MAX_URI = 32_768;
 const MAX_TEXT = 4_000_000;
 const MAX_PATCH = 8_000_000;
 const MAX_LIST = 2_000;
+/** A credential form is small; a key or pasted OAuth code is never more than a few KB. */
+const MAX_SECRET = 8_192;
 
 type Check = (value: unknown) => boolean;
 
@@ -307,4 +317,111 @@ export function isHostMessage(value: unknown): value is HostMessage {
 /** Exported for tests: check a single action id against the protocol whitelist. */
 export function isActionId(value: unknown): value is ActionId {
   return oneOf(ACTION_IDS)(value);
+}
+
+// ---- Connect panel ---------------------------------------------------------------------------
+
+const isFormAnswer: Check = rec(isFormValue);
+
+const isIntegrationMethod: Check = shape({
+  id: opt(str()),
+  type: oneOf(["oauth", "command", "key", "external", "env"] as const),
+  label: opt(str(MAX_LABEL)),
+  form: opt(arr(obj, 100)),
+  command: opt(arr(str(MAX_LABEL), 50)),
+  names: opt(arr(str(MAX_LABEL), 50)),
+});
+
+const isIntegration: Check = shape({
+  id: str(),
+  name: str(MAX_LABEL),
+  methods: arr(isIntegrationMethod, 100),
+  connections: arr(obj, 200),
+  metadata: opt(obj),
+});
+
+const isCredentialSummary: Check = shape({
+  id: str(),
+  integrationID: str(),
+  label: str(MAX_LABEL),
+  active: bool,
+  type: oneOf(["key", "oauth", "external"] as const),
+});
+
+const isConnectAttempt: Check = shape({
+  kind: oneOf(["oauth", "command"] as const),
+  integrationID: str(),
+  integrationName: str(MAX_LABEL),
+  methodID: str(),
+  methodLabel: str(MAX_LABEL),
+  attemptID: str(),
+  url: opt(str(MAX_URI)),
+  instructions: opt(str(MAX_TEXT)),
+  mode: opt(oneOf(["auto", "code"] as const)),
+  paste: opt(bool),
+  command: opt(arr(str(MAX_LABEL), 50)),
+});
+
+const CONNECT_WEBVIEW_VALIDATORS: Record<string, Check> = {
+  ready: () => true,
+  refresh: () => true,
+  connectKey: shape({
+    integrationID: str(),
+    key: str(MAX_SECRET),
+    answer: isFormAnswer,
+    label: opt(str(MAX_LABEL)),
+  }),
+  connectExternal: shape({
+    integrationID: str(),
+    methodID: str(),
+    answer: isFormAnswer,
+    label: opt(str(MAX_LABEL)),
+  }),
+  startOAuth: shape({
+    integrationID: str(),
+    methodID: str(),
+    answer: isFormAnswer,
+    label: opt(str(MAX_LABEL)),
+  }),
+  startCommand: shape({ integrationID: str(), methodID: str(), label: opt(str(MAX_LABEL)) }),
+  completeOAuth: shape({ code: str(MAX_SECRET) }),
+  checkAttempt: () => true,
+  cancelAttempt: () => true,
+  runCommand: () => true,
+  activateCredential: shape({ id: str() }),
+  renameCredential: shape({ id: str(), label: str(MAX_LABEL) }),
+  deleteCredential: shape({ id: str() }),
+  openLink: shape({ href: str(MAX_URI) }),
+  copy: shape({ text: str(MAX_TEXT) }),
+};
+
+const CONNECT_HOST_VALIDATORS: Record<string, Check> = {
+  init: shape({
+    strings: rec(str(MAX_TEXT)),
+    platform: oneOf(["mac", "windows", "linux"] as const),
+  }),
+  // A real OpenCode 2.4.0 server exposes ~335 integrations; a tighter cap silently dropped the
+  // whole message and left the panel stuck on "Loading providers…".
+  integrations: shape({ items: arr(isIntegration, MAX_LIST), credentials: arr(isCredentialSummary, MAX_LIST) }),
+  attempt: shape({ attempt: isConnectAttempt }),
+  attemptStatus: shape({
+    status: oneOf(["pending", "complete", "failed", "needs_auth"] as const),
+    message: opt(str(MAX_TEXT)),
+    url: opt(str(MAX_URI)),
+  }),
+  attemptClosed: () => true,
+  notice: shape({ kind: oneOf(["success", "error"] as const), message: str(MAX_TEXT) }),
+  busy: shape({ busy: bool }),
+};
+
+/** Validate a message coming from the Connect webview before the host dispatches it. */
+export function isConnectWebviewMessage(value: unknown): value is ConnectWebviewMessage {
+  if (!obj(value) || typeof value.type !== "string") return false;
+  return CONNECT_WEBVIEW_VALIDATORS[value.type]?.(value) ?? false;
+}
+
+/** Validate a message coming from the host before the Connect webview handles it. */
+export function isConnectHostMessage(value: unknown): value is ConnectHostMessage {
+  if (!obj(value) || typeof value.type !== "string") return false;
+  return CONNECT_HOST_VALIDATORS[value.type]?.(value) ?? false;
 }
