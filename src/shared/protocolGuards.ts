@@ -188,8 +188,9 @@ const WEBVIEW_VALIDATORS: Record<string, Check> = {
     attachments: arr(isAttachment),
     context: arr(isContextItem),
     delivery: opt(oneOf(["steer", "queue"] as const)),
+    sessionId: opt(str()),
   }),
-  abort: () => true,
+  abort: shape({ sessionId: opt(str()) }),
   compact: () => true,
   revertTo: shape({ sessionId: str(), messageID: str(), text: str(MAX_TEXT) }),
   forkTo: shape({ sessionId: str(), messageID: str() }),
@@ -265,6 +266,17 @@ const HOST_VALIDATORS: Record<string, Check> = {
   event: shape({ event: isEvent }),
   subagent: shape({ snapshot: isSubagentSnapshot }),
   subagentEvent: shape({ sessionId: str(), event: isEvent }),
+  externalAttention: shape({
+    items: arr(
+      shape({
+        sessionId: str(),
+        label: opt(str(MAX_LABEL)),
+        permission: opt(obj),
+        question: opt(obj),
+      }),
+      200,
+    ),
+  }),
   linkSubagent: shape({ toolId: str(), sessionId: str() }),
   context: shape({ items: arr(isContextItem) }),
   promptCatalog: shape({ items: arr(isPromptDefinition) }),

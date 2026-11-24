@@ -30,6 +30,7 @@ function setup(overrides: Partial<EventRouterHooks> = {}) {
     postSessionEvent: vi.fn(),
     subagents,
     permissions: { forgetRequest: vi.fn(), enabled: vi.fn(() => false) },
+    external: { observe: vi.fn(), forget: vi.fn() },
     execution: new ExecutionStateService(),
     attention: new BoundedSet<string>(10),
     scheduleInbox: vi.fn(),
@@ -61,6 +62,16 @@ describe("ChatEventRouter", () => {
     router.route(event("permission.asked", { sessionID: "child-1", id: "req-1" }));
     expect(hooks.autoApprove).toHaveBeenCalledTimes(1);
     expect(hooks.postSessionEvent).not.toHaveBeenCalled();
+  });
+
+  it("hands permission requests from other sessions to the external attention owner", () => {
+    const { router, hooks, subagents } = setup();
+    router.route(event("permission.asked", { sessionID: "other", id: "req-ext" }));
+    expect(hooks.external.observe).toHaveBeenCalledWith(expect.objectContaining({ type: "permission.asked" }), "other", false, false);
+
+    subagents.isTracked.mockReturnValue(true);
+    router.route(event("permission.asked", { sessionID: "child-1", id: "req-child" }));
+    expect(hooks.external.observe).toHaveBeenLastCalledWith(expect.anything(), "child-1", false, true);
   });
 
   it("schedules a refresh when a completed step reports changed files", () => {

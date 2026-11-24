@@ -477,6 +477,59 @@ details[open] > summary > .chevron,
   min-height: 0;
 }
 
+/* A compact composer pinned under the child's conversation: it addresses the child session, not
+   the main chat, so it deliberately does not reuse the full `.composer` chrome (chips, toolbar). */
+.subagent-composer {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 6px;
+  border-top: 1px solid var(--opencode-border);
+}
+
+.subagent-composer-row {
+  display: flex;
+  align-items: flex-end;
+  gap: 6px;
+  padding: 4px;
+  border: 1px solid var(--opencode-border);
+  border-radius: 6px;
+  background: var(--vscode-input-background);
+}
+
+.subagent-composer-row:focus-within {
+  border-color: var(--vscode-focusBorder);
+}
+
+.subagent-composer-input {
+  flex: 1;
+  min-width: 0;
+  min-height: 26px;
+  max-height: 120px;
+  padding: 3px 4px;
+  resize: vertical;
+  border: none;
+  background: transparent;
+  color: var(--vscode-input-foreground);
+  font: inherit;
+  line-height: 1.4;
+}
+
+.subagent-composer-input:focus,
+.subagent-composer-input:focus-visible {
+  outline: none;
+}
+
+.subagent-composer-input::placeholder {
+  color: var(--vscode-input-placeholderForeground);
+}
+
+.subagent-composer-hint {
+  padding-left: 2px;
+  font-size: 0.8em;
+  color: var(--vscode-descriptionForeground);
+}
+
 /* Inline rename/delete forms: compact cards instead of controls crammed into one row. */
 .confirm,
 .rename {

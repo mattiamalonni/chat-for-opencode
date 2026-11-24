@@ -96,19 +96,20 @@ env`) and refresh.
   edit_ cancels the item and restores its text in the composer instead of patching it. The API also
   exposes no reordering, and non-`user` items (subagent reports, compaction, moves) have no edit
   action.
-- **Subagent conversations are read-only in the modal.** It renders the child's steps, thoughts,
-  tools and report, but there is no composer: you cannot send a new prompt to the child, stop it or
-  steer it from there (`send`/`abort` are addressed to the currently open session, so that would need
-  a protocol change). Pending permissions and questions **can** be answered from the approval panel
-  docked in the modal, or from the main chat's overlay: the reply carries the child's session id.
-  The inline card stays the place to follow live progress.
+- **The subagent modal's composer is deliberately minimal.** It renders the child's steps, thoughts,
+  tools and report and can send, queue or stop that child, but it has no attachments, model/agent
+  picker or slash-command UI: the main composer owns those. A reply goes to the child only and never
+  enters the parent conversation. Pending permissions and questions **can** be answered from the
+  approval panel docked in the modal, or from the main chat's overlay: the reply carries the child's
+  session id. The inline card stays the place to follow live progress.
 
 - **External live updates are polled, not pushed.** A turn started in the TUI (or any other client
   that only shares the on-disk session storage) shows up in the open chat within ~2 seconds, while
   the chat is visible; when it is hidden, opening it re-syncs immediately. Only the **currently open
   session** is followed, and a session opened by another client is not auto-selected. A permission
-  request or question raised by an external turn cannot be answered from this chat — answer it in the
-  client that started the turn.
+  or question raised by another client **on the same server** is shown in the approval panel and can
+  be answered here; a client using only the on-disk storage has no event stream to forward, so its
+  requests still have to be answered where the turn was started.
 
 - **VS Code 1.99–1.103** cannot contribute to the Secondary Side Bar: the chat opens in the Explorer
   there (move it with _OpenCode: Move Chat View…_). VS Code remembers a view moved by the user, so

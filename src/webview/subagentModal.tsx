@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "preact/hooks";
+import { useEffect, useRef, useState } from "preact/hooks";
 import type { ModelInfo } from "../shared/api";
 
 import { type SubagentState } from "../shared/subagents";
@@ -9,11 +9,12 @@ import { useT } from "./i18n";
 import { IconChevron, IconClose } from "./icons";
 
 import { type SubagentEntry } from "./subagents";
+import { post } from "./vscode";
 
 /**
- * Read-only drill-down into a child session. It reuses the very same `Conversation` as the main
- * chat but with the child's `ChatState`, so steps, tools, reasoning and report render identically.
- * No composer or host actions are wired: replies and prompts still belong to the parent chat.
+ * Drill-down into a child session. It reuses the very same `Conversation` as the main chat but with
+ * the child's `ChatState`, so steps, tools, reasoning and report render identically. The small
+ * composer below addresses the child explicitly; the main chat keeps its own session and draft.
  */
 export function SubagentModal({
   stack,
@@ -38,6 +39,34 @@ export function SubagentModal({
   const ref = useRef<HTMLDivElement>(null);
   const currentId = stack[stack.length - 1];
   const entry = entries[currentId];
+  const busy = !!entry?.state.busy;
+  const [reply, setReply] = useState("");
+  // Each crumb is a different conversation: never carry an unsubmitted prompt into a child (or
+  // back up to a parent) just because the modal stayed open. Skip the mount pass — clearing after
+  // the user has already typed would drop the first prompt in a fast test or a fast click.
+  const lastId = useRef(currentId);
+  useEffect(() => {
+    if (lastId.current === currentId) return;
+    lastId.current = currentId;
+    setReply("");
+  }, [currentId]);
+
+  const sendReply = (delivery?: "steer" | "queue") => {
+    const text = reply.trim();
+    if (!text || !currentId) return;
+    post({ type: "send", sessionId: currentId, text, attachments: [], context: [], delivery });
+    setReply("");
+  };
+  const replyKeyDown = (e: KeyboardEvent) => {
+    if (e.key !== "Enter" || e.shiftKey || e.isComposing) return;
+    e.preventDefault();
+    e.stopPropagation();
+    sendReply(e.ctrlKey || e.metaKey ? "steer" : busy ? "queue" : undefined);
+  };
+  const stopChild = () => {
+    if (currentId) post({ type: "abort", sessionId: currentId });
+  };
+
   const closeRef = useRef(onClose);
   closeRef.current = onClose;
   useEffect(() => {
@@ -139,6 +168,36 @@ export function SubagentModal({
             <div class="empty">{t("loadingSubagent")}</div>
           )}
         </div>
+        {entry && (
+          <form
+            class="subagent-composer"
+            onSubmit={(e) => {
+              e.preventDefault();
+              sendReply(busy ? "queue" : undefined);
+            }}
+          >
+            <div class="subagent-composer-row">
+              <textarea
+                class="subagent-composer-input"
+                aria-label={t("subagentReplyLabel")}
+                placeholder={t("subagentReplyPlaceholder")}
+                value={reply}
+                rows={1}
+                onInput={(e) => setReply((e.currentTarget as HTMLTextAreaElement).value)}
+                onKeyDown={replyKeyDown}
+              />
+              <button type="submit" class="primary compact" disabled={!reply.trim()} aria-label={t("subagentSend")}>
+                {t("send")}
+              </button>
+              {busy && (
+                <button type="button" class="secondary compact" onClick={stopChild}>
+                  {t("stop")}
+                </button>
+              )}
+            </div>
+            <div class="subagent-composer-hint">{t("queueHint")}</div>
+          </form>
+        )}
       </div>
     </div>
   );

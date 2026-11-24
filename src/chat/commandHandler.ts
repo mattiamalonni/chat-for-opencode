@@ -31,7 +31,7 @@ export interface CommandHandlerHooks {
   connect(): Promise<void>;
   loadAll(): Promise<void>;
   loadSession(info: SessionInfo, stale?: () => boolean): Promise<void>;
-  send(text: string, attachments: Attachment[], context: ContextItem[], delivery?: "steer" | "queue"): Promise<boolean>;
+  send(text: string, attachments: Attachment[], context: ContextItem[], delivery?: "steer" | "queue", sessionId?: string): Promise<boolean>;
   newSession(): Promise<void>;
   saveDraft(sid: string | undefined, text: string): Promise<void>;
   refreshSessions(): Promise<void>;
@@ -96,10 +96,12 @@ export class ChatCommandHandler {
         else await h.connect();
         return;
       case "send":
-        await h.send(msg.text, msg.attachments, msg.context, msg.delivery);
+        await h.send(msg.text, msg.attachments, msg.context, msg.delivery, msg.sessionId);
         return;
       case "abort": {
-        const sid = h.getSessionId();
+        // A child session can be stopped from its conversation modal. It has no main composer to
+        // unlock, so its local-idle fallback goes on the subagent channel instead.
+        const sid = msg.sessionId ?? h.getSessionId();
         const generation = h.execution.generation.current();
         if (h.getClient() && sid) {
           try {
@@ -107,7 +109,15 @@ export class ChatCommandHandler {
           } finally {
             // A second interrupt on an idle session emits no terminal event; a failed one (500)
             // must not leave the composer stuck either, so clear busy locally on both paths.
-            h.postLocalIdle(sid, generation);
+            if (sid === h.getSessionId()) {
+              h.postLocalIdle(sid, generation);
+            } else {
+              h.post({
+                type: "subagentEvent",
+                sessionId: sid,
+                event: { type: "session.status", data: { sessionID: sid, status: { type: "idle", local: true } } },
+              });
+            }
           }
         }
         return;

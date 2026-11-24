@@ -41,6 +41,7 @@ function routerFor() {
       forget: vi.fn(),
     },
     permissions: { forgetRequest: vi.fn(), enabled: vi.fn(() => false) },
+    external: { observe: vi.fn(), forget: vi.fn() },
     execution: new ExecutionStateService(),
     attention: new BoundedSet<string>(10),
     scheduleInbox: vi.fn(),

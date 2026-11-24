@@ -58,8 +58,8 @@ repository to launch an Extension Development Host.
 The short version — full behaviour in [docs/FEATURES.md](docs/FEATURES.md):
 
 - [Chat and sessions](docs/FEATURES.md#chat-and-sessions) — streaming Markdown, collapsible
-  reasoning and tool cards, per-turn step folds, turn stats, queued messages, subagents in a
-  read-only modal, `todowrite` lists.
+  reasoning and tool cards, per-turn step folds, turn stats, queued messages, subagents with a
+  child-focused composer in the modal, `todowrite` lists.
 - [Context and files](docs/FEATURES.md#context-and-files) — editor/selection chips, `@` file search,
   external files sent inline, clickable file references, prompt library, skills, replies
   saved to `AGENTS.md`.

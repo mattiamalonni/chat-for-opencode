@@ -67,6 +67,19 @@ export interface UiError {
   target?: ReplyTarget;
 }
 
+/**
+ * A pending request from a session that is neither the open chat nor a tracked subagent — typically
+ * a turn started in the TUI on the same server. The webview shows it in the attention panel; the
+ * reply uses the `sessionID` already carried by the request, so no new protocol message is needed.
+ */
+export interface ExternalAttentionItem {
+  sessionId: string;
+  /** Session title when the picker knows it, so the card says which chat is waiting. */
+  label?: string;
+  permission?: PermissionRequest;
+  question?: FormRequest;
+}
+
 export interface SessionSummary {
   id: string;
   title: string;
@@ -220,6 +233,8 @@ export type HostMessage =
   | { type: "subagent"; snapshot: SubagentSnapshot }
   /** Live event belonging to a subagent's child session (not the one shown in the chat). */
   | { type: "subagentEvent"; sessionId: string; event: ServerEvent }
+  /** Pending permissions/questions from other clients on the same server, keyed by request id. */
+  | { type: "externalAttention"; items: ExternalAttentionItem[] }
   /**
    * The host saw `metadata.sessionID` on a tool call: link that exact card to the child session.
    * Sent as soon as the tool reports the id, so a card created after the snapshot still gets it.
@@ -260,8 +275,12 @@ export type HostMessage =
 
 export type WebviewMessage =
   | { type: "ready" }
-  | { type: "send"; text: string; attachments: Attachment[]; context: ContextItem[]; delivery?: "steer" | "queue" }
-  | { type: "abort" }
+  /**
+   * `sessionId` addresses a different session than the open one: a subagent typed into from its
+   * conversation modal. Omitted means the current chat, so existing callers are unchanged.
+   */
+  | { type: "send"; text: string; attachments: Attachment[]; context: ContextItem[]; delivery?: "steer" | "queue"; sessionId?: string }
+  | { type: "abort"; sessionId?: string }
   | { type: "compact" }
   /** Roll the conversation back to the turn opened by `messageID` and restore its prompt. */
   | { type: "revertTo"; sessionId: string; messageID: string; text: string }

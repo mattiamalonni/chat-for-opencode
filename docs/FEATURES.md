@@ -21,8 +21,9 @@ settings, see [REFERENCE.md](REFERENCE.md).
   conversation only when the agent starts working on it. Composer drafts are per session and survive
   a window reload.
 - **Subagents**: live progress stays inline. **Open subagent conversation** shows the child session
-  in a read-only modal with the same chat view; breadcrumbs navigate nested subagents and `Esc` or
-  a backdrop click closes it.
+  in a modal with the same chat view; breadcrumbs navigate nested subagents and `Esc` or a backdrop
+  click closes it. Its compact composer replies to the child (`Enter` queues while it works,
+  `Ctrl/Cmd+Enter` sends now) and **Stop** interrupts that child without leaving the modal.
 - **Turn stats**: when the agent finishes, one badge summarises start/end clock times, steps, time to
   the last step, tokens, cost and insertions/deletions. Click **+N / -N** to open all that turn's
   changes in one read-only diff. **Stop** a response and **compact** a long session from the
@@ -69,6 +70,10 @@ settings, see [REFERENCE.md](REFERENCE.md).
   the queue; `1`/`2`/`3` mean Allow once / Always allow / Reject (`2` only when the rule can be
   saved). Reject or Cancel stops the reply; the two allow options continue it. Several questions
   appear one at a time with **Next question** and a single reply collects all answers.
+- A turn started in another client on the same server (for example the TUI) has no approval UI here,
+  so its pending permissions and questions are collected in the **same panel**, labelled with the
+  session title; answering one targets that session, not the open chat.
+
 - A **contract smoke test** on connect names the features a non-2.4.0 server cannot support, instead
   of only warning about the version number. A second, discreet **status bar item** shows the
   session's estimated context size and cost (`opencode.showUsageInStatusBar`); hover for the

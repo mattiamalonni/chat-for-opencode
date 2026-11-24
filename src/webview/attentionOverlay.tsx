@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "preact/hooks";
 import type { FormField, FormRequest, FormValue, PermissionRequest } from "../shared/api";
 import type { ChatState } from "../shared/chatReducer";
+import type { ExternalAttentionItem } from "../shared/protocol";
 import type { SubagentState } from "../shared/subagents";
 import { isImeKey } from "../shared/keys";
 import { useT } from "./i18n";
@@ -37,37 +38,47 @@ function initialAnswers(form: FormRequest): Answers {
  * form; each visible field becomes its own entry and the answers are collected before the one
  * `formReply` is posted. The cards themselves still own the reply protocol.
  */
-export function AttentionOverlay({ state, subagents }: { state: ChatState; subagents?: SubagentState }) {
+export function AttentionOverlay({
+  state,
+  subagents,
+  external,
+}: {
+  state: ChatState;
+  subagents?: SubagentState;
+  external?: ExternalAttentionItem[];
+}) {
   const t = useT();
   const subagentLabel = t("subagent");
+  const otherLabel = t("otherSession");
   const items = useMemo<AttentionItem[]>(() => {
     const out: AttentionItem[] = [];
     const seen = new Set<string>();
+    const pushForm = (f: FormRequest, sourceLabel?: string) => {
+      if (seen.has(f.id)) return;
+      seen.add(f.id);
+      const visible = f.fields.filter((field) => !field.hidden);
+      // A form whose fields are all hidden still needs a card so it can be submitted or cancelled.
+      const fields = visible.length > 0 ? visible : [undefined];
+      fields.forEach((field, index) =>
+        out.push({
+          id: `${f.id}:${index}`,
+          requestId: f.id,
+          index,
+          kind: "question",
+          form: f,
+          field,
+          last: index === fields.length - 1,
+          sourceLabel,
+        }),
+      );
+    };
     const collect = (chat: ChatState, sourceLabel?: string) => {
       for (const p of chat.permissions) {
         if (seen.has(p.id)) continue;
         seen.add(p.id);
         out.push({ id: p.id, requestId: p.id, index: 0, kind: "permission", permission: p, sourceLabel });
       }
-      for (const f of chat.forms) {
-        if (seen.has(f.id)) continue;
-        seen.add(f.id);
-        const visible = f.fields.filter((field) => !field.hidden);
-        // A form whose fields are all hidden still needs a card so it can be submitted or cancelled.
-        const fields = visible.length > 0 ? visible : [undefined];
-        fields.forEach((field, index) =>
-          out.push({
-            id: `${f.id}:${index}`,
-            requestId: f.id,
-            index,
-            kind: "question",
-            form: f,
-            field,
-            last: index === fields.length - 1,
-            sourceLabel,
-          }),
-        );
-      }
+      for (const f of chat.forms) pushForm(f, sourceLabel);
     };
     collect(state);
     // Subagents are headless: their `ask` requests would otherwise have no card to answer and the
@@ -79,8 +90,21 @@ export function AttentionOverlay({ state, subagents }: { state: ChatState; subag
       const name = subagents?.meta[id]?.title || subagents?.meta[id]?.agent;
       collect(child, name ? `${subagentLabel}: ${name}` : subagentLabel);
     }
+    // A turn started in the TUI (or another client on the same server) has no view here, but its
+    // request still belongs to the user. The card replies to the request's own session id.
+    for (const item of external ?? []) {
+      const sourceLabel = item.label ? `${otherLabel}: ${item.label}` : otherLabel;
+      if (item.permission) {
+        const p = item.permission;
+        if (!seen.has(p.id)) {
+          seen.add(p.id);
+          out.push({ id: p.id, requestId: p.id, index: 0, kind: "permission", permission: p, sourceLabel });
+        }
+      }
+      if (item.question) pushForm(item.question, sourceLabel);
+    }
     return out;
-  }, [state.permissions, state.forms, subagents, subagentLabel]);
+  }, [state.permissions, state.forms, subagents, external, subagentLabel, otherLabel]);
 
   // One entry per form, including the ones that came from subagents. Field cards share a form id.
   const allForms = useMemo<FormRequest[]>(() => {

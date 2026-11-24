@@ -31,6 +31,7 @@ import { PermissionService } from "./permissionService";
 
 import { BoundedSet } from "../shared/boundedSet";
 import { ChatEventRouter } from "./eventRouter";
+import { ExternalAttentionService } from "./externalAttention";
 import { ChatCommandHandler } from "./commandHandler";
 import { ExecutionStateService, type ExecutionState } from "./executionState";
 import { createControllerState } from "./services/controllerState";
@@ -94,6 +95,8 @@ export class ChatController implements vscode.Disposable {
   private readonly sessionList: SessionListService;
   /** Child discovery, event routing and snapshots; see subagentTracker.ts. */
   private readonly subagents: SubagentTracker;
+  /** Pending requests from other clients on the same server; see externalAttention.ts. */
+  private readonly externalAttention: ExternalAttentionService;
 
   /** Drops, picker, inline staging and the attachment path allowlist; see attachmentService.ts. */
   private readonly attachments: AttachmentService;
@@ -149,6 +152,8 @@ export class ChatController implements vscode.Disposable {
         this.state.lastKnownMessage = undefined;
         this.sessionService.stopLivePoll();
         this.connectionService.clearTimers();
+        // A different server (folder switch/reconnect) cannot answer requests from the old one.
+        this.externalAttention.reset();
       },
       toUiError: (err, fallback) => {
         // Child-process output is diagnostic-only: redacted by the server, capped, and written here
@@ -186,6 +191,10 @@ export class ChatController implements vscode.Disposable {
         return Math.min(100, Math.max(1, Math.floor(configured) || 10));
       },
       () => (this.state.folder && (vscode.workspace.workspaceFolders?.length ?? 0) > 1 ? this.state.folder.name : undefined),
+    );
+    this.externalAttention = new ExternalAttentionService(
+      (msg) => this.post(msg),
+      (sid) => this.sessionList.titleOf(sid),
     );
     this.context = new ContextTracker((items) => this.post({ type: "context", items }));
 
@@ -320,6 +329,12 @@ export class ChatController implements vscode.Disposable {
       postSessionEvent: (sid, event) => this.postSessionEvent(sid, event),
       subagents: this.subagents,
       permissions: this.permissions,
+      external: {
+        observe: (event, sid, isCurrent, isChild) => this.externalAttention.observe(event, sid, isCurrent, isChild),
+        forget: (sid) => {
+          this.externalAttention.forget(sid);
+        },
+      },
       execution: this.execution,
       attention: this.announcedHiddenAttention,
       scheduleInbox: () => this.refreshActions.scheduleInbox(),
@@ -374,7 +389,7 @@ export class ChatController implements vscode.Disposable {
       connect: () => this.connectionService.connect(),
       loadAll: () => this.sessionService.loadAll(),
       loadSession: (info, stale) => this.sessionService.loadSession(info, stale),
-      send: (text, attachments, context, delivery) => this.promptActions.send(text, attachments, context, delivery),
+      send: (text, attachments, context, delivery, sessionId) => this.promptActions.send(text, attachments, context, delivery, sessionId),
       newSession: () => this.connectionService.newSession(),
       saveDraft: (sid, text) => this.draftActions.save(sid, text),
       refreshSessions: () => this.refreshSessions(),

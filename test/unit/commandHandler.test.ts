@@ -94,6 +94,21 @@ describe("ChatCommandHandler", () => {
     expect(hooks.postLocalIdle).toHaveBeenCalledWith("s1", expect.any(Number));
   });
 
+  it("addresses send and abort to an explicit session, without touching the main composer", async () => {
+    const { handler, hooks, client } = setup();
+    await handler.handle(msg({ type: "send", text: "continue", attachments: [], context: [], delivery: "steer", sessionId: "child" }));
+    expect(hooks.send).toHaveBeenCalledWith("continue", [], [], "steer", "child");
+
+    await handler.handle(msg({ type: "abort", sessionId: "child" }));
+    expect(client.interrupt).toHaveBeenCalledWith("child");
+    expect(hooks.postLocalIdle).not.toHaveBeenCalled();
+    expect(hooks.post).toHaveBeenCalledWith({
+      type: "subagentEvent",
+      sessionId: "child",
+      event: { type: "session.status", data: { sessionID: "child", status: { type: "idle", local: true } } },
+    });
+  });
+
   it("commits a model only after the server accepts it and restores it on failure", async () => {
     const accepted = setup();
     await accepted.handler.handle(msg({ type: "setModel", model: { id: "new", providerID: "p" } }));

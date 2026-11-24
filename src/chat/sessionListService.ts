@@ -108,6 +108,11 @@ export class SessionListService {
     this.postSessions();
   }
 
+  /** Title of a loaded session, used to label requests that arrive from other clients. */
+  titleOf(id: string): string | undefined {
+    return this.items.find((s) => s.id === id)?.title;
+  }
+
   /** Keep the picker in sync after a rename; returns false when the id is not on a loaded page. */
   rename(id: string, title: string): boolean {
     if (!this.items.some((s) => s.id === id)) return false;

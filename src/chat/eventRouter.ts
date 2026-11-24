@@ -32,6 +32,11 @@ export interface EventRouterHooks {
     forget(id: string): void;
   };
   permissions: { forgetRequest(requestId: string): void; enabled(sessionId: string | undefined): boolean };
+  /** Cards from other clients on the same server; the hook ignores sessions we already show. */
+  external: {
+    observe(event: ServerEvent, sid: string | undefined, isCurrent: boolean, isChild: boolean): void;
+    forget(sid: string): void;
+  };
   execution: ExecutionStateService;
   attention: BoundedSet<string>;
   scheduleInbox(): void;
@@ -67,7 +72,10 @@ export class ChatEventRouter {
     const event = normalizeServerEvent(incoming);
     if (!event) return;
     const sid = eventSessionId(event);
-    if (sid && sid === h.getSessionId()) h.noteSessionEvent();
+    const isCurrent = sid === h.getSessionId();
+    const isChild = !!sid && h.subagents.isTracked(sid);
+    if (sid && isCurrent) h.noteSessionEvent();
+    h.external.observe(event, sid, isCurrent, isChild);
 
     if (event.type === "session.created") {
       const data = event.data as { sessionID?: string; parentID?: string; title?: string; agent?: string };

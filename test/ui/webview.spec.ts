@@ -62,6 +62,9 @@ const AGENTS = [
   { id: "reviewer", name: "Reviewer", description: "Reviews code.", mode: "primary", hidden: false },
 ];
 
+type SendMessage = Extract<WebviewMessage, { type: "send" }>;
+type AbortMessage = Extract<WebviewMessage, { type: "abort" }>;
+
 async function host(page: Page, msg: HostMessage): Promise<void> {
   await page.evaluate((m) => window.postMessage(m, "*"), msg as unknown as Record<string, unknown>);
 }
@@ -3159,7 +3162,7 @@ test("an explicit subagent link makes a card openable even without history metad
   await expect(card.locator(".tool-open")).toHaveAttribute("aria-label", STRINGS.openSubagent);
 });
 
-test("a subagent card opens a read-only conversation modal with breadcrumbs", async ({ page }) => {
+test("a subagent card opens a conversation modal with breadcrumbs", async ({ page }) => {
   await boot(page);
   const events = fixture("real-sse-subagent.jsonl");
   const parent = "ses_e0d1a594affeRHT5ks6SqFzeKs";
@@ -3180,10 +3183,11 @@ test("a subagent card opens a read-only conversation modal with breadcrumbs", as
 
   const modal = page.getByRole("dialog", { name: STRINGS.subagentConversation });
   await expect(modal).toBeVisible();
-  // The child's own conversation is rendered, not the compact inline card — but with no composer:
-  // prompts and replies still belong to the parent chat.
+  // The child's own conversation is rendered, not the compact inline card. Its composer is a
+  // compact one that addresses the child, not the main chat's full composer.
   await expect(modal.locator(".msg.user")).toContainText("You are a subagent spawned by another session.");
   await expect(modal.locator(".composer")).toHaveCount(0);
+  await expect(modal.locator(".subagent-composer")).toHaveCount(1);
   await expect(modal.locator(".crumb")).toHaveCount(2);
   await expect(modal.locator(".crumb").last()).toHaveText("explore");
 
@@ -3197,6 +3201,92 @@ test("a subagent card opens a read-only conversation modal with breadcrumbs", as
   await page.keyboard.press("Escape");
   await expect(modal).toHaveCount(0);
   await expect(trigger).toBeFocused();
+});
+
+test("the subagent modal replies to the child and can stop it", async ({ page }) => {
+  await boot(page);
+  const events = fixture("real-sse-subagent.jsonl");
+  const parent = "ses_e0d1a594affeRHT5ks6SqFzeKs";
+  const child = "ses_e0d1a3fbaffewFAJSNZEYUBF3e";
+  const mark = events.findIndex((e) => e.type === "session.tool.progress" && (e.data as { sessionID?: string }).sessionID === parent);
+  await openSession(
+    page,
+    parent,
+    events.slice(0, mark + 1).filter((e) => (e.data as { sessionID?: string }).sessionID === parent),
+  );
+  for (const event of events.filter((e) => (e.data as { sessionID?: string }).sessionID === child)) {
+    await host(page, { type: "subagentEvent", sessionId: child, event });
+  }
+  await host(page, {
+    type: "subagentEvent",
+    sessionId: child,
+    event: { type: "session.status", created: 2000, data: { sessionID: child, status: { type: "busy" } } } as ServerEvent,
+  });
+
+  const modal = page.getByRole("dialog", { name: STRINGS.subagentConversation });
+  await page.locator(".tool.subagent .tool-open").first().click();
+  await expect(modal).toBeVisible();
+
+  const input = modal.getByRole("textbox", { name: STRINGS.subagentReplyLabel });
+  await input.fill("keep going");
+  await expect(input).toHaveValue("keep going");
+  // Wait for Preact to adopt the typed value before sending from state.
+  await expect(modal.getByRole("button", { name: STRINGS.subagentSend })).toBeEnabled();
+  await input.press("Enter");
+  // The child is busy, so Enter queues instead of stealing the parent's turn.
+  await expect.poll(async () => ((await lastPosted(page, "send")) as SendMessage | undefined)?.text).toBe("keep going");
+  expect(await lastPosted(page, "send")).toMatchObject({ sessionId: child, delivery: "queue" });
+  await expect(input).toHaveValue("");
+  await expect(modal.getByRole("button", { name: STRINGS.subagentSend })).toBeDisabled();
+
+  await modal.getByRole("button", { name: STRINGS.stop }).click();
+  await expect.poll(async () => ((await lastPosted(page, "abort")) as AbortMessage | undefined)?.sessionId).toBe(child);
+});
+
+test("a permission from another client's turn is answerable from this chat", async ({ page }) => {
+  await boot(page);
+  await openSession(page, S1, []);
+  await host(page, {
+    type: "externalAttention",
+    items: [
+      {
+        sessionId: "ses_external",
+        label: "TUI session",
+        permission: {
+          id: "per_external",
+          sessionID: "ses_external",
+          action: "shell",
+          resources: ["git status"],
+          save: [],
+          metadata: {},
+        },
+      },
+    ],
+  });
+
+  const overlay = page.locator(".attention-overlay");
+  await expect(overlay).toBeVisible();
+  await expect(overlay.locator(".attention-source")).toHaveText(`${STRINGS.otherSession}: TUI session`);
+  await overlay.getByRole("button", { name: STRINGS.permissionAllowOnce }).click();
+  await expect
+    .poll(async () => ((await lastPosted(page, "permissionReply")) as { sessionId?: string } | undefined)?.sessionId)
+    .toBe("ses_external");
+  expect(await lastPosted(page, "permissionReply")).toMatchObject({ requestId: "per_external", decision: "once" });
+});
+
+test("the open session's own request is never duplicated from the external list", async ({ page }) => {
+  await boot(page);
+  await openSession(page, S1, []);
+  await host(page, {
+    type: "externalAttention",
+    items: [
+      {
+        sessionId: S1,
+        permission: { id: "per_duplicate", sessionID: S1, action: "shell", resources: ["echo hi"], save: [], metadata: {} },
+      },
+    ],
+  });
+  await expect(page.locator(".attention-overlay")).toHaveCount(0);
 });
 
 test("a subagent's permission is answerable from the parent chat", async ({ page }) => {

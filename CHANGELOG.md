@@ -6,6 +6,15 @@ build, CI or architecture work, condensed to one line; the reasoning lives in
 
 ## Unreleased
 
+- **User — External approvals:** a permission or question raised by a turn started in another client
+  on the same server (for example the TUI) now appears in the approval panel, labelled with its
+  session title, and can be answered from the extension. Previously those requests were dropped
+  because their session was neither open nor a tracked subagent; the reply has always addressed the
+  request's own session.
+- **User — Subagents:** the conversation modal is no longer read-only. Its compact composer replies to
+  the child session (`Enter` queues while it works, `Ctrl/Cmd+Enter` sends now) and **Stop** interrupts
+  that child; the parent chat keeps its own session and draft. `send`/`abort` now accept an explicit
+  `sessionId`, so commands can address a session other than the open one.
 - **User — Steps:** `edit`, `read` and `write` calls now render as a single line: status, action, file icon, name and path,
   with the diff counts pushed to the right. The tool header and the changed-file row are merged, so the file is no
   longer shown twice; the **Open file** button is gone while the counts still open the diff. Extra files and the raw

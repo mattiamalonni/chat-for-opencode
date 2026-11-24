@@ -183,14 +183,38 @@ export class ChatPromptActions {
     });
   }
 
-  /** Returns false when the prompt never reached the server (no notice is posted for stale loads). */
-  async send(text: string, attachments: Attachment[], context: ContextItem[], delivery?: "steer" | "queue"): Promise<boolean> {
+  /** A failed child prompt is reported as a notice: the main composer still owns its own draft. */
+  private failChild(detail: string): boolean {
+    const s = translatedStrings();
+    this.d.post({
+      type: "notice",
+      error: { kind: "requestFailed", message: s["error.promptFailed"], detail, actions: ["showLogs"] },
+    });
+    return false;
+  }
+
+  /**
+   * Returns false when the prompt never reached the server (no notice is posted for stale loads).
+   * `targetSessionId` addresses a subagent from its conversation modal: that prompt must not start a
+   * turn, load a session or restore a draft in the main chat.
+   */
+  async send(
+    text: string,
+    attachments: Attachment[],
+    context: ContextItem[],
+    delivery?: "steer" | "queue",
+    targetSessionId?: string,
+  ): Promise<boolean> {
+    const child = !!targetSessionId && targetSessionId !== this.d.state.sessionId;
     // A queued message starts no turn yet: leave the current turn's reconcile generation alone.
-    const turn = { generation: delivery === "queue" ? undefined : this.d.execution.start(this.d.state.sessionId) };
-    if (delivery !== "queue") this.d.lifecycle.cancel("reconcile");
+    const turn = {
+      generation: delivery === "queue" || child ? undefined : this.d.execution.start(this.d.state.sessionId),
+    };
+    if (delivery !== "queue" && !child) this.d.lifecycle.cancel("reconcile");
     if (!this.d.getClient()) await this.d.connect();
     const client = this.d.getClient();
-    if (!client || !this.d.state.folder) {
+    if (!client || (!child && !this.d.state.folder)) {
+      if (child) return this.failChild(translatedStrings()["error.connectionLost"]);
       await this.restoreFailedPrompt(
         text,
         attachments,
@@ -221,14 +245,15 @@ export class ChatPromptActions {
       files.push(resolved.attachment);
     }
     try {
-      if (!this.d.state.sessionId) {
+      const folder = this.d.state.folder;
+      if (!child && !this.d.state.sessionId && folder) {
         const permissions = vscode.workspace
-          .getConfiguration("opencode", this.d.state.folder.uri)
+          .getConfiguration("opencode", folder.uri)
           .get<PermissionRule[]>("sessionPermissions", DEFAULT_SESSION_PERMISSIONS);
         const autoApprove = this.d.permissions.takePending();
         const loadGeneration = this.d.lifecycle.generations.load.bump();
         const info = await client.createSession({
-          directory: this.d.state.folder.uri.fsPath,
+          directory: folder.uri.fsPath,
           agent: this.d.catalog.selectedAgent,
           model: this.d.catalog.selectedModel,
           permissions,
@@ -247,7 +272,7 @@ export class ChatPromptActions {
           turn.generation = this.d.execution.start(this.d.state.sessionId);
         }
       }
-      const sid = this.d.state.sessionId;
+      const sid = child ? targetSessionId! : this.d.state.sessionId;
       if (!sid) {
         this.d.execution.fail(this.d.state.sessionId, turn.generation);
         return false;
@@ -262,10 +287,12 @@ export class ChatPromptActions {
       } else {
         await client.prompt(sid, text, files, delivery);
       }
+      if (child) return true;
       this.d.state.failedPrompt = undefined;
       return true;
     } catch (err) {
       const detail = err instanceof Error ? err.message : String(err);
+      if (child) return this.failChild(detail);
       await this.restoreFailedPrompt(text, attachments, context, delivery, this.d.state.sessionId, detail, turn.generation);
       return false;
     }

@@ -9,6 +9,7 @@ import type {
   Attachment,
   ConnectionStatus,
   ContextItem,
+  ExternalAttentionItem,
   FolderInfo,
   HostMessage,
   PromptDefinition,
@@ -53,6 +54,8 @@ export function App() {
   const [strings, setStrings] = useState<Strings>({ ...STRINGS });
   const [chat, dispatch] = useReducer(chatReducer, initialChatState);
   const [subagents, subagentDispatch] = useReducer(subagentReducer, initialSubagentState);
+  /** Requests from other clients on the same server; the open session's own cards live in `chat`. */
+  const [externalRequests, setExternalRequests] = useState<ExternalAttentionItem[]>([]);
   const [status, setStatus] = useState<{ status: ConnectionStatus; error?: UiError }>({ status: "idle" });
   const [compatibility, setCompatibility] = useState<{ status: Compatibility; version?: string; dismissed: boolean }>({
     status: "unknown",
@@ -277,6 +280,9 @@ export function App() {
             requestChildResync(msg.sessionId);
           }
           frame.current ??= requestAnimationFrame(flush);
+          break;
+        case "externalAttention":
+          setExternalRequests(msg.items);
           break;
         case "linkSubagent":
           // Explicit host link: reliable even when two children share a description or the tool
@@ -590,6 +596,12 @@ export function App() {
     };
   }, [dropzoneEnabled]);
 
+  // Once a session is open, its own history carries these cards: showing the external copy too
+  // would let the same request be answered twice.
+  const visibleExternal = useMemo(
+    () => externalRequests.filter((item) => item.sessionId !== chat.sessionId),
+    [externalRequests, chat.sessionId],
+  );
   const subagentEntries = useMemo(() => {
     const entries: Record<string, SubagentEntry> = {};
     for (const id of subagents.order) {
@@ -768,7 +780,12 @@ export function App() {
               )}
               {/* When the subagent modal is open it renders its own overlay; passing the child requests
             here too would duplicate the same cards (and the same DOM ids) behind the backdrop. */}
-              <AttentionOverlay key={chat.sessionId ?? "new"} state={chat} subagents={subagentStack.length === 0 ? subagents : undefined} />
+              <AttentionOverlay
+                key={chat.sessionId ?? "new"}
+                state={chat}
+                subagents={subagentStack.length === 0 ? subagents : undefined}
+                external={subagentStack.length === 0 ? visibleExternal : undefined}
+              />
               {inbox.length > 0 && <InboxPanel items={inbox} onSendNow={sendQueuedNow} onEdit={editQueued} onRemove={removeQueued} />}
               <Composer
                 sessionId={chat.sessionId ?? undefined}
