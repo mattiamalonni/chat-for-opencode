@@ -99,7 +99,8 @@ commands. Questions still always require your answer.
   Code 1.104+), movable anywhere with _OpenCode: Move Chat View…_ or drag and drop.
   _OpenCode: Open Chat in Editor_ opens a second, wider view of the same session.
 - **Custom, searchable pickers** for models, reasoning effort and agents, grouped by provider and
-  filled with what your server actually returns (e.g. _Build_ / _Plan_).
+  filled with what your server actually returns (e.g. _Build_ / _Plan_). `Cmd/Ctrl+M` opens the model
+  picker while the chat has focus and returns focus to the composer after a selection.
 - **Onboarding**: the welcome screen offers starter prompts that the current editor context can
   satisfy, or a short checklist — trust the workspace, install the CLI, sign in to a provider —
   with the missing action one click away.

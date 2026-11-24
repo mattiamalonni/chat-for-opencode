@@ -3,6 +3,7 @@ import {
   composerAction,
   isFindKey,
   isNewSessionKey,
+  isOpenModelsKey,
   isOpenSessionsKey,
   isSyncKey,
   shouldIsolateKey,
@@ -148,6 +149,27 @@ describe("isOpenSessionsKey", () => {
     expect(isOpenSessionsKey(k("l"), "mac")).toBe(false);
     expect(isOpenSessionsKey(k("Process", { metaKey: true, keyCode: 229 }), "mac")).toBe(false);
     expect(isOpenSessionsKey(k("l", { isComposing: true, metaKey: true }), "mac")).toBe(false);
+  });
+});
+
+describe("isOpenModelsKey", () => {
+  it("matches plain Cmd+M on mac and Ctrl+M elsewhere", () => {
+    expect(isOpenModelsKey(k("m", { metaKey: true }), "mac")).toBe(true);
+    expect(isOpenModelsKey(k("M", { metaKey: true }), "mac")).toBe(true);
+    expect(isOpenModelsKey(k("m", { ctrlKey: true }), "windows")).toBe(true);
+    expect(isOpenModelsKey(k("m", { ctrlKey: true }), "linux")).toBe(true);
+  });
+
+  it("ignores the wrong modifier, extra modifiers and IME compositions", () => {
+    expect(isOpenModelsKey(k("m", { ctrlKey: true }), "mac")).toBe(false);
+    expect(isOpenModelsKey(k("m", { metaKey: true }), "windows")).toBe(false);
+    expect(isOpenModelsKey(k("m", { metaKey: true, shiftKey: true }), "mac")).toBe(false);
+    expect(isOpenModelsKey(k("m", { metaKey: true, altKey: true }), "mac")).toBe(false);
+    expect(isOpenModelsKey(k("m", { metaKey: true, ctrlKey: true }), "mac")).toBe(false);
+    expect(isOpenModelsKey(k("l", { metaKey: true }), "mac")).toBe(false);
+    expect(isOpenModelsKey(k("m"), "mac")).toBe(false);
+    expect(isOpenModelsKey(k("Process", { metaKey: true, keyCode: 229 }), "mac")).toBe(false);
+    expect(isOpenModelsKey(k("m", { isComposing: true, metaKey: true }), "mac")).toBe(false);
   });
 });
 

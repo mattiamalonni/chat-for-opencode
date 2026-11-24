@@ -29,6 +29,10 @@ export interface PickerProps {
   class?: string;
   /** Opens above the trigger (composer toolbar) or below (header). */
   placement?: "top" | "bottom";
+  /** Bumping this opens the popup; used by the Cmd/Ctrl+M shortcut for the model picker. */
+  openToken?: number;
+  /** Called after a selection, so the host view can move focus somewhere else than the trigger. */
+  onSelected?: () => void;
 }
 
 let uid = 0;
@@ -71,6 +75,8 @@ export function Picker(props: PickerProps) {
     if (!item) return;
     if (item.value !== props.value) props.onChange(item.value);
     close();
+    // After `close` focused the trigger: a caller can move focus to the composer instead.
+    props.onSelected?.();
   };
 
   // Keep the popup inside the (narrow) webview horizontally.
@@ -85,6 +91,16 @@ export function Picker(props: PickerProps) {
   useLayoutEffect(() => {
     if (open) (props.searchable ? search.current : list.current)?.focus();
   }, [open]);
+
+  const lastOpenToken = useRef(props.openToken ?? 0);
+  useLayoutEffect(() => {
+    const token = props.openToken ?? 0;
+    if (token === lastOpenToken.current) return;
+    lastOpenToken.current = token;
+    if (token === 0) return;
+    if (open) (props.searchable ? search.current : list.current)?.focus();
+    else openPopup();
+  }, [props.openToken]);
 
   useEffect(() => {
     if (!open) return;

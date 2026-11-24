@@ -80,6 +80,7 @@ The short version — full behaviour in [docs/FEATURES.md](docs/FEATURES.md):
 | Ask OpenCode…               | `Cmd/Ctrl+Alt+Shift+O`      |
 | New session (chat focused)  | `Cmd/Ctrl+N`                |
 | Session list (chat focused) | `Cmd/Ctrl+L`                |
+| Model picker (chat focused) | `Cmd/Ctrl+M`                |
 | In-chat message search      | `Cmd/Ctrl+F`                |
 | Stop / next match / resync  | `Esc` / `F3` / `Cmd/Ctrl+R` |
 

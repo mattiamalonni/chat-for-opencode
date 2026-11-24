@@ -26,6 +26,8 @@ export function Toolbar(props: {
   modelKey: string;
   currentModel?: ModelInfo;
   text: string;
+  modelPickerToken: number;
+  onModelSelected: () => void;
   onSend: (delivery?: "steer") => void;
 }) {
   const { hasExtraAgents, modelItems, modelKey, currentModel, text } = props;
@@ -53,10 +55,12 @@ export function Toolbar(props: {
           placeholder={t("model")}
           items={modelItems}
           value={modelKey}
+          openToken={props.modelPickerToken}
           onChange={(key) => {
             const [providerID, ...rest] = key.split("/");
             post({ type: "setModel", model: { providerID, id: rest.join("/") } });
           }}
+          onSelected={props.onModelSelected}
         />
       )}
       {currentModel && currentModel.variants.length > 0 && (

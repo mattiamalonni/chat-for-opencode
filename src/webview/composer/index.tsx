@@ -41,6 +41,10 @@ export interface ComposerProps {
   /** Previously sent prompts, oldest first, recalled with Up/Down. */
   promptHistory: string[];
   focusToken: number;
+  /** Bumped by Cmd/Ctrl+M to open the model picker. */
+  modelPickerToken: number;
+  /** A model was picked: move focus back to the composer. */
+  onModelSelected: () => void;
   /** Estimated tokens currently in the session context. */
   contextTokens?: number;
   /** True when the estimate includes locally-added inline attachments. */
@@ -472,6 +476,8 @@ export function Composer(props: ComposerProps) {
           modelKey={modelKey}
           currentModel={currentModel}
           text={text}
+          modelPickerToken={props.modelPickerToken}
+          onModelSelected={props.onModelSelected}
           onSend={send}
         />
       </div>

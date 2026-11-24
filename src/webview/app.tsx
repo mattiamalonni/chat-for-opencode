@@ -3,7 +3,7 @@ import type { AgentInfo, CommandSuggestion, FileDiff, InboxItem, ModelInfo, Mode
 import { chatReducer, initialChatState, mergeChangedFiles, selectTodos, type UiUserMessage } from "../shared/chatReducer";
 import { type Compatibility } from "../shared/compatibility";
 import { estimateDataUrlTokens } from "../shared/format";
-import { isFindKey, isNewSessionKey, isOpenSessionsKey, isSyncKey } from "../shared/keys";
+import { isFindKey, isNewSessionKey, isOpenModelsKey, isOpenSessionsKey, isSyncKey } from "../shared/keys";
 import { emptyContract, type ContractReport } from "../shared/contract";
 import type {
   Attachment,
@@ -76,6 +76,7 @@ export function App() {
   const [autoApprove, setAutoApprove] = useState(false);
   const [notice, setNotice] = useState<UiError | undefined>();
   const [focusToken, setFocusToken] = useState(0);
+  const [modelPickerToken, setModelPickerToken] = useState(0);
   const [draftToken, setDraftToken] = useState(0);
   /** Prompt returned by a rollback; a new token forces the composer to adopt it even if it has text. */
   const [restoredDraft, setRestoredDraft] = useState<{ text: string; token: number } | undefined>();
@@ -425,10 +426,11 @@ export function App() {
     [],
   );
 
-  // Cmd/Ctrl+N creates a new session, Cmd/Ctrl+F opens the message search, Cmd/Ctrl+R re-syncs and
-  // Cmd/Ctrl+L toggles the session list while the chat has focus. The VS Code webview preload forwards
-  // every keydown that reaches `window` to the workbench (see D7), where these chords mean "new file"
-  // / "find" / "open recent" / "expand line selection". Capture them before that bubble listener.
+  // Cmd/Ctrl+N creates a new session, Cmd/Ctrl+F opens the message search, Cmd/Ctrl+R re-syncs,
+  // Cmd/Ctrl+L toggles the session list and Cmd/Ctrl+M opens the model picker while the chat has
+  // focus. The VS Code preload forwards every keydown that reaches `window` to the workbench (see D7),
+  // where these chords mean "new file" / "find" / "open recent" / "expand line selection" /
+  // "toggle tab focus mode". Capture them before that bubble-phase listener.
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.repeat) return;
@@ -449,6 +451,10 @@ export function App() {
         e.preventDefault();
         e.stopPropagation();
         toggleSessionsRef.current();
+      } else if (isOpenModelsKey(e, env.platform)) {
+        e.preventDefault();
+        e.stopPropagation();
+        setModelPickerToken((n) => n + 1);
       } else if (e.key === "F3") {
         e.preventDefault();
         e.stopPropagation();
@@ -799,6 +805,8 @@ export function App() {
                 onSend={send}
                 promptHistory={promptHistory}
                 focusToken={focusToken}
+                modelPickerToken={modelPickerToken}
+                onModelSelected={focusComposer}
                 canCompact={!!chat.sessionId && !chat.busy && connected}
               />
               {dropping && (

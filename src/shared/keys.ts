@@ -87,6 +87,14 @@ export function isOpenSessionsKey(e: KeyLike, platform: Platform): boolean {
   return isPlainChord(e, platform, "l");
 }
 
+/**
+ * Cmd+M (mac) / Ctrl+M (Windows/Linux), plain and outside an IME composition: opens the composer's
+ * model picker while the webview has focus, instead of VS Code's "Toggle Tab Focus Mode".
+ */
+export function isOpenModelsKey(e: KeyLike, platform: Platform): boolean {
+  return isPlainChord(e, platform, "m");
+}
+
 type ComposerAction = "send" | "steer" | "newline" | "none";
 
 /**

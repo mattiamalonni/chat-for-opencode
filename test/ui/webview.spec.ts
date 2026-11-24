@@ -2047,6 +2047,23 @@ test("custom pickers: agent, variant and searchable model (mouse + keyboard)", a
   await expect(page.getByRole("listbox", { name: STRINGS.agent })).toHaveCount(0);
 });
 
+test("Ctrl+M opens the model picker and selecting a model focuses the composer", async ({ page }) => {
+  await boot(page);
+  const input = page.getByRole("textbox", { name: STRINGS.inputLabel });
+  await page.keyboard.press("Control+m");
+  const models = page.getByRole("listbox", { name: STRINGS.model });
+  await expect(models).toBeVisible();
+  await expect(models).toBeFocused();
+  await page.keyboard.press("ArrowUp");
+  await page.keyboard.press("Enter");
+  expect(await lastPosted(page, "setModel")).toEqual({
+    type: "setModel",
+    model: { providerID: "github-copilot", id: "claude-sonnet-5.5" },
+  });
+  await expect(models).toHaveCount(0);
+  await expect(input).toBeFocused();
+});
+
 test("model picker search filters when there are many models", async ({ page }) => {
   await boot(page);
   const many = Array.from({ length: 12 }, (_, i) => ({

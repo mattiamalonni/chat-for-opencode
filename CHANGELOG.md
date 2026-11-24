@@ -8,7 +8,8 @@ build, CI or architecture work, condensed to one line; the reasoning lives in
 
 - **User — Shortcut:** `Cmd/Ctrl+L` toggles the in-chat session list while the chat has focus (instead
   of VS Code's Expand Line Selection). `↑`/`↓` walk the sessions from the filter field, `Enter`
-  selects one and focus returns to the composer; `Esc` or the shortcut closes the list.
+  selects one and focus returns to the composer; `Esc` or the shortcut closes the list. `Cmd/Ctrl+M`
+  opens the model picker from the chat, and choosing a model leaves focus in the composer.
 
 ## 0.3.24 — 2026-11-24
 
