@@ -141,4 +141,56 @@ describe("session list summaries", () => {
       hasMore: false,
     });
   });
+
+  const pendingPermission = { id: "perm_1", sessionID: "s1", action: "shell", resources: [] };
+  const pendingForm = { id: "frm_1", sessionID: "s1", title: "Question", fields: [], metadata: {} };
+
+  function withRequests(permissions: unknown[], forms: unknown[], autoApproves?: (sid: string) => boolean) {
+    const post = vi.fn();
+    const client = {
+      messages: vi.fn().mockResolvedValue([]),
+      permissions: vi.fn().mockResolvedValue(permissions),
+      forms: vi.fn().mockResolvedValue(forms),
+      listSessionsPage: vi.fn().mockResolvedValue({ items: [busy], next: undefined }),
+    };
+    const s = new SessionListService(
+      () => client as never,
+      () => "/work",
+      () => "other",
+      new Generation(),
+      post,
+      vi.fn(),
+      () => 10,
+      undefined,
+      autoApproves,
+    );
+    return { s, post };
+  }
+
+  const needsInputOf = (post: ReturnType<typeof vi.fn>) =>
+    (post.mock.calls.at(-1)?.[0] as { items: Array<{ needsInput: boolean }> }).items[0].needsInput;
+
+  it("marks a pending permission as needing input when auto-approval does not apply", async () => {
+    const { s, post } = withRequests([pendingPermission], [], () => false);
+    await s.refresh();
+    expect(needsInputOf(post)).toBe(true);
+  });
+
+  it("does not mark a permission as needing input when it would be auto-approved on open", async () => {
+    const { s, post } = withRequests([pendingPermission], [], () => true);
+    await s.refresh();
+    expect(needsInputOf(post)).toBe(false);
+  });
+
+  it("keeps a pending question as needing input even with auto-approval enabled", async () => {
+    const { s, post } = withRequests([], [pendingForm], () => true);
+    await s.refresh();
+    expect(needsInputOf(post)).toBe(true);
+  });
+
+  it("still marks pending permissions as needing input when no auto-approval predicate is supplied", async () => {
+    const { s, post } = withRequests([pendingPermission], []);
+    await s.refresh();
+    expect(needsInputOf(post)).toBe(true);
+  });
 });

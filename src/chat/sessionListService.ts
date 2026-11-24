@@ -70,6 +70,8 @@ export class SessionListService {
     private readonly log: (line: string) => void,
     private readonly pageSize: () => number,
     private readonly folderName?: () => string | undefined,
+    /** Whether a session's pending permissions would be granted automatically when it is opened. */
+    private readonly autoApproves?: (sessionId: string) => boolean,
   ) {}
 
   private withFolder(summary: SessionSummary): SessionSummary {
@@ -140,7 +142,10 @@ export class SessionListService {
         client.permissions(info.id, signal).catch(() => []),
         client.forms(info.id, signal).catch(() => []),
       ]);
-      const summary = toSessionSummary(safe, messages && messages, permissions.length > 0 || forms.length > 0);
+      // Auto-approved permissions never reach the user, so they must not mark the row as waiting.
+      // Questions always do: they are answered by the user even with auto-approval enabled.
+      const needsInput = forms.length > 0 || (permissions.length > 0 && !this.autoApproves?.(info.id));
+      const summary = toSessionSummary(safe, messages && messages, needsInput);
       if (this.summaryCache.size > 200) this.summaryCache.delete(this.summaryCache.keys().next().value as string);
       this.summaryCache.set(info.id, {
         updated: safe.time.updated,

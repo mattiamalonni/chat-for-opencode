@@ -191,6 +191,7 @@ export class ChatController implements vscode.Disposable {
         return Math.min(100, Math.max(1, Math.floor(configured) || 10));
       },
       () => (this.state.folder && (vscode.workspace.workspaceFolders?.length ?? 0) > 1 ? this.state.folder.name : undefined),
+      (sid) => this.permissions.enabled(sid),
     );
     this.externalAttention = new ExternalAttentionService(
       (msg) => this.post(msg),

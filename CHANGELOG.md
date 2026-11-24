@@ -10,6 +10,10 @@ build, CI or architecture work, condensed to one line; the reasoning lives in
   running. When OpenCode ends a turn without writing its `idle` marker (only a completed assistant
   message with an `aborted` error), the session list and the chat treat it as idle instead of trusting
   the stale busy/idle timestamps.
+- **User — Fix:** a session no longer shows the amber "Needs your input" dot in the list for a
+  permission that auto-approval will grant when you open it. Background sessions kept that dot until
+  opened, even though the request was granted automatically and the agent carried on. Questions still
+  show it, because they always need an answer.
 
 ## 0.3.25 — 2026-11-24
 
