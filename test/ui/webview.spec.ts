@@ -596,6 +596,10 @@ test("keeps thoughts and tools in production order and groups adjacent calls", a
   await expect(reads.nth(0).locator(".file-base")).toHaveText("a.txt");
   await expect(reads.nth(0).locator(".tool-open-file")).toHaveCount(0);
   await expect(reads.nth(0).locator(".file-list")).toHaveCount(0);
+  // The file name opens the file; the rest of the row still folds the details.
+  await reads.nth(0).locator(".file-name").click();
+  expect(await lastPosted(page, "openToolFile")).toEqual({ type: "openToolFile", path: "a.txt" });
+  await expect(reads.nth(0).locator(".tool-header")).toHaveAttribute("aria-expanded", "false");
   // ...and the next step's call stays a separate card in the trailing fold.
   const standalone = blocks.nth(1).locator(".tool").filter({ hasText: "shell" });
   await expect(standalone).toHaveCount(1);
@@ -1228,7 +1232,7 @@ test("numbers and versions in a reply are not turned into file links", async ({ 
   await expect(refs).toHaveText("src/app.ts:42");
 });
 
-test("permission links open the file; compact steps have no open-file action", async ({ page }) => {
+test("permission and compact file links open the file; changed files offer diffs only", async ({ page }) => {
   await boot(page);
   const events = fixture("real-sse3.jsonl");
   const asked = events.findIndex((e) => e.type === "permission.asked");
@@ -1238,9 +1242,11 @@ test("permission links open the file; compact steps have no open-file action", a
   await card.locator(".resources .resource-link").first().click();
   expect(await lastPosted(page, "openFile")).toEqual({ type: "openFile", path: "a.txt" });
 
-  // The pending edit keeps its action and file on one row, with no extra "open file" action.
+  // The pending edit keeps its action and file on one row: the file name itself opens the file.
   await expect(page.locator(".tool.attention .tool-name")).toHaveText("edit");
   await expect(page.locator(".tool.attention .tool-open-file")).toHaveCount(0);
+  await page.locator(".tool.attention .file-name").click();
+  expect(await lastPosted(page, "openToolFile")).toEqual({ type: "openToolFile", path: "a.txt" });
 
   // The file list of a proposed change exposes only the diff action, not an "open file" icon.
   await expect(card.locator(".file-list .file-open")).toHaveCount(0);

@@ -219,6 +219,7 @@ const WEBVIEW_VALIDATORS: Record<string, Check> = {
   openDiff: shape({ file: str(MAX_URI), patch: str(MAX_PATCH), applied: bool }),
   openDiffs: shape({ files: arr(shape({ file: str(MAX_URI), patch: str(MAX_PATCH) }), 500) }),
   openFile: shape({ path: str(MAX_URI) }),
+  openToolFile: shape({ path: str(MAX_URI) }),
   openAttachment: shape({ uri: str(MAX_URI) }),
   openLink: shape({ href: str(MAX_URI) }),
   copy: shape({ text: str(MAX_TEXT) }),

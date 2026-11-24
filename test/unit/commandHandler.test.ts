@@ -37,6 +37,7 @@ function setup(overrides: Partial<CommandHandlerHooks> = {}) {
     dropFiles: vi.fn(async () => undefined),
     pickFiles: vi.fn(async () => undefined),
     openFile: vi.fn(async () => undefined),
+    openToolFile: vi.fn(async () => undefined),
     openAttachment: vi.fn(async () => undefined),
     openLink: vi.fn(async () => undefined),
     runAction: vi.fn(async () => undefined),

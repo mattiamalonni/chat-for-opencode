@@ -1470,6 +1470,8 @@ details[open] > summary > .chevron,
 }
 
 .step-fold-body .reasoning > summary {
+  /* Same vertical padding as .tool-header: every row in a step keeps the same rhythm. */
+  padding: 3px 0;
   color: var(--vscode-descriptionForeground);
   font-style: italic;
 }
@@ -1607,6 +1609,31 @@ details[open] > summary > .chevron,
 
 .file-row:hover {
   background: var(--vscode-list-hoverBackground);
+}
+
+/* File steps: the toggle hugs its content, the file button fills the space up to the diff counts. */
+.compact-step-row .tool-header {
+  flex: 0 1 auto;
+}
+
+.compact-step-row .file-name {
+  align-items: center;
+  background: none;
+  border: none;
+  border-radius: 3px;
+  padding: 2px 4px;
+  color: inherit;
+  cursor: pointer;
+  text-align: left;
+}
+
+.compact-step-row .file-name:hover {
+  background: var(--vscode-list-hoverBackground);
+}
+
+.compact-step-row .file-name:hover .file-base {
+  color: var(--vscode-textLink-foreground);
+  text-decoration: underline;
 }
 
 /* edit/read steps: the diff button sits at the end of the same row as the toggle. */

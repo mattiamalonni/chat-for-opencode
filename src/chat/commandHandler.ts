@@ -40,6 +40,7 @@ export interface CommandHandlerHooks {
   dropFiles(files: DroppedFile[]): Promise<void>;
   pickFiles(): Promise<void>;
   openFile(path: string): Promise<void>;
+  openToolFile(path: string): Promise<void>;
   openAttachment(uri: string): Promise<void>;
   openLink(href: string): Promise<void>;
   runAction(id: ActionId): Promise<void>;
@@ -274,6 +275,8 @@ export class ChatCommandHandler {
         return;
       case "openFile":
         return h.openFile(msg.path);
+      case "openToolFile":
+        return h.openToolFile(msg.path);
       case "openAttachment":
         return h.openAttachment(msg.uri);
       case "openLink":

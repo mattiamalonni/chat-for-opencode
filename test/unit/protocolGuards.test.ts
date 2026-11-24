@@ -19,6 +19,7 @@ describe("webview → host boundary", () => {
     expect(isWebviewMessage({ type: "usePrompt", id: "review" })).toBe(true);
     expect(isWebviewMessage({ type: "saveInstruction", text: "Use tabs." })).toBe(true);
     expect(isWebviewMessage({ type: "openDiff", file: "a.txt", patch: "@@", applied: true })).toBe(true);
+    expect(isWebviewMessage({ type: "openToolFile", path: "/outside/a.txt" })).toBe(true);
     expect(isWebviewMessage({ type: "dropFiles", files: [{ name: "a.txt", base64: "YQ==", mime: "text/plain" }] })).toBe(true);
     for (const id of ACTION_IDS) expect(isWebviewMessage({ type: "action", id })).toBe(true);
   });

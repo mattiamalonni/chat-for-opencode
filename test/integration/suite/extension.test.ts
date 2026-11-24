@@ -340,6 +340,18 @@ describe("chat-for-opencode extension", () => {
     );
   });
 
+  it("opens a clicked tool file outside the workspace", async () => {
+    const external = path.join(path.dirname(workspace), "oc-it-tool-file.txt");
+    writeFileSync(external, "outside but explicit");
+    await vscode.commands.executeCommand("workbench.action.closeAllEditors");
+    await controller.receive({ type: "openToolFile", path: external });
+    const editor = await waitFor(
+      () => vscode.window.visibleTextEditors.find((e) => normalizeFsPath(e.document.uri.fsPath) === normalizeFsPath(external)),
+      "outside tool file editor",
+    );
+    assert.equal(editor.document.getText(), "outside but explicit");
+  });
+
   it("does not follow a symlink that escapes the workspace", async function () {
     if (process.platform === "win32") this.skip(); // symlink creation needs elevated privileges there
     const external = path.join(path.dirname(workspace), "oc-it-secret.txt");

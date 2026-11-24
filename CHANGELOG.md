@@ -17,8 +17,10 @@ build, CI or architecture work, condensed to one line; the reasoning lives in
   `sessionId`, so commands can address a session other than the open one.
 - **User — Steps:** `edit`, `read` and `write` calls now render as a single line: status, action, file icon, name and path,
   with the diff counts pushed to the right. The tool header and the changed-file row are merged, so the file is no
-  longer shown twice; the **Open file** button is gone while the counts still open the diff. Extra files and the raw
-  input/output remain in the expandable details.
+  longer shown twice; clicking the file name opens it, the counts open the diff, and the rest of the row folds the
+  details. Extra files and the raw input/output remain in those details.
+- **User — Fix:** clicking a step's file name opens it even when it lives outside the opened folders. The click is the
+  explicit consent; file references in chat prose still go through the workspace-only guard.
 - **User — Connect:** new **OpenCode: Connect Provider…** panel, a graphical equivalent of `/connect`,
   replaces the terminal hand-off for sign-in. Click a provider card to sign in with an API key (including
   provider-specific forms), browser OAuth, a sign-in command or external credentials. Environment-variable

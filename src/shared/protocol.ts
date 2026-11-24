@@ -322,6 +322,11 @@ export type WebviewMessage =
   /** Show all the patches of a turn in one read-only VS Code diff view (virtual documents only). */
   | { type: "openDiffs"; files: Array<{ file: string; patch: string }> }
   | { type: "openFile"; path: string }
+  /**
+   * Opens a file reported by a tool step after the user clicks its name. Unlike `openFile`, it may
+   * point outside the workspace: the click is the explicit consent the untrusted prose never gives.
+   */
+  | { type: "openToolFile"; path: string }
   /** Opens an inline attachment's on-disk copy; the host only accepts files it created itself. */
   | { type: "openAttachment"; uri: string }
   | { type: "openLink"; href: string }

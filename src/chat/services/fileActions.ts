@@ -42,9 +42,10 @@ export class ChatFileActions {
     await this.d.attachments.pickFiles();
   }
 
-  async openFile(p: string): Promise<void> {
-    const d = this.d;
-    if (!d.state.folder) return;
+  /** Parses a chat file reference into a URI and an optional zero-based line. */
+  private fileTarget(p: string): { uri: vscode.Uri; line?: number } | undefined {
+    const folder = this.d.state.folder;
+    if (!folder) return undefined;
     const m = /^(.*?)(?::(\d+)(?::(\d+))?)?$/.exec(p);
     const file = m?.[1] ?? p;
     const line = m?.[2] ? Number(m[2]) - 1 : undefined;
@@ -52,16 +53,35 @@ export class ChatFileActions {
       ? vscode.Uri.parse(file)
       : /^([a-zA-Z]:[\\/]|\/)/.test(file)
         ? vscode.Uri.file(file)
-        : vscode.Uri.joinPath(d.state.folder.uri, file);
+        : vscode.Uri.joinPath(folder.uri, file);
+    return { uri, line };
+  }
+
+  async openFile(p: string): Promise<void> {
+    const target = this.fileTarget(p);
+    if (!target) return;
+    const d = this.d;
     // Rendered chat content is untrusted model output. Never open a path outside any opened folder,
     // even through `../` or a symlink that lexically points inside but resolves elsewhere.
-    if (!(await d.isWithinWorkspace(uri.fsPath))) {
-      d.logWarn(`[chat] blocked an attempt to open a file outside the workspace: ${uri.fsPath}`);
+    if (!(await d.isWithinWorkspace(target.uri.fsPath))) {
+      d.logWarn(`[chat] blocked an attempt to open a file outside the workspace: ${target.uri.fsPath}`);
       return;
     }
-    const doc = await vscode.workspace.openTextDocument(uri.with({ query: "" }));
+    const doc = await vscode.workspace.openTextDocument(target.uri.with({ query: "" }));
     const editor = await vscode.window.showTextDocument(doc, { preview: true });
-    if (line !== undefined) this.revealLine(editor, line);
+    if (target.line !== undefined) this.revealLine(editor, target.line);
+  }
+
+  /**
+   * A file tool reported this path and the user clicked its name. The click is the explicit consent
+   * that untrusted prose never gives, so this is the one file-open path allowed outside the folders.
+   */
+  async openToolFile(p: string): Promise<void> {
+    const target = this.fileTarget(p);
+    if (!target) return;
+    const doc = await vscode.workspace.openTextDocument(target.uri.with({ query: "" }));
+    const editor = await vscode.window.showTextDocument(doc, { preview: true });
+    if (target.line !== undefined) this.revealLine(editor, target.line);
   }
 
   revealLine(editor: vscode.TextEditor, line: number): void {

@@ -6,8 +6,12 @@ vi.mock("vscode", () => ({
   workspace: {
     isTrusted: true,
     getConfiguration: () => ({ get: (_key: string, fallback?: unknown) => fallback }),
+    openTextDocument: vi.fn(async (uri: unknown) => ({ uri })),
   },
-  window: { showInformationMessage: vi.fn(async () => undefined) },
+  window: {
+    showInformationMessage: vi.fn(async () => undefined),
+    showTextDocument: vi.fn(async () => ({ revealRange: vi.fn() })),
+  },
   commands: { executeCommand: vi.fn(async () => undefined) },
   Uri: {
     parse: (value: string) => ({ fsPath: value, toString: () => value, with: () => ({ fsPath: value }) }),
@@ -101,6 +105,22 @@ describe("extracted controller services", () => {
     await actions.openAttachment("file:///a");
     await actions.openLink("https://example.com");
     expect(vi.mocked((await import("vscode")).env.openExternal)).toHaveBeenCalled();
+  });
+
+  it("ChatFileActions opens a clicked tool file even outside the workspace", async () => {
+    const warnings: string[] = [];
+    const actions = new ChatFileActions({
+      state: { ...createControllerState(), folder: { uri: { fsPath: "/w" } } as never },
+      attachments: { dropFiles: vi.fn(async () => {}), pickFiles: vi.fn(async () => {}), open: vi.fn(async () => {}) } as never,
+      post: () => {},
+      logWarn: (line) => warnings.push(line),
+      isWithinWorkspace: vi.fn(async () => false),
+    });
+    await actions.openToolFile("/outside/a.txt");
+    const vscode = await import("vscode");
+    expect(vi.mocked(vscode.workspace.openTextDocument)).toHaveBeenCalledWith(expect.objectContaining({ fsPath: "/outside/a.txt" }));
+    expect(vi.mocked(vscode.window.showTextDocument)).toHaveBeenCalled();
+    expect(warnings).toEqual([]);
   });
 
   it("ChatPermissionActions reads, posts and grants permissions", async () => {

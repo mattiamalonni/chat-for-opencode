@@ -398,6 +398,7 @@ export class ChatController implements vscode.Disposable {
       dropFiles: (files) => this.fileActions.dropFiles(files),
       pickFiles: () => this.fileActions.pickFiles(),
       openFile: (file) => this.fileActions.openFile(file),
+      openToolFile: (file) => this.fileActions.openToolFile(file),
       openAttachment: (uri) => this.fileActions.openAttachment(uri),
       openLink: (href) => this.fileActions.openLink(href),
       runAction: (id) => this.serverActions.run(id),

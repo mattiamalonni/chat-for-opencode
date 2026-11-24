@@ -342,8 +342,9 @@ function SubagentToolCard({
 }
 
 /**
- * The single line used by file tools: fold chevron, status, action, file icon + name + path, then the
- * diff counts pushed to the right. The toggle and the diff are siblings — nested buttons are invalid HTML.
+ * The single line used by file tools: fold chevron + status + action, then a file button (icon, name,
+ * path) that opens the file, then the diff counts. All three are siblings — nested buttons are
+ * invalid HTML, and the file click must not toggle the fold.
  */
 function FileStepHeader({
   part,
@@ -373,17 +374,23 @@ function FileStepHeader({
           {part.status === "completed" ? <IconCheck /> : part.status === "error" ? <IconError /> : <IconTool />}
         </span>
         <span class="tool-name">{part.name}</span>
+      </button>
+      <button
+        type="button"
+        class="file-name file-open"
+        title={`${t("openFile")}: ${path}`}
+        aria-label={`${t("openFile")}: ${path}`}
+        onClick={() => post({ type: "openToolFile", path })}
+      >
         <FileTypeIcon path={path} />
-        <span class="file-name" title={path}>
-          <span class="file-base">
-            <Highlight text={name} query={searchQuery} />
-          </span>
-          {dir && (
-            <span class="file-path">
-              <Highlight text={dir} query={searchQuery} />
-            </span>
-          )}
+        <span class="file-base">
+          <Highlight text={name} query={searchQuery} />
         </span>
+        {dir && (
+          <span class="file-path">
+            <Highlight text={dir} query={searchQuery} />
+          </span>
+        )}
       </button>
       {counts && (
         <button
