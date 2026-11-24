@@ -6,6 +6,10 @@ build, CI or architecture work, condensed to one line; the reasoning lives in
 
 ## Unreleased
 
+- **User — Steps:** `edit`, `read` and `write` calls now render as a single line: status, action, file icon, name and path,
+  with the diff counts pushed to the right. The tool header and the changed-file row are merged, so the file is no
+  longer shown twice; the **Open file** button is gone while the counts still open the diff. Extra files and the raw
+  input/output remain in the expandable details.
 - **User — Connect:** new **OpenCode: Connect Provider…** panel, a graphical equivalent of `/connect`,
   replaces the terminal hand-off for sign-in. Click a provider card to sign in with an API key (including
   provider-specific forms), browser OAuth, a sign-in command or external credentials. Environment-variable

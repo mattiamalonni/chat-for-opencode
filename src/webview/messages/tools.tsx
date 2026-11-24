@@ -1,18 +1,50 @@
 import { toolOutputLabel } from "../../shared/toolOutput";
 import { useEffect, useMemo, useState } from "preact/hooks";
-import { formsForTool, permissionsForTool, selectToolFiles, type ChatState, type ToolPart } from "../../shared/chatReducer";
+import {
+  formsForTool,
+  permissionsForTool,
+  selectToolFiles,
+  type ChangedFile,
+  type ChatState,
+  type ToolPart,
+} from "../../shared/chatReducer";
 import { fileRefToOpenPath, isFileRef } from "../../shared/fileRef";
 
-import { isSubagentTool, subagentChildId, subagentView, toolInputSummary, type SubagentActivity } from "../../shared/subagents";
+import { isSubagentTool, subagentChildId, subagentView, toolInputSummary, toolObject, type SubagentActivity } from "../../shared/subagents";
 import { env } from "../env";
 
+import { FileTypeIcon } from "../fileIcons";
 import { useT } from "../i18n";
 import { IconCheck, IconChevron, IconError, IconOpen, IconTool, IconWarning } from "../icons";
 
 import { useOpenSubagent, useSubagent } from "../subagents";
 import { post } from "../vscode";
 
+/**
+ * File tools collapse the tool header and the file row into one line:
+ * status · action · file icon/name/path · diff counts. The details stay one click away.
+ */
+const COMPACT_TOOL_NAMES = new Set(["edit", "read", "write"]);
+
+function isCompactTool(part: ToolPart): boolean {
+  return COMPACT_TOOL_NAMES.has(part.name);
+}
+
+/** The file a step worked on, read straight from its input. */
+function toolStepPath(part: ToolPart): string | undefined {
+  const input = toolObject(part);
+  for (const key of ["filePath", "path", "file"]) {
+    const value = input[key];
+    if (typeof value === "string" && value.trim()) return value.trim().split("\n")[0].slice(0, 120);
+  }
+  return undefined;
+}
+
 export function toolSummary(part: ToolPart): string {
+  if (isCompactTool(part)) {
+    const path = toolStepPath(part);
+    if (path) return path;
+  }
   return toolInputSummary(part);
 }
 
@@ -103,10 +135,12 @@ export function ToolGroup({
         ? t("failed")
         : t("completed");
   const names = [...new Set(parts.map((p) => p.name))].join(", ");
+  // A run of file-tool calls says more with its files than with a repeated "read, read".
+  const paths = parts.every(isCompactTool) ? parts.map(toolSummary).filter(Boolean).join(", ") : "";
   const headerName = sub ? sub.agent : t("toolCalls", parts.length);
   const headerSummary = sub
     ? [sub.title, subWaiting ? t("subagentWaitingForInput") : activityText(sub.activity, t)].filter(Boolean).join(" · ")
-    : names;
+    : paths || names;
   const id = `tool-group-${parts[0].id}`;
   return (
     <section
@@ -307,6 +341,65 @@ function SubagentToolCard({
   );
 }
 
+/**
+ * The single line used by file tools: fold chevron, status, action, file icon + name + path, then the
+ * diff counts pushed to the right. The toggle and the diff are siblings — nested buttons are invalid HTML.
+ */
+function FileStepHeader({
+  part,
+  path,
+  file,
+  expanded,
+  onToggle,
+  searchQuery,
+  statusLabel,
+}: {
+  part: ToolPart;
+  path: string;
+  file: ChangedFile | undefined;
+  expanded: boolean;
+  onToggle: () => void;
+  searchQuery: string;
+  statusLabel: string;
+}) {
+  const t = useT();
+  const { name, dir } = splitFilePath(path);
+  const counts = !!file && (file.additions > 0 || file.deletions > 0);
+  return (
+    <div class="tool-header-row compact-step-row">
+      <button type="button" class="tool-header" aria-expanded={expanded} aria-controls={`tool-${part.id}`} onClick={onToggle}>
+        <IconChevron class="chevron" />
+        <span class={`status-dot ${part.status} tooltip-host`} role="img" aria-label={statusLabel} data-tooltip={statusLabel}>
+          {part.status === "completed" ? <IconCheck /> : part.status === "error" ? <IconError /> : <IconTool />}
+        </span>
+        <span class="tool-name">{part.name}</span>
+        <FileTypeIcon path={path} />
+        <span class="file-name" title={path}>
+          <span class="file-base">
+            <Highlight text={name} query={searchQuery} />
+          </span>
+          {dir && (
+            <span class="file-path">
+              <Highlight text={dir} query={searchQuery} />
+            </span>
+          )}
+        </span>
+      </button>
+      {counts && (
+        <button
+          type="button"
+          class="file-row compact-diff"
+          title={`${t("openDiff")}: ${file.file}`}
+          onClick={() => post({ type: "openDiff", file: file.file, patch: file.patch, applied: part.status === "completed" })}
+        >
+          {file.additions > 0 && <span class="adds">+{file.additions}</span>}
+          {file.deletions > 0 && <span class="dels">-{file.deletions}</span>}
+        </button>
+      )}
+    </div>
+  );
+}
+
 function GenericToolCard({
   part,
   state,
@@ -328,8 +421,13 @@ function GenericToolCard({
   // When a question is pending, the FormCard already renders the same
   // information in a friendly way — showing the raw JSON input too is noise.
   const showInput = part.inputText && forms.length === 0;
+  const compact = isCompactTool(part);
   const summary = toolSummary(part);
-  const inputFile = toolFilePath(part);
+  // The first changed file becomes part of the step's own line; any others stay in the body.
+  const inlineFile = compact ? files[0] : undefined;
+  const inlinePath = inlineFile?.file ?? (compact ? toolStepPath(part) : undefined);
+  const listedFiles = compact ? files.slice(1) : files;
+  const inputFile = compact ? undefined : toolFilePath(part);
   const statusLabel =
     part.status === "completed" ? t("completed") : part.status === "error" ? t("failed") : needsUser ? t("pending") : t("running");
   // A completed tool's output can be large, and the card is usually collapsed. Only rebuild the
@@ -338,19 +436,31 @@ function GenericToolCard({
   const id = `tool-${part.id}`;
   return (
     <section
-      class={`tool ${part.status}${needsUser ? " attention" : ""}${filteredOut ? " filtered-out" : ""}`}
-      aria-label={`${t("tool")}: ${part.name}`}
+      class={`tool ${part.status}${compact ? " compact" : ""}${needsUser ? " attention" : ""}${filteredOut ? " filtered-out" : ""}`}
+      aria-label={`${t("tool")}: ${part.name}${compact && summary ? `: ${summary}` : ""}`}
     >
-      <button type="button" class="tool-header" aria-expanded={expanded} aria-controls={id} onClick={() => setOpen(!open)}>
-        <IconChevron class="chevron" />
-        <span class={`status-dot ${part.status} tooltip-host`} role="img" aria-label={statusLabel} data-tooltip={statusLabel}>
-          {part.status === "completed" ? <IconCheck /> : part.status === "error" ? <IconError /> : <IconTool />}
-        </span>
-        <span class="tool-name">{part.name}</span>
-        <span class="tool-summary" title={summary}>
-          <Highlight text={summary} query={searchQuery} />
-        </span>
-      </button>
+      {compact && inlinePath ? (
+        <FileStepHeader
+          part={part}
+          path={inlinePath}
+          file={inlineFile}
+          expanded={expanded}
+          onToggle={() => setOpen(!open)}
+          searchQuery={searchQuery}
+          statusLabel={statusLabel}
+        />
+      ) : (
+        <button type="button" class="tool-header" aria-expanded={expanded} aria-controls={id} onClick={() => setOpen(!open)}>
+          <IconChevron class="chevron" />
+          <span class={`status-dot ${part.status} tooltip-host`} role="img" aria-label={statusLabel} data-tooltip={statusLabel}>
+            {part.status === "completed" ? <IconCheck /> : part.status === "error" ? <IconError /> : <IconTool />}
+          </span>
+          <span class="tool-name">{part.name}</span>
+          <span class="tool-summary" title={summary}>
+            <Highlight text={summary} query={searchQuery} />
+          </span>
+        </button>
+      )}
       {expanded && (
         <div class="tool-body" id={id}>
           {showInput && (
@@ -387,7 +497,7 @@ function GenericToolCard({
           )}
         </div>
       )}
-      {files.length > 0 && <FileList files={files} applied={part.status === "completed"} />}
+      {listedFiles.length > 0 && <FileList files={listedFiles} applied={part.status === "completed"} />}
       {/* Requests are rendered once in the attention overlay above the composer. The tool keeps
           its "attention" marker so it is easy to spot which call is waiting, but the actionable
           card must not be duplicated here (or hidden inside a folded step). */}
@@ -417,6 +527,6 @@ function TruncatedPre({ text, query = "" }: { text: string; query?: string }) {
   );
 }
 
-import { Highlight } from "./text";
+import { Highlight, splitFilePath } from "./text";
 
 import { FileList } from "./files";

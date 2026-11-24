@@ -538,7 +538,8 @@ test("streams a real recorded conversation with reasoning, markdown and tool car
   const tools = page.locator(".tool");
   await expect(tools).toHaveCount(3);
   await expect(tools.nth(0).locator(".tool-name")).toHaveText("write");
-  await expect(tools.nth(0).locator(".tool-summary")).toHaveText("hello.txt");
+  await expect(tools.nth(0).locator(".chevron")).toHaveCount(1);
+  await expect(tools.nth(0).locator(".file-base")).toHaveText("hello.txt");
   await tools.nth(1).locator(".tool-header").click();
   await expect(tools.nth(1).locator(".tool-body")).toContainText("PATH_DOES_NOT_EXIST");
   await expect(tools.nth(1).locator(".tool-header")).toHaveAttribute("aria-expanded", "true");
@@ -582,8 +583,16 @@ test("keeps thoughts and tools in production order and groups adjacent calls", a
   // Both calls of the first step share one accordion...
   const group = page.locator(".tool-group");
   await expect(group).toHaveCount(1);
+  await expect(group.locator(".tool-group-header .tool-summary")).toHaveText("a.txt, b.txt");
   await group.locator(".tool-group-header").click();
   await expect(group.locator(".tool")).toHaveCount(2);
+  // read/edit steps are one line: status, action, file icon + name/path, no separate file card.
+  const reads = group.locator(".tool");
+  await expect(reads.nth(0).locator(".chevron")).toHaveCount(1);
+  await expect(reads.nth(0).locator(".tool-name")).toHaveText("read");
+  await expect(reads.nth(0).locator(".file-base")).toHaveText("a.txt");
+  await expect(reads.nth(0).locator(".tool-open-file")).toHaveCount(0);
+  await expect(reads.nth(0).locator(".file-list")).toHaveCount(0);
   // ...and the next step's call stays a separate card in the trailing fold.
   const standalone = blocks.nth(1).locator(".tool").filter({ hasText: "shell" });
   await expect(standalone).toHaveCount(1);
@@ -1216,7 +1225,7 @@ test("numbers and versions in a reply are not turned into file links", async ({ 
   await expect(refs).toHaveText("src/app.ts:42");
 });
 
-test("tool and permission resource links open the file; changed files offer diffs only", async ({ page }) => {
+test("permission links open the file; compact steps have no open-file action", async ({ page }) => {
   await boot(page);
   const events = fixture("real-sse3.jsonl");
   const asked = events.findIndex((e) => e.type === "permission.asked");
@@ -1226,8 +1235,9 @@ test("tool and permission resource links open the file; changed files offer diff
   await card.locator(".resources .resource-link").first().click();
   expect(await lastPosted(page, "openFile")).toEqual({ type: "openFile", path: "a.txt" });
 
-  await page.locator(".tool.attention .tool-body .tool-open-file").first().click();
-  expect(await lastPosted(page, "openFile")).toEqual({ type: "openFile", path: "a.txt" });
+  // The pending edit keeps its action and file on one row, with no extra "open file" action.
+  await expect(page.locator(".tool.attention .tool-name")).toHaveText("edit");
+  await expect(page.locator(".tool.attention .tool-open-file")).toHaveCount(0);
 
   // The file list of a proposed change exposes only the diff action, not an "open file" icon.
   await expect(card.locator(".file-list .file-open")).toHaveCount(0);
@@ -2965,6 +2975,16 @@ test("a finished turn shows insertions and deletions from its file edits", async
     },
   ];
   for (const event of events) await host(page, { type: "event", event });
+
+  // The edit step shows its first file and diff on the same line; extra files stay in the body.
+  await expandSteps(page);
+  const step = page.locator(".tool.compact");
+  await expect(step.locator(".tool-name")).toHaveText("edit");
+  await expect(step.locator(".file-base").first()).toHaveText("a.ts");
+  await expect(step.locator(".compact-diff .adds")).toHaveText("+4");
+  await expect(step.locator(".compact-diff .dels")).toHaveText("-2");
+  await expect(step.locator(".file-list .file-base")).toHaveText("b.ts");
+
   const stats = page.locator(".turn-stats");
   await expect(stats).toHaveCount(0);
   await host(page, { type: "event", event: { type: "session.execution.succeeded", created: 1600, data: { sessionID: sid } } });

@@ -1556,6 +1556,12 @@ details[open] > summary > .chevron,
   background: var(--vscode-list-hoverBackground);
 }
 
+/* edit/read steps: the diff button sits at the end of the same row as the toggle. */
+.compact-step-row .compact-diff {
+  width: auto;
+  flex: none;
+}
+
 .file-name {
   flex: 1;
   min-width: 0;
