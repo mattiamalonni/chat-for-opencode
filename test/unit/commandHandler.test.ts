@@ -110,7 +110,7 @@ describe("ChatCommandHandler", () => {
     const { handler, hooks, update } = setup();
     await handler.handle(msg({ type: "dismissCompatibility", version: "2.9.0" }));
     await handler.handle(msg({ type: "dismissContract", signature: "sig" }));
-    expect(update).toHaveBeenCalledWith(COMPAT_DISMISSED_KEY, "2.9.0");
+    expect(update).toHaveBeenCalledWith(COMPAT_DISMISSED_KEY, "2.9");
     expect(update).toHaveBeenCalledWith(CONTRACT_DISMISSED_KEY, "sig");
     expect(hooks.postConnection).toHaveBeenCalledTimes(1);
   });

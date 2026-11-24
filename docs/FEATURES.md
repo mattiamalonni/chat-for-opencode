@@ -69,7 +69,7 @@ settings, see [REFERENCE.md](REFERENCE.md).
   the queue; `1`/`2`/`3` mean Allow once / Always allow / Reject (`2` only when the rule can be
   saved). Reject or Cancel stops the reply; the two allow options continue it. Several questions
   appear one at a time with **Next question** and a single reply collects all answers.
-- A **contract smoke test** on connect names the features a non-2.3.0 server cannot support, instead
+- A **contract smoke test** on connect names the features a non-2.4.0 server cannot support, instead
   of only warning about the version number. A second, discreet **status bar item** shows the
   session's estimated context size and cost (`opencode.showUsageInStatusBar`); hover for the
   input/output/cache breakdown.

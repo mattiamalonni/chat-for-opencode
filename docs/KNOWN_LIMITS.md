@@ -38,7 +38,7 @@ test or a manual probe actually ran.
   growth, but a single conversation with very large messages or patches is still not profiled.
 - **External server mode with a real remote server** — tested only against the mock server (unit).
 - **Real OpenCode contract drift.** The `contract` job runs only on manual CI dispatch against a
-  pinned `opencode@2.3.0`, with `continue-on-error`: it reports a regression but does not block a
+  pinned `opencode@2.4.0`, with `continue-on-error`: it reports a regression but does not block a
   release, because it needs a real binary and provider credentials. A failure now writes a
   run summary and opens (or comments on) a `contract-drift` issue, so it cannot pass unnoticed; all
   CI jobs also have explicit timeouts. The deterministic half is
@@ -150,8 +150,8 @@ test or a manual probe actually ran.
   to the OS temp folder so their chips can be opened in the editor. The host keeps at most 50 of them,
   evicting the oldest when a new one arrives; the rest are removed on extension deactivation. A copy
   evicted this way is no longer openable from an old chip, though its bytes are still in that prompt.
-- **Other OpenCode versions** are not supported: only the 2.3.0 contract was checked (types from its
-  OpenAPI schema, SSE fixtures recorded on 2.2.7). Other 2.3.x patch releases are assumed compatible
+- **Other OpenCode versions** are not supported: only the 2.4.0 contract was checked (types from its
+  OpenAPI schema, SSE fixtures recorded on 2.2.7). Other 2.4.x patch releases are assumed compatible
   without a warning; the chat warns for
   another minor (untested) or major (unsupported) version. A runtime smoke test checks the raw
   response shape of the catalog and history endpoints and names the affected features in a banner.

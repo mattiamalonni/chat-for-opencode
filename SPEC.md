@@ -18,7 +18,7 @@ keys and sends no telemetry.
 │     ExternalServer  `opencode.endpoint` + password from SecretStorage         │
 │   OpenCodeClient (client/http.ts)  typed fetch wrapper (Basic auth)           │
 │     adapter      (shared/adapter)  raw wire shapes -> canonical UI types      │
-│                                    (generated from docs/openapi-2.3.0.json)   │
+│                                    (generated from docs/openapi-2.4.0.json)   │
 │   EventStream    (client/sse.ts)   SSE parser + auto-reconnecting stream      │
 │   ChatController (chat/controller.ts)                                         │
 │     glue between server and webview, session persistence (workspaceState),    │
@@ -57,7 +57,7 @@ cannot overwrite a replacement's state or trigger a spurious auto-restart, and a
 removed only if it still names the child that is exiting.
 
 Raw server payloads are normalised by `src/shared/adapter.ts` before reaching the reducer. The raw
-wire shapes for the 2.3.0 snapshot are generated from `docs/openapi-2.3.0.json` by
+wire shapes for the 2.4.0 snapshot are generated from `docs/openapi-2.4.0.json` by
 `npm run gen:types` (CI checks that the generated file is current) and serve as the reference for
 those normalisers. The contract smoke test still observes the **raw** values, so an adapter that
 drops malformed entries cannot hide an unsupported server.

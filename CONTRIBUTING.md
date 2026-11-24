@@ -15,7 +15,7 @@ npm run verify   # the full CI gate, including audit, coverage floors and the pr
 ```
 
 Press <kbd>F5</kbd> in VS Code to launch an Extension Development Host. The chat opens in the
-secondary side bar. For a real server, install `opencode` 2.3.0 and configure a provider; for most
+secondary side bar. For a real server, install `opencode` 2.4.0 and configure a provider; for most
 work the deterministic mock server used by the tests is enough. Install the Playwright browser with
 `npx playwright install chromium`; integration tests download VS Code into `.vscode-test/`
 (`VSCODE_TEST_VERSION=1.99.3` exercises the minimum supported version).
@@ -57,7 +57,7 @@ This is the single list of test commands. Other docs link here instead of repeat
 
 | Command                             | Covers                                                                                  |
 | ----------------------------------- | --------------------------------------------------------------------------------------- |
-| `npm run test:e2e`                  | Live OpenCode 2.3.0 contract; advisory, manual CI dispatch only                         |
+| `npm run test:e2e`                  | Live OpenCode 2.4.0 contract; advisory, manual CI dispatch only                         |
 | `npm run test:integration:e2e`      | Real webview inside VS Code, CDP clicks against the **mock** server                     |
 | `npm run test:integration:real`     | Extension inside VS Code against a real server, driven through its message API          |
 | `npm run test:integration:real:e2e` | Real webview clicks plus a real server: types a prompt and waits for the streamed reply |
@@ -69,7 +69,7 @@ still leave to a human.
 
 | Command                | Checks                                                                                 |
 | ---------------------- | -------------------------------------------------------------------------------------- |
-| `npm run gen:types`    | Regenerates `src/shared/openapi.generated.ts` from `docs/openapi-2.3.0.json`           |
+| `npm run gen:types`    | Regenerates `src/shared/openapi.generated.ts` from `docs/openapi-2.4.0.json`           |
 | `npm run verify:types` | Fails if that generated file is stale                                                  |
 | `npm run gen:docs`     | Regenerates the tables in `docs/REFERENCE.md` from `package.json` + `package.nls.json` |
 | `npm run verify:docs`  | Fails if those tables are stale                                                        |

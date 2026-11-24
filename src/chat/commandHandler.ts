@@ -13,6 +13,7 @@ import type { OpenCodeClient } from "../client/http";
 import type { ExecutionStateService } from "./executionState";
 import type { Generation } from "./generation";
 import type { FileIconsResponse } from "./fileIconTheme";
+import { compatibilityKey } from "../shared/compatibility";
 import { COMPAT_DISMISSED_KEY, CONTRACT_DISMISSED_KEY } from "./storageKeys";
 import { deleteDrafts } from "./services/draftActions";
 
@@ -323,7 +324,7 @@ export class ChatCommandHandler {
         return h.refreshInbox(msg.sessionId);
       }
       case "dismissCompatibility":
-        await h.globalState.update(COMPAT_DISMISSED_KEY, msg.version);
+        await h.globalState.update(COMPAT_DISMISSED_KEY, compatibilityKey(msg.version) ?? msg.version);
         return;
       case "dismissContract":
         await h.globalState.update(CONTRACT_DISMISSED_KEY, msg.signature);

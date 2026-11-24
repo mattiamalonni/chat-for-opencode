@@ -9,7 +9,7 @@ import { Generation } from "./generation";
 import { describeServerError, ServerError, type ServerHandle, type ServerState } from "../server/server";
 import type { ServerEvent } from "../shared/api";
 
-import { checkCompatibility } from "../shared/compatibility";
+import { checkCompatibility, compatibilityKey } from "../shared/compatibility";
 
 import { checkContract, contractSignature, type ContractObservations } from "../shared/contract";
 import { isWebviewMessage } from "../shared/protocolGuards";
@@ -753,7 +753,8 @@ export class ChatController implements vscode.Disposable {
       error,
       version: this.state.version,
       compatibility: checkCompatibility(this.state.version),
-      compatibilityDismissed: !!this.state.version && this.ctx.globalState.get<string>(COMPAT_DISMISSED_KEY) === this.state.version,
+      compatibilityDismissed:
+        !!this.state.version && this.ctx.globalState.get<string>(COMPAT_DISMISSED_KEY) === compatibilityKey(this.state.version),
       contract: this.state.contract,
       contractDismissed: this.ctx.globalState.get<string>(CONTRACT_DISMISSED_KEY) === contractSignature(this.state.contract),
     });

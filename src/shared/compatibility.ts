@@ -11,7 +11,7 @@ export type Compatibility = "ok" | "untested" | "unsupported" | "unknown";
 
 const VERSION = /^v?(\d+)\.(\d+)\.(\d+)(?:[-+].*)?$/;
 
-/** `2.3.0-mock` and `v2.3.0+build` are still 2.3.0 for our purposes. */
+/** `2.4.0-mock` and `v2.4.0+build` are still 2.4.0 for our purposes. */
 function core(version: string): { major: number; minor: number } | undefined {
   const m = VERSION.exec(version.trim());
   return m ? { major: Number(m[1]), minor: Number(m[2]) } : undefined;
@@ -30,4 +30,15 @@ export function checkCompatibility(version?: string): Compatibility {
   if (!actual) return "unknown";
   if (actual.major !== expected.major) return "unsupported";
   return actual.minor === expected.minor ? "ok" : "untested";
+}
+
+/**
+ * Key used to remember a dismissed version banner. Compatibility is decided per minor series, so a
+ * dismissal must survive patch upgrades too (2.4.0 and 2.4.1 are the same series). Malformed input
+ * has no key: the caller can fall back to the raw string rather than hiding a banner by accident.
+ */
+export function compatibilityKey(version?: string): string | undefined {
+  if (!version) return undefined;
+  const v = core(version);
+  return v ? `${v.major}.${v.minor}` : undefined;
 }

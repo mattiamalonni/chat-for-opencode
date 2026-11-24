@@ -1,7 +1,7 @@
 /**
  * Boundary between the raw OpenCode wire shapes and the canonical types used by the reducer and
  * the webview. The client returns whatever the server sends; `checkContract` reports shape drifts
- * against the 2.3.0 snapshot, while these normalisers keep the UI usable when a field is missing
+ * against the 2.4.0 snapshot, while these normalisers keep the UI usable when a field is missing
  * or renamed. Adding support for a new server version should mean extending this file, not
  * rewriting the chat state machine.
  */
@@ -29,7 +29,7 @@ import type {
 } from "./api";
 import { OTHER_MESSAGE_TYPES } from "./api";
 import { OPENAPI_SNAPSHOT_VERSION } from "./openapi.generated";
-// The generated module also exports the raw wire types for the 2.3.0 snapshot. Normalisers take
+// The generated module also exports the raw wire types for the 2.4.0 snapshot. Normalisers take
 // `unknown` on purpose: a newer server must not be able to violate our types at runtime, it should
 // only produce a degraded-but-renderable UI plus a contract warning.
 

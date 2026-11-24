@@ -114,6 +114,23 @@ export class ChatSessionService {
       this.d.post({ type: "session", session: null });
       this.d.permissionActions.post();
     }
+    /** Retry a catalog that is not ready yet, without treating a transient snapshot as final. */
+    const retryCatalog = () => {
+      if (stale()) return;
+      this.d.state.catalogRetries++;
+      const wait = jitteredDelay(500 * this.d.state.catalogRetries);
+      this.d.lifecycle.schedule(
+        "catalogRetry",
+        () => {
+          if (!stale()) void this.loadAll();
+        },
+        wait,
+      );
+    };
+    // OpenCode 2.4 boots location services lazily: the first `/api/model` answer can be an empty
+    // snapshot even when providers are configured (the `model.updated` event follows shortly after).
+    // Give it a few short retries before showing the irreversible-looking "no provider" card.
+    const MAX_CATALOG_RETRIES = 3;
     if (catalogError !== undefined) {
       // An empty array from a *failed* request is not evidence that the user has no provider.
       const s = translatedStrings();
@@ -123,25 +140,16 @@ export class ChatSessionService {
         detail: catalogError,
         actions: ["reconnect", "showLogs"],
       });
-      if (this.d.state.catalogRetries < 2 && !stale()) {
-        this.d.state.catalogRetries++;
-        const wait = jitteredDelay(500 * this.d.state.catalogRetries);
-        this.d.lifecycle.schedule(
-          "catalogRetry",
-          () => {
-            if (!stale()) void this.loadAll();
-          },
-          wait,
-        );
+      if (this.d.state.catalogRetries < MAX_CATALOG_RETRIES) retryCatalog();
+    } else if (this.d.catalog.models.length === 0) {
+      if (this.d.state.catalogRetries < MAX_CATALOG_RETRIES) retryCatalog();
+      else {
+        const s = translatedStrings();
+        this.d.setStatus("error", { kind: "noProvider", message: s["error.noProvider"], actions: ["login", "reconnect", "showLogs"] });
       }
     } else {
       this.d.state.catalogRetries = 0;
-      if (this.d.catalog.models.length === 0) {
-        const s = translatedStrings();
-        this.d.setStatus("error", { kind: "noProvider", message: s["error.noProvider"], actions: ["login", "reconnect", "showLogs"] });
-      } else {
-        this.d.setStatus("connected");
-      }
+      this.d.setStatus("connected");
     }
     this.d.post({ type: "context", items: this.d.context.current() });
   }

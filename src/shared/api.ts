@@ -1,5 +1,5 @@
 // Subset of the OpenCode v2 HTTP API used by the extension.
-// Shapes verified against the OpenCode 2.3.0 contract — see docs/API_NOTES.md.
+// Shapes verified against the OpenCode 2.4.0 contract — see docs/API_NOTES.md.
 
 export interface ModelRef {
   id: string;
@@ -89,7 +89,7 @@ export interface IdleMessage extends MessageBase {
 }
 
 /**
- * Types of `OtherMessage` in the verified 2.3.0 contract, as a value so the adapter can narrow raw
+ * Types of `OtherMessage` in the verified 2.4.0 contract, as a value so the adapter can narrow raw
  * wire strings at runtime instead of asserting an unknown string into the union.
  */
 export const OTHER_MESSAGE_TYPES = [
@@ -125,7 +125,7 @@ export interface FileDiff {
   status: "added" | "deleted" | "modified";
 }
 
-/** How an inbox item will be delivered when the agent loop picks it up (OpenCode 2.3.0). */
+/** How an inbox item will be delivered when the agent loop picks it up (OpenCode 2.4.0). */
 export type InboxDelivery = "steer" | "queue";
 
 /** A pending item of `GET /api/session/{id}/inbox` — a prompt not delivered yet. */

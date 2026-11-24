@@ -1,11 +1,12 @@
 # OpenCode server API notes
 
 The endpoints and events below were **probed against a running `opencode serve` v2.2.7**
-(macOS, 2026-11-16) unless marked _(docs only)_, then checked against the v2.3.0 OpenAPI schema:
-2.3.0 only adds fields and event types, so none of the shapes here changed. The full OpenAPI 3.1
-document for the supported 2.3.0 contract is saved in
-[`openapi-2.3.0.json`](./openapi-2.3.0.json) (from `@opencode/protocol` at tag `v2.3.0`); the original
-[`openapi-2.2.7.json`](./openapi-2.2.7.json) is kept for the recorded fixtures.
+(macOS, 2026-11-16) unless marked _(docs only)_, then checked against the v2.4.0 OpenAPI schema.
+2.3.0 and 2.4.0 add fields, event types and experimental routes outside the surface used here, so
+none of the shapes below changed. The full OpenAPI 3.1 document for the supported 2.4.0 contract is
+saved in [`openapi-2.4.0.json`](./openapi-2.4.0.json) (from `@opencode/protocol` at tag `v2.4.0`); the
+previous [`openapi-2.3.0.json`](./openapi-2.3.0.json) and the original
+[`openapi-2.2.7.json`](./openapi-2.2.7.json) are kept for history and the recorded fixtures.
 
 Sources: https://opencode.ai/docs/llms.txt, https://opencode.ai/docs/api/,
 https://opencode.ai/docs/cli/web/, https://opencode.ai/docs/permissions/,

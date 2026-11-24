@@ -151,7 +151,7 @@ jobs:
           path: chat-for-opencode.vsix
 
   contract:
-    name: Contract (opencode@2.3.0)
+    name: Contract (opencode@2.4.0)
     # Only on manual dispatch: these tests hit a real `opencode serve` and a provider.
     if: github.event_name == 'workflow_dispatch'
     timeout-minutes: 20
@@ -166,8 +166,8 @@ jobs:
           node-version-file: .nvmrc
           cache: npm
       - run: npm ci
-      - name: Install opencode 2.3.0
-        run: npm install -g opencode@2.3.0
+      - name: Install opencode 2.4.0
+        run: npm install -g opencode@2.4.0
       - name: Contract e2e tests
         id: contract-tests
         run: npm run test:e2e
@@ -178,10 +178,10 @@ jobs:
         if: always()
         run: |
           if [ "${{ steps.contract-tests.outcome }}" = "failure" ]; then
-            echo "### ⚠️ OpenCode 2.3.0 contract check failed" >> "$GITHUB_STEP_SUMMARY"
+            echo "### ⚠️ OpenCode 2.4.0 contract check failed" >> "$GITHUB_STEP_SUMMARY"
             echo "The live contract suite reported a failure. Inspect the job log to distinguish provider/network issues from API drift." >> "$GITHUB_STEP_SUMMARY"
           else
-            echo "### ✅ OpenCode 2.3.0 contract check passed" >> "$GITHUB_STEP_SUMMARY"
+            echo "### ✅ OpenCode 2.4.0 contract check passed" >> "$GITHUB_STEP_SUMMARY"
           fi
           echo "Run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" >> "$GITHUB_STEP_SUMMARY"
       - name: Report contract drift
@@ -192,7 +192,7 @@ jobs:
         run: |
           gh label create contract-drift --description "Scheduled OpenCode contract check failed" --color b60205 || true
           existing=$(gh issue list --label contract-drift --state open --json number --jq '.[0].number' || true)
-          body="The scheduled OpenCode 2.3.0 contract check failed. Review the run: $RUN_URL"
+          body="The scheduled OpenCode 2.4.0 contract check failed. Review the run: $RUN_URL"
           if [ -n "$existing" ]; then
             gh issue comment "$existing" --body "$body"
           else

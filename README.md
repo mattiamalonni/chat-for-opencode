@@ -23,7 +23,7 @@ machine: it does not reimplement the agent, never reads or stores provider API k
 
 - VS Code **1.99+** and a **trusted workspace** — before you trust the folder the extension starts
   no process, reads no saved login and ignores workspace-specific settings.
-- **OpenCode v2** on your `PATH` (contract matched to 2.3.0); follow the
+- **OpenCode v2** on your `PATH` (contract matched to 2.4.0); follow the
   [official installation instructions](https://opencode.ai/docs/#installation). A dismissible banner reports version drift.
 - One provider configured with `opencode auth login`, or use the _Configure a provider_ button in chat.
 

@@ -1,6 +1,6 @@
 /**
- * Runtime smoke test of the OpenCode contract. The extension is written against the 2.3.0
- * snapshot (docs/openapi-2.3.0.json), but a version banner alone does not say *what* will break.
+ * Runtime smoke test of the OpenCode contract. The extension is written against the 2.4.0
+ * snapshot (docs/openapi-2.4.0.json), but a version banner alone does not say *what* will break.
  * These checks run on the data the extension already fetches (no extra requests) and name the
  * capabilities whose response shape does not match what the webview expects.
  */

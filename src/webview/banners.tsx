@@ -155,7 +155,7 @@ export function CompatibilityBanner(props: { status: "untested" | "unsupported";
   );
 }
 
-/** Names the capabilities whose response shape does not match the verified 2.3.0 contract. */
+/** Names the capabilities whose response shape does not match the verified 2.4.0 contract. */
 export function ContractBanner({ failures, issuesUrl }: { failures: ContractReport["failures"]; issuesUrl?: string }) {
   const t = useT();
   const [dismissed, setDismissed] = useState(false);

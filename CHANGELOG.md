@@ -4,6 +4,18 @@ Legend: **`User — …`** entries change something you can see or use. **`Inter
 build, CI or architecture work, condensed to one line; the reasoning lives in
 [DECISIONS.md](docs/DECISIONS.md) and [SPEC.md](SPEC.md).
 
+## 0.3.24 — 2026-11-24
+
+- **User — Fix:** an empty model list from OpenCode 2.4's lazily booted providers no longer produces
+  an immediate "No model provider is configured" error. The extension retries the catalog a few
+  times before treating it as a real setup problem, so the chat connects as soon as the server's
+  model snapshot settles.
+- **User — Version banner:** dismissing the untested-version warning now sticks for the whole minor
+  series (e.g. 2.4.x), not just the exact patch release that was running when you dismissed it.
+- **User — OpenCode 2.4.0:** the supported server version, OpenAPI snapshot and generated wire types
+  are now based on 2.4.0. The contract is additive over 2.3.0 for the endpoints the extension uses;
+  servers on another minor still show the dismissible version banner.
+
 ## 0.3.23 — 2026-11-23
 
 - **User — Removed:** the on-demand context sources (`problems`, `git`, `terminal`, `openEditors`,

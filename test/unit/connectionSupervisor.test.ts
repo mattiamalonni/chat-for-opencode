@@ -16,7 +16,7 @@ function hooks(overrides: Partial<SupervisorHooks> = {}) {
   const server = {
     onDidChange: vi.fn(() => () => undefined),
     ensure: vi.fn().mockResolvedValue({ baseUrl: "http://localhost:1234", password: "pw" }),
-    state: { status: "running", version: "2.3.0" },
+    state: { status: "running", version: "2.4.0" },
   };
   const h = {
     registry: { get: vi.fn(() => server), reset: vi.fn().mockResolvedValue(undefined) },
