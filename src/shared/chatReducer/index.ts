@@ -5,6 +5,7 @@ import { applyEvent } from "./events";
 
 export * from "./types";
 export { contextTokensOf, eventSessionId } from "./helpers";
+export { sessionTimeline, type TimelineEntry } from "./timeline";
 export { sessionIsBusy, sessionLooksBusy, toSessionSummary } from "./sessionStatus";
 export { applyEvent } from "./events";
 export {

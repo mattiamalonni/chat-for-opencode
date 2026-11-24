@@ -2114,6 +2114,70 @@ test("model picker search filters when there are many models", async ({ page }) 
   await expect(page.locator(".picker-empty")).toHaveText(STRINGS.noModelsFound);
 });
 
+test("Ctrl+G opens the session timeline and jumps to a turn", async ({ page }) => {
+  await boot(page);
+  const tokens = { input: 10, output: 5, reasoning: 0, cache: { read: 0, write: 0 } };
+  const assistant = (id: string, created: number): SessionMessage => ({
+    id,
+    type: "assistant",
+    agent: "build",
+    model: { id: "m", providerID: "p" },
+    time: { created, completed: created + 10 },
+    tokens,
+    cost: 0.01,
+    content: [{ type: "text", text: "ok" }],
+  });
+  await host(page, {
+    type: "session",
+    session: {
+      id: S1,
+      busy: false,
+      messages: [
+        { id: "u1", type: "user", text: "first question", time: { created: 100 } },
+        assistant("a1", 110),
+        { id: "i1", type: "idle", outcome: "succeeded", time: { created: 200 } },
+        { id: "u2", type: "user", text: "second question", time: { created: 300 } },
+        assistant("a2", 310),
+      ],
+      permissions: [],
+      forms: [],
+    },
+  });
+  await page.locator("textarea.input").focus();
+  await page.keyboard.press("Control+g");
+  const search = page.getByRole("combobox", { name: STRINGS.timelineSearchPlaceholder });
+  await expect(search).toBeFocused();
+  const options = page.getByRole("option");
+  await expect(options).toHaveCount(2);
+  await expect(options.first()).toContainText("second question");
+  await options.first().click();
+  await expect(page.locator('[data-message-id="u2"].revealed')).toContainText("second question");
+  await expect(page.locator("textarea.input")).toBeFocused();
+});
+
+test("Cmd+G opens the timeline on macOS", async ({ page }) => {
+  await boot(page);
+  await host(page, {
+    type: "init",
+    strings: { ...STRINGS },
+    platform: "mac",
+    folders: [{ uri: "file:///work", name: "work" }],
+    activeFolder: "file:///work",
+  });
+  await page.locator("textarea.input").focus();
+  await page.keyboard.press("Meta+g");
+  await expect(page.getByRole("combobox", { name: STRINGS.timelineSearchPlaceholder })).toBeFocused();
+});
+
+test("Ctrl+G on a session without turns shows an empty timeline", async ({ page }) => {
+  await boot(page);
+  await page.locator("textarea.input").focus();
+  await page.keyboard.press("Control+g");
+  await expect(page.locator(".timeline-picker .picker-empty")).toHaveText(STRINGS.timelineEmpty);
+  await page.keyboard.press("Escape");
+  await expect(page.getByRole("listbox", { name: STRINGS.sessionTimeline })).toHaveCount(0);
+});
+
 test("picker popup stays inside a narrow view", async ({ page }) => {
   await page.setViewportSize({ width: 260, height: 600 });
   await boot(page);

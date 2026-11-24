@@ -95,6 +95,15 @@ export function isOpenModelsKey(e: KeyLike, platform: Platform): boolean {
   return isPlainChord(e, platform, "m");
 }
 
+/**
+ * Cmd+G (mac) / Ctrl+G (Windows/Linux), plain and outside an IME composition: opens the session
+ * timeline while the chat has focus. The capture-phase listener in the webview intercepts it before
+ * VS Code can turn it into "Go to Line/Column".
+ */
+export function isTimelineKey(e: KeyLike, platform: Platform): boolean {
+  return isPlainChord(e, platform, "g");
+}
+
 type ComposerAction = "send" | "steer" | "newline" | "none";
 
 /**

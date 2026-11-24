@@ -28,6 +28,11 @@ settings, see [REFERENCE.md](REFERENCE.md).
   the last step, tokens, cost and insertions/deletions. Click **+N / -N** to open all that turn's
   changes in one read-only diff. **Stop** a response and **compact** a long session from the
   composer toolbar or the command palette.
+- **Session timeline**: `Cmd/Ctrl+G` opens a searchable list of the current session's turns,
+  newest first, with the prompt text, time, step count, tokens and changed-line count. Selecting a
+  turn scrolls to its prompt, highlights it and puts the focus back in the composer; `Esc` closes the
+  picker. The list is built from the same turn data as the per-turn stats, so it also follows live
+  turns, and only real prompts are shown (not the synthetic turns used while a reply streams).
 - **Search and export**: `Cmd/Ctrl+Alt+F` searches titles and message bodies across every session, opens the
   hit and highlights its message, and the header exports the conversation as Markdown. In-chat search
   (`Cmd/Ctrl+F`) highlights matches in prompts, replies and tool cards with `F3`/`Shift+F3` navigation

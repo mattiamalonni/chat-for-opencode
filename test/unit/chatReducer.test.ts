@@ -12,6 +12,7 @@ import {
   selectTodos,
   selectTurnFileChanges,
   sessionIsBusy,
+  sessionTimeline,
   sessionLooksBusy,
   toSessionSummary,
   type ChatState,
@@ -1229,5 +1230,44 @@ describe("incremental resync", () => {
     const state = open("s", [user("u1", 1, "first")]);
     expect(chatReducer(state, { type: "append", delta: { sessionId: "s", messages: [] } })).toBe(state);
     expect(chatReducer(state, { type: "append", delta: { sessionId: "other", messages: [user("u2", 2, "x")] } })).toBe(state);
+  });
+});
+
+describe("sessionTimeline", () => {
+  const tokens = { input: 10, output: 5, reasoning: 0, cache: { read: 0, write: 0 } };
+  const user = (id: string, created: number, text: string): SessionMessage => ({ id, type: "user", text, time: { created } });
+  const assistant = (id: string, created: number): AssistantMessage => ({
+    id,
+    type: "assistant",
+    agent: "build",
+    model: { id: "m", providerID: "p" },
+    time: { created, completed: created + 10 },
+    tokens,
+    cost: 0.01,
+    content: [{ type: "text", text: "ok" }],
+  });
+  const idle = (id: string, created: number): SessionMessage => ({ id, type: "idle", outcome: "succeeded", time: { created } });
+
+  it("lists only turns with a real prompt, newest first, with their stats", () => {
+    const state = open("s", [
+      user("u1", 100, "first"),
+      assistant("a1", 110),
+      idle("i1", 150),
+      user("u2", 200, "second"),
+      assistant("a2", 310),
+    ]);
+    const withLive = chatReducer(state, {
+      type: "event",
+      event: { type: "session.execution.started", created: 300, data: { sessionID: "s" } },
+    });
+    const timeline = sessionTimeline(withLive);
+    expect(timeline.map((entry) => entry.text)).toEqual(["second", "first"]);
+    expect(timeline[0]).toMatchObject({ id: "u2", started: 200, tokens: 15, cost: 0.01 });
+    // The live-only turn has a synthetic id and no prompt, so it is not a navigation target.
+    expect(timeline.some((entry) => entry.id.startsWith("turn-"))).toBe(false);
+  });
+
+  it("is empty for a session without turns", () => {
+    expect(sessionTimeline(open("s", [user("u1", 1, "hello")]))).toEqual([]);
   });
 });

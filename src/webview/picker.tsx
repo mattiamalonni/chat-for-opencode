@@ -31,6 +31,8 @@ export interface PickerProps {
   placement?: "top" | "bottom";
   /** Bumping this opens the popup; used by the Cmd/Ctrl+M shortcut for the model picker. */
   openToken?: number;
+  /** Keep the trigger in the DOM for focus/keyboard handling, but hide it (chord-opened pickers). */
+  hideTrigger?: boolean;
   /** Called after a selection, so the host view can move focus somewhere else than the trigger. */
   onSelected?: () => void;
 }
@@ -163,7 +165,7 @@ export function Picker(props: PickerProps) {
       <button
         ref={trigger}
         type="button"
-        class={`picker-trigger${open ? " open" : ""}`}
+        class={`picker-trigger${open ? " open" : ""}${props.hideTrigger ? " hidden-trigger" : ""}`}
         aria-haspopup="listbox"
         aria-expanded={open}
         aria-label={`${props.label}: ${selected?.label ?? props.placeholder ?? ""}`}

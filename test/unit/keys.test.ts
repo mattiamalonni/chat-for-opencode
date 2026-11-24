@@ -6,6 +6,7 @@ import {
   isOpenModelsKey,
   isOpenSessionsKey,
   isSyncKey,
+  isTimelineKey,
   shouldIsolateKey,
   type KeyLike,
 } from "../../src/shared/keys";
@@ -65,6 +66,22 @@ describe("shouldIsolateKey", () => {
   it("lets Escape and Tab bubble for focus navigation", () => {
     expect(shouldIsolateKey(k("Escape"), "mac")).toBe(false);
     expect(shouldIsolateKey(k("Tab"), "mac")).toBe(false);
+  });
+});
+
+describe("isTimelineKey", () => {
+  it("matches plain Cmd+G on mac and Ctrl+G elsewhere", () => {
+    expect(isTimelineKey(k("g", { metaKey: true }), "mac")).toBe(true);
+    expect(isTimelineKey(k("G", { ctrlKey: true }), "windows")).toBe(true);
+    expect(isTimelineKey(k("g", { ctrlKey: true }), "linux")).toBe(true);
+  });
+
+  it("ignores the wrong platform modifier, extra modifiers and IME compositions", () => {
+    expect(isTimelineKey(k("g", { ctrlKey: true }), "mac")).toBe(false);
+    expect(isTimelineKey(k("g", { metaKey: true }), "windows")).toBe(false);
+    expect(isTimelineKey(k("g", { metaKey: true, altKey: true }), "mac")).toBe(false);
+    expect(isTimelineKey(k("g", { metaKey: true, shiftKey: true }), "mac")).toBe(false);
+    expect(isTimelineKey(k("g", { metaKey: true, isComposing: true }), "mac")).toBe(false);
   });
 });
 

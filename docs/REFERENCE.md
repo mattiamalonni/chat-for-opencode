@@ -53,8 +53,15 @@ Do not edit the generated blocks by hand; change the manifest and regenerate.
 
 `Cmd/Ctrl+F` searches messages (`F3`/`Shift+F3` for next/previous, `Esc` closes and clears),
 `Cmd/Ctrl+R` re-syncs the current session, `Cmd/Ctrl+L` toggles the session list, `Cmd/Ctrl+M` opens
-the model picker and `Cmd/Ctrl+N` starts a new session when the chat has focus. In the session list,
+the model picker, `Cmd/Ctrl+G` opens the session timeline and `Cmd/Ctrl+N` starts a new session
+when the chat has focus. In the session list,
 `↑`/`↓` walk the filtered sessions, `Enter` selects one and returns focus to the composer
 (`Esc`/`Cmd/Ctrl+L` closes it). Selecting a model also returns focus to the composer.
 `Enter` in the composer sends or queues while the agent runs, `Ctrl/Cmd+Enter` interrupts and sends
 now, and `Shift+Enter` adds a new line.
+
+## Session timeline
+
+`Cmd/Ctrl+G` while the chat has focus opens a searchable picker of this session's turns, newest
+first. `↑`/`↓` walk the list, typing filters prompts, `Enter` jumps to the selected prompt and
+highlights it, and `Esc` closes the picker. Focus returns to the composer after a jump.

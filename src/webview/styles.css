@@ -2573,6 +2573,21 @@ button:disabled {
   left: auto;
 }
 
+/* The timeline is opened by a chord; its trigger exists only for focus/keyboard handling. */
+.timeline-picker {
+  position: relative;
+  height: 0;
+}
+
+.timeline-picker .hidden-trigger {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  opacity: 0;
+  pointer-events: none;
+}
+
 @keyframes picker-in {
   from {
     opacity: 0;

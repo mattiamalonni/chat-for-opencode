@@ -1,9 +1,9 @@
 import { useEffect, useLayoutEffect, useMemo, useReducer, useRef, useState } from "preact/hooks";
 import type { AgentInfo, CommandSuggestion, FileDiff, InboxItem, ModelInfo, ModelRef, ServerEvent, SkillSuggestion } from "../shared/api";
-import { chatReducer, initialChatState, mergeChangedFiles, selectTodos, type UiUserMessage } from "../shared/chatReducer";
+import { chatReducer, initialChatState, mergeChangedFiles, selectTodos, sessionTimeline, type UiUserMessage } from "../shared/chatReducer";
 import { type Compatibility } from "../shared/compatibility";
-import { estimateDataUrlTokens } from "../shared/format";
-import { isFindKey, isNewSessionKey, isOpenModelsKey, isOpenSessionsKey, isSyncKey } from "../shared/keys";
+import { estimateDataUrlTokens, formatTokens } from "../shared/format";
+import { isFindKey, isNewSessionKey, isOpenModelsKey, isOpenSessionsKey, isSyncKey, isTimelineKey } from "../shared/keys";
 import { emptyContract, type ContractReport } from "../shared/contract";
 import type {
   Attachment,
@@ -22,7 +22,7 @@ import { AttentionOverlay } from "./attentionOverlay";
 import { Composer } from "./composer";
 import { collectDroppedFiles, hasFiles, readFileAsBase64, type DragData } from "./dropFiles";
 import { env } from "./env";
-import { StringsContext } from "./i18n";
+import { StringsContext, useT } from "./i18n";
 
 import { setApplyLabel, setCopyLabel } from "./markdown";
 
@@ -39,6 +39,7 @@ import { WebviewErrorBoundary } from "./errorBoundary";
 import { conversationMarkdown, downloadFile } from "./exportConversation";
 import { Header } from "./header";
 import { InboxPanel, ChangesPanel, TodoPanel } from "./panels";
+import { Picker } from "./picker";
 import { SessionList } from "./sessionList";
 import { SubagentModal } from "./subagentModal";
 interface Catalog {
@@ -51,6 +52,7 @@ interface Catalog {
 }
 
 export function App() {
+  const t = useT();
   const [strings, setStrings] = useState<Strings>({ ...STRINGS });
   const [chat, dispatch] = useReducer(chatReducer, initialChatState);
   const [subagents, subagentDispatch] = useReducer(subagentReducer, initialSubagentState);
@@ -80,6 +82,8 @@ export function App() {
   const [notice, setNotice] = useState<UiError | undefined>();
   const [focusToken, setFocusToken] = useState(0);
   const [modelPickerToken, setModelPickerToken] = useState(0);
+  /** Bumped by Cmd/Ctrl+Alt+G to open the session timeline picker. */
+  const [timelineToken, setTimelineToken] = useState(0);
   const [draftToken, setDraftToken] = useState(0);
   /** Prompt returned by a rollback; a new token forces the composer to adopt it even if it has text. */
   const [restoredDraft, setRestoredDraft] = useState<{ text: string; token: number } | undefined>();
@@ -461,6 +465,10 @@ export function App() {
         e.preventDefault();
         e.stopPropagation();
         setModelPickerToken((n) => n + 1);
+      } else if (isTimelineKey(e, env.platform)) {
+        e.preventDefault();
+        e.stopPropagation();
+        setTimelineToken((n) => n + 1);
       } else if (e.key === "F3") {
         e.preventDefault();
         e.stopPropagation();
@@ -523,6 +531,34 @@ export function App() {
     () => chat.messages.filter((m): m is UiUserMessage => m.kind === "user").map((m) => m.text),
     [chat.messages],
   );
+  const timelineItems = useMemo(
+    () =>
+      sessionTimeline(chat).map((entry) => {
+        const meta = [
+          entry.steps !== undefined ? t("timelineSteps", entry.steps) : "",
+          entry.tokens !== undefined ? formatTokens(entry.tokens) : "",
+          entry.changes ? t("timelineChanges", entry.changes) : "",
+        ]
+          .filter(Boolean)
+          .join(" · ");
+        return {
+          value: entry.id,
+          label: entry.text.replace(/\s+/g, " ").trim().slice(0, 90) || t("untitled"),
+          description: new Date(entry.started).toLocaleString(),
+          meta: meta || undefined,
+          metaLabel: t("sessionTimeline"),
+        };
+      }),
+    [chat.turns, chat.messages, t("timelineSteps", ""), t("timelineChanges", ""), t("untitled")],
+  );
+  /** Jump to the turn's prompt and give the composer back the focus. */
+  const revealTurn = (id: string) => {
+    // Clear first: the conversation consumes a reveal only once per id, so re-selecting the same
+    // turn must reset that marker before setting it again.
+    setRevealMessageId(undefined);
+    requestAnimationFrame(() => setRevealMessageId(id));
+    focusComposer();
+  };
   // The active file is opt-in; selections stay attached until the user removes them.
   const selectedContext = useMemo(
     () => new Set(context.filter((c) => contextChoice.get(c.id) ?? c.kind === "selection").map((c) => c.id)),
@@ -740,6 +776,21 @@ export function App() {
                   onSelect={focusComposer}
                 />
               )}
+              <div class="timeline-picker">
+                <Picker
+                  label={t("sessionTimeline")}
+                  items={timelineItems}
+                  value=""
+                  onChange={revealTurn}
+                  onSelected={focusComposer}
+                  openToken={timelineToken}
+                  hideTrigger
+                  searchable
+                  searchPlaceholder={t("timelineSearchPlaceholder")}
+                  emptyText={t("timelineEmpty")}
+                  placement="bottom"
+                />
+              </div>
               <StatusBanner status={status.status} error={status.error} />
               {(compatibility.status === "untested" || compatibility.status === "unsupported") && !compatibility.dismissed && (
                 <CompatibilityBanner

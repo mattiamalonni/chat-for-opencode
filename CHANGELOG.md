@@ -6,6 +6,7 @@ build, CI or architecture work, condensed to one line; the reasoning lives in
 
 ## Unreleased
 
+- **User — Session timeline:** `Cmd/Ctrl+G` opens a searchable timeline of the current session's turns (newest first, with steps, tokens and change counts). Selecting one scrolls to its prompt, highlights it and returns focus to the composer — the in-chat equivalent of the TUI's `session.timeline`.
 - **User — Fix:** a session interrupted by a server or location shutdown no longer stays marked as
   running. When OpenCode ends a turn without writing its `idle` marker (only a completed assistant
   message with an `aborted` error), the session list and the chat treat it as idle instead of trusting
