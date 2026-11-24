@@ -116,4 +116,13 @@ describe("ChatController state machine", () => {
     await service["syncNow"].call({ d: { getClient: () => undefined, state: c.state, post: c.post } });
     expect(c.post).toHaveBeenCalledWith({ type: "synced" });
   });
+
+  it("leaves focus in the composer after opening a session from the picker", async () => {
+    const receive = vi.fn().mockResolvedValue(undefined);
+    const c = base({ receive });
+    await call("openSearchResult", c, { sessionId: "s2", title: "Other chat", snippet: "", updated: 0, messageId: "m1" });
+    expect(receive).toHaveBeenCalledWith({ type: "selectSession", id: "s2" });
+    expect(c.post).toHaveBeenCalledWith({ type: "revealMessage", messageId: "m1", sessionId: "s2" });
+    expect(c.post).toHaveBeenCalledWith({ type: "focusInput" });
+  });
 });

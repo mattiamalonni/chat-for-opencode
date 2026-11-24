@@ -10,6 +10,9 @@ build, CI or architecture work, condensed to one line; the reasoning lives in
   of VS Code's Expand Line Selection). `↑`/`↓` walk the sessions from the filter field, `Enter`
   selects one and focus returns to the composer; `Esc` or the shortcut closes the list. `Cmd/Ctrl+M`
   opens the model picker from the chat, and choosing a model leaves focus in the composer.
+- **User — Shortcut:** **OpenCode: Quick Switch Session** now uses `Cmd/Ctrl+Alt+L`, matching the
+  in-chat session-list chord. Selecting a session from the quick switcher (or from a search hit)
+  leaves focus in the composer, ready for the next prompt.
 
 ## 0.3.24 — 2026-11-24
 

@@ -24,7 +24,7 @@ Do not edit the generated blocks by hand; change the manifest and regenerate.
 | OpenCode: Stop Server                                  | –                    |                                                                            |
 | OpenCode: Move Chat View… (left/right side bar, panel) | –                    | left/right side bar or panel                                               |
 | OpenCode: Install OpenCode…                            | –                    | copy the install command, open platform instructions, retry the connection |
-| OpenCode: Quick Switch Session                         | Cmd/Ctrl+Alt+S       | recent sessions first; typing searches all conversations                   |
+| OpenCode: Quick Switch Session                         | Cmd/Ctrl+Alt+L       | recent sessions first; typing searches all conversations                   |
 
 <!-- END GENERATED: commands -->
 

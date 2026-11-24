@@ -75,7 +75,7 @@ The short version — full behaviour in [docs/FEATURES.md](docs/FEATURES.md):
 | Action                      | Key                         |
 | --------------------------- | --------------------------- |
 | Focus chat                  | `Cmd/Ctrl+Alt+O`            |
-| Quick switch session        | `Cmd/Ctrl+Alt+S`            |
+| Quick switch session        | `Cmd/Ctrl+Alt+L`            |
 | Search all conversations    | `Cmd/Ctrl+Alt+F`            |
 | Ask OpenCode…               | `Cmd/Ctrl+Alt+Shift+O`      |
 | New session (chat focused)  | `Cmd/Ctrl+N`                |

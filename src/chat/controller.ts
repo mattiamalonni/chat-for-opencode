@@ -583,7 +583,7 @@ export class ChatController implements vscode.Disposable {
     this.chatViews.openChatInEditor();
   }
 
-  /** Recently updated sessions for Ctrl/Cmd+Alt+S, without a second "search all" dialog. */
+  /** Recently updated sessions for Cmd/Ctrl+Alt+L, without a second "search all" dialog. */
   recentSessions(): SessionSummary[] {
     return this.sessionList.recent();
   }
@@ -599,6 +599,8 @@ export class ChatController implements vscode.Disposable {
     await vscode.commands.executeCommand("opencode.chatView.focus");
     if (result.sessionId !== this.state.sessionId) await this.receive({ type: "selectSession", id: result.sessionId });
     if (result.messageId) this.post({ type: "revealMessage", messageId: result.messageId, sessionId: result.sessionId });
+    // The picker had focus: hand it to the composer so the next keystroke starts a prompt.
+    this.post({ type: "focusInput" });
   }
 
   /** Fills the composer from an editor context action, attaching the selection it came from. */

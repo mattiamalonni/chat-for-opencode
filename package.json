@@ -279,8 +279,8 @@
       },
       {
         "command": "opencode.quickSwitchSession",
-        "key": "ctrl+alt+s",
-        "mac": "cmd+alt+s"
+        "key": "ctrl+alt+l",
+        "mac": "cmd+alt+l"
       }
     ],
     "configuration": {
