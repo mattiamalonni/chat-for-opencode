@@ -36,8 +36,8 @@ repository to launch an Extension Development Host.
 
 ## First conversation
 
-1. Open a folder. The chat opens on first run; afterwards use `Cmd/Ctrl+Alt+O`, the status bar icon
-   (idle: sign in; running: stop; amber `?`: approval needed; finished: open chat) or the Secondary
+1. Open a folder. The chat opens on first run; afterwards use the status bar icon (idle: sign in;
+   running: stop; amber `?`: approval needed; finished: open chat) or the Secondary
    Side Bar icon. On VS Code 1.99–1.103 it appears in the Explorer; use _OpenCode: Move Chat View…_ to
    move it right. **Help → Welcome → Get started with OpenCode** is a four-step walkthrough.
 2. Trust the folder to start `opencode serve` in the background; otherwise you get a _Trust workspace_
@@ -74,10 +74,8 @@ The short version — full behaviour in [docs/FEATURES.md](docs/FEATURES.md):
 
 | Action                      | Key                         |
 | --------------------------- | --------------------------- |
-| Focus chat                  | `Cmd/Ctrl+Alt+O`            |
 | Quick switch session        | `Cmd/Ctrl+Alt+L`            |
 | Search all conversations    | `Cmd/Ctrl+Alt+F`            |
-| Ask OpenCode…               | `Cmd/Ctrl+Alt+Shift+O`      |
 | New session (chat focused)  | `Cmd/Ctrl+N`                |
 | Session list (chat focused) | `Cmd/Ctrl+L`                |
 | Model picker (chat focused) | `Cmd/Ctrl+M`                |

@@ -13,6 +13,9 @@ build, CI or architecture work, condensed to one line; the reasoning lives in
 - **User — Shortcut:** **OpenCode: Quick Switch Session** now uses `Cmd/Ctrl+Alt+L`, matching the
   in-chat session-list chord. Selecting a session from the quick switcher (or from a search hit)
   leaves focus in the composer, ready for the next prompt.
+- **User — Removed:** the **OpenCode: Focus Chat** (`Cmd/Ctrl+Alt+O`) and **OpenCode: Ask OpenCode…**
+  (`Cmd/Ctrl+Alt+Shift+O`) commands are gone. The status bar icons and the walkthrough now focus the
+  chat view directly; the composer is still reachable by clicking it or using the OpenCode view icon.
 
 ## 0.3.24 — 2026-11-24
 

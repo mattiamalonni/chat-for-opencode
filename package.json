@@ -110,7 +110,7 @@
             "id": "chat",
             "title": "%walkthrough.chat.title%",
             "description": "%walkthrough.chat.description%",
-            "command": "opencode.focus",
+            "command": "opencode.chatView.focus",
             "commandTitle": "%walkthrough.chat.command%",
             "media": {
               "markdown": "media/walkthrough-chat.md"
@@ -148,17 +148,6 @@
         "title": "%command.searchSessions%",
         "category": "OpenCode",
         "icon": "$(search)"
-      },
-      {
-        "command": "opencode.focus",
-        "title": "%command.focus%",
-        "category": "OpenCode"
-      },
-      {
-        "command": "opencode.ask",
-        "title": "%command.ask%",
-        "category": "OpenCode",
-        "icon": "$(edit)"
       },
       {
         "command": "opencode.stopTurn",
@@ -245,9 +234,6 @@
       ],
       "commandPalette": [
         {
-          "command": "opencode.ask"
-        },
-        {
           "command": "opencode.searchSessions"
         },
         {
@@ -262,16 +248,6 @@
       ]
     },
     "keybindings": [
-      {
-        "command": "opencode.focus",
-        "key": "ctrl+alt+o",
-        "mac": "cmd+alt+o"
-      },
-      {
-        "command": "opencode.ask",
-        "key": "ctrl+alt+shift+o",
-        "mac": "cmd+alt+shift+o"
-      },
       {
         "command": "opencode.searchSessions",
         "key": "ctrl+alt+f",

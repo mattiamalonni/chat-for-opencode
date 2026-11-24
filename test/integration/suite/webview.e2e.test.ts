@@ -14,7 +14,7 @@ describe("webview inside VS Code", () => {
   let browser: Browser | undefined;
 
   before(async () => {
-    await vscode.commands.executeCommand("opencode.focus");
+    await vscode.commands.executeCommand("opencode.chatView.focus");
     const port = process.env.OC_IT_CDP_PORT ?? "9222";
     browser = await chromium.connectOverCDP(`http://127.0.0.1:${port}`);
   });

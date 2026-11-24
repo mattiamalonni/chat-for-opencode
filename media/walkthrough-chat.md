@@ -2,7 +2,6 @@ The chat lives in the **OpenCode** view in the Secondary Side Bar. Type a prompt
 
 Useful shortcuts:
 
-- **Ctrl/Cmd+Alt+O** — focus the chat
 - **Ctrl/Cmd+Alt+L** — quick switch session
 - **Ctrl/Cmd+Alt+F** — search all conversations
 - **Ctrl/Cmd+N** — new session (while the chat has focus)

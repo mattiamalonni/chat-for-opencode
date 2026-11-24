@@ -1,7 +1,6 @@
 import * as vscode from "vscode";
 import { type AuthMenuItem, readAuthLogins } from "./auth/logins";
 import { type ChatController, type SessionSearchResult } from "./chat/controller";
-import { selectionAttachment } from "./chat/context";
 import { ChatViewProvider } from "./chat/viewProvider";
 import type { AccountStatus } from "./status/account";
 
@@ -133,28 +132,9 @@ export function registerCommands(deps: CommandDependencies): vscode.Disposable[]
       });
       picker.show();
     }),
-    vscode.commands.registerCommand("opencode.focus", async () => {
-      await focusView();
-      chat.post({ type: "focusInput" });
-    }),
     // Bound to the status bar while a turn is running, so the spinner itself is actionable.
     vscode.commands.registerCommand("opencode.stopTurn", () => void chat.receive({ type: "abort" })),
     vscode.commands.registerCommand("opencode.openChatInEditor", () => chat.openChatInEditor()),
-    vscode.commands.registerCommand("opencode.ask", async () => {
-      const text = await vscode.window.showInputBox({
-        title: vscode.l10n.t("Ask OpenCode"),
-        prompt: vscode.l10n.t("Send a prompt without leaving your editor"),
-        placeHolder: vscode.l10n.t("Describe what you want OpenCode to do…"),
-      });
-      if (!text?.trim()) return;
-      const editor = vscode.window.activeTextEditor;
-      const attachment =
-        editor && !editor.selection.isEmpty && editor.document.uri.scheme === "file" ? selectionAttachment(editor) : undefined;
-      await focusView();
-      // Fill the composer instead of sending straight away: the selection must travel with the
-      // prompt and the user gets to review (or extend) it before it reaches the agent.
-      chat.prefillDraft(text.trim(), attachment ? [attachment] : []);
-    }),
     vscode.commands.registerCommand("opencode.account", async () => {
       let logins: vscode.QuickPickItem[];
       try {

@@ -12,7 +12,7 @@ export interface UsageStatus {
 export function createUsageStatus(): UsageStatus {
   const item = vscode.window.createStatusBarItem("opencode.usage", vscode.StatusBarAlignment.Right, 99);
   item.name = vscode.l10n.t("OpenCode session usage");
-  item.command = "opencode.focus";
+  item.command = "opencode.chatView.focus";
   let sessionUsage: SessionUsage | undefined;
   const render = () => {
     const enabled = vscode.workspace.getConfiguration("opencode").get<boolean>("showUsageInStatusBar", true);

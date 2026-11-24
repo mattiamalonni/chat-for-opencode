@@ -61,7 +61,8 @@ export function createAccountStatus(logError: (line: string) => void): AccountSt
     setExecution(state) {
       item.text = executionIcons[state.status];
       executionStatus = state.status;
-      item.command = state.status === "running" ? "opencode.stopTurn" : state.status === "idle" ? "opencode.account" : "opencode.focus";
+      item.command =
+        state.status === "running" ? "opencode.stopTurn" : state.status === "idle" ? "opencode.account" : "opencode.chatView.focus";
       item.color = state.status === "needsInput" ? new vscode.ThemeColor("charts.yellow") : undefined;
       refreshTooltip();
     },

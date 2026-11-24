@@ -7,8 +7,6 @@
   "command.restart": "Restart Server…",
   "command.openSettings": "Open Extension Settings",
   "command.compact": "Compact Conversation",
-  "command.focus": "Focus Chat",
-  "command.ask": "Ask OpenCode…",
   "command.stopTurn": "Stop current response",
   "command.searchSessions": "Search All Session Conversations",
   "command.openChatInEditor": "Open Chat in Editor",

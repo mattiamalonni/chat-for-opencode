@@ -56,8 +56,6 @@ describe("chat-for-opencode extension", () => {
       "opencode.newSession",
       "opencode.restart",
       "opencode.openSettings",
-      "opencode.focus",
-      "opencode.ask",
       "opencode.openChatInEditor",
       "opencode.account",
       "opencode.showLogs",
@@ -72,7 +70,7 @@ describe("chat-for-opencode extension", () => {
   });
 
   it("opens the sidebar, starts the managed server and loads the catalog", async () => {
-    await vscode.commands.executeCommand("opencode.focus");
+    await vscode.commands.executeCommand("opencode.chatView.focus");
     await waitFor(() => controller.debugState.status === "connected", "connected");
     assert.match(controller.debugState.baseUrl ?? "", /^http:\/\/127\.0\.0\.1:\d+$/);
     const catalog = await waitFor(() => lastPosted("catalog"), "catalog");
@@ -102,7 +100,7 @@ describe("chat-for-opencode extension", () => {
   it("lives in the secondary side bar (right) on VS Code >= 1.104", async function () {
     const [major, minor] = vscode.version.split(".").map(Number);
     if (major === 1 && minor < 104) this.skip();
-    await vscode.commands.executeCommand("opencode.focus");
+    await vscode.commands.executeCommand("opencode.chatView.focus");
     await waitFor(() => controller.isVisible, "view visible");
     await vscode.commands.executeCommand("workbench.action.closeAuxiliaryBar");
     await waitFor(() => !controller.isVisible, "hidden with the secondary side bar", 5000);
