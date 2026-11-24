@@ -30,7 +30,6 @@
   "config.showUsageInStatusBar": "Show a status bar item with the current session's estimated context size and cost. The numbers come from OpenCode and appear after the first reply.",
   "command.moveView": "Move Chat View… (left/right side bar, panel)",
   "command.install": "Install OpenCode…",
-  "command.quickSwitchSession": "OpenCode: Quick Switch Session",
   "walkthrough.title": "Get started with OpenCode",
   "walkthrough.description": "Four quick steps to go from a fresh install to your first reply.",
   "walkthrough.trust.title": "Trust this workspace",

@@ -203,11 +203,6 @@ export class SessionListService {
     }
   }
 
-  /** Most recently updated loaded sessions, for the single-modal quick switcher. */
-  recent(limit = 30): SessionSummary[] {
-    return [...this.items].sort((a, b) => b.updated - a.updated).slice(0, limit);
-  }
-
   /** Appends the next page without discarding the ones already loaded. */
   async loadMore(): Promise<void> {
     const client = this.client();

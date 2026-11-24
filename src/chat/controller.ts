@@ -13,7 +13,7 @@ import { checkCompatibility, compatibilityKey } from "../shared/compatibility";
 
 import { checkContract, contractSignature, type ContractObservations } from "../shared/contract";
 import { isWebviewMessage } from "../shared/protocolGuards";
-import type { ActionId, Attachment, ConnectionStatus, HostMessage, SessionSummary, UiError, WebviewMessage } from "../shared/protocol";
+import type { ActionId, Attachment, ConnectionStatus, HostMessage, UiError, WebviewMessage } from "../shared/protocol";
 
 import { AttachmentService } from "./attachmentService";
 import { SessionListService, type SessionSearchResult } from "./sessionListService";
@@ -581,11 +581,6 @@ export class ChatController implements vscode.Disposable {
 
   openChatInEditor(): void {
     this.chatViews.openChatInEditor();
-  }
-
-  /** Recently updated sessions for Cmd/Ctrl+Alt+L, without a second "search all" dialog. */
-  recentSessions(): SessionSummary[] {
-    return this.sessionList.recent();
   }
 
   /** Search session titles and message bodies across the workspace (delegated to the picker service). */

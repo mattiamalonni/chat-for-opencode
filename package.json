@@ -192,11 +192,6 @@
         "command": "opencode.install",
         "title": "%command.install%",
         "category": "OpenCode"
-      },
-      {
-        "command": "opencode.quickSwitchSession",
-        "title": "%command.quickSwitchSession%",
-        "category": "OpenCode"
       }
     ],
     "menus": {
@@ -237,9 +232,6 @@
           "command": "opencode.searchSessions"
         },
         {
-          "command": "opencode.quickSwitchSession"
-        },
-        {
           "command": "opencode.install"
         },
         {
@@ -252,11 +244,6 @@
         "command": "opencode.searchSessions",
         "key": "ctrl+alt+f",
         "mac": "cmd+alt+f"
-      },
-      {
-        "command": "opencode.quickSwitchSession",
-        "key": "ctrl+alt+l",
-        "mac": "cmd+alt+l"
       }
     ],
     "configuration": {

@@ -74,7 +74,6 @@ The short version — full behaviour in [docs/FEATURES.md](docs/FEATURES.md):
 
 | Action                      | Key                         |
 | --------------------------- | --------------------------- |
-| Quick switch session        | `Cmd/Ctrl+Alt+L`            |
 | Search all conversations    | `Cmd/Ctrl+Alt+F`            |
 | New session (chat focused)  | `Cmd/Ctrl+N`                |
 | Session list (chat focused) | `Cmd/Ctrl+L`                |

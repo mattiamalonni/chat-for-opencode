@@ -63,7 +63,6 @@ describe("chat-for-opencode extension", () => {
       "opencode.stopServer",
       "opencode.moveView",
       "opencode.install",
-      "opencode.quickSwitchSession",
     ]) {
       assert.ok(all.includes(c), `missing command ${c}`);
     }
@@ -900,12 +899,6 @@ describe("chat-for-opencode extension", () => {
     assert.equal(normalizeFsPath(input.textDiffs![0].modified.fsPath), normalizeFsPath(path.join(workspace, "src", "a.txt")));
     assert.equal(normalizeFsPath(input.textDiffs![1].modified.fsPath), normalizeFsPath(path.join(workspace, "src", "app.ts")));
     await vscode.commands.executeCommand("workbench.action.closeAllEditors");
-  });
-
-  it("exposes recent sessions for the quick-switch command", async () => {
-    const id = controller.debugState.sessionId;
-    assert.ok(id, "a session is open");
-    await waitFor(() => (controller.recentSessions().some((s) => s.id === id) ? true : undefined), "open session in the quick-switch list");
   });
 
   it("publishes needsInput while a permission is pending, then returns to running", async () => {

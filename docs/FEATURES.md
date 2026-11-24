@@ -27,8 +27,7 @@ settings, see [REFERENCE.md](REFERENCE.md).
   the last step, tokens, cost and insertions/deletions. Click **+N / -N** to open all that turn's
   changes in one read-only diff. **Stop** a response and **compact** a long session from the
   composer toolbar or the command palette.
-- **Search and export**: `Cmd/Ctrl+Alt+L` quick-switches sessions (recent first, typing searches all
-  conversations), `Cmd/Ctrl+Alt+F` searches titles and message bodies across every session, opens the
+- **Search and export**: `Cmd/Ctrl+Alt+F` searches titles and message bodies across every session, opens the
   hit and highlights its message, and the header exports the conversation as Markdown. In-chat search
   (`Cmd/Ctrl+F`) highlights matches in prompts, replies and tool cards with `F3`/`Shift+F3` navigation
   and an "N of M" counter. `Cmd/Ctrl+L` opens the session list (with its own title filter) while the chat has focus: `↑`/`↓`
