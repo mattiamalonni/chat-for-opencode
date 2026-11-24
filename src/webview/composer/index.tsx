@@ -83,7 +83,9 @@ export function Composer(props: ComposerProps) {
     post({ type: "saveDraft", sessionId, text: value });
   };
 
-  useEffect(() => {
+  // Layout effect: a requested focus must land before the next paint, otherwise reopening the
+  // session list right after closing it can be overruled by this still-pending passive effect.
+  useLayoutEffect(() => {
     ref.current?.focus();
   }, [props.focusToken]);
 

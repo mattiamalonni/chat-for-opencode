@@ -31,8 +31,9 @@ settings, see [REFERENCE.md](REFERENCE.md).
   conversations), `Cmd/Ctrl+Alt+F` searches titles and message bodies across every session, opens the
   hit and highlights its message, and the header exports the conversation as Markdown. In-chat search
   (`Cmd/Ctrl+F`) highlights matches in prompts, replies and tool cards with `F3`/`Shift+F3` navigation
-  and an "N of M" counter. The session list has its own title filter. Clear **error states** with the
-  action buttons (OpenCode missing, no provider, connection lost, interrupted response…).
+  and an "N of M" counter. `Cmd/Ctrl+L` opens the session list (with its own title filter) while the chat has focus: `↑`/`↓`
+  walk the sessions, `Enter` selects one and puts focus back in the composer. Clear **error states**
+  with the action buttons (OpenCode missing, no provider, connection lost, interrupted response…).
 
 ## Context and files
 

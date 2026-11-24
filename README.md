@@ -72,15 +72,16 @@ The short version — full behaviour in [docs/FEATURES.md](docs/FEATURES.md):
 
 ## Keyboard
 
-| Action                     | Key                         |
-| -------------------------- | --------------------------- |
-| Focus chat                 | `Cmd/Ctrl+Alt+O`            |
-| Quick switch session       | `Cmd/Ctrl+Alt+S`            |
-| Search all conversations   | `Cmd/Ctrl+Alt+F`            |
-| Ask OpenCode…              | `Cmd/Ctrl+Alt+Shift+O`      |
-| New session (chat focused) | `Cmd/Ctrl+N`                |
-| In-chat message search     | `Cmd/Ctrl+F`                |
-| Stop / next match / resync | `Esc` / `F3` / `Cmd/Ctrl+R` |
+| Action                      | Key                         |
+| --------------------------- | --------------------------- |
+| Focus chat                  | `Cmd/Ctrl+Alt+O`            |
+| Quick switch session        | `Cmd/Ctrl+Alt+S`            |
+| Search all conversations    | `Cmd/Ctrl+Alt+F`            |
+| Ask OpenCode…               | `Cmd/Ctrl+Alt+Shift+O`      |
+| New session (chat focused)  | `Cmd/Ctrl+N`                |
+| Session list (chat focused) | `Cmd/Ctrl+L`                |
+| In-chat message search      | `Cmd/Ctrl+F`                |
+| Stop / next match / resync  | `Esc` / `F3` / `Cmd/Ctrl+R` |
 
 Every command, default key and setting: [docs/REFERENCE.md](docs/REFERENCE.md).
 

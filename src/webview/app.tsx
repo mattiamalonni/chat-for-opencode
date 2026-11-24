@@ -3,7 +3,7 @@ import type { AgentInfo, CommandSuggestion, FileDiff, InboxItem, ModelInfo, Mode
 import { chatReducer, initialChatState, mergeChangedFiles, selectTodos, type UiUserMessage } from "../shared/chatReducer";
 import { type Compatibility } from "../shared/compatibility";
 import { estimateDataUrlTokens } from "../shared/format";
-import { isFindKey, isNewSessionKey, isSyncKey } from "../shared/keys";
+import { isFindKey, isNewSessionKey, isOpenSessionsKey, isSyncKey } from "../shared/keys";
 import { emptyContract, type ContractReport } from "../shared/contract";
 import type {
   Attachment,
@@ -82,6 +82,23 @@ export function App() {
   const [scrollToken, setScrollToken] = useState(0);
   const [revealMessageId, setRevealMessageId] = useState<string | undefined>(undefined);
   const [showSessions, setShowSessions] = useState(false);
+  // The capture-phase shortcut listener is installed once; reach the latest toggle through a ref.
+  const showSessionsRef = useRef(showSessions);
+  showSessionsRef.current = showSessions;
+  const focusComposer = () => setFocusToken((n) => n + 1);
+  const closeSessions = () => {
+    setShowSessions(false);
+    focusComposer();
+  };
+  const toggleSessions = () => {
+    if (showSessionsRef.current) closeSessions();
+    else {
+      post({ type: "refreshSessions" });
+      setShowSessions(true);
+    }
+  };
+  const toggleSessionsRef = useRef(toggleSessions);
+  toggleSessionsRef.current = toggleSessions;
   // Read-only drill-down into a child session. Nested children push a crumb; ancestors are kept so
   // the report stays reachable without leaving the parent conversation.
   const [subagentStack, setSubagentStack] = useState<string[]>([]);
@@ -408,10 +425,10 @@ export function App() {
     [],
   );
 
-  // Cmd/Ctrl+N creates a new session, Cmd/Ctrl+F opens the message search and Cmd/Ctrl+R re-syncs
-  // the session while the chat has focus. The VS Code webview preload forwards every keydown that
-  // reaches `window` to the workbench (see D7), where these chords mean "new file" / "find" /
-  // "open recent". Capture them before that bubble-phase listener so the workbench never sees them.
+  // Cmd/Ctrl+N creates a new session, Cmd/Ctrl+F opens the message search, Cmd/Ctrl+R re-syncs and
+  // Cmd/Ctrl+L toggles the session list while the chat has focus. The VS Code webview preload forwards
+  // every keydown that reaches `window` to the workbench (see D7), where these chords mean "new file"
+  // / "find" / "open recent" / "expand line selection". Capture them before that bubble listener.
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.repeat) return;
@@ -428,6 +445,10 @@ export function App() {
         e.preventDefault();
         e.stopPropagation();
         syncNowRef.current();
+      } else if (isOpenSessionsKey(e, env.platform)) {
+        e.preventDefault();
+        e.stopPropagation();
+        toggleSessionsRef.current();
       } else if (e.key === "F3") {
         e.preventDefault();
         e.stopPropagation();
@@ -671,10 +692,7 @@ export function App() {
                 title={chat.sessionId ? title : strings.untitled}
                 folders={folders}
                 showSessions={showSessions}
-                onToggleSessions={() => {
-                  if (!showSessions) post({ type: "refreshSessions" });
-                  setShowSessions(!showSessions);
-                }}
+                onToggleSessions={toggleSessions}
                 onExport={exportConversation}
                 onSync={syncNow}
                 onNewSession={() => post({ type: "newSession" })}
@@ -700,7 +718,8 @@ export function App() {
                   currentId={chat.sessionId}
                   hasMore={sessionsHasMore}
                   onLoadMore={() => post({ type: "loadMoreSessions" })}
-                  onClose={() => setShowSessions(false)}
+                  onClose={closeSessions}
+                  onSelect={focusComposer}
                 />
               )}
               <StatusBanner status={status.status} error={status.error} />

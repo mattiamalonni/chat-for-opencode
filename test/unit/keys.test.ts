@@ -1,5 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { composerAction, isFindKey, isNewSessionKey, isSyncKey, shouldIsolateKey, type KeyLike } from "../../src/shared/keys";
+import {
+  composerAction,
+  isFindKey,
+  isNewSessionKey,
+  isOpenSessionsKey,
+  isSyncKey,
+  shouldIsolateKey,
+  type KeyLike,
+} from "../../src/shared/keys";
 
 function k(key: string, mods: Partial<KeyLike> = {}): KeyLike {
   return {
@@ -119,6 +127,27 @@ describe("isSyncKey", () => {
     expect(isSyncKey(k("r"), "mac")).toBe(false);
     expect(isSyncKey(k("Process", { metaKey: true, keyCode: 229 }), "mac")).toBe(false);
     expect(isSyncKey(k("r", { isComposing: true, metaKey: true }), "mac")).toBe(false);
+  });
+});
+
+describe("isOpenSessionsKey", () => {
+  it("matches plain Cmd+L on mac and Ctrl+L elsewhere", () => {
+    expect(isOpenSessionsKey(k("l", { metaKey: true }), "mac")).toBe(true);
+    expect(isOpenSessionsKey(k("L", { metaKey: true }), "mac")).toBe(true);
+    expect(isOpenSessionsKey(k("l", { ctrlKey: true }), "windows")).toBe(true);
+    expect(isOpenSessionsKey(k("l", { ctrlKey: true }), "linux")).toBe(true);
+  });
+
+  it("ignores the wrong modifier, extra modifiers and IME compositions", () => {
+    expect(isOpenSessionsKey(k("l", { ctrlKey: true }), "mac")).toBe(false);
+    expect(isOpenSessionsKey(k("l", { metaKey: true }), "windows")).toBe(false);
+    expect(isOpenSessionsKey(k("l", { metaKey: true, shiftKey: true }), "mac")).toBe(false);
+    expect(isOpenSessionsKey(k("l", { metaKey: true, altKey: true }), "mac")).toBe(false);
+    expect(isOpenSessionsKey(k("l", { metaKey: true, ctrlKey: true }), "mac")).toBe(false);
+    expect(isOpenSessionsKey(k("f", { metaKey: true }), "mac")).toBe(false);
+    expect(isOpenSessionsKey(k("l"), "mac")).toBe(false);
+    expect(isOpenSessionsKey(k("Process", { metaKey: true, keyCode: 229 }), "mac")).toBe(false);
+    expect(isOpenSessionsKey(k("l", { isComposing: true, metaKey: true }), "mac")).toBe(false);
   });
 });
 

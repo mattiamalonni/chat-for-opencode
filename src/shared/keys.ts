@@ -79,6 +79,14 @@ export function isSyncKey(e: KeyLike, platform: Platform): boolean {
   return isPlainChord(e, platform, "r");
 }
 
+/**
+ * Cmd+L (mac) / Ctrl+L (Windows/Linux), plain and outside an IME composition: toggles the in-chat
+ * session list while the webview has focus, instead of VS Code's "Expand Line Selection".
+ */
+export function isOpenSessionsKey(e: KeyLike, platform: Platform): boolean {
+  return isPlainChord(e, platform, "l");
+}
+
 type ComposerAction = "send" | "steer" | "newline" | "none";
 
 /**

@@ -2117,6 +2117,53 @@ test("session list: switch and delete with confirmation", async ({ page }) => {
   await expect(dialog).toHaveCount(0);
 });
 
+test("session list: Ctrl+L opens it, arrows walk the rows and Enter focuses the composer", async ({ page }) => {
+  await boot(page);
+  await host(page, {
+    type: "sessions",
+    items: [
+      { id: S1, title: "Hello world reply", updated: Date.now(), busy: false, needsInput: false },
+      { id: S2, title: "Second chat", updated: Date.now() - 1000, busy: false, needsInput: false },
+      { id: S3, title: "Third chat", updated: Date.now() - 2000, busy: false, needsInput: false },
+    ],
+  });
+  await page.keyboard.press("Control+l");
+  const dialog = page.getByRole("dialog", { name: STRINGS.sessions });
+  await expect(dialog).toBeVisible();
+  expect(await lastPosted(page, "refreshSessions")).toEqual({ type: "refreshSessions" });
+  await expect(dialog.locator(".session-filter")).toBeFocused();
+  // The first Down from the filter highlights the first row; the next ones walk the list.
+  await page.keyboard.press("ArrowDown");
+  await expect(dialog.locator(".session-item").first()).toBeFocused();
+  await page.keyboard.press("ArrowDown");
+  await expect(dialog.locator(".session-item").nth(1)).toBeFocused();
+  await page.keyboard.press("ArrowUp");
+  await expect(dialog.locator(".session-item").first()).toBeFocused();
+  await page.keyboard.press("Enter");
+  expect(await lastPosted(page, "selectSession")).toEqual({ type: "selectSession", id: S1 });
+  await expect(page.getByRole("textbox", { name: STRINGS.inputLabel })).toBeFocused();
+  // The host closes the list by replacing the conversation, as it does for a real selection.
+  await host(page, { type: "session", session: { id: S1, busy: false, messages: [], permissions: [], forms: [] } });
+  await expect(dialog).toHaveCount(0);
+});
+
+test("session list: Ctrl+L toggles it closed and Escape returns focus to the composer", async ({ page }) => {
+  await boot(page);
+  const dialog = page.getByRole("dialog", { name: STRINGS.sessions });
+  const input = page.getByRole("textbox", { name: STRINGS.inputLabel });
+  await page.keyboard.press("Control+l");
+  await expect(dialog).toBeVisible();
+  await expect(dialog.locator(".session-filter")).toBeFocused();
+  await page.keyboard.press("Control+l");
+  await expect(dialog).toHaveCount(0);
+  await expect(input).toBeFocused();
+  await page.keyboard.press("Control+l");
+  await expect(dialog).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(dialog).toHaveCount(0);
+  await expect(input).toBeFocused();
+});
+
 test("session list: delete-all is a quiet icon that posts the host message", async ({ page }) => {
   await boot(page);
   await page.getByRole("button", { name: new RegExp(`^${STRINGS.sessions}:`) }).click();

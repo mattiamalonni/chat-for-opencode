@@ -54,6 +54,8 @@ Do not edit the generated blocks by hand; change the manifest and regenerate.
 ## Keys inside the chat
 
 `Cmd/Ctrl+F` searches messages (`F3`/`Shift+F3` for next/previous, `Esc` closes and clears),
-`Cmd/Ctrl+R` re-syncs the current session and `Cmd/Ctrl+N` starts a new one when the chat has focus.
-`Enter` sends or queues while the agent runs, `Ctrl/Cmd+Enter` interrupts and sends now, and
-`Shift+Enter` adds a new line.
+`Cmd/Ctrl+R` re-syncs the current session, `Cmd/Ctrl+L` toggles the session list and `Cmd/Ctrl+N`
+starts a new one when the chat has focus. In the session list, `↑`/`↓` walk the filtered sessions,
+`Enter` selects one and returns focus to the composer (`Esc`/`Cmd/Ctrl+L` closes it).
+`Enter` in the composer sends or queues while the agent runs, `Ctrl/Cmd+Enter` interrupts and sends
+now, and `Shift+Enter` adds a new line.

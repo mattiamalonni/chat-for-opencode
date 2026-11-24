@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "preact/hooks";
+import { useLayoutEffect, useMemo, useRef, useState } from "preact/hooks";
 
 import type { SessionSummary } from "../shared/protocol";
 
@@ -32,6 +32,8 @@ export function SessionList(props: {
   hasMore: boolean;
   onLoadMore: () => void;
   onClose: () => void;
+  /** Selecting a row hands focus back to the composer; the host closes the overlay with the new session. */
+  onSelect?: () => void;
 }) {
   const t = useT();
   const [confirm, setConfirm] = useState<string | undefined>();
@@ -43,11 +45,23 @@ export function SessionList(props: {
   const filterRef = useRef<HTMLInputElement>(null);
   const itemRefs = useRef(new Map<string, HTMLButtonElement>());
   const filterTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  // The dialog opens with focus in the filter, so arrow keys must work from there too. Track whether
+  // a row has already been focused: the first Down from the filter highlights the first row.
+  const rowFocused = useRef(false);
   const visible = useMemo(
     () => props.sessions.filter((s) => `${s.title || t("untitled")} ${s.folder ?? ""}`.toLowerCase().includes(filter.trim().toLowerCase())),
     [props.sessions, filter, t],
   );
-  useEffect(() => {
+  const focusRow = (index: number) => {
+    if (visible.length === 0) return;
+    const next = Math.min(visible.length - 1, Math.max(0, index));
+    setActiveIndex(next);
+    const id = visible[next]?.id;
+    if (id) itemRefs.current.get(id)?.focus();
+  };
+  // Focus synchronously: a shortcut can reopen the list immediately after the composer took focus,
+  // and a deferred effect would let Escape land in the composer instead of the filter.
+  useLayoutEffect(() => {
     filterRef.current?.focus();
     return () => {
       if (filterTimer.current) clearTimeout(filterTimer.current);
@@ -82,11 +96,7 @@ export function SessionList(props: {
         // Roving focus: ↑/↓ walk the filtered rows, Enter activates the focused button.
         if (e.key === "ArrowDown" || e.key === "ArrowUp") {
           e.preventDefault();
-          if (visible.length === 0) return;
-          const next = Math.min(visible.length - 1, Math.max(0, activeIndex + (e.key === "ArrowDown" ? 1 : -1)));
-          setActiveIndex(next);
-          const id = visible[next]?.id;
-          if (id) itemRefs.current.get(id)?.focus();
+          focusRow(activeIndex + (e.key === "ArrowDown" ? 1 : -1));
         }
       }}
     >
@@ -120,7 +130,20 @@ export function SessionList(props: {
             // Keep paging until a match appears; the loaded titles are filtered locally.
             if (value.trim()) filterTimer.current = setTimeout(() => props.onLoadMore(), 250);
           }}
-          onKeyDown={isolateKeys}
+          onFocus={() => {
+            rowFocused.current = false;
+            setActiveIndex(0);
+          }}
+          onKeyDown={(e) => {
+            // `isolateKeys` would swallow ↑/↓ here and the dialog handler would never see them.
+            if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+              e.preventDefault();
+              e.stopPropagation();
+              focusRow(rowFocused.current ? activeIndex + (e.key === "ArrowDown" ? 1 : -1) : activeIndex);
+              return;
+            }
+            isolateKeys(e);
+          }}
         />
       </div>
       {visible.length === 0 && <div class="empty">{t("noSessions")}</div>}
@@ -197,8 +220,14 @@ export function SessionList(props: {
                   }}
                   class="session-item"
                   aria-current={s.id === props.currentId}
-                  onFocus={() => setActiveIndex(i)}
-                  onClick={() => post({ type: "selectSession", id: s.id })}
+                  onFocus={() => {
+                    rowFocused.current = true;
+                    setActiveIndex(i);
+                  }}
+                  onClick={() => {
+                    post({ type: "selectSession", id: s.id });
+                    props.onSelect?.();
+                  }}
                 >
                   {(s.busy || s.needsInput) && (
                     <span class={`status-dot session-busy ${s.needsInput ? "waiting" : "running"}`} aria-hidden="true" />

@@ -4,6 +4,12 @@ Legend: **`User — …`** entries change something you can see or use. **`Inter
 build, CI or architecture work, condensed to one line; the reasoning lives in
 [DECISIONS.md](docs/DECISIONS.md) and [SPEC.md](SPEC.md).
 
+## Unreleased
+
+- **User — Shortcut:** `Cmd/Ctrl+L` toggles the in-chat session list while the chat has focus (instead
+  of VS Code's Expand Line Selection). `↑`/`↓` walk the sessions from the filter field, `Enter`
+  selects one and focus returns to the composer; `Esc` or the shortcut closes the list.
+
 ## 0.3.24 — 2026-11-24
 
 - **User — Fix:** an empty model list from OpenCode 2.4's lazily booted providers no longer produces
