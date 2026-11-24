@@ -4,6 +4,13 @@ Legend: **`User — …`** entries change something you can see or use. **`Inter
 build, CI or architecture work, condensed to one line; the reasoning lives in
 [DECISIONS.md](docs/DECISIONS.md) and [SPEC.md](SPEC.md).
 
+## Unreleased
+
+- **User — Fix:** a session interrupted by a server or location shutdown no longer stays marked as
+  running. When OpenCode ends a turn without writing its `idle` marker (only a completed assistant
+  message with an `aborted` error), the session list and the chat treat it as idle instead of trusting
+  the stale busy/idle timestamps.
+
 ## 0.3.25 — 2026-11-24
 
 - **User — External approvals:** a permission or question raised by a turn started in another client

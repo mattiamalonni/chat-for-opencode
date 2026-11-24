@@ -5,7 +5,7 @@ import type { ChatAction, ChatState, UiAssistantMessage, UiMessage, UiNotice, Ui
 import { contextTokensOf, eventSessionId, str, type Data } from "./helpers";
 import { cmp, mergeTurns, turnsFromHistory } from "./turns";
 import { carrySubagentLinks, reportsFromHistory } from "./subagentLinks";
-import { isIncomplete } from "./sessionStatus";
+import { isIncomplete, isTerminalMessage } from "./sessionStatus";
 
 type DeltaTarget = "text" | "reasoning" | "tool-input";
 
@@ -88,8 +88,8 @@ export function loadHistory(action: Extract<ChatAction, { type: "load" }>, previ
   }
   const subagentReports = reportsFromHistory(sorted);
   const last = sorted[sorted.length - 1];
-  // A terminal idle message wins over a stale `busy` flag from the host (see sessionIsBusy).
-  const busy = last?.type === "idle" ? false : (action.busy ?? (last !== undefined && isIncomplete(last)));
+  // A terminal message wins over a stale `busy` flag from the host (see sessionIsBusy).
+  const busy = isTerminalMessage(last) ? false : (action.busy ?? (last !== undefined && isIncomplete(last)));
   return {
     sessionId: action.sessionId,
     title: action.title,

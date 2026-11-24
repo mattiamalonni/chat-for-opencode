@@ -12,6 +12,7 @@ import {
   selectTodos,
   selectTurnFileChanges,
   sessionIsBusy,
+  sessionLooksBusy,
   toSessionSummary,
   type ChatState,
   type UiAssistantMessage,
@@ -685,6 +686,74 @@ describe("busy state after an interrupt", () => {
       sessionId: "s",
       busy: true, // from the server's (stale) time.busy > time.idle comparison
       messages: interruptedHistory,
+      permissions: [],
+      forms: [],
+    });
+    expect(state.busy).toBe(false);
+  });
+
+  // Real 2.4.0 session interrupted by a location shutdown: no `idle` message was written at all,
+  // the last assistant message is completed with an `aborted` error, and `time.busy` stays set
+  // with no `time.idle` — so the timestamp-only check reports the session as running forever.
+  const abortedTime = { created: now - 5000, updated: now, busy: now - 5000 };
+  const abortedUser: SessionMessage = {
+    id: "msg_a",
+    type: "user",
+    text: "Miglioramenti per l'estensione",
+    time: { created: now - 5000 },
+  };
+  const abortedAssistant: AssistantMessage = {
+    id: "msg_b",
+    type: "assistant",
+    agent: "build",
+    model: { id: "m", providerID: "p" },
+    time: { created: now - 4900, completed: now },
+    content: [],
+    error: { type: "aborted", message: "Step interrupted" },
+  };
+  const abortedWithoutIdle: SessionMessage[] = [abortedUser, abortedAssistant];
+
+  it("treats a completed aborted assistant message with no idle marker as terminal", () => {
+    expect(sessionLooksBusy(abortedTime)).toBe(true);
+    expect(sessionIsBusy(abortedTime, abortedWithoutIdle)).toBe(false);
+  });
+
+  it("ignores trailing bookkeeping after the aborted assistant message", () => {
+    const withCompaction: SessionMessage[] = [...abortedWithoutIdle, { id: "msg_c", type: "compaction", time: { created: now + 1 } }];
+    expect(sessionIsBusy(abortedTime, withCompaction)).toBe(false);
+  });
+
+  it("does not treat other errors or an unfinished aborted step as terminal", () => {
+    const failed: SessionMessage[] = [{ ...abortedUser }, { ...abortedAssistant, error: { type: "provider", message: "rate limited" } }];
+    expect(sessionIsBusy(abortedTime, failed)).toBe(true);
+    const unfinished: SessionMessage[] = [{ ...abortedUser }, { ...abortedAssistant, time: { created: now - 4900 } }];
+    expect(sessionIsBusy(abortedTime, unfinished)).toBe(true);
+  });
+
+  it("still marks a new prompt after the abort as busy", () => {
+    const followedByPrompt: SessionMessage[] = [
+      ...abortedWithoutIdle,
+      { id: "msg_c", type: "user", text: "Riprendi", time: { created: now + 1 } },
+    ];
+    expect(sessionIsBusy({ ...abortedTime, busy: now + 1, updated: now + 1 }, followedByPrompt)).toBe(true);
+  });
+
+  it("gives the session list and the open chat the same answer for the real interrupted shape", () => {
+    const info: SessionInfo = {
+      id: "s",
+      projectID: "p",
+      cost: 0,
+      tokens: { input: 0, output: 0, reasoning: 0, cache: { read: 0, write: 0 } },
+      time: abortedTime,
+      title: "Miglioramenti per l'estensione",
+      location: { directory: "/work" },
+    };
+    expect(toSessionSummary(info, abortedWithoutIdle).busy).toBe(false);
+    const state = chatReducer(initialChatState, {
+      type: "load",
+      sessionId: "s",
+      busy: true, // stale host flag
+      messages: abortedWithoutIdle,
       permissions: [],
       forms: [],
     });
