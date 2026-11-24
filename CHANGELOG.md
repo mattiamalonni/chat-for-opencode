@@ -4,7 +4,7 @@ Legend: **`User — …`** entries change something you can see or use. **`Inter
 build, CI or architecture work, condensed to one line; the reasoning lives in
 [DECISIONS.md](docs/DECISIONS.md) and [SPEC.md](SPEC.md).
 
-## Unreleased
+## 0.3.26 — 2026-11-24
 
 - **User — Session timeline:** `Cmd/Ctrl+G` opens a searchable timeline of the current session's turns (newest first, with steps, tokens and change counts). Selecting one scrolls to its prompt, highlights it and returns focus to the composer — the in-chat equivalent of the TUI's `session.timeline`.
 - **User — Fix:** a session interrupted by a server or location shutdown no longer stays marked as
