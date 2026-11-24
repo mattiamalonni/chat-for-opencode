@@ -4,7 +4,7 @@ Legend: **`User — …`** entries change something you can see or use. **`Inter
 build, CI or architecture work, condensed to one line; the reasoning lives in
 [DECISIONS.md](docs/DECISIONS.md) and [SPEC.md](SPEC.md).
 
-## Unreleased
+## 0.3.25 — 2026-11-24
 
 - **User — External approvals:** a permission or question raised by a turn started in another client
   on the same server (for example the TUI) now appears in the approval panel, labelled with its
