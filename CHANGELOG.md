@@ -4,7 +4,7 @@ Legend: **`User — …`** entries change something you can see or use. **`Inter
 build, CI or architecture work, condensed to one line; the reasoning lives in
 [DECISIONS.md](docs/DECISIONS.md) and [SPEC.md](SPEC.md).
 
-## Unreleased
+## 0.4.1 — 2026-11-25
 
 - **User — `/compact` command:** typing `/compact` in the composer now asks the current session to compact, just like the toolbar button and the command palette; it is listed in slash suggestions and shadows a server command with the same name. `/compact [prompt]` compacts first, then sends the optional prompt in the same conversation (with its attachments and context). A turn in progress is refused and the typed text stays in the composer.
 - **User — Fork from the composer:** the per-turn fork icon is replaced by a single _Fork conversation_
