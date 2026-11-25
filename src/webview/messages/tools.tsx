@@ -343,8 +343,8 @@ function SubagentToolCard({
 
 /**
  * The single line used by file tools: fold chevron + status + action, then a file button (icon, name,
- * path) that opens the file, then the diff counts. All three are siblings — nested buttons are
- * invalid HTML, and the file click must not toggle the fold.
+ * path) that opens the diff when the tool carries a patch, then the diff counts. All three are
+ * siblings — nested buttons are invalid HTML, and the file click must not toggle the fold.
  */
 function FileStepHeader({
   part,
@@ -366,6 +366,10 @@ function FileStepHeader({
   const t = useT();
   const { name, dir } = splitFilePath(path);
   const counts = !!file && (file.additions > 0 || file.deletions > 0);
+  // The file name leads to the same native diff as the + / - counts when a patch is available;
+  // tools without one (e.g. a read) still open the plain file.
+  const target = file?.patch ? file.file : path;
+  const targetLabel = file?.patch ? t("openDiff") : t("openFile");
   return (
     <div class="tool-header-row compact-step-row">
       <button type="button" class="tool-header" aria-expanded={expanded} aria-controls={`tool-${part.id}`} onClick={onToggle}>
@@ -378,9 +382,13 @@ function FileStepHeader({
       <button
         type="button"
         class="file-name file-open"
-        title={`${t("openFile")}: ${path}`}
-        aria-label={`${t("openFile")}: ${path}`}
-        onClick={() => post({ type: "openToolFile", path })}
+        title={`${targetLabel}: ${target}`}
+        aria-label={`${targetLabel}: ${target}`}
+        onClick={() =>
+          file?.patch
+            ? post({ type: "openDiff", file: file.file, patch: file.patch, applied: part.status === "completed" })
+            : post({ type: "openToolFile", path })
+        }
       >
         <FileTypeIcon path={path} />
         <span class="file-base">

@@ -76,7 +76,8 @@ settings, see [REFERENCE.md](REFERENCE.md).
   totals (`+N / -N`) in its header. Click the totals for all of the session's changes in a single
   read-only diff, or a row for that file alone; combined views contain only the changed hunks and
   create nothing on disk. Rows lead with the file name, then its parent folder in smaller text;
-  hover for the full path.
+  hover for the full path. In a file step the file name opens the same per-file diff as its `+N / -N`
+  button; tools without a patch still open the plain file.
 - **Permissions and questions** live in a panel docked above the message box and are never
   auto-approved by default. The newest request is shown first and **Previous / Next** cycle through
   the queue; `1`/`2`/`3` mean Allow once / Always allow / Reject (`2` only when the rule can be

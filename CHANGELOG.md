@@ -6,6 +6,7 @@ build, CI or architecture work, condensed to one line; the reasoning lives in
 
 ## Unreleased
 
+- **User — File steps open the diff:** clicking the file name in an `edit`/`write` step now opens the same native per-file diff as its `+N / -N` button, instead of the plain file. Steps without a patch (e.g. `read`) still open the file normally.
 - **User — One account-focused status bar item:** the two previous items (turn state and session usage)
   are replaced by a single `$(account) OpenCode` item with a fixed icon and label. Hovering it opens a
   compact, Copilot-style panel that lists **only the connected accounts**, each on a themed rounded row

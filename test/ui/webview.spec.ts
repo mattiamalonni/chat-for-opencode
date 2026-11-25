@@ -596,7 +596,7 @@ test("keeps thoughts and tools in production order and groups adjacent calls", a
   await expect(reads.nth(0).locator(".file-base")).toHaveText("a.txt");
   await expect(reads.nth(0).locator(".tool-open-file")).toHaveCount(0);
   await expect(reads.nth(0).locator(".file-list")).toHaveCount(0);
-  // The file name opens the file; the rest of the row still folds the details.
+  // A read has no patch, so the file name still opens the file; the rest of the row folds the details.
   await reads.nth(0).locator(".file-name").click();
   expect(await lastPosted(page, "openToolFile")).toEqual({ type: "openToolFile", path: "a.txt" });
   await expect(reads.nth(0).locator(".tool-header")).toHaveAttribute("aria-expanded", "false");
@@ -3107,6 +3107,12 @@ test("a finished turn shows insertions and deletions from its file edits", async
   await expect(step.locator(".compact-diff .adds")).toHaveText("+4");
   await expect(step.locator(".compact-diff .dels")).toHaveText("-2");
   await expect(step.locator(".file-list .file-base")).toHaveText("b.ts");
+
+  // The file name opens the same native diff as the + / - counts.
+  await step.locator(".compact-step-row .file-name").click();
+  expect(await lastPosted(page, "openDiff")).toEqual({ type: "openDiff", file: "a.ts", patch: "@@", applied: true });
+  await step.locator(".compact-diff").click();
+  expect(await lastPosted(page, "openDiff")).toEqual({ type: "openDiff", file: "a.ts", patch: "@@", applied: true });
 
   const stats = page.locator(".turn-stats");
   await expect(stats).toHaveCount(0);
