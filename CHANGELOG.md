@@ -6,6 +6,18 @@ build, CI or architecture work, condensed to one line; the reasoning lives in
 
 ## Unreleased
 
+- **User — Per-workspace auto-approve:** the **Auto-approve** toggle now applies to the whole
+  workspace instead of a single chat. Every permission raised by a session of that folder is granted
+  once without a card, including background subagents and sessions started by another client. Turning
+  it on grants requests that were already pending. Existing per-chat choices are migrated: if any
+  chat in the workspace had it on, the workspace starts with it on.
+- **User — Fix:** when two VS Code windows connect to the same `opencode.endpoint`, each chat now
+  handles only sessions owned by its own workspace. Approval cards and turn notifications from
+  another project no longer appear in the wrong editor. `opencode.autoApprovePermissions` remains the
+  default for workspaces that never changed the toggle.
+- **Internal — Workspace ownership:** a bounded session→directory map (fed by session lists,
+  `session.created` and `parentID`) gates the shared event stream before it reaches permission cards,
+  the attention overlay or turn state. Unknown ids are resolved once through `session.get`.
 - **User — No external software required:** OpenCode now runs inside the extension through the
   bundled `@opencode/sdk` (2.4.1). There is no CLI to install, no `opencode serve` process, no port
   and no password for the local host. Requires VS Code 1.134+ (Node 24 in the extension host).

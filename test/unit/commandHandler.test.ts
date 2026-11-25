@@ -52,7 +52,6 @@ function setup(overrides: Partial<CommandHandlerHooks> = {}) {
     deleteAllSessions: vi.fn(async () => undefined),
     catalog: { selectedModel: { id: "old", providerID: "p" }, selectModel: vi.fn(), selectAgent: vi.fn() },
     sessionList: { forget: vi.fn(), rename: vi.fn(() => true) },
-    permissions: { write: vi.fn(async () => undefined) },
     subagents: { snapshot: vi.fn(async () => undefined) },
     execution: new ExecutionStateService(),
     generation: { bump: vi.fn(() => 2), current: vi.fn(() => 2), is: vi.fn(() => true) } as never,

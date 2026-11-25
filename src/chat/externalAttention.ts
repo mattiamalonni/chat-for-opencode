@@ -57,6 +57,11 @@ export class ExternalAttentionService {
     }
   }
 
+  /** Drop a single pending card, e.g. after an auto-approval succeeded but its reply event was missed. */
+  forgetRequest(requestId: string): void {
+    if (this.byId.delete(requestId)) this.publish();
+  }
+
   /** Drop every request belonging to a session. Returns true when something changed. */
   forget(sid: string): boolean {
     let changed = false;

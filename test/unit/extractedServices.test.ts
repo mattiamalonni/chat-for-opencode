@@ -137,15 +137,18 @@ describe("extracted controller services", () => {
       permissions: permissions as never,
       subagents: { ids: () => [] } as never,
       getClient: () => undefined,
+      getDirectory: () => undefined,
       post: (msg) => posted.push(msg),
       postSessionEvent: (sid, event) => events.push({ sid, event }),
+      postExternal: (event, sid) => events.push({ sid, event }),
+      forgetExternalRequest: () => {},
       log: () => {},
     });
     expect(actions.enabled()).toBe(true);
     actions.post();
     expect(posted).toEqual([{ type: "autoApprove", enabled: true }]);
     await actions.set(false);
-    expect(permissions.setPending).toHaveBeenCalledWith(false);
+    expect(permissions.write).toHaveBeenCalledWith(false);
     await actions.autoApprove({ type: "permission.asked", data: { id: "p1" } } as never, "s1");
     expect(events).toHaveLength(1);
     await actions.approvePending();

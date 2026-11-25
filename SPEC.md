@@ -176,5 +176,7 @@ hunks only (`hunksSides`, with a `===== file =====` header per file) and opens o
 - Remote endpoint password: stored in `SecretStorage`, never in the extension state.
 - The embedded host opens no listener.
 - Permissions and questions are only auto-answered when the user explicitly opts in
-  (`opencode.autoApprovePermissions` or the per-chat toggle); both default to off. Questions
+  (`opencode.autoApprovePermissions` or the per-workspace toggle); both default to off. Questions
   (forms) always require a user answer, even with auto-approval enabled.
+- With a shared endpoint, each chat filters the live event stream by the session's workspace, so
+  approvals and notifications from another project are never shown in this window.

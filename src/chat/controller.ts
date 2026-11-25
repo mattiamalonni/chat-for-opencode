@@ -28,6 +28,7 @@ import { ChatViews, type ChatWebview } from "./views";
 import { DiffService } from "./diff";
 
 import { PermissionService } from "./permissionService";
+import { SessionOwnershipService } from "./sessionOwnership";
 
 import { BoundedSet } from "../shared/boundedSet";
 import { ChatEventRouter } from "./eventRouter";
@@ -83,8 +84,10 @@ export class ChatController implements vscode.Disposable {
   private readonly prompts: PromptLibraryService;
   private readonly projectInstructions: ProjectInstructionService<vscode.Uri>;
   private readonly disposables: vscode.Disposable[] = [];
-  /** Inline permissions: per-chat auto-approve, granted ids and pending-request filtering. */
+  /** Inline permissions: workspace-wide auto-approve, granted ids and pending-request filtering. */
   private readonly permissions: PermissionService;
+  /** Maps shared-stream sessions to this window's workspace so foreign events are ignored. */
+  private readonly ownership: SessionOwnershipService;
   /** All in-flight tokens and timers live in one place; see lifecycle.ts. */
   private readonly lifecycle = new ChatLifecycle();
   private readonly eventRouter: ChatEventRouter;
@@ -190,7 +193,7 @@ export class ChatController implements vscode.Disposable {
         return Math.min(100, Math.max(1, Math.floor(configured) || 10));
       },
       () => (this.state.folder && (vscode.workspace.workspaceFolders?.length ?? 0) > 1 ? this.state.folder.name : undefined),
-      (sid) => this.permissions.enabled(sid),
+      () => this.permissions.enabled(),
     );
     this.externalAttention = new ExternalAttentionService(
       (msg) => this.post(msg),
@@ -312,6 +315,12 @@ export class ChatController implements vscode.Disposable {
       () => this.state.folder,
       (line) => output.info(line),
     );
+    this.ownership = new SessionOwnershipService(
+      () => this.client,
+      () => this.state.folder?.uri.fsPath,
+      () => this.state.sessionId,
+      (line) => output.info(line),
+    );
     this.catalog = new CatalogService(
       ctx,
       (msg) => this.post(msg),
@@ -329,12 +338,18 @@ export class ChatController implements vscode.Disposable {
       postSessionEvent: (sid, event) => this.postSessionEvent(sid, event),
       subagents: this.subagents,
       permissions: this.permissions,
+      ownership: {
+        owns: (id) => this.ownership.owns(id),
+        learn: (raw) => this.ownership.learn(raw),
+        forget: (id) => this.ownership.forget(id),
+      },
       external: {
         observe: (event, sid, isCurrent, isChild) => this.externalAttention.observe(event, sid, isCurrent, isChild),
         forget: (sid) => {
           this.externalAttention.forget(sid);
         },
       },
+      postExternalCard: (event, sid) => this.externalAttention.observe(event, sid, false, false),
       execution: this.execution,
       attention: this.announcedHiddenAttention,
       scheduleInbox: () => this.refreshActions.scheduleInbox(),
@@ -344,7 +359,7 @@ export class ChatController implements vscode.Disposable {
       refreshSlashItems: async () => {
         await this.sessionService.refreshSlashItems();
       },
-      autoApprove: (event, sid) => this.permissionActions.autoApprove(event, sid),
+      autoApprove: (event, sid, onFailure) => this.permissionActions.autoApprove(event, sid, onFailure),
       newSession: () => this.connectionService.newSession(),
     });
     this.fileIcons = new FileIconThemeService({
@@ -388,7 +403,10 @@ export class ChatController implements vscode.Disposable {
       postLocalIdle: (sid, generation) => this.postLocalIdle(sid, generation),
       connect: () => this.connectionService.connect(),
       loadAll: () => this.sessionService.loadAll(),
-      loadSession: (info, stale) => this.sessionService.loadSession(info, stale),
+      loadSession: (info, stale) => {
+        this.ownership.learn(info);
+        return this.sessionService.loadSession(info, stale);
+      },
       send: (text, attachments, context, delivery, sessionId) => this.promptActions.send(text, attachments, context, delivery, sessionId),
       newSession: () => this.connectionService.newSession(),
       saveDraft: (sid, text) => this.draftActions.save(sid, text),
@@ -414,7 +432,6 @@ export class ChatController implements vscode.Disposable {
       deleteAllSessions: () => this.deleteAllSessions(),
       catalog: this.catalog,
       sessionList: this.sessionList,
-      permissions: this.permissions,
       subagents: this.subagents,
       execution: this.execution,
       generation: this.lifecycle.generations.load,
@@ -438,8 +455,11 @@ export class ChatController implements vscode.Disposable {
       permissions: this.permissions,
       subagents: this.subagents,
       getClient: () => this.client,
+      getDirectory: () => this.state.folder?.uri.fsPath,
       post: (msg) => this.post(msg),
       postSessionEvent: (sid, event) => this.postSessionEvent(sid, event),
+      postExternal: (event, sid) => this.externalAttention.observe(event, sid, false, false),
+      forgetExternalRequest: (requestId) => this.externalAttention.forgetRequest(requestId),
       log: (line) => output.info(line),
     });
     this.fileActions = new ChatFileActions({
@@ -501,7 +521,6 @@ export class ChatController implements vscode.Disposable {
       execution: this.execution,
       lifecycle: this.lifecycle,
       catalog: this.catalog,
-      permissions: this.permissions,
       sessionList: this.sessionList,
       prompts: this.prompts,
       projectInstructions: this.projectInstructions,
@@ -509,6 +528,7 @@ export class ChatController implements vscode.Disposable {
       draftActions: this.draftActions,
       sessionService: this.sessionService,
       output,
+      learnSession: (info) => this.ownership.learn(info),
       getClient: () => this.client,
       getServer: () => this.server,
       connect: () => this.connectionService.connect(),
@@ -544,7 +564,6 @@ export class ChatController implements vscode.Disposable {
     this.bulkDelete = new ChatBulkDelete({
       state: this.state,
       deleteGeneration: this.deleteGeneration,
-      permissions: this.permissions,
       sessionList: this.sessionList,
       workspaceState: ctx.workspaceState,
       getClient: () => this.client,
@@ -573,7 +592,7 @@ export class ChatController implements vscode.Disposable {
       vscode.workspace.onDidChangeConfiguration((e) => {
         if (e.affectsConfiguration("opencode.autoApprovePermissions")) {
           this.permissionActions.post();
-          if (this.permissions.enabled(this.state.sessionId)) void this.permissionActions.approvePending();
+          if (this.permissions.enabled()) void this.permissionActions.approvePending();
         }
         if (e.affectsConfiguration("opencode.dropzone")) {
           this.post({ type: "dropzone", enabled: this.dropzoneEnabled() });
@@ -883,6 +902,8 @@ export class ChatController implements vscode.Disposable {
 
   async refreshSessions(): Promise<void> {
     await this.sessionList.refresh();
+    // Keep the ownership map warm so the first event of a session in this folder is not dropped.
+    void this.ownership.prime().catch(() => undefined);
   }
 
   async loadMoreSessions(): Promise<void> {
@@ -936,6 +957,7 @@ export class ChatController implements vscode.Disposable {
   }
 
   async switchFolder(folder: vscode.WorkspaceFolder | undefined): Promise<void> {
+    this.ownership.reset();
     await this.connectionService.switchFolder(folder);
   }
 

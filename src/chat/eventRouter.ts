@@ -31,12 +31,19 @@ export interface EventRouterHooks {
     snapshot(id: string): Promise<void>;
     forget(id: string): void;
   };
-  permissions: { forgetRequest(requestId: string): void; enabled(sessionId: string | undefined): boolean };
+  permissions: { forgetRequest(requestId: string): void; enabled(): boolean };
+  /** Only sessions of this window's workspace are routed; the event stream itself is shared. */
+  ownership: {
+    owns(id: string): boolean;
+    learn(raw: unknown): void;
+    forget(id: string): void;
+  };
   /** Cards from other clients on the same server; the hook ignores sessions we already show. */
   external: {
     observe(event: ServerEvent, sid: string | undefined, isCurrent: boolean, isChild: boolean): void;
     forget(sid: string): void;
   };
+  postExternalCard(event: ServerEvent, sid: string): void;
   execution: ExecutionStateService;
   attention: BoundedSet<string>;
   scheduleInbox(): void;
@@ -44,7 +51,7 @@ export interface EventRouterHooks {
   scheduleReconcile(): void;
   scheduleChanges(): void;
   refreshSlashItems(): Promise<void>;
-  autoApprove(event: ServerEvent, sid: string): Promise<void>;
+  autoApprove(event: ServerEvent, sid: string, onFailure?: () => void): Promise<void>;
   newSession(): Promise<void>;
 }
 
@@ -72,10 +79,19 @@ export class ChatEventRouter {
     const event = normalizeServerEvent(incoming);
     if (!event) return;
     const sid = eventSessionId(event);
+    // Creation/deletion is allowed through: it is how new sessions are learned and stale cards
+    // are cleared, even when their directory is not known yet.
+    const lifecycleEvent = event.type === "session.created" || event.type === "session.deleted";
+    if (event.type === "session.created") {
+      h.ownership.learn(event.data);
+      if (sid) h.ownership.owns(sid); // resolves unknown ids asynchronously
+    }
+    // The endpoint is shared across windows: drop events belonging to another workspace before
+    // they can create cards, notifications or state changes here.
+    if (sid && !lifecycleEvent && !h.ownership.owns(sid)) return;
     const isCurrent = sid === h.getSessionId();
     const isChild = !!sid && h.subagents.isTracked(sid);
     if (sid && isCurrent) h.noteSessionEvent();
-    h.external.observe(event, sid, isCurrent, isChild);
 
     if (event.type === "session.created") {
       const data = event.data as { sessionID?: string; parentID?: string; title?: string; agent?: string };
@@ -121,7 +137,10 @@ export class ChatEventRouter {
     ) {
       h.scheduleInbox();
     }
-    if (event.type === "session.deleted" && sid && h.subagents.hasChild(sid)) h.subagents.forget(sid);
+    if (event.type === "session.deleted" && sid) {
+      h.ownership.forget(sid);
+      if (h.subagents.hasChild(sid)) h.subagents.forget(sid);
+    }
 
     if (event.type === "permission.replied") {
       const requestId = (event.data as { requestID?: string }).requestID;
@@ -135,12 +154,17 @@ export class ChatEventRouter {
     // Plugins can register/remove skills and commands while the chat is open.
     if (event.type === "skill.updated" || event.type === "command.updated") void h.refreshSlashItems();
 
-    // Auto-approve at arrival so a child's `ask` permission cannot block with no inline card.
-    if (event.type === "permission.asked" && sid && h.subagents.isTracked(sid) && h.permissions.enabled(h.getSessionId())) {
-      void h.autoApprove(event, sid);
+    // The toggle is workspace-wide: every owned session is auto-approved at arrival, so no card
+    // blocks a turn even when its session is not the one currently open.
+    if (event.type === "permission.asked" && sid && h.permissions.enabled()) {
+      void h.autoApprove(event, sid, () => {
+        if (isCurrent || isChild) h.postSessionEvent(sid, event);
+        else h.postExternalCard(event, sid);
+      });
       return;
     }
 
+    h.external.observe(event, sid, isCurrent, isChild);
     if (sid) h.postSessionEvent(sid, event);
 
     // One owner for turn starts and terminals: generation, local-idle grace and host status.

@@ -33,6 +33,43 @@ function deferredClient(): { client: OpenCodeClient; calls: () => number; resolv
   };
 }
 
+describe("PermissionService workspace preference", () => {
+  function withStored(raw: unknown) {
+    const store = new Map<string, unknown>();
+    if (raw !== undefined) store.set("opencode.autoApprove:folder", raw);
+    const update = vi.fn(async (key: string, value: unknown) => {
+      if (value === undefined) store.delete(key);
+      else store.set(key, value);
+    });
+    const ctx = {
+      workspaceState: { get: (key: string) => store.get(key), update },
+    } as unknown as vscode.ExtensionContext;
+    const folder = { uri: { toString: () => "folder" } } as never;
+    const service = new PermissionService(
+      ctx,
+      () => folder,
+      () => {},
+    );
+    return { service, store, update };
+  }
+
+  it("reads and writes one boolean per workspace", async () => {
+    const { service, store } = withStored(true);
+    expect(service.enabled()).toBe(true);
+    await service.write(false);
+    expect(store.get("opencode.autoApprove:folder")).toBe(false);
+    expect(service.enabled()).toBe(false);
+    await service.write(undefined);
+    expect(service.enabled()).toBe(false); // falls back to the setting
+  });
+
+  it("migrates the old per-session map to a workspace boolean", () => {
+    const { service, store } = withStored({ s1: true, s2: false });
+    expect(service.enabled()).toBe(true);
+    expect(store.get("opencode.autoApprove:folder")).toBe(true);
+  });
+});
+
 describe("PermissionService.approveOnce", () => {
   it("shares one in-flight reply and retries after a failure", async () => {
     const permissions = service();

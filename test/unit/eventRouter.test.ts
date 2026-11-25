@@ -30,7 +30,9 @@ function setup(overrides: Partial<EventRouterHooks> = {}) {
     postSessionEvent: vi.fn(),
     subagents,
     permissions: { forgetRequest: vi.fn(), enabled: vi.fn(() => false) },
+    ownership: { owns: vi.fn(() => true), learn: vi.fn(), forget: vi.fn() },
     external: { observe: vi.fn(), forget: vi.fn() },
+    postExternalCard: vi.fn(),
     execution: new ExecutionStateService(),
     attention: new BoundedSet<string>(10),
     scheduleInbox: vi.fn(),
@@ -97,5 +99,33 @@ describe("ChatEventRouter", () => {
     router.route(event("session.execution.failed", { sessionID: "other" }));
     expect(hooks.execution.state.status).toBe("idle");
     expect(hooks.scheduleReconcile).not.toHaveBeenCalled();
+  });
+
+  it("drops events from another workspace before they reach any card", () => {
+    const { router, hooks } = setup();
+    vi.mocked(hooks.ownership.owns).mockReturnValue(false);
+    router.route(event("permission.asked", { sessionID: "foreign", id: "req" }));
+    expect(hooks.external.observe).not.toHaveBeenCalled();
+    expect(hooks.autoApprove).not.toHaveBeenCalled();
+    expect(hooks.postExternalCard).not.toHaveBeenCalled();
+  });
+
+  it("lets session creation through so a new session can be learned", () => {
+    const { router, hooks } = setup();
+    vi.mocked(hooks.ownership.owns).mockReturnValue(false);
+    router.route(event("session.created", { sessionID: "new", parentID: "s1" }));
+    expect(hooks.ownership.learn).toHaveBeenCalled();
+    expect(hooks.scheduleSessions).toHaveBeenCalledTimes(1);
+  });
+
+  it("auto-approves an owned session that is not the open chat", () => {
+    const { router, hooks } = setup();
+    vi.mocked(hooks.permissions.enabled).mockReturnValue(true);
+    router.route(event("permission.asked", { sessionID: "other", id: "req" }));
+    expect(hooks.autoApprove).toHaveBeenCalledTimes(1);
+    expect(hooks.external.observe).not.toHaveBeenCalled();
+    const onFailure = vi.mocked(hooks.autoApprove).mock.calls[0][2];
+    onFailure?.();
+    expect(hooks.postExternalCard).toHaveBeenCalledTimes(1);
   });
 });

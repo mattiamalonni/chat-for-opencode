@@ -239,21 +239,21 @@ describe("chat-for-opencode extension", () => {
     }
   });
 
-  it("remembers auto-approval per chat, overriding the global default", async () => {
+  it("remembers auto-approval per workspace, overriding the global default", async () => {
     const sessionId = controller.debugState.sessionId!;
     const mark = posted.length;
     await controller.receive({ type: "setAutoApprove", enabled: true });
-    await waitFor(() => lastPosted("autoApprove", mark)?.enabled === true, "auto-approve on for this chat");
-    await controller.receive({ type: "send", text: "[permission] unattended per-chat edit", attachments: [], context: [] });
+    await waitFor(() => lastPosted("autoApprove", mark)?.enabled === true, "auto-approve on for this workspace");
+    await controller.receive({ type: "send", text: "[permission] unattended workspace edit", attachments: [], context: [] });
     await waitFor(() => eventPosted("session.execution.succeeded", mark), "execution succeeded without a reply");
     assert.equal(eventPosted("permission.asked", mark), undefined, "no inline card is shown");
 
-    // A new chat follows the global default (off)...
+    // A new chat in the same workspace inherits the workspace toggle...
     await controller.receive({ type: "newSession" });
-    await waitFor(() => lastPosted("autoApprove", mark)?.enabled === false, "off for a new chat");
-    // ...while reopening the chat restores its own toggle.
+    await waitFor(() => lastPosted("autoApprove", mark)?.enabled === true, "still on for a new chat");
+    // ...and reopening the original session keeps it too.
     await controller.receive({ type: "selectSession", id: sessionId });
-    await waitFor(() => lastPosted("autoApprove", mark)?.enabled === true, "remembered per chat");
+    await waitFor(() => lastPosted("autoApprove", mark)?.enabled === true, "still on for the original chat");
     await controller.receive({ type: "setAutoApprove", enabled: false });
   });
 
@@ -377,6 +377,23 @@ describe("chat-for-opencode extension", () => {
     } finally {
       unlinkSync(link);
     }
+  });
+
+  it("still shows questions when auto-approval is enabled", async () => {
+    const mark = posted.length;
+    await controller.receive({ type: "setAutoApprove", enabled: true });
+    await waitFor(() => lastPosted("autoApprove", mark)?.enabled === true, "auto-approve on");
+    await controller.receive({ type: "send", text: "[question] pick a color while auto-approving", attachments: [], context: [] });
+    const created = await waitFor(() => eventPosted("form.created", mark), "question form with auto-approve on");
+    assert.ok(created.type === "event");
+    const form = (created.event.data as { form: { id: string; sessionID: string } }).form;
+    const beforeCancel = posted.length;
+    await controller.receive({ type: "formCancel", sessionId: form.sessionID, formId: form.id });
+    await waitFor(
+      () => posted.slice(beforeCancel).find((m) => m.type === "event" && m.event.type === "session.status"),
+      "local idle after cancelling the question",
+    );
+    await controller.receive({ type: "setAutoApprove", enabled: false });
   });
 
   it("starts a new session and switches back to the previous one", async () => {

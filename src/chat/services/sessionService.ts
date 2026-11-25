@@ -473,7 +473,6 @@ export class ChatSessionService {
     this.d.clearTimers();
     this.stopLivePoll();
     this.d.state.lastKnownMessage = undefined;
-    this.d.permissions.setPending(undefined);
     this.d.execution.reset();
   }
 }

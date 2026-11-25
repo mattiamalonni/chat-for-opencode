@@ -10,20 +10,14 @@ const requestKey = (sessionId: string, requestId: string) => `${sessionId}:${req
 /** A reply event can be missed on a reconnect, so granted ids may linger; keep the set bounded. */
 const MAX_AUTO_APPROVED = 500;
 
-interface StoredOverrides {
-  [sessionId: string]: boolean;
-}
-
 /**
- * Owns everything about inline permissions: per-chat auto-approve preference, the set of requests
- * already granted automatically, and filtering stale requests out of a resynced session.
+ * Owns everything about inline permissions: the workspace-wide auto-approve preference, the set of
+ * requests already granted automatically, and filtering stale requests out of a resynced session.
  */
 export class PermissionService {
   private readonly autoApproved = new Set<string>();
   /** One shared result per (session, request) pair, so concurrent callers cannot lose a failed reply. */
   private readonly inFlight = new Map<string, Promise<boolean>>();
-  /** Choice for a chat that has no session yet; `undefined` follows the setting. */
-  private pending: boolean | undefined;
 
   constructor(
     private readonly ctx: vscode.ExtensionContext,
@@ -36,39 +30,38 @@ export class PermissionService {
     return folder ? AUTO_APPROVE_KEY(folder.uri.toString()) : undefined;
   }
 
-  /** Global default for chats that never toggled the setting. */
+  /** Global default for workspaces that never toggled the setting. */
   defaultEnabled(): boolean {
     return vscode.workspace.getConfiguration("opencode", this.folder()?.uri).get<boolean>("autoApprovePermissions", false);
   }
 
-  private overrides(): StoredOverrides {
+  /**
+   * The toggle is per workspace, not per chat: every session in this folder follows the same choice.
+   * Older builds stored a `{ sessionId: boolean }` map under the same key; migrate it lazily by
+   * treating any explicit `true` as enabling auto-approval for the whole workspace.
+   */
+  private stored(): boolean | undefined {
     const key = this.key();
-    return key ? (this.ctx.workspaceState.get<StoredOverrides>(key) ?? {}) : {};
+    if (!key) return undefined;
+    const raw = this.ctx.workspaceState.get<boolean | Record<string, boolean>>(key);
+    if (typeof raw === "boolean") return raw;
+    if (raw && typeof raw === "object") {
+      const values = Object.values(raw);
+      const migrated = values.some((value) => value === true) ? true : values.length > 0 ? false : undefined;
+      void this.ctx.workspaceState.update(key, migrated);
+      return migrated;
+    }
+    return undefined;
   }
 
-  enabled(sessionId?: string): boolean {
-    if (!sessionId) return this.pending ?? this.defaultEnabled();
-    return this.overrides()[sessionId] ?? this.defaultEnabled();
+  enabled(): boolean {
+    return this.stored() ?? this.defaultEnabled();
   }
 
-  async write(sessionId: string, enabled: boolean | undefined): Promise<void> {
+  async write(enabled: boolean | undefined): Promise<void> {
     const key = this.key();
     if (!key) return;
-    const overrides = { ...this.overrides() };
-    if (enabled === undefined) delete overrides[sessionId];
-    else overrides[sessionId] = enabled;
-    await this.ctx.workspaceState.update(key, overrides);
-  }
-
-  setPending(enabled: boolean | undefined): void {
-    this.pending = enabled;
-  }
-
-  /** Consumes the pending choice when the first real session is created. */
-  takePending(): boolean | undefined {
-    const value = this.pending;
-    this.pending = undefined;
-    return value;
+    await this.ctx.workspaceState.update(key, enabled);
   }
 
   /**
@@ -123,15 +116,14 @@ export class PermissionService {
 
   /**
    * Drops requests granted by auto-approval so stale cards do not reappear after a resync.
-   * `approved` overrides the gate for callers that already resolved it in another session's
-   * context (a subagent inherits its parent's per-chat choice but has no override of its own);
+   * `approved` lets callers resolve the workspace gate once for a batch of sessions;
    * `sessionId` is still the session the reply is addressed to.
    */
   async filterPending(
     client: OpenCodeClient,
     sessionId: string,
     permissions: PermissionRequest[],
-    approved = this.enabled(sessionId),
+    approved = this.enabled(),
   ): Promise<PermissionRequest[]> {
     if (permissions.length === 0 || !approved) return permissions;
     const unresolved: PermissionRequest[] = [];

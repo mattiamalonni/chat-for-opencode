@@ -76,8 +76,8 @@ settings, see [REFERENCE.md](REFERENCE.md).
   saved). Reject or Cancel stops the reply; the two allow options continue it. Several questions
   appear one at a time with **Next question** and a single reply collects all answers.
 - A turn started in another client on the same server (for example the TUI) has no approval UI here,
-  so its pending permissions and questions are collected in the **same panel**, labelled with the
-  session title; answering one targets that session, not the open chat.
+  so its pending permissions and questions are collected in the **same panel** when it belongs to this
+  workspace, labelled with the session title; answering one targets that session, not the open chat.
 
 - A **contract smoke test** on connect names the features a non-2.4.0 server cannot support, instead
   of only warning about the version number. A second, discreet **status bar item** shows the
@@ -94,9 +94,13 @@ matching rule wins) or set it to `[]` and rely on your OpenCode config only.
 
 `opencode.autoApprovePermissions`, or the **Auto-approve** toggle at the bottom of the composer,
 bypasses the panel: every request is granted once, so saved rules are untouched. The toggle is
-per chat and remembered across reloads; the setting is the default for chats where it was never
-changed. Auto-approval is off by default — only enable it when you trust unattended edits and shell
-commands. Questions still always require your answer.
+per workspace and remembered across reloads; the setting is the default for workspaces where it
+was never changed. Auto-approval is off by default — only enable it when you trust unattended edits
+and shell commands. Questions still always require your answer.
+
+When several windows share one `opencode.endpoint`, each chat receives the server's whole event
+stream but processes only sessions owned by its own workspace. Approval cards from another
+project are therefore not shown here.
 
 ## Interface
 

@@ -60,7 +60,6 @@ export interface CommandHandlerHooks {
     selectAgent(agent: string): void;
   };
   sessionList: { forget(ids: Iterable<string>): void; rename(id: string, title: string): boolean };
-  permissions: { write(id: string, value: unknown): Promise<void> };
   subagents: { snapshot(id: string): Promise<void> };
   execution: ExecutionStateService;
   generation: Generation;
@@ -137,7 +136,6 @@ export class ChatCommandHandler {
         if (!h.getClient()) return;
         await h.getClient()!.deleteSession(msg.id);
         h.sessionList.forget([msg.id]);
-        await h.permissions.write(msg.id, undefined);
         await this.deleteDraft(msg.id);
         if (msg.id === h.getSessionId()) await h.newSession();
         else await h.refreshSessions();

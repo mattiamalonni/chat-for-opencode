@@ -4,14 +4,12 @@ import type { ControllerState } from "./controllerState";
 import { deleteDrafts } from "./draftActions";
 import { MAX_DELETE_IDS, MAX_DELETE_PAGES, translatedStrings } from "./controllerSupport";
 import type { Generation } from "../generation";
-import type { PermissionService } from "../permissionService";
 import type { SessionListService } from "../sessionListService";
 
 /** Bounded, cancelable walk over every session page in the current folder. */
 export interface BulkDeleteDeps {
   state: ControllerState;
   deleteGeneration: Generation;
-  permissions: PermissionService;
   sessionList: SessionListService;
   workspaceState: vscode.Memento;
   getClient(): OpenCodeClient | undefined;
@@ -61,7 +59,6 @@ export class ChatBulkDelete {
         try {
           await client.deleteSession(id);
           deleted.push(id);
-          await this.d.permissions.write(id, undefined);
         } catch (err) {
           // A child already removed with its parent (or a stale session) must not abort the cleanup.
           this.d.logWarn(`[chat] failed to delete session ${id}: ${String(err)}`);

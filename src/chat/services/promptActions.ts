@@ -1,7 +1,7 @@
 import * as vscode from "vscode";
 import type { OpenCodeClient, PermissionRule } from "../../client/http";
 import { ExternalServer } from "../../server/server";
-import type { FileAttachment } from "../../shared/api";
+import type { FileAttachment, SessionInfo } from "../../shared/api";
 import { DEFAULT_SESSION_PERMISSIONS } from "../permissions";
 import type { Attachment, ContextItem, HostMessage } from "../../shared/protocol";
 import { resolveAttachment } from "../attachments";
@@ -13,7 +13,6 @@ import type { ChatDraftActions } from "./draftActions";
 import type { ChatFileActions } from "./fileActions";
 import type { ExecutionStateService } from "../executionState";
 import type { ChatLifecycle } from "../lifecycle";
-import type { PermissionService } from "../permissionService";
 import type { ProjectInstructionService } from "../projectInstructions";
 import type { PromptLibraryService } from "../promptLibrary";
 import type { ChatSessionService } from "./sessionService";
@@ -25,7 +24,6 @@ export interface PromptActionDeps {
   execution: ExecutionStateService;
   lifecycle: ChatLifecycle;
   catalog: CatalogService;
-  permissions: PermissionService;
   sessionList: SessionListService;
   prompts: PromptLibraryService;
   projectInstructions: ProjectInstructionService<vscode.Uri>;
@@ -33,6 +31,7 @@ export interface PromptActionDeps {
   draftActions: ChatDraftActions;
   sessionService: ChatSessionService;
   output: vscode.LogOutputChannel;
+  learnSession(info: SessionInfo): void;
   getClient(): OpenCodeClient | undefined;
   getServer(): ServerHandle | undefined;
   connect(): Promise<void>;
@@ -250,7 +249,6 @@ export class ChatPromptActions {
         const permissions = vscode.workspace
           .getConfiguration("opencode", folder.uri)
           .get<PermissionRule[]>("sessionPermissions", DEFAULT_SESSION_PERMISSIONS);
-        const autoApprove = this.d.permissions.takePending();
         const loadGeneration = this.d.lifecycle.generations.load.bump();
         const info = await client.createSession({
           directory: folder.uri.fsPath,
@@ -258,9 +256,8 @@ export class ChatPromptActions {
           model: this.d.catalog.selectedModel,
           permissions,
         });
-        if (autoApprove !== undefined) {
-          await this.d.permissions.write(info.id, autoApprove);
-        }
+        // Register before the server emits events for it: the shared stream has no directory.
+        this.d.learnSession(info);
         await this.d.sessionService.loadSession(info, () => !this.d.lifecycle.generations.load.is(loadGeneration), undefined, true);
         if (!this.d.lifecycle.generations.load.is(loadGeneration)) {
           this.d.execution.fail(this.d.state.sessionId, turn.generation);
