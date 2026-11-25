@@ -3698,23 +3698,19 @@ test("a failed prompt returns to the composer without overwriting newer typing",
   await expect(input).toHaveValue("");
 });
 
-test("every turn has a fork button that branches from its own prompt", async ({ page }) => {
+test("the composer forks the current session only while idle", async ({ page }) => {
   await boot(page);
-  const messages: SessionMessage[] = [
-    { id: "u1", type: "user", text: "first prompt", time: { created: 1000 } },
-    { id: "u2", type: "user", text: "second prompt", time: { created: 2000 } },
-  ];
-  await host(page, { type: "session", session: { id: S1, busy: false, messages, permissions: [], forms: [] } });
+  await host(page, { type: "session", session: { id: S1, busy: false, messages: [], permissions: [], forms: [] } });
 
-  const buttons = page.locator(".msg.user .fork-turn");
-  await expect(buttons).toHaveCount(2);
-  await expect(buttons.first()).toHaveAttribute("aria-label", STRINGS.forkTurn);
-  await buttons.nth(1).click();
-  expect(await lastPosted(page, "forkTo")).toEqual({ type: "forkTo", sessionId: S1, messageID: "u2" });
+  await expect(page.locator(".msg.user .fork-turn")).toHaveCount(0);
+  const fork = page.getByRole("button", { name: STRINGS.forkConversation });
+  await expect(fork).toBeEnabled();
+  await fork.click();
+  expect(await lastPosted(page, "fork")).toEqual({ type: "fork" });
 
   await host(page, { type: "event", event: { type: "session.status", created: 3000, data: { sessionID: S1, status: { type: "busy" } } } });
-  await expect(buttons.first()).toBeDisabled();
-  await expect(buttons.first()).toHaveAttribute("data-tooltip", STRINGS.forkTurnBusy);
+  await expect(fork).toBeDisabled();
+  await expect(fork).toHaveAttribute("data-tooltip", STRINGS.forkBusy);
 });
 
 test("the queued-messages panel can promote, edit and remove pending prompts", async ({ page }) => {

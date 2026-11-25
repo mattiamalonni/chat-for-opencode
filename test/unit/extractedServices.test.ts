@@ -155,6 +155,34 @@ describe("extracted controller services", () => {
     expect(events).toHaveLength(1);
   });
 
+  it("ChatRefreshActions hides the fork notice that OpenCode leaves in the fork's inbox", () => {
+    const posted: unknown[] = [];
+    const actions = new ChatRefreshActions({
+      state: createControllerState(),
+      lifecycle: { schedule: () => {} } as never,
+      getClient: () => undefined,
+      post: (msg) => posted.push(msg),
+      refreshSessions: vi.fn(async () => {}),
+    });
+    actions.publishInbox([
+      {
+        id: "msg_fork_notice_s1",
+        sessionID: "s1",
+        time: { created: 1 },
+        type: "synthetic",
+        delivery: "steer",
+        payload: { description: "Fork notice", text: "<fork-notice>copied history</fork-notice>" },
+      },
+      { id: "u1", sessionID: "s1", time: { created: 2 }, type: "user", delivery: "queue", payload: { text: "queued" } },
+    ]);
+    expect(posted).toEqual([
+      {
+        type: "inbox",
+        items: [{ id: "u1", sessionID: "s1", time: { created: 2 }, type: "user", delivery: "queue", payload: { text: "queued" } }],
+      },
+    ]);
+  });
+
   it("ChatRefreshActions schedules refreshes and publishes inert results", async () => {
     const posted: unknown[] = [];
     const scheduled: string[] = [];

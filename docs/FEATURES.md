@@ -13,13 +13,16 @@ settings, see [REFERENCE.md](REFERENCE.md).
   output, errors). A **Todo list** appears when the agent uses OpenCode's `todowrite` tool.
 - **Rollback to any turn**: OpenCode restores the files changed after it and removes that prompt,
   its reply and all later turns, while the prompt returns to the composer so you can edit and resend
-  it. A native confirmation lets you keep the current files (_Messages only_). **Fork a turn** opens
-  a sibling session with the history up to that point, leaving the current conversation untouched.
+  it. A native confirmation lets you keep the current files (_Messages only_). **Fork conversation**
+  in the composer copies the full history into a new sibling session and opens it, leaving the current
+  conversation untouched. It is available once the session is idle. `/fork [prompt]` does the same and
+  sends the optional prompt in the new branch right away.
 - **Queued messages**: plain `Enter` queues while the agent works (`delivery: queue`);
   `Ctrl/Cmd+Enter` interrupts and sends now (`delivery: steer`). The **Queued messages** panel can
   promote a prompt to _send now_, return it to the composer or remove it. A queued prompt joins the
-  conversation only when the agent starts working on it. Composer drafts are per session and survive
-  a window reload.
+  conversation only when the agent starts working on it. OpenCode's built-in fork notice is filtered
+  out of this panel (it stays in the model's context). Composer drafts are per session and survive a
+  window reload.
 - **Subagents**: live progress stays inline. **Open subagent conversation** shows the child session
   in a modal with the same chat view; breadcrumbs navigate nested subagents and `Esc` or a backdrop
   click closes it. Its compact composer replies to the child (`Enter` queues while it works,

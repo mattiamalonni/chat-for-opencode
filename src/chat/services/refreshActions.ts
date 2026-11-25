@@ -1,5 +1,5 @@
 import type { OpenCodeClient } from "../../client/http";
-import type { FileDiff, InboxItem } from "../../shared/api";
+import { isForkNotice, type FileDiff, type InboxItem } from "../../shared/api";
 import { normalizeFileDiff, normalizeList } from "../../shared/adapter";
 import type { HostMessage } from "../../shared/protocol";
 import type { ControllerState } from "./controllerState";
@@ -44,7 +44,7 @@ export class ChatRefreshActions {
   }
 
   publishInbox(items: InboxItem[]): void {
-    this.d.post({ type: "inbox", items });
+    this.d.post({ type: "inbox", items: items.filter((item) => !isForkNotice(item)) });
   }
 
   async refreshChanges(): Promise<FileDiff[]> {

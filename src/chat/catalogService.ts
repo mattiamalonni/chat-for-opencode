@@ -3,6 +3,10 @@ import type { OpenCodeClient } from "../client/http";
 import { normalizeAgent, normalizeCommand, normalizeList, normalizeModel, normalizeSkill } from "../shared/adapter";
 import type { AgentInfo, CommandInfo, ModelInfo, ModelRef, SkillInfo } from "../shared/api";
 import type { HostMessage } from "../shared/protocol";
+import { STRINGS } from "../shared/strings";
+
+/** Slash commands the extension resolves itself, advertised like server commands for discovery. */
+const LOCAL_COMMANDS: CommandInfo[] = [{ name: "fork", description: STRINGS.forkCommand }];
 
 const MODEL_KEY = "opencode.lastModel";
 const AGENT_KEY = "opencode.lastAgent";
@@ -110,13 +114,22 @@ export class CatalogService {
     if (changed && this.canPost()) this.publish();
   }
 
+  /** Local commands shadow a server command with the same name, so `/fork` keeps our semantics. */
+  private publishedCommands(): CommandInfo[] {
+    const server = this.commands.filter((c) => c.name !== "fork");
+    return [
+      ...server.map(({ name, description }) => ({ name, description })),
+      ...LOCAL_COMMANDS.map(({ name, description }) => ({ name, description })),
+    ];
+  }
+
   publish(): void {
     this.post({
       type: "catalog",
       models: this.models,
       agents: this.agents,
       skills: this.skills.map(({ id, name, description }) => ({ id, name, description })),
-      commands: this.commands.map(({ name, description }) => ({ name, description })),
+      commands: this.publishedCommands(),
       selectedModel: this.selectedModel,
       selectedAgent: this.selectedAgent,
     });

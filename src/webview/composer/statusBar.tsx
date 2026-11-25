@@ -1,7 +1,7 @@
 import type { ModelInfo } from "../../shared/api";
 import { ContextMeter } from "../contextMeter";
 import { useT } from "../i18n";
-import { IconCompact, IconFolder, IconShield } from "../icons";
+import { IconCompact, IconFolder, IconFork, IconShield } from "../icons";
 import { post } from "../vscode";
 
 export function StatusBar(props: {
@@ -10,7 +10,8 @@ export function StatusBar(props: {
   text: string;
   autoApprove: boolean;
   onToggleAutoApprove: (enabled: boolean) => void;
-  canCompact: boolean;
+  /** A session is loaded and idle, so session-level actions (fork, compact) can be requested. */
+  canActOnSession: boolean;
   contextTokens?: number;
   contextEstimated?: boolean;
   cost?: number;
@@ -45,10 +46,20 @@ export function StatusBar(props: {
         </button>
         <button
           type="button"
+          class="icon-button fork tooltip-host tooltip-above"
+          data-tooltip={props.busy ? t("forkBusy") : t("forkTooltip")}
+          aria-label={t("forkConversation")}
+          disabled={props.disabled || !props.canActOnSession}
+          onClick={() => post({ type: "fork" })}
+        >
+          <IconFork />
+        </button>
+        <button
+          type="button"
           class="icon-button compact tooltip-host tooltip-above"
           data-tooltip={t("compactConversation")}
           aria-label={t("compactConversation")}
-          disabled={props.disabled || props.busy || !props.canCompact}
+          disabled={props.disabled || !props.canActOnSession}
           onClick={() => post({ type: "compact" })}
         >
           <IconCompact />

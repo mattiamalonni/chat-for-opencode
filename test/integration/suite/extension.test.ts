@@ -90,7 +90,7 @@ describe("chat-for-opencode extension", () => {
     );
     assert.deepEqual(
       catalog.commands?.map((c) => c.name),
-      ["mock-init"],
+      ["mock-init", "fork"],
     );
     assert.deepEqual(catalog.selectedModel, { id: "mock-fast", providerID: "mock" });
     const sessions = await waitFor(() => lastPosted("sessions"), "sessions");
@@ -751,25 +751,24 @@ describe("chat-for-opencode extension", () => {
     assert.equal(reverted.text, "turn one");
   });
 
-  it("forks a turn into a new session and keeps the original conversation", async () => {
+  it("forks the full history into a new session and keeps the original conversation", async () => {
     await controller.receive({ type: "newSession" });
     const mark = posted.length;
     await controller.receive({ type: "send", text: "fork me", attachments: [], context: [] });
-    const withTurn = await waitFor(() => {
+    const settled = await waitFor(() => {
       const p = lastPosted("session", mark);
-      return p?.session?.messages.some((m) => m.type === "user") ? p : undefined;
-    }, "a turn to fork");
+      return p?.session?.busy === false && p.session.messages.length >= 2 ? p : undefined;
+    }, "a settled turn to fork");
     const sid = controller.debugState.sessionId!;
-    const userId = withTurn.session!.messages.find((m) => m.type === "user")!.id;
+    const sourceCount = settled.session!.messages.length;
 
-    await controller.receive({ type: "forkTo", sessionId: sid, messageID: userId });
+    await controller.receive({ type: "fork" });
     const forked = await waitFor(() => lastPosted("forked", mark), "forked notice");
     assert.notEqual(forked.sessionId, sid);
     assert.equal(controller.debugState.sessionId, forked.sessionId);
     const loaded = lastPosted("session", mark);
     assert.equal(loaded?.session?.id, forked.sessionId);
-    // Forking before the first prompt yields an empty branch; the source keeps its history.
-    assert.equal(loaded!.session!.messages.length, 0);
+    assert.equal(loaded!.session!.messages.length, sourceCount);
     const sessions = await waitFor(() => {
       const s = lastPosted("sessions", mark);
       return s?.items.some((i) => i.id === sid) ? s : undefined;
@@ -777,6 +776,44 @@ describe("chat-for-opencode extension", () => {
     assert.ok(
       sessions.items.some((i) => i.id === forked.sessionId),
       "fork listed too",
+    );
+  });
+
+  it("/fork sends its continuation into the new branch", async () => {
+    await controller.receive({ type: "newSession" });
+    const mark = posted.length;
+    await controller.receive({ type: "send", text: "first prompt", attachments: [], context: [] });
+    await waitFor(() => {
+      const p = lastPosted("session", mark);
+      return p?.session?.busy === false && p.session.messages.length >= 2 ? p : undefined;
+    }, "a settled turn to fork");
+    const original = controller.debugState.sessionId!;
+
+    await controller.receive({ type: "send", text: "/fork continue in the branch", attachments: [], context: [] });
+    const forked = await waitFor(() => lastPosted("forked", mark), "forked notice");
+    assert.notEqual(forked.sessionId, original);
+    assert.equal(controller.debugState.sessionId, forked.sessionId);
+    await waitFor(
+      () =>
+        posted
+          .slice(mark)
+          .find(
+            (m) =>
+              m.type === "sessionDelta" &&
+              m.delta.sessionId === forked.sessionId &&
+              m.delta.messages.some((x) => x.type === "user" && x.text === "continue in the branch"),
+          ),
+      "continuation delivered to the fork",
+    );
+    await waitFor(
+      () =>
+        posted
+          .slice(mark)
+          .find(
+            (m) =>
+              m.type === "sessionDelta" && m.delta.sessionId === forked.sessionId && m.delta.messages.some((x) => x.type === "assistant"),
+          ),
+      "fork answered the continuation",
     );
   });
 

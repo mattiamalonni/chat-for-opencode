@@ -46,7 +46,7 @@ function setup(overrides: Partial<CommandHandlerHooks> = {}) {
     syncNow: vi.fn(async () => undefined),
     compact: vi.fn(async () => undefined),
     revertToTurn: vi.fn(async () => undefined),
-    forkToTurn: vi.fn(async () => undefined),
+    forkConversation: vi.fn(async () => true),
     regenerateTurn: vi.fn(async () => undefined),
     refreshInbox: vi.fn(async () => undefined),
     deleteAllSessions: vi.fn(async () => undefined),
@@ -107,6 +107,12 @@ describe("ChatCommandHandler", () => {
       sessionId: "child",
       event: { type: "session.status", data: { sessionID: "child", status: { type: "idle", local: true } } },
     });
+  });
+
+  it("forks the current session without a message id", async () => {
+    const { handler, hooks } = setup();
+    await handler.handle(msg({ type: "fork" }));
+    expect(hooks.forkConversation).toHaveBeenCalledWith();
   });
 
   it("commits a model only after the server accepts it and restores it on failure", async () => {

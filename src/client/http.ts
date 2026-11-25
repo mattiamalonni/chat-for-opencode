@@ -188,8 +188,9 @@ export class OpenCodeClient {
     await this.call(() => this.api.session.command({ sessionID: id, name, text, files, delivery }));
   }
 
-  async forkSession(id: string, before: string): Promise<SessionInfo> {
-    return await this.call(() => this.api.session.fork({ sessionID: id, before }));
+  /** Omitting `before` copies the whole history; an id copies everything before that message. */
+  async forkSession(id: string, before?: string): Promise<SessionInfo> {
+    return await this.call(() => this.api.session.fork({ sessionID: id, ...(before ? { before } : {}) }));
   }
 
   async inbox(id: string, _signal?: AbortSignal): Promise<InboxItem[]> {

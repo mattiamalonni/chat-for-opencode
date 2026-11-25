@@ -875,7 +875,7 @@ export function App() {
                 focusToken={focusToken}
                 modelPickerToken={modelPickerToken}
                 onModelSelected={focusComposer}
-                canCompact={!!chat.sessionId && !chat.busy && connected}
+                canActOnSession={!!chat.sessionId && !chat.busy && connected}
               />
               {dropping && (
                 <div class="drop-overlay" aria-hidden="true">

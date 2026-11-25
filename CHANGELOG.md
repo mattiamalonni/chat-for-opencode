@@ -4,6 +4,16 @@ Legend: **`User — …`** entries change something you can see or use. **`Inter
 build, CI or architecture work, condensed to one line; the reasoning lives in
 [DECISIONS.md](docs/DECISIONS.md) and [SPEC.md](SPEC.md).
 
+## Unreleased
+
+- **User — Fork from the composer:** the per-turn fork icon is replaced by a single _Fork conversation_
+  action beside _Compact_. It is available only for a loaded, idle session and copies the **full**
+  history into a new branch. `/fork [prompt]` forks and immediately sends the optional prompt in the
+  new branch (the composer's attachments and context go with it).
+- **User — Clean fork inbox:** OpenCode's `opencode.fork-notice` plugin leaves a synthetic notice in
+  each fork's inbox with `resume: false`, so it never leaves the queue. It is now hidden from the
+  **Queued messages** panel while still reaching the model as context.
+
 ## 0.4.0 — 2026-11-25
 
 - **User — Session list error indicator:** sessions whose last turn failed or was interrupted now show a

@@ -131,25 +131,37 @@ export class ChatPromptActions {
   }
 
   /**
-   * Copy the conversation up to `messageID` into a new sibling session and open it. The original
-   * keeps its full history and files, so unlike a rollback this is a non-destructive "what if".
+   * Copy the whole conversation into a new sibling session and open it. The original keeps its
+   * history and files, so unlike a rollback this is a non-destructive "what if" from the current
+   * point. A turn in flight is refused: the fork must snapshot a settled history.
    */
-  async forkToTurn(sessionId: string, messageID: string): Promise<void> {
+  async forkConversation(): Promise<boolean> {
+    const s = translatedStrings();
     const client = this.d.getClient();
-    if (!client || sessionId !== this.d.state.sessionId) return;
+    const sid = this.d.state.sessionId;
+    if (!client || !sid) {
+      this.d.post({ type: "notice", error: { kind: "requestFailed", message: s["error.forkFailed"], actions: [] } });
+      return false;
+    }
+    if (this.d.execution.state.status === "running") {
+      this.d.post({ type: "notice", error: { kind: "requestFailed", message: s.forkBusy, actions: [] } });
+      return false;
+    }
     const generation = this.d.lifecycle.generations.load.bump();
     try {
-      const info = await client.forkSession(sessionId, messageID);
-      if (!this.d.lifecycle.generations.load.is(generation) || client !== this.d.getClient()) return;
+      const info = await client.forkSession(sid);
+      if (!this.d.lifecycle.generations.load.is(generation) || client !== this.d.getClient()) return false;
       this.d.sessionList.addFork(info.id);
       await this.d.sessionService.loadSession(
         info,
         () => !this.d.lifecycle.generations.load.is(generation) || client !== this.d.getClient(),
       );
-      if (client !== this.d.getClient()) return;
+      if (client !== this.d.getClient()) return false;
+      // A pending retry belongs to the session we just left: never replay it into the branch.
+      this.d.state.failedPrompt = undefined;
       this.d.post({ type: "forked", sessionId: info.id, title: info.title });
+      return true;
     } catch (err) {
-      const s = translatedStrings();
       this.d.post({
         type: "notice",
         error: {
@@ -159,6 +171,7 @@ export class ChatPromptActions {
           actions: ["showLogs"],
         },
       });
+      return false;
     }
   }
 
@@ -205,6 +218,18 @@ export class ChatPromptActions {
     targetSessionId?: string,
   ): Promise<boolean> {
     const child = !!targetSessionId && targetSessionId !== this.d.state.sessionId;
+    // Local `/fork`: snapshot the current session first, then deliver the rest of the prompt to the
+    // branch. Intercepted before catalog commands so a server-provided `/fork` cannot shadow it.
+    const forkCommand = child ? undefined : /^\/fork(?:\s+([\s\S]*))?$/.exec(text);
+    if (forkCommand) {
+      if (!(await this.forkConversation())) {
+        // A refused fork must not eat what the user typed (including its files).
+        this.d.prefillDraft(text, attachments);
+        return false;
+      }
+      const continuation = (forkCommand[1] ?? "").trim();
+      return continuation ? await this.send(continuation, attachments, context, delivery) : true;
+    }
     // A queued message starts no turn yet: leave the current turn's reconcile generation alone.
     const turn = {
       generation: delivery === "queue" || child ? undefined : this.d.execution.start(this.d.state.sessionId),

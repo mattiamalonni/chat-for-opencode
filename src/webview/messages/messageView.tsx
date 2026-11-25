@@ -3,7 +3,7 @@ import { type ChatState, type UiMessage, type UiNotice } from "../../shared/chat
 import type { ActionId } from "../../shared/protocol";
 import { FileTypeIcon } from "../fileIcons";
 import { useT } from "../i18n";
-import { IconError, IconFork, IconInfo, IconRefresh, IconRevert, IconSelection, IconWarning } from "../icons";
+import { IconError, IconInfo, IconRefresh, IconRevert, IconSelection, IconWarning } from "../icons";
 
 import { post } from "../vscode";
 
@@ -49,16 +49,6 @@ export function MessageView({
             }
           >
             <IconRefresh />
-          </button>
-          <button
-            type="button"
-            class="icon-button fork-turn tooltip-host"
-            data-tooltip={state.busy ? t("forkTurnBusy") : t("forkTurn")}
-            aria-label={t("forkTurn")}
-            disabled={!sessionId || state.busy}
-            onClick={() => sessionId && post({ type: "forkTo", sessionId, messageID: message.id })}
-          >
-            <IconFork />
           </button>
           <button
             type="button"

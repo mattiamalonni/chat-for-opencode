@@ -286,8 +286,8 @@ export type WebviewMessage =
   | { type: "compact" }
   /** Roll the conversation back to the turn opened by `messageID` and restore its prompt. */
   | { type: "revertTo"; sessionId: string; messageID: string; text: string }
-  /** Create a new session with history up to `messageID`, keeping this one untouched. */
-  | { type: "forkTo"; sessionId: string; messageID: string }
+  /** Copy the full history into a new sibling session and open it, keeping this one untouched. */
+  | { type: "fork" }
   /** Drop the reply after this prompt (keeping files) and immediately resend the same prompt. */
   | {
       type: "regenerate";

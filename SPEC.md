@@ -96,7 +96,7 @@ every message and payload; incoming webview messages are validated with `isWebvi
 flows are:
 
 - **Connection and session**: `init`, `connection`, `catalog`, `sessions`, `session`, `sessionDelta`, `event`, `context`, `synced`.
-- **Turns and prompts**: `send`, `abort`, `compact`, `revertTo`, `forkTo`, `regenerate`, `action`.
+- **Turns and prompts**: `send`, `abort`, `compact`, `revertTo`, `fork`, `regenerate`, `action`.
 - **Inline cards**: `permissionReply`, `formReply`, `formCancel`, `inbox`, `setInboxDelivery`, `cancelInbox`.
 - **Files and attachments**: `addAttachment`, `dropFiles`, `pickFiles`, `openFile`, `openAttachment`, `openLink`, `openDiff`, `openDiffs`, `fileIcons`.
 - **Subagents**: `subagent`, `subagentEvent`, `linkSubagent`, `refreshSubagent`.

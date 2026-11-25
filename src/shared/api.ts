@@ -138,6 +138,14 @@ export interface InboxItem {
   payload: { text?: string; description?: string; [key: string]: unknown };
 }
 
+/**
+ * OpenCode's fork plugin admits a synthetic notice with `resume: false` into the new session's
+ * inbox. It is meant for the model, never leaves the inbox and must not look like a queued prompt.
+ */
+export function isForkNotice(item: InboxItem): boolean {
+  return item.type === "synthetic" && (item.id.startsWith("msg_fork_notice_") || item.payload.description === "Fork notice");
+}
+
 export interface PermissionRequest {
   id: string;
   sessionID: string;

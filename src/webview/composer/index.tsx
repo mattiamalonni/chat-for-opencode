@@ -51,8 +51,8 @@ export interface ComposerProps {
   contextEstimated?: boolean;
   /** Accumulated cost of the current session, when reported by the server. */
   cost?: number;
-  /** A session is loaded and idle, so compaction can be requested. */
-  canCompact: boolean;
+  /** A session is loaded and idle, so session-level actions (fork, compact) can be requested. */
+  canActOnSession: boolean;
 }
 
 import { Chips } from "./chips";
@@ -487,7 +487,7 @@ export function Composer(props: ComposerProps) {
         text={text}
         autoApprove={props.autoApprove}
         onToggleAutoApprove={props.onToggleAutoApprove}
-        canCompact={props.canCompact}
+        canActOnSession={props.canActOnSession}
         contextTokens={props.contextTokens}
         contextEstimated={props.contextEstimated}
         cost={props.cost}

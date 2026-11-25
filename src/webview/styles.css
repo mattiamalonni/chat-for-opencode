@@ -932,7 +932,7 @@ details[open] > summary > .chevron,
   gap: 4px;
 }
 
-/* Per-turn rollback/fork stay quiet until the user approaches the prompt they belong to. */
+/* Per-turn rollback/regenerate stay quiet until the user approaches their prompt. */
 .turn-actions {
   display: flex;
   align-items: center;
@@ -2219,7 +2219,7 @@ button:disabled {
   margin-left: auto;
 }
 
-.drop-hint-tools .icon-button.compact {
+.drop-hint-tools .icon-button {
   height: 24px;
 }
 

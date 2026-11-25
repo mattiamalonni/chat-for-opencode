@@ -49,7 +49,7 @@ export interface CommandHandlerHooks {
   syncNow(): Promise<void>;
   compact(): Promise<void>;
   revertToTurn(sessionId: string, messageID: string, text: string, files: boolean): Promise<void>;
-  forkToTurn(sessionId: string, messageID: string): Promise<void>;
+  forkConversation(): Promise<boolean>;
   regenerateTurn(sessionId: string, messageID: string, text: string, attachments: Attachment[]): Promise<void>;
   refreshInbox(sid: string): Promise<void>;
   deleteAllSessions(): Promise<void>;
@@ -309,8 +309,9 @@ export class ChatCommandHandler {
         if (choice !== rollback && choice !== messagesOnly) return;
         return h.revertToTurn(msg.sessionId, msg.messageID, msg.text, choice === rollback);
       }
-      case "forkTo":
-        return h.forkToTurn(msg.sessionId, msg.messageID);
+      case "fork":
+        await h.forkConversation();
+        return;
       case "regenerate": {
         if (!h.getClient() || !h.getSessionId() || msg.sessionId !== h.getSessionId()) return;
         const regenerate = h.t("Regenerate");

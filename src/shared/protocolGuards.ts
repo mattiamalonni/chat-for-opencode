@@ -194,7 +194,7 @@ const WEBVIEW_VALIDATORS: Record<string, Check> = {
   abort: shape({ sessionId: opt(str()) }),
   compact: () => true,
   revertTo: shape({ sessionId: str(), messageID: str(), text: str(MAX_TEXT) }),
-  forkTo: shape({ sessionId: str(), messageID: str() }),
+  fork: () => true,
   regenerate: shape({ sessionId: str(), messageID: str(), text: str(MAX_TEXT), attachments: arr(isAttachment) }),
   newSession: () => true,
   selectSession: shape({ id: str() }),
