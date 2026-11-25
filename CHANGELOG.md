@@ -4,7 +4,7 @@ Legend: **`User — …`** entries change something you can see or use. **`Inter
 build, CI or architecture work, condensed to one line; the reasoning lives in
 [DECISIONS.md](docs/DECISIONS.md) and [SPEC.md](SPEC.md).
 
-## Unreleased
+## 0.4.0 — 2026-11-25
 
 - **User — Session list error indicator:** sessions whose last turn failed or was interrupted now show a
   red dot (labelled _Failed_ or _Interrupted_) in the session list, next to the existing green _Running_
