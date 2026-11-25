@@ -41,6 +41,8 @@ build, CI or architecture work, condensed to one line; the reasoning lives in
 - **Internal — Tooling:** ESLint and Prettier were replaced by Oxlint and Oxfmt (`oxlint.config.ts`,
   `oxfmt.config.ts`); the `lint`, `format` and `format:check` scripts keep their names and the docs
   generator now formats through Oxfmt's API instead of Prettier's.
+- **Internal — Bundle:** esbuild now emits UTF-8 characters directly instead of `\uXXXX` escapes in
+  the extension and both webview bundles, saving ~260 KB from the minified `extension.mjs`.
 
 ## 0.3.26 — 2026-11-24
 
