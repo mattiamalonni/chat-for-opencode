@@ -4,7 +4,7 @@ Legend: **`User — …`** entries change something you can see or use. **`Inter
 build, CI or architecture work, condensed to one line; the reasoning lives in
 [DECISIONS.md](docs/DECISIONS.md) and [SPEC.md](SPEC.md).
 
-## Unreleased
+## 0.4.2 — 2026-11-25
 
 - **User — File steps open the diff:** clicking the file name in an `edit`/`write` step now opens the same native per-file diff as its `+N / -N` button, instead of the plain file. Steps without a patch (e.g. `read`) still open the file normally.
 - **User — One account-focused status bar item:** the two previous items (turn state and session usage)
