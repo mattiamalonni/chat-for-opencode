@@ -6,6 +6,11 @@ build, CI or architecture work, condensed to one line; the reasoning lives in
 
 ## Unreleased
 
+- **User — Questions stay in the chat:** a `question` tool call and its answer now remain visible in
+  the conversation as a read-only card, like the assistant's prose, instead of being hidden inside a
+  folded step. The data comes from the server's session history, so the card survives a VS Code reload
+  and is shown when the session is opened from another workspace. While pending it keeps its usual
+  tool card with the attention marker; the actionable card still lives only in the panel above the composer.
 - **User — Per-workspace auto-approve:** the **Auto-approve** toggle now applies to the whole
   workspace instead of a single chat. Every permission raised by a session of that folder is granted
   once without a card, including background subagents and sessions started by another client. Turning

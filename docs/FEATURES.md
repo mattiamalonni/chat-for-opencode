@@ -74,7 +74,9 @@ settings, see [REFERENCE.md](REFERENCE.md).
   auto-approved by default. The newest request is shown first and **Previous / Next** cycle through
   the queue; `1`/`2`/`3` mean Allow once / Always allow / Reject (`2` only when the rule can be
   saved). Reject or Cancel stops the reply; the two allow options continue it. Several questions
-  appear one at a time with **Next question** and a single reply collects all answers.
+  appear one at a time with **Next question** and a single reply collects all answers. Once answered,
+  a question stays in the conversation as a read-only card with its answer, outside the step folds —
+  also after a reload or when the session is opened from another workspace.
 - A turn started in another client on the same server (for example the TUI) has no approval UI here,
   so its pending permissions and questions are collected in the **same panel** when it belongs to this
   workspace, labelled with the session title; answering one targets that session, not the open chat.

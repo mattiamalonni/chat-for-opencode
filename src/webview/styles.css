@@ -1728,6 +1728,96 @@ details[open] > summary > .chevron,
   gap: 6px;
 }
 
+/* An answered question stays in the transcript as prose, not as a folded tool card. */
+.card.question-turn {
+  border-color: var(--opencode-border);
+  padding: 8px 10px;
+  gap: 10px;
+}
+
+.card.question-turn .card-title {
+  font-size: 0.85em;
+  font-weight: 500;
+  color: var(--vscode-descriptionForeground);
+}
+
+.question-turn-count {
+  margin-left: auto;
+  font-weight: 400;
+}
+
+.question-turn-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.question-turn-item {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.question-turn-item + .question-turn-item {
+  border-top: 1px solid var(--opencode-border);
+  padding-top: 10px;
+}
+
+.question-turn-header {
+  font-size: 0.75em;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--vscode-descriptionForeground);
+}
+
+.question-turn-prompt {
+  font-size: 0.92em;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.question-turn-answer {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 5px 8px;
+  border-left: 2px solid var(--vscode-charts-green, var(--opencode-border));
+  border-radius: 0 3px 3px 0;
+  background: var(--vscode-textBlockQuote-background, var(--vscode-editorWidget-background));
+}
+
+.question-turn-answer-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex: none;
+  font-size: 0.78em;
+  color: var(--vscode-descriptionForeground);
+}
+
+.question-turn-answer-label svg {
+  width: 11px;
+  height: 11px;
+  color: var(--vscode-charts-green, currentColor);
+}
+
+.question-turn-answer-text {
+  flex: 1;
+  overflow-wrap: anywhere;
+}
+
+.question-turn-pending {
+  color: var(--vscode-descriptionForeground);
+  font-style: italic;
+}
+
+.question-turn-raw {
+  margin: 0;
+}
+
 /* Focus the card (Tab) and 1/2/3 act on its buttons; the hint mirrors the available shortcuts. */
 .shortcut-hint {
   margin-left: auto;

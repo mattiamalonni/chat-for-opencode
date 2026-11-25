@@ -152,6 +152,8 @@ export const STRINGS = {
   attentionNext: "Next request",
   nextQuestion: "Next question",
   questionTitle: "Question from OpenCode",
+  questionCount: "{0} questions",
+  questionAnswer: "Answer",
   submit: "Submit",
   cancel: "Cancel",
   customAnswer: "Other…",

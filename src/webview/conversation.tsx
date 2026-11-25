@@ -8,7 +8,7 @@ import { useT } from "./i18n";
 import { IconChevron, IconWarning } from "./icons";
 import { fileRefToPath } from "../shared/fileRef";
 
-import { AssistantStatus, MessageView, ToolCard, ToolGroup, TurnStatsRow } from "./messages";
+import { AssistantStatus, MessageView, QuestionTurnCard, ToolCard, ToolGroup, TurnStatsRow } from "./messages";
 import { post } from "./vscode";
 
 export function Conversation({
@@ -208,6 +208,8 @@ export function Conversation({
   const renderItem = (item: ConversationItem, q: string) => {
     const filteredOut = !!q && !itemSearchText(item).toLowerCase().includes(q);
     switch (item.kind) {
+      case "question":
+        return <QuestionTurnCard key={item.key} part={item.part} searchQuery={q} filteredOut={filteredOut} />;
       case "tools":
         return <ToolGroup key={item.key} parts={item.parts} state={chat} filteredOut={filteredOut} searchQuery={q} />;
       case "tool":

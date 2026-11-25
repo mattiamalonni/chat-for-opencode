@@ -58,7 +58,12 @@ input contains `todos[]`. The UI shows the latest call's list.
 _as a marker_; requests without a source are shown at the end of the conversation. The actionable
 `PermissionCard` is rendered once in the attention overlay above the composer, where it cannot be
 hidden inside a folded step or duplicated across cards. The tool card keeps only the `attention`
-marker pointing to it.
+marker pointing to it. A completed `question` call is different: it is reclassified as prose in
+`conversationModel.ts` and shown in the transcript as a read-only question/answer card. Questions
+come from `input.questions` and answers from `metadata.answers` (or the tool's text result), both
+stored by the server in session history. Until then the call stays an ordinary tool card with the
+attention marker; only the pending form is actionable in the overlay, so there is exactly one place
+to answer.
 
 ## D10 — Secondary Side Bar container
 

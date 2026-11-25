@@ -9,11 +9,14 @@ import {
   type UiMessage,
 } from "../shared/chatReducer";
 
+import { isQuestionTool, questionSearchText } from "../shared/questionTool";
+
 import { messageSearchText } from "./messages";
 
 export type ConversationItem =
   | { kind: "message"; message: UiMessage }
   | { kind: "assistant"; key: string; message: UiAssistantMessage; parts: TextPart[]; grouped: boolean }
+  | { kind: "question"; key: string; part: ToolPart }
   | { kind: "tool"; key: string; part: ToolPart }
   | { kind: "tools"; key: string; parts: ToolPart[] }
   | { kind: "status"; key: string; message: UiAssistantMessage; typing: boolean }
@@ -53,6 +56,12 @@ type StepPiece = { kind: "prose" | "details"; item: ConversationItem };
 function splitStep(items: ConversationItem[]): StepPiece[] {
   const out: StepPiece[] = [];
   for (const it of items) {
+    // A question is the user's side of the exchange: like prose, it stays visible at the point
+    // where the model asked it instead of disappearing into a folded step.
+    if (it.kind === "question") {
+      out.push({ kind: "prose", item: it });
+      continue;
+    }
     if (it.kind !== "assistant") {
       out.push({ kind: "details", item: it });
       continue;
@@ -164,7 +173,14 @@ export function conversationItems(messages: UiMessage[], turns: TurnStats[]): Co
         started = true;
       };
       for (const p of m.parts) {
-        if (p.kind === "tool") {
+        if (p.kind === "tool" && isQuestionTool(p) && p.status !== "streaming" && p.status !== "running") {
+          // Only a finished exchange becomes a read-only question/answer card. While pending, the
+          // call keeps its ordinary tool card (with the attention marker pointing to the overlay).
+          flushTexts();
+          flushTools();
+          stepItems.push({ kind: "question", key: `tool:${p.id}`, part: p });
+          started = true;
+        } else if (p.kind === "tool") {
           flushTexts();
           tools.push(p);
         } else {
@@ -221,6 +237,8 @@ export function itemSearchText(item: ConversationItem): string {
       return messageSearchText(item.message);
     case "assistant":
       return item.parts.map((p) => p.text).join(" ");
+    case "question":
+      return questionSearchText(item.part);
     case "tool":
       return [item.part.name, item.part.inputText, ...item.part.output.map((c) => toolOutputLabel(c))].join(" ");
     case "tools":

@@ -127,7 +127,10 @@ OpenCode uses to load a skill; unrelated slash commands remain unchanged.
 OpenCode emits one assistant message per step. Each step's prose stays in the conversation while its
 thoughts and tool calls go into a collapsible labelled **Step N** (or **Steps N–M** when consecutive
 textless steps share one fold). Prose breaks a run, so a thought emitted after a sentence stays below
-it in its own fold.
+it in its own fold. An answered `question` tool call is prose too: it stays visible at the point where
+it was asked, with its answer read from the server's tool result, so it survives a reload or another
+workspace. While pending, the call keeps its ordinary tool card with an attention marker pointing to
+the overlay, so the actionable card is still shown only once.
 
 While a turn streams, only the current step's fold is expanded. As soon as the turn ends, every fold
 in it closes — including the last step's — leaving the answer's prose on screen. Finished turns

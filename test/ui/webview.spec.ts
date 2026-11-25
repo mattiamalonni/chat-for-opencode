@@ -1426,10 +1426,31 @@ test("question forms render options and submit the answer", async ({ page }) => 
   await expect(page.locator(".conversation form.card.question")).toHaveCount(0);
   // The raw JSON input is redundant while the friendly question is pending.
   await expect(page.locator(".tool.attention .tool-pre")).toHaveCount(0);
+  // While pending, the call keeps its ordinary tool card; the answer card comes later.
+  await expect(page.locator(".conversation .tool.attention")).toBeVisible();
+  await expect(page.locator(".conversation .card.question-turn")).toHaveCount(0);
   await form.getByLabel("Blue").check();
   await page.screenshot({ path: join(SHOTS, "04-question-dark.png"), fullPage: true });
   await form.getByRole("button", { name: STRINGS.submit }).click();
   expect(await lastPosted(page, "formReply")).toMatchObject({ answer: { q0: "Blue" } });
+});
+
+test("a completed question stays in the conversation with its answer", async ({ page }) => {
+  await boot(page);
+  const events = fixture("real-sse4.jsonl");
+  const success = events.findIndex((e) => e.type === "session.tool.success");
+  await openSession(page, S2, events.slice(0, success + 1));
+
+  const card = page.locator(".conversation .card.question-turn");
+  await expect(card).toBeVisible();
+  await expect(card).toContainText("What is your favorite color?");
+  await expect(card).toContainText(STRINGS.questionAnswer);
+  await expect(card).toContainText("Blue");
+  // It is prose, not a folded tool call, and no longer needs an approval card.
+  await expect(page.locator(".step-fold")).toHaveCount(0);
+  await expect(page.locator(".attention-overlay")).toHaveCount(0);
+  await expect(page.locator(".tool")).toHaveCount(0);
+  await page.screenshot({ path: join(SHOTS, "04-question-answered-dark.png"), fullPage: true });
 });
 
 test("a required multiselect question needs at least one choice before submit", async ({ page }) => {
