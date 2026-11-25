@@ -56,14 +56,16 @@ describe("CatalogService", () => {
     expect(message.commands).toEqual([
       { name: "init", description: "cmd" },
       { name: "fork", description: "Fork the conversation, then send the rest of the prompt in the new branch" },
+      { name: "compact", description: "Compact the conversation, then send the rest of the prompt" },
     ]);
   });
 
-  it("lets the local /fork shadow a server command with the same name", () => {
+  it("lets local /fork and /compact shadow server commands with the same name", () => {
     const posted: HostMessage[] = [];
     const { catalog } = service(posted);
     catalog.commands = [
       { name: "fork", description: "server fork" },
+      { name: "compact", description: "server compact" },
       { name: "init", description: "cmd" },
     ];
     catalog.publish();
@@ -72,6 +74,7 @@ describe("CatalogService", () => {
     expect(message.commands).toEqual([
       { name: "init", description: "cmd" },
       { name: "fork", description: "Fork the conversation, then send the rest of the prompt in the new branch" },
+      { name: "compact", description: "Compact the conversation, then send the rest of the prompt" },
     ]);
   });
 

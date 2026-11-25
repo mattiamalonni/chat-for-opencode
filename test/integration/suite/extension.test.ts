@@ -90,7 +90,7 @@ describe("chat-for-opencode extension", () => {
     );
     assert.deepEqual(
       catalog.commands?.map((c) => c.name),
-      ["mock-init", "fork"],
+      ["mock-init", "fork", "compact"],
     );
     assert.deepEqual(catalog.selectedModel, { id: "mock-fast", providerID: "mock" });
     const sessions = await waitFor(() => lastPosted("sessions"), "sessions");
@@ -814,6 +814,65 @@ describe("chat-for-opencode extension", () => {
               m.type === "sessionDelta" && m.delta.sessionId === forked.sessionId && m.delta.messages.some((x) => x.type === "assistant"),
           ),
       "fork answered the continuation",
+    );
+  });
+
+  it("/compact compacts the current session without sending a prompt", async () => {
+    await controller.receive({ type: "newSession" });
+    const mark = posted.length;
+    await controller.receive({ type: "send", text: "a long conversation", attachments: [], context: [] });
+    await waitFor(() => {
+      const p = lastPosted("session", mark);
+      return p?.session?.busy === false && p.session.messages.length >= 2 ? p : undefined;
+    }, "a settled turn to compact");
+    const sid = controller.debugState.sessionId!;
+
+    await controller.receive({ type: "send", text: "/compact", attachments: [], context: [] });
+    await waitFor(() => eventPosted("session.compaction.ended", mark), "compaction event");
+    assert.equal(controller.debugState.sessionId, sid);
+    assert.ok(
+      !posted
+        .slice(mark)
+        .some(
+          (m) =>
+            m.type === "sessionDelta" &&
+            m.delta.sessionId === sid &&
+            m.delta.messages.some((x) => x.type === "user" && x.text === "/compact"),
+        ),
+      "the slash command is not sent as a prompt",
+    );
+  });
+
+  it("/compact [prompt] sends the rest after compacting", async () => {
+    await controller.receive({ type: "newSession" });
+    const mark = posted.length;
+    await controller.receive({ type: "send", text: "a long conversation", attachments: [], context: [] });
+    await waitFor(() => {
+      const p = lastPosted("session", mark);
+      return p?.session?.busy === false && p.session.messages.length >= 2 ? p : undefined;
+    }, "a settled turn to compact");
+    const sid = controller.debugState.sessionId!;
+
+    await controller.receive({ type: "send", text: "/compact continue here", attachments: [], context: [] });
+    await waitFor(() => eventPosted("session.compaction.ended", mark), "compaction event");
+    await waitFor(
+      () =>
+        posted
+          .slice(mark)
+          .find(
+            (m) =>
+              m.type === "sessionDelta" &&
+              m.delta.sessionId === sid &&
+              m.delta.messages.some((x) => x.type === "user" && x.text === "continue here"),
+          ),
+      "continuation delivered after compaction",
+    );
+    await waitFor(
+      () =>
+        posted
+          .slice(mark)
+          .find((m) => m.type === "sessionDelta" && m.delta.sessionId === sid && m.delta.messages.some((x) => x.type === "assistant")),
+      "continuation answered",
     );
   });
 

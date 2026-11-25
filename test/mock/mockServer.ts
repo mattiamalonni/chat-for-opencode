@@ -642,6 +642,20 @@ export function startMockServer(opts: MockOptions = {}): Promise<MockServer> {
           return send(res, 204);
         }
       }
+      if (rest === "compact" && req.method === "POST") {
+        const compaction: Json = {
+          id: id("msg_cmp"),
+          sessionID: s.info.id,
+          time: { created: Date.now() },
+          type: "compaction",
+          payload: {},
+          delivery: "steer",
+        };
+        s.messages.push({ ...compaction, status: "completed" });
+        persist();
+        emit({ type: "session.compaction.ended", data: { sessionID: s.info.id, reason: "manual", text: "" } });
+        return send(res, 200, { data: compaction });
+      }
       if (rest === "fork" && req.method === "POST") {
         const before = typeof b.before === "string" ? b.before : undefined;
         const at = before ? s.messages.findIndex((x) => x.id === before) : s.messages.length;

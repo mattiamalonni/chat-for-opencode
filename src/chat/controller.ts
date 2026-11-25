@@ -393,7 +393,9 @@ export class ChatController implements vscode.Disposable {
       switchFolder: (folder) => this.connectionService.switchFolder(folder),
       refreshChanges: () => this.refreshActions.refreshChanges(),
       syncNow: () => this.sessionService.syncNow(),
-      compact: () => this.promptActions.compact(),
+      compact: async () => {
+        await this.promptActions.compact();
+      },
       revertToTurn: (sessionId, messageID, text, files) => this.promptActions.revertToTurn(sessionId, messageID, text, files),
       forkConversation: () => this.promptActions.forkConversation(),
       regenerateTurn: (sessionId, messageID, text, attachments) =>

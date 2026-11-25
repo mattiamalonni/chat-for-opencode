@@ -51,15 +51,24 @@ export class ChatPromptActions {
     this.d.prefillDraft(text, []);
   }
 
-  async compact(): Promise<void> {
+  /** Compact the open session; returns false when it was refused or the server rejected it. */
+  async compact(): Promise<boolean> {
+    const s = translatedStrings();
     const sid = this.d.state.sessionId;
     const client = this.d.getClient();
-    if (!sid || !client) return;
+    if (!sid || !client) {
+      this.d.post({ type: "notice", error: { kind: "requestFailed", message: s["error.compactFailed"], actions: [] } });
+      return false;
+    }
+    if (this.d.execution.state.status === "running") {
+      this.d.post({ type: "notice", error: { kind: "requestFailed", message: s.compactBusy, actions: [] } });
+      return false;
+    }
     try {
       await client.compact(sid);
       this.d.output.info("[chat] compaction requested");
+      return true;
     } catch (err) {
-      const s = translatedStrings();
       this.d.post({
         type: "notice",
         error: {
@@ -69,6 +78,7 @@ export class ChatPromptActions {
           actions: ["showLogs"],
         },
       });
+      return false;
     }
   }
 
@@ -222,6 +232,18 @@ export class ChatPromptActions {
         return false;
       }
       const continuation = (forkCommand[1] ?? "").trim();
+      return continuation ? await this.send(continuation, attachments, context, delivery) : true;
+    }
+    // Local `/compact`: compact the open session first, then deliver the rest of the prompt.
+    // Intercepted before catalog commands so a server-provided `/compact` cannot shadow it.
+    const compactCommand = child ? undefined : /^\/compact(?:\s+([\s\S]*))?$/.exec(text);
+    if (compactCommand) {
+      if (!(await this.compact())) {
+        // A refused compaction must not eat what the user typed (including its files).
+        this.d.prefillDraft(text, attachments);
+        return false;
+      }
+      const continuation = (compactCommand[1] ?? "").trim();
       return continuation ? await this.send(continuation, attachments, context, delivery) : true;
     }
     // A queued message starts no turn yet: leave the current turn's reconcile generation alone.

@@ -57,6 +57,20 @@ when the chat has focus. In the session list,
 `Enter` in the composer sends or queues while the agent runs, `Ctrl/Cmd+Enter` interrupts and sends
 now, and `Shift+Enter` adds a new line.
 
+## Slash commands handled in chat
+
+The composer resolves these locally before sending anything to OpenCode and lists them alongside
+server commands and skills under `/`:
+
+- `/fork [prompt]` copies the full history into a new sibling session, opens it, then sends the
+  optional prompt (with attachments and context) in the new branch.
+- `/compact [prompt]` compacts the open session, then sends the optional prompt in the same
+  conversation.
+
+Both need an idle session: while a turn runs the command is refused and the text stays in the
+composer. They shadow a server command with the same name, so their behaviour is always the one
+described here.
+
 ## Session timeline
 
 `Cmd/Ctrl+G` while the chat has focus opens a searchable picker of this session's turns, newest

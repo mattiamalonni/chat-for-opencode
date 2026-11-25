@@ -30,7 +30,9 @@ settings, see [REFERENCE.md](REFERENCE.md).
 - **Turn stats**: when the agent finishes, one badge summarises start/end clock times, steps, time to
   the last step, tokens, cost and insertions/deletions. Click **+N / -N** to open all that turn's
   changes in one read-only diff. **Stop** a response and **compact** a long session from the
-  composer toolbar or the command palette.
+  composer toolbar or the command palette. `/compact [prompt]` does the same from the composer and
+  sends the optional prompt in the same conversation right away (with attachments and context);
+  like the toolbar action, it is only available once the session is idle.
 - **Session timeline**: `Cmd/Ctrl+G` opens a searchable list of the current session's turns,
   newest first, with the prompt text, time, step count, tokens and changed-line count. Selecting a
   turn scrolls to its prompt, highlights it and puts the focus back in the composer; `Esc` closes the

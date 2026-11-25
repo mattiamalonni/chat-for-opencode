@@ -3698,7 +3698,7 @@ test("a failed prompt returns to the composer without overwriting newer typing",
   await expect(input).toHaveValue("");
 });
 
-test("the composer forks the current session only while idle", async ({ page }) => {
+test("the composer forks and compacts the current session only while idle", async ({ page }) => {
   await boot(page);
   await host(page, { type: "session", session: { id: S1, busy: false, messages: [], permissions: [], forms: [] } });
 
@@ -3708,9 +3708,16 @@ test("the composer forks the current session only while idle", async ({ page }) 
   await fork.click();
   expect(await lastPosted(page, "fork")).toEqual({ type: "fork" });
 
+  const compact = page.getByRole("button", { name: STRINGS.compactConversation });
+  await expect(compact).toBeEnabled();
+  await compact.click();
+  expect(await lastPosted(page, "compact")).toEqual({ type: "compact" });
+
   await host(page, { type: "event", event: { type: "session.status", created: 3000, data: { sessionID: S1, status: { type: "busy" } } } });
   await expect(fork).toBeDisabled();
   await expect(fork).toHaveAttribute("data-tooltip", STRINGS.forkBusy);
+  await expect(compact).toBeDisabled();
+  await expect(compact).toHaveAttribute("data-tooltip", STRINGS.compactBusy);
 });
 
 test("the queued-messages panel can promote, edit and remove pending prompts", async ({ page }) => {

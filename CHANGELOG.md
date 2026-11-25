@@ -6,6 +6,7 @@ build, CI or architecture work, condensed to one line; the reasoning lives in
 
 ## Unreleased
 
+- **User — `/compact` command:** typing `/compact` in the composer now asks the current session to compact, just like the toolbar button and the command palette; it is listed in slash suggestions and shadows a server command with the same name. `/compact [prompt]` compacts first, then sends the optional prompt in the same conversation (with its attachments and context). A turn in progress is refused and the typed text stays in the composer.
 - **User — Fork from the composer:** the per-turn fork icon is replaced by a single _Fork conversation_
   action beside _Compact_. It is available only for a loaded, idle session and copies the **full**
   history into a new branch. `/fork [prompt]` forks and immediately sends the optional prompt in the

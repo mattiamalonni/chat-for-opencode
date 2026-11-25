@@ -57,7 +57,7 @@ export function StatusBar(props: {
         <button
           type="button"
           class="icon-button compact tooltip-host tooltip-above"
-          data-tooltip={t("compactConversation")}
+          data-tooltip={props.busy ? t("compactBusy") : t("compactTooltip")}
           aria-label={t("compactConversation")}
           disabled={props.disabled || !props.canActOnSession}
           onClick={() => post({ type: "compact" })}
