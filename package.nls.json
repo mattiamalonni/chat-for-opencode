@@ -1,6 +1,6 @@
 {
   "displayName": "Chat for OpenCode",
-  "description": "Unofficial Copilot-style chat for the OpenCode coding agent: streaming, sessions, diffs and inline permissions, with OpenCode bundled in the extension.",
+  "description": "Unofficial Copilot-style chat for the OpenCode coding agent.",
   "container.title": "OpenCode",
   "view.chat": "Chat",
   "command.newSession": "New Session",
