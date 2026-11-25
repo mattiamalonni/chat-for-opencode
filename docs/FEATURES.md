@@ -89,9 +89,10 @@ settings, see [REFERENCE.md](REFERENCE.md).
   workspace, labelled with the session title; answering one targets that session, not the open chat.
 
 - A **contract smoke test** on connect names the features a non-2.4.0 server cannot support, instead
-  of only warning about the version number. A second, discreet **status bar item** shows the
-  session's estimated context size and cost (`opencode.showUsageInStatusBar`); hover for the
-  input/output/cache breakdown.
+  of only warning about the version number. A single **status bar item**, "$(account) OpenCode",
+  keeps the account reachable from anywhere. Hovering it opens a compact panel listing only the
+  connected accounts, with provider, type and active state; clicking pins that same panel open and
+  Escape closes it.
 
 ### Permission defaults
 

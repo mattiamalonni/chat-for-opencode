@@ -14,7 +14,7 @@ Do not edit the generated blocks by hand; change the manifest and regenerate.
 | OpenCode: Restart Server…                              | –              | toolbar, with confirmation                                                   |
 | OpenCode: Compact Conversation                         | –              |                                                                              |
 | OpenCode: Search All Session Conversations             | Cmd/Ctrl+Alt+F | searches titles and message bodies across every session                      |
-| OpenCode: Stop current response                        | –              | also click the status bar while a turn runs                                  |
+| OpenCode: Stop current response                        | –              | also available from the command palette                                      |
 | OpenCode: Open Chat in Editor                          | –              |                                                                              |
 | OpenCode: Account                                      | –              | view saved logins or sign in                                                 |
 | OpenCode: Connect Provider…                            | –              |                                                                              |
@@ -42,7 +42,6 @@ Do not edit the generated blocks by hand; change the manifest and regenerate.
 | `opencode.sessionPageSize`        | `10`                                       | Number of sessions shown per page in the session list. Use **Load more sessions** to fetch the next page.                                                                                                                                                                                                                                                                                         |
 | `opencode.toolOutputLimit`        | `4000`                                     | Characters of a tool's output shown inline before the **output (n)** affordance. Raise it to review long command output without expanding every card.                                                                                                                                                                                                                                             |
 | `opencode.promptLibrary`          | `[]`                                       | Reusable prompts offered by `/` in the chat. Each entry needs a unique `id`, a `title` and the `text` to insert; `description` is optional. The text may contain `$selection`, `$file`, `$diff` and `$problems`, which are replaced with the current editor context when you pick it. Built-in prompts (explain, tests, bugs, optimize, document, review, problems, commit) are always available. |
-| `opencode.showUsageInStatusBar`   | `true`                                     | Show a status bar item with the current session's estimated context size and cost. The numbers come from OpenCode and appear after the first reply.                                                                                                                                                                                                                                               |
 
 <!-- END GENERATED: settings -->
 

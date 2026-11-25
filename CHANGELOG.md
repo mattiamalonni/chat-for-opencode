@@ -4,6 +4,20 @@ Legend: **`User — …`** entries change something you can see or use. **`Inter
 build, CI or architecture work, condensed to one line; the reasoning lives in
 [DECISIONS.md](docs/DECISIONS.md) and [SPEC.md](SPEC.md).
 
+## Unreleased
+
+- **User — One account-focused status bar item:** the two previous items (turn state and session usage)
+  are replaced by a single `$(account) OpenCode` item with a fixed icon and label. Hovering it opens a
+  compact, Copilot-style panel that lists **only the connected accounts**, each on a themed rounded row
+  with the active one highlighted; no auth type, integration id or session numbers. Clicking the item
+  pins that same hover open, so it stays until Escape. The old click actions (stop turn, account picker,
+  focus chat) and the `opencode.showUsageInStatusBar` setting are gone; `_OpenCode: Account_` remains in
+  the palette as a Quick Pick.
+- **Internal — Status bar presenters:** `src/status/account.ts` and `src/status/usage.ts` are replaced by
+  `src/status/bar.ts` and `src/status/tooltip.ts`; the unused `src/chat/usageStatus.ts` and its tests are
+  removed. A CDP/e2e test drives the real status bar hover and checks it stays pinned after the mouse
+  moves away.
+
 ## 0.4.1 — 2026-11-25
 
 - **User — `/compact` command:** typing `/compact` in the composer now asks the current session to compact, just like the toolbar button and the command palette; it is listed in slash suggestions and shadows a server command with the same name. `/compact [prompt]` compacts first, then sends the optional prompt in the same conversation (with its attachments and context). A turn in progress is refused and the typed text stays in the composer.

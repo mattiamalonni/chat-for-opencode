@@ -1,13 +1,14 @@
 import * as vscode from "vscode";
-import { type AuthMenuItem, type AuthQuickPickItem, toAuthItems } from "./auth/logins";
+import { type AuthMenuItem, toAuthItems } from "./auth/logins";
 import { type ChatController, type SessionSearchResult } from "./chat/controller";
 import { ChatViewProvider } from "./chat/viewProvider";
 import type { ConnectController } from "./connect/controller";
-import type { AccountStatus } from "./status/account";
+import type { CredentialSummary } from "./shared/api";
+import type { OpenCodeStatusBar } from "./status/bar";
 
 export interface CommandDependencies {
   chat: ChatController;
-  account: AccountStatus;
+  statusBar: OpenCodeStatusBar;
   connect: ConnectController;
   output: vscode.OutputChannel;
   logError(line: string): void;
@@ -15,7 +16,7 @@ export interface CommandDependencies {
 
 /** Registers every contributed command plus the config listener that recreates servers. */
 export function registerCommands(deps: CommandDependencies): vscode.Disposable[] {
-  const { chat, account, connect, output, logError } = deps;
+  const { chat, statusBar, connect, output, logError } = deps;
   const focusView = () => vscode.commands.executeCommand(`${ChatViewProvider.viewId}.focus`);
 
   return [
@@ -69,16 +70,19 @@ export function registerCommands(deps: CommandDependencies): vscode.Disposable[]
       });
       if (picked) await chat.openSearchResult(picked.hit);
     }),
-    // Bound to the status bar while a turn is running, so the spinner itself is actionable.
+    // Clicking the status bar item shows and focuses its hover: `showHover` acts on the active
+    // element, which is the item's label after the click, and the focused hover stays pinned.
+    vscode.commands.registerCommand("opencode.status.pin", () => vscode.commands.executeCommand("workbench.action.showHover")),
+    // Available from the palette; the status bar hover itself only pins on click.
     vscode.commands.registerCommand("opencode.stopTurn", () => void chat.receive({ type: "abort" })),
     vscode.commands.registerCommand("opencode.openChatInEditor", () => chat.openChatInEditor()),
     vscode.commands.registerCommand("opencode.account", async () => {
-      let logins: AuthQuickPickItem[];
+      let credentials: CredentialSummary[];
       try {
-        logins = toAuthItems(await chat.credentials());
+        credentials = await chat.credentials();
       } catch (err) {
         logError(`[auth] failed to read OpenCode logins: ${String(err)}`);
-        account.clearLogins();
+        statusBar.clearCredentials();
         const action = await vscode.window.showErrorMessage(
           vscode.l10n.t("Could not load OpenCode login information. Check the extension settings."),
           vscode.l10n.t("Open settings"),
@@ -87,7 +91,8 @@ export function registerCommands(deps: CommandDependencies): vscode.Disposable[]
         return;
       }
 
-      account.setLogins(logins);
+      statusBar.setCredentials(credentials);
+      const logins = toAuthItems(credentials);
       const items: AuthMenuItem[] = logins.map((login) => ({ ...login }));
       if (items.length) items.push({ label: vscode.l10n.t("Actions"), kind: vscode.QuickPickItemKind.Separator });
       items.push({

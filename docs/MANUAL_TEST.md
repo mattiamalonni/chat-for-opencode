@@ -42,8 +42,9 @@ screen readers and multi-window process management.
      new account appears in the list and the chat model picker updates. Close the panel while an
      attempt is pending and reopen it: no stale spinner and no error notice from the cancelled poll.
    - On a saved account try _Use this account_, _Rename account_ and _Remove account_ (the last one
-     asks for confirmation). Then check the status bar tooltip and _OpenCode: Account_: they must
-     show the same accounts as the panel.
+     asks for confirmation). Then hover the `$(account) OpenCode` status bar item: its tooltip lists
+     only the connected accounts, with the active one highlighted; click to pin it open and press
+     Escape to close it. _OpenCode: Account_ still opens the same list as a Quick Pick.
 4. **Streaming**: send `Explain what a git commit is in 3 bullet points`. Expect text appearing
    progressively, a collapsible _Thoughts_ block if the model reasons, the stop button while running.
    When the reply finishes, the step folds close on their own while the answer stays visible; click a

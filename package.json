@@ -382,11 +382,6 @@
               }
             }
           }
-        },
-        "opencode.showUsageInStatusBar": {
-          "type": "boolean",
-          "default": true,
-          "markdownDescription": "%config.showUsageInStatusBar%"
         }
       }
     }

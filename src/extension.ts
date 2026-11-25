@@ -6,8 +6,7 @@ import { ChatViewProvider } from "./chat/viewProvider";
 import { createHost, makeNetworkApi } from "./sdk/bridge";
 import { setSdkBridge } from "./sdk/loader";
 import { ConnectController } from "./connect/controller";
-import { createAccountStatus } from "./status/account";
-import { createUsageStatus } from "./status/usage";
+import { createStatusBar } from "./status/bar";
 
 let registry: ServerRegistry | undefined;
 let controller: ChatController | undefined;
@@ -28,8 +27,7 @@ export function activate(context: vscode.ExtensionContext): ExtensionApi {
   const chat = controller;
 
   const focusView = () => vscode.commands.executeCommand(`${ChatViewProvider.viewId}.focus`);
-  const usage = createUsageStatus();
-  const account = createAccountStatus(logError, () => chat.credentials());
+  const statusBar = createStatusBar(logError, () => chat.credentials());
   const connect = new ConnectController(context.extensionUri, {
     getClient: () => chat.apiClient,
     ensureClient: async () => {
@@ -39,21 +37,18 @@ export function activate(context: vscode.ExtensionContext): ExtensionApi {
     getFolder: () => chat.folderUri,
     onChanged: async () => {
       await chat.refreshCatalog();
-      account.loadLogins();
+      statusBar.loadCredentials();
     },
     output,
   });
 
   context.subscriptions.push(
-    usage.item,
-    account.item,
+    statusBar.item,
     chat.onDidPost((msg) => {
-      usage.onMessage(msg);
-      // The account tooltip uses the same server API as the Connect panel. Refresh it once the
-      // chat has a live client, without creating a host just to populate a status bar.
-      if (msg.type === "connection" && msg.status === "connected") void account.loadLogins();
+      // The account hover uses the same server API as the Connect panel. Refresh it once the chat
+      // has a live client, without creating a host just to populate a status bar.
+      if (msg.type === "connection" && msg.status === "connected") void statusBar.loadCredentials();
     }),
-    vscode.workspace.onDidChangeConfiguration((e) => usage.onConfigurationChanged(e)),
     output,
     vscode.workspace.registerTextDocumentContentProvider(DIFF_SCHEME, diffs),
     vscode.window.registerWebviewViewProvider(ChatViewProvider.viewId, new ChatViewProvider(context.extensionUri, chat)),
@@ -71,11 +66,10 @@ export function activate(context: vscode.ExtensionContext): ExtensionApi {
     // 1.99 exposes only the "granted" event: untrusting a workspace requires a window reload, so
     // there is nothing to react to there. Reconnect/prompt paths re-check `isTrusted` themselves.
     vscode.workspace.onDidGrantWorkspaceTrust(() => void chat.onWorkspaceTrustChanged(true)),
-    ...registerCommands({ chat, account, connect, output, logError }),
-    chat.onDidChangeExecution((state) => account.setExecution(state)),
+    ...registerCommands({ chat, statusBar, connect, output, logError }),
   );
 
-  // `loadLogins()` runs on the first "connected" event above; at activation there is no client yet.
+  // `loadCredentials()` runs on the first "connected" event above; at activation there is no client yet.
 
   const REVEALED_KEY = "opencode.revealedOnce";
   if (!context.globalState.get<boolean>(REVEALED_KEY)) {

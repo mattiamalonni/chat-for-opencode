@@ -22,7 +22,7 @@ const COMMAND_NOTES = {
   "opencode.account": "view saved logins or sign in",
   "opencode.install": "show the bundled-SDK setup help, open settings or logs, retry the connection",
   "opencode.searchSessions": "searches titles and message bodies across every session",
-  "opencode.stopTurn": "also click the status bar while a turn runs",
+  "opencode.stopTurn": "also available from the command palette",
   "opencode.openSettings": "toolbar gear icon",
   "opencode.restart": "toolbar, with confirmation",
   "opencode.moveView": "left/right side bar or panel",
