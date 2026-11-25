@@ -108,7 +108,6 @@ export const STRINGS = {
   starterBugs: "Find bugs in the selection",
   starterTests: "Write tests for the active file",
   starterPlan: "Plan a refactor of the active file",
-  saveInstruction: "Save as project instruction",
   applyCode: "Apply to file",
   applyCodeTitle: "Apply this change?",
   copyResponse: "Copy this response",

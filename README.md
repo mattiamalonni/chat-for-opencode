@@ -63,8 +63,7 @@ The short version — full behaviour in [docs/FEATURES.md](docs/FEATURES.md):
   reasoning and tool cards, per-turn step folds, turn stats, a searchable session timeline, queued
   messages, subagents with a child-focused composer in the modal, `todowrite` lists.
 - [Context and files](docs/FEATURES.md#context-and-files) — editor/selection chips, `@` file search,
-  external files sent inline, clickable file references, prompt library, skills, replies
-  saved to `AGENTS.md`.
+  external files sent inline, clickable file references, prompt library, skills.
 - [Diffs and permissions](docs/FEATURES.md#diffs-and-permissions) — Apply to file with a reviewable
   native diff, changed-files panel with combined read-only diffs, permission and question cards with
   keyboard shortcuts.

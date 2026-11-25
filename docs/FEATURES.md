@@ -63,8 +63,6 @@ settings, see [REFERENCE.md](REFERENCE.md).
   the composer with `$selection`, `$file`, `$diff` and `$problems` resolved — never sent automatically.
   This is the single entry point for diagnostics, git diffs and editor selections: everything is
   attached inside the chat, and nothing is sent until you press Enter.
-- **Save a reply as a project instruction**: an action beside **Copy response** appends a dated note
-  to `AGENTS.md` (or a Markdown file you pick in the workspace), skipping duplicates.
 
 ## Diffs and permissions
 

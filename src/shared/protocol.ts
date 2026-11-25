@@ -335,8 +335,6 @@ export type WebviewMessage =
   | { type: "copy"; text: string }
   /** Apply a code block from a reply; `path` is the nearest file reference, if any. */
   | { type: "applyCode"; text: string; path?: string }
-  /** Append a reply to a project instruction file (AGENTS.md by default). */
-  | { type: "saveInstruction"; text: string }
   | { type: "action"; id: ActionId }
   | { type: "selectFolder"; uri: string }
   | { type: "refreshChanges" }

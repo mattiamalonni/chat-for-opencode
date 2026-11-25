@@ -17,7 +17,6 @@ describe("webview → host boundary", () => {
     expect(isWebviewMessage({ type: "permissionReply", sessionId: "s1", requestId: "r1", decision: "once" })).toBe(true);
     expect(isWebviewMessage({ type: "formReply", sessionId: "s1", formId: "f1", answer: { a: "x", b: ["y"], c: 2, d: true } })).toBe(true);
     expect(isWebviewMessage({ type: "usePrompt", id: "review" })).toBe(true);
-    expect(isWebviewMessage({ type: "saveInstruction", text: "Use tabs." })).toBe(true);
     expect(isWebviewMessage({ type: "openDiff", file: "a.txt", patch: "@@", applied: true })).toBe(true);
     expect(isWebviewMessage({ type: "openToolFile", path: "/outside/a.txt" })).toBe(true);
     expect(isWebviewMessage({ type: "dropFiles", files: [{ name: "a.txt", base64: "YQ==", mime: "text/plain" }] })).toBe(true);
@@ -36,7 +35,6 @@ describe("webview → host boundary", () => {
     expect(isWebviewMessage({ type: "fileIcons", paths: new Array(2001).fill("a.txt") })).toBe(false);
     expect(isWebviewMessage({ type: "openLink", href: "x".repeat(32_769) })).toBe(false);
     expect(isWebviewMessage({ type: "usePrompt", id: 7 })).toBe(false);
-    expect(isWebviewMessage({ type: "saveInstruction", text: 7 })).toBe(false);
   });
 
   it("never dispatches an action outside the protocol whitelist", () => {

@@ -13,6 +13,9 @@ build, CI or architecture work, condensed to one line; the reasoning lives in
 - **User — Clean fork inbox:** OpenCode's `opencode.fork-notice` plugin leaves a synthetic notice in
   each fork's inbox with `resume: false`, so it never leaves the queue. It is now hidden from the
   **Queued messages** panel while still reaching the model as context.
+- **User — Removed "Save as project instruction":** the action beside _Copy response_ is gone, so a
+  reply is never appended to `AGENTS.md` or another Markdown file in the workspace. The target picker,
+  dated-note formatting, message type and related tests/docs were removed too.
 
 ## 0.4.0 — 2026-11-25
 

@@ -77,9 +77,6 @@ test or a manual probe actually ran.
   there is no combined stream or single session spanning folders. Sessions from another folder are
   not shown until you switch to it — the folder label on a row tells you where it lives. Adding a
   folder rebuilds the file index; very large monorepos still share the 20 000-file scan cap.
-- **Instruction notes are appended, not structured.** The reply is stored verbatim under a dated
-  heading in `AGENTS.md`; there is no merge with existing rules or editor for the note before saving.
-  A note longer than 2 000 characters is truncated, and duplicates are detected by exact text only.
 - **Prompt variables are snapshots.** `$diff` and `$problems` reflect the workspace when you pick the
   prompt, not when you finally press Enter; `$file` and `$selection` come from the editor active at
   pick time. A prompt whose id matches a skill or command wins in the `/` picker; use a distinct id for

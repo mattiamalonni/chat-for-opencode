@@ -22,7 +22,6 @@ import { ContextTracker, FileIndex } from "./context";
 import { PromptLibraryService } from "./promptLibrary";
 import { formatPromptDiff, formatPromptDiagnostics } from "./promptContext";
 import { ApplyCodeService } from "./applyCode";
-import { DEFAULT_INSTRUCTION_FILE, ProjectInstructionService } from "./projectInstructions";
 import { workingDiff } from "./gitDiff";
 import { ChatViews, type ChatWebview } from "./views";
 import { DiffService } from "./diff";
@@ -82,7 +81,6 @@ export class ChatController implements vscode.Disposable {
   private readonly applyCode: ApplyCodeService<vscode.Uri>;
   /** Built-in + user prompts inserted into the composer with editor context resolved. */
   private readonly prompts: PromptLibraryService;
-  private readonly projectInstructions: ProjectInstructionService<vscode.Uri>;
   private readonly disposables: vscode.Disposable[] = [];
   /** Inline permissions: workspace-wide auto-approve, granted ids and pending-request filtering. */
   private readonly permissions: PermissionService;
@@ -282,34 +280,6 @@ export class ChatController implements vscode.Disposable {
         return formatPromptDiagnostics(items);
       },
     });
-    this.projectInstructions = new ProjectInstructionService<vscode.Uri>({
-      t: (message, ...args) => vscode.l10n.t(message, ...args),
-      folder: () => this.state.folder?.uri.fsPath,
-      pickTarget: async () => {
-        const custom = vscode.l10n.t("Choose another file…");
-        const choice = await vscode.window.showQuickPick([DEFAULT_INSTRUCTION_FILE, custom], {
-          placeHolder: vscode.l10n.t("Where should this instruction be saved?"),
-        });
-        if (!choice) return undefined;
-        if (choice !== custom) return choice;
-        return vscode.window.showInputBox({
-          prompt: vscode.l10n.t("Markdown file inside the workspace"),
-          value: DEFAULT_INSTRUCTION_FILE,
-          validateInput: (value) => {
-            if (!value.trim() || !value.endsWith(".md") || path.isAbsolute(value) || value.split(/[\\/]/).includes("..")) {
-              return vscode.l10n.t("Enter a relative .md path inside the workspace.");
-            }
-            return undefined;
-          },
-        });
-      },
-      resolveTarget: (targetPath) => this.resolveWorkspacePath(targetPath),
-      read: readUri,
-      write: writeUri,
-      now: () => new Date(),
-      warn,
-      info,
-    });
     this.permissions = new PermissionService(
       ctx,
       () => this.state.folder,
@@ -438,7 +408,6 @@ export class ChatController implements vscode.Disposable {
       getFileIndex: () => this.fileIndex,
       applyCode: (text, targetPath) => this.applyCode.apply(text, targetPath),
       usePrompt: (id) => this.promptActions.usePrompt(id),
-      saveInstruction: (text) => this.promptActions.saveInstruction(text),
       fileIcons: this.fileIcons,
       diffs: this.diffs,
       workspaceState: ctx.workspaceState,
@@ -523,7 +492,6 @@ export class ChatController implements vscode.Disposable {
       catalog: this.catalog,
       sessionList: this.sessionList,
       prompts: this.prompts,
-      projectInstructions: this.projectInstructions,
       fileActions: this.fileActions,
       draftActions: this.draftActions,
       sessionService: this.sessionService,

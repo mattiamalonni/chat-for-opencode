@@ -13,7 +13,6 @@ import type { ChatDraftActions } from "./draftActions";
 import type { ChatFileActions } from "./fileActions";
 import type { ExecutionStateService } from "../executionState";
 import type { ChatLifecycle } from "../lifecycle";
-import type { ProjectInstructionService } from "../projectInstructions";
 import type { PromptLibraryService } from "../promptLibrary";
 import type { ChatSessionService } from "./sessionService";
 import type { SessionListService } from "../sessionListService";
@@ -26,7 +25,6 @@ export interface PromptActionDeps {
   catalog: CatalogService;
   sessionList: SessionListService;
   prompts: PromptLibraryService;
-  projectInstructions: ProjectInstructionService<vscode.Uri>;
   fileActions: ChatFileActions;
   draftActions: ChatDraftActions;
   sessionService: ChatSessionService;
@@ -51,10 +49,6 @@ export class ChatPromptActions {
       return;
     }
     this.d.prefillDraft(text, []);
-  }
-
-  async saveInstruction(text: string): Promise<void> {
-    await this.d.projectInstructions.save(text);
   }
 
   async compact(): Promise<void> {
