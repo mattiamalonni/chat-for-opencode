@@ -37,8 +37,12 @@ settings, see [REFERENCE.md](REFERENCE.md).
   hit and highlights its message, and the header exports the conversation as Markdown. In-chat search
   (`Cmd/Ctrl+F`) highlights matches in prompts, replies and tool cards with `F3`/`Shift+F3` navigation
   and an "N of M" counter. `Cmd/Ctrl+L` opens the session list (with its own title filter) while the chat has focus: `↑`/`↓`
-  walk the sessions, `Enter` selects one and puts focus back in the composer. Clear **error states**
-  with the action buttons (OpenCode missing, no provider, connection lost, interrupted response…).
+  walk the sessions, `Enter` selects one and puts focus back in the composer. A dot marks the state of
+  each row: green _Running_ for a turn in progress, amber _Needs your input_ for a pending approval or
+  question, and red _Failed_ / _Interrupted_ when the last turn ended badly. The three states come from
+  the session history (except the pending request, which only exists in the server's live state), and
+  the red one clears when you send the next prompt. Clear **error states** with the action buttons
+  (OpenCode missing, no provider, connection lost, interrupted response…).
 
 ## Context and files
 

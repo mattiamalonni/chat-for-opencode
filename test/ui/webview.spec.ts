@@ -2396,6 +2396,35 @@ test("session list: busy and waiting-for-input sessions show distinct indicators
   await expect(dialog.locator(".status-dot.session-busy")).toHaveCount(0);
 });
 
+test("session list: failed and interrupted sessions show a red indicator", async ({ page }) => {
+  await boot(page);
+  await page.getByRole("button", { name: new RegExp(`^${STRINGS.sessions}:`) }).click();
+  const dialog = page.getByRole("dialog", { name: STRINGS.sessions });
+  const session = dialog.locator("li").filter({ hasText: "Hello world reply" });
+
+  await host(page, {
+    type: "sessions",
+    items: [{ id: S1, title: "Hello world reply", updated: Date.now(), busy: false, needsInput: false, error: "failed" }],
+  });
+  await expect(session.locator(".status-dot.session-busy.error")).toHaveCount(1);
+  await expect(session).toContainText(STRINGS.failed);
+
+  await host(page, {
+    type: "sessions",
+    items: [{ id: S1, title: "Hello world reply", updated: Date.now(), busy: false, needsInput: false, error: "interrupted" }],
+  });
+  await expect(session.locator(".status-dot.session-busy.error")).toHaveCount(1);
+  await expect(session).toContainText(STRINGS.interrupted);
+
+  // A pending request still takes precedence over a stale error.
+  await host(page, {
+    type: "sessions",
+    items: [{ id: S1, title: "Hello world reply", updated: Date.now(), busy: false, needsInput: true, error: "failed" }],
+  });
+  await expect(session.locator(".status-dot.session-busy.waiting")).toHaveCount(1);
+  await expect(session.locator(".status-dot.session-busy.error")).toHaveCount(0);
+});
+
 test("session list: rename posts the new title", async ({ page }) => {
   await boot(page);
   await page.getByRole("button", { name: new RegExp(`^${STRINGS.sessions}:`) }).click();

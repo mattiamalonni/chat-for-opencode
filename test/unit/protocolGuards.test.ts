@@ -72,6 +72,12 @@ describe("host → webview boundary", () => {
       }),
     ).toBe(true);
     expect(isHostMessage({ type: "context", items: [{ id: "c1", kind: "file", uri: "file:///a.txt", label: "a.txt" }] })).toBe(true);
+    expect(
+      isHostMessage({
+        type: "sessions",
+        items: [{ id: "s1", title: "t", updated: 1, busy: false, needsInput: false, error: "interrupted" }],
+      }),
+    ).toBe(true);
     expect(isHostMessage({ type: "synced" })).toBe(true);
   });
 
@@ -83,6 +89,9 @@ describe("host → webview boundary", () => {
     expect(isHostMessage({ type: "revealMessage", messageId: 7 })).toBe(false);
     expect(
       isHostMessage({ type: "sessions", items: [{ id: "s1", title: "t", updated: "yesterday", busy: false, needsInput: false }] }),
+    ).toBe(false);
+    expect(
+      isHostMessage({ type: "sessions", items: [{ id: "s1", title: "t", updated: 1, busy: false, needsInput: false, error: "nope" }] }),
     ).toBe(false);
   });
 });

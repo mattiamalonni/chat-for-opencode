@@ -196,4 +196,60 @@ describe("session list summaries", () => {
     await s.refresh();
     expect(needsInputOf(post)).toBe(true);
   });
+
+  const settled = { id: "s1", title: "Session", time: { created: 1, updated: 100, idle: 100 } };
+
+  function withHistory(messages: unknown[], session: unknown = settled) {
+    const post = vi.fn();
+    const client = {
+      messages: vi.fn().mockResolvedValue(messages),
+      permissions: vi.fn().mockResolvedValue([]),
+      forms: vi.fn().mockResolvedValue([]),
+      listSessionsPage: vi.fn().mockResolvedValue({ items: [session], next: undefined }),
+    };
+    const s = new SessionListService(
+      () => client as never,
+      () => "/work",
+      () => "other",
+      new Generation(),
+      post,
+      vi.fn(),
+      () => 10,
+    );
+    return { s, client, post };
+  }
+
+  const summaryOf = (post: ReturnType<typeof vi.fn>) => {
+    const call = post.mock.calls.at(-1);
+    if (!call) throw new Error("no post call recorded");
+    return (call[0] as { items: Array<{ busy: boolean; needsInput: boolean; error?: string }> }).items[0];
+  };
+
+  it("reads the history of a settled session to find a failed turn", async () => {
+    const { s, client, post } = withHistory([{ id: "m1", type: "idle", outcome: "failed", time: { created: 100 } }]);
+    await s.refresh();
+    expect(client.messages).toHaveBeenCalledTimes(1);
+    expect(summaryOf(post)).toMatchObject({ busy: false, needsInput: false, error: "failed" });
+  });
+
+  it("reports an interrupted session whose timestamps still say busy", async () => {
+    const staleBusy = { id: "s1", title: "Session", time: { created: 1, updated: 100, busy: 100 } };
+    const { s, post } = withHistory(
+      [
+        { id: "m1", type: "user", text: "Hi", time: { created: 90 } },
+        { id: "m2", type: "assistant", time: { created: 95, completed: 100 }, content: [], error: { type: "aborted", message: "Stopped" } },
+      ],
+      staleBusy,
+    );
+    await s.refresh();
+    expect(summaryOf(post)).toMatchObject({ busy: false, error: "interrupted" });
+  });
+
+  it("keeps the cached error across event-burst refreshes", async () => {
+    const { s, client, post } = withHistory([{ id: "m1", type: "idle", outcome: "interrupted", time: { created: 100 } }]);
+    await s.refresh();
+    await s.refresh();
+    expect(client.messages).toHaveBeenCalledTimes(1);
+    expect(summaryOf(post).error).toBe("interrupted");
+  });
 });

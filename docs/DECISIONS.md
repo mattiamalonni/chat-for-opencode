@@ -189,3 +189,17 @@ session summaries carry their folder name. The active folder stays the single jo
 relative paths and the only one bound to a client/stream. Switching folders keeps the existing,
 well-tested teardown path and restores that folder's last session via its own storage key. Adding
 or removing a folder rebuilds the index instead of silently leaving stale results.
+
+## D22 — Session list status is derived from history, not from server events
+
+The three dots in the session list are produced by one classification of the last `user`/`assistant`/
+`idle` message (`sessionTurnStatus`): an `idle` outcome, an unfinished assistant, or a completed
+assistant carrying an `error`. Bookkeeping messages (compaction, notices, …) must not hide that
+terminal message, and timestamps are kept only as a fallback when history is unavailable. This keeps
+the red _Failed_ / _Interrupted_ indicator correct after a VS Code reload and when the turn ended on a
+server that never wrote its `idle` marker, and it clears naturally when the next prompt arrives — no
+separate event-driven flag can go stale. `needsInput` is the deliberate exception: pending permissions
+and forms are not messages, have ids that never appear in history, and cannot be distinguished from a
+tool that is merely running, so the amber dot still comes from the live permission/form endpoints.
+`SessionListService` therefore fetches history for every listed session but only asks for those
+endpoints when the session can have a pending request.

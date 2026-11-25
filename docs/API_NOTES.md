@@ -204,6 +204,16 @@ a _Needs your input_ badge while a child is blocked, but never renders a second 
 {type:"synthetic"|"system"|"skill"|"shell"|"agent-switched"|"model-switched"|"compaction"|…}
 ```
 
+The session list classifies the last turn from this history: scan back to the last `user`, `assistant`
+or `idle` message (bookkeeping types are ignored). An `idle` outcome is authoritative
+(`failed` → red _Failed_, `interrupted` → red _Interrupted_). Without it, an assistant message with no
+`time.completed` is still running; a completed one with `error` is red (`type:"aborted"` →
+_Interrupted_, any other type → _Failed_). Otherwise the `busy`/`idle` timestamps of `session.info`
+are the fallback. This also fixes sessions where a shutdown left `busy` newer than `idle` and no
+`idle` message was written. A new `user` message starts a fresh turn and clears the red state.
+Permissions and forms are **not** messages: the amber _Needs your input_ dot still comes from
+`GET …/permission` and `GET …/form`.
+
 ## Permissions
 
 Default config auto-allows edits/shell in a git project (no `permission.asked` was emitted for

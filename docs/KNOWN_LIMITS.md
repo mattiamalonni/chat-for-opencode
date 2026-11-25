@@ -103,6 +103,12 @@ test or a manual probe actually ran.
   approval panel docked in the modal, or from the main chat's overlay: the reply carries the child's
   session id. The inline card stays the place to follow live progress.
 
+- **The amber session-list dot needs the server's live state.** Green and red come from the session
+  history, but a pending permission or form is not a message: the server keeps it only in
+  `GET …/permission` / `GET …/form` and in its event stream. The history has the tool call (with a
+  `running` state) but neither the request id nor a reliable marker for "answered", so a tool that is
+  merely executing must not be marked as waiting. The amber dot therefore cannot be reconstructed
+  from history alone after a reload and is only shown for sessions that can have a pending request.
 - **External live updates are polled, not pushed.** A turn started in the TUI (or any other client
   that only shares the on-disk session storage) shows up in the open chat within ~2 seconds, while
   the chat is visible; when it is hidden, opening it re-syncs immediately. Only the **currently open

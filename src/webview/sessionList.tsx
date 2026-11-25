@@ -229,14 +229,25 @@ export function SessionList(props: {
                     props.onSelect?.();
                   }}
                 >
-                  {(s.busy || s.needsInput) && (
-                    <span class={`status-dot session-busy ${s.needsInput ? "waiting" : "running"}`} aria-hidden="true" />
+                  {(s.busy || s.needsInput || s.error) && (
+                    <span
+                      class={`status-dot session-busy ${s.needsInput ? "waiting" : s.error ? "error" : "running"}`}
+                      aria-hidden="true"
+                    />
                   )}
                   <span class="session-name">
                     {s.title || t("untitled")}
                     {s.folder && <span class="session-folder">{s.folder}</span>}
                   </span>
-                  <span class="session-time">{s.needsInput ? t("needsInput") : s.busy ? t("running") : relativeTime(s.updated)}</span>
+                  <span class="session-time">
+                    {s.needsInput
+                      ? t("needsInput")
+                      : s.error
+                        ? t(s.error === "interrupted" ? "interrupted" : "failed")
+                        : s.busy
+                          ? t("running")
+                          : relativeTime(s.updated)}
+                  </span>
                 </button>
                 <button
                   type="button"

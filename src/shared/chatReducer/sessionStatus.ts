@@ -17,6 +17,36 @@ export function isTerminalMessage(m: SessionMessage | undefined): boolean {
   return m !== undefined && m.type === "assistant" && m.time.completed !== undefined && m.error?.type === "aborted";
 }
 
+/** Outcome of the last turn, derived from the session history. Timestamps are only a fallback. */
+export type SessionTurnStatus = "running" | "idle" | "failed" | "interrupted";
+
+/**
+ * Classifies the last turn of a session from its history.
+ *
+ * An `idle` message is authoritative through its outcome. Without one, an unfinished assistant
+ * message means the turn is still streaming, and a completed assistant message carrying an error
+ * ends the turn as failed (or interrupted for `aborted`). Bookkeeping messages (compaction,
+ * notices, …) are ignored so they cannot hide the terminal message. A plain completed assistant
+ * message is not enough to call the turn idle: a multi-step turn has one between each step, which
+ * is why the timestamp fallback stays in place there.
+ */
+export function sessionTurnStatus(time: SessionInfo["time"], messages?: SessionMessage[]): SessionTurnStatus {
+  if (!messages) return sessionLooksBusy(time) ? "running" : "idle";
+  let last: SessionMessage | undefined;
+  for (const m of messages) {
+    if (m.type === "user" || m.type === "assistant" || m.type === "idle") last = m;
+  }
+  if (last?.type === "idle") {
+    if (last.outcome === "failed" || last.outcome === "interrupted") return last.outcome;
+    return "idle";
+  }
+  if (last?.type === "assistant") {
+    if (last.time.completed === undefined) return "running";
+    if (last.error) return last.error.type === "aborted" ? "interrupted" : "failed";
+  }
+  return sessionLooksBusy(time) ? "running" : "idle";
+}
+
 /**
  * Whether a session still has an execution running.
  *
@@ -43,16 +73,20 @@ export function sessionLooksBusy(time: SessionInfo["time"]): boolean {
 }
 
 /**
- * Builds the list entry for a session. When a history is available, a terminal message is
+ * Builds the list entry for a session. When a history is available, the last turn message is
  * authoritative: the timestamps alone can stay stale after an interrupt, which would otherwise
  * leave the session marked as running in the list even though the chat itself is idle.
+ * `needsInput` is the exception: pending permissions and forms are not messages, so it comes from
+ * the live endpoints in `SessionListService`.
  */
 export function toSessionSummary(info: SessionInfo, messages?: SessionMessage[], needsInput = false): SessionSummary {
+  const status = sessionTurnStatus(info.time, messages);
   return {
     id: info.id,
     title: info.title ?? "",
     updated: info.time.updated,
-    busy: messages ? sessionIsBusy(info.time, messages) : sessionLooksBusy(info.time),
+    busy: status === "running",
     needsInput,
+    ...(status === "failed" || status === "interrupted" ? { error: status } : {}),
   };
 }

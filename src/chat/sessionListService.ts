@@ -40,11 +40,15 @@ export class SessionListService {
   private loadingMore = false;
   private readonly forks = new Set<string>();
   /**
-   * Deep state (busy/needsInput) needs three HTTP calls per busy session. Event bursts refresh the
-   * list many times per second, so reuse a short-lived result while `time.updated` is unchanged.
+   * Deep state (busy/error from history, needsInput from the live endpoints) needs HTTP calls per
+   * session. Event bursts refresh the list many times per second, so reuse a short-lived result
+   * while `time.updated` is unchanged.
    * The open session is always fetched: it is the one the user is looking at.
    */
-  private readonly summaryCache = new Map<string, { updated: number; expires: number; busy: boolean; needsInput: boolean }>();
+  private readonly summaryCache = new Map<
+    string,
+    { updated: number; expires: number; busy: boolean; needsInput: boolean; error?: SessionSummary["error"] }
+  >();
   private readonly forkInfoCache = new Map<string, { info: SessionInfo; expires: number }>();
   /**
    * Paging has its own generation: a sessions refresh must not invalidate the pages the user is
@@ -132,15 +136,22 @@ export class SessionListService {
     const now = Date.now();
     return mapWithConcurrency(sessions, 6, async (info) => {
       const safe = normalizeSessionInfo(info) ?? info;
-      if (!client || !sessionLooksBusy(safe.time)) return this.withFolder(toSessionSummary(safe));
       const cached = this.summaryCache.get(info.id);
       if (cached && cached.updated === safe.time.updated && cached.expires > now && info.id !== this.sessionId()) {
-        return this.withFolder({ ...toSessionSummary(safe), busy: cached.busy, needsInput: cached.needsInput });
+        const summary: SessionSummary = { ...toSessionSummary(safe), busy: cached.busy, needsInput: cached.needsInput };
+        if (cached.error) summary.error = cached.error;
+        return this.withFolder(summary);
       }
+      if (!client) return this.withFolder(toSessionSummary(safe));
+      // Busy and error come from the history, so every session needs its messages — including the
+      // ones whose busy/idle timestamps look settled (a failed turn can leave them stale). The live
+      // endpoints are only needed for the pending permission/question badge, which is not part of
+      // the history; skip them when the session cannot have a pending request.
+      const deep = sessionLooksBusy(safe.time) || info.id === this.sessionId();
       const [messages, permissions, forms] = await Promise.all([
         client.messages(info.id, 2000, signal).catch(() => undefined),
-        client.permissions(info.id, signal).catch(() => []),
-        client.forms(info.id, signal).catch(() => []),
+        deep ? client.permissions(info.id, signal).catch(() => []) : [],
+        deep ? client.forms(info.id, signal).catch(() => []) : [],
       ]);
       // Auto-approved permissions never reach the user, so they must not mark the row as waiting.
       // Questions always do: they are answered by the user even with auto-approval enabled.
@@ -152,6 +163,7 @@ export class SessionListService {
         expires: Date.now() + 3000,
         busy: summary.busy,
         needsInput: summary.needsInput,
+        error: summary.error,
       });
       return this.withFolder(summary);
     });

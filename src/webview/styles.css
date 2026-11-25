@@ -364,6 +364,11 @@ details[open] > summary > .chevron,
   background: var(--vscode-charts-yellow, #cca700);
 }
 
+/* Red means the last turn ended in a failure or was interrupted. Static: nothing is in progress. */
+.session-list .status-dot.session-busy.error {
+  background: var(--vscode-charts-red, var(--vscode-testing-iconFailed, #f14c4c));
+}
+
 .empty {
   padding: 8px;
 }

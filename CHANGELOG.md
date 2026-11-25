@@ -6,6 +6,15 @@ build, CI or architecture work, condensed to one line; the reasoning lives in
 
 ## Unreleased
 
+- **User — Session list error indicator:** sessions whose last turn failed or was interrupted now show a
+  red dot (labelled _Failed_ or _Interrupted_) in the session list, next to the existing green _Running_
+  and amber _Needs your input_ indicators. The red dot comes from the session history and clears as soon
+  as a new prompt starts a turn. Amber still takes precedence when a request is pending.
+- **Internal — Session status from history:** `sessionTurnStatus` classifies the last turn from the last
+  `user`/`assistant`/`idle` message (`idle.outcome`, or an `error` on a completed assistant), ignoring
+  bookkeeping messages; `SessionListService` now fetches history for every listed session, so busy and
+  error states no longer depend on stale `busy`/`idle` timestamps. Pending permissions and forms remain
+  live because they are not messages.
 - **User — Questions stay in the chat:** a `question` tool call and its answer now remain visible in
   the conversation as a read-only card, like the assistant's prose, instead of being hidden inside a
   folded step. The data comes from the server's session history, so the card survives a VS Code reload

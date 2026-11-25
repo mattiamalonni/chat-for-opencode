@@ -14,6 +14,7 @@ import {
   sessionIsBusy,
   sessionTimeline,
   sessionLooksBusy,
+  sessionTurnStatus,
   toSessionSummary,
   type ChatState,
   type UiAssistantMessage,
@@ -759,6 +760,82 @@ describe("busy state after an interrupt", () => {
       forms: [],
     });
     expect(state.busy).toBe(false);
+  });
+});
+
+describe("session list error indicator", () => {
+  const now = 1_795_004_012_704;
+  const info = (time: SessionInfo["time"] = { created: now - 500, updated: now, busy: now - 500 }): SessionInfo => ({
+    id: "s",
+    projectID: "p",
+    cost: 0,
+    tokens: { input: 0, output: 0, reasoning: 0, cache: { read: 0, write: 0 } },
+    time,
+    title: "Chat",
+    location: { directory: "/work" },
+  });
+  const user: SessionMessage = { id: "u1", type: "user", text: "Hello", time: { created: now - 500 } };
+  const assistant = (error?: { type: string; message: string }): SessionMessage => ({
+    id: "a1",
+    type: "assistant",
+    agent: "build",
+    model: { id: "m", providerID: "p" },
+    time: { created: now - 400, completed: now },
+    content: [],
+    error,
+  });
+
+  it("uses the idle outcome for failed and interrupted turns", () => {
+    expect(toSessionSummary(info(), [user, { id: "i1", type: "idle", outcome: "failed", time: { created: now } }]).error).toBe("failed");
+    expect(toSessionSummary(info(), [user, { id: "i1", type: "idle", outcome: "interrupted", time: { created: now } }]).error).toBe(
+      "interrupted",
+    );
+    expect(
+      toSessionSummary(info(), [user, { id: "i1", type: "idle", outcome: "succeeded", time: { created: now } }]).error,
+    ).toBeUndefined();
+  });
+
+  it("recognizes an aborted assistant with no idle marker, even with stale busy timestamps", () => {
+    const summary = toSessionSummary(info({ created: now - 500, updated: now, busy: now }), [
+      user,
+      assistant({ type: "aborted", message: "Step interrupted" }),
+    ]);
+    expect(summary.busy).toBe(false);
+    expect(summary.error).toBe("interrupted");
+  });
+
+  it("recognizes a generic error on the last completed assistant message", () => {
+    expect(toSessionSummary(info(), [user, assistant({ type: "provider", message: "rate limited" })]).error).toBe("failed");
+  });
+
+  it("ignores an older error once a new prompt started the next turn", () => {
+    const summary = toSessionSummary(info({ created: now - 500, updated: now + 10, busy: now + 10 }), [
+      user,
+      assistant({ type: "provider", message: "rate limited" }),
+      { id: "u2", type: "user", text: "Retry", time: { created: now + 10 } },
+    ]);
+    expect(summary.busy).toBe(true);
+    expect(summary.error).toBeUndefined();
+  });
+
+  it("ignores trailing bookkeeping messages after the terminal one", () => {
+    const summary = toSessionSummary(info(), [
+      user,
+      { id: "i1", type: "idle", outcome: "failed", time: { created: now } },
+      { id: "c1", type: "compaction", time: { created: now + 1 } },
+    ]);
+    expect(summary.error).toBe("failed");
+  });
+
+  it("leaves running and successful sessions without an error", () => {
+    expect(toSessionSummary(info(), [user, { ...assistant(), time: { created: now - 400 } }]).error).toBeUndefined();
+    expect(toSessionSummary(info(), [user, assistant()]).error).toBeUndefined();
+  });
+
+  it("falls back to the timestamps when the history is unavailable", () => {
+    expect(sessionTurnStatus(info().time)).toBe("running");
+    expect(sessionTurnStatus({ ...info().time, idle: now + 1 })).toBe("idle");
+    expect(toSessionSummary(info()).error).toBeUndefined();
   });
 });
 
