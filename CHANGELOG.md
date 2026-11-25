@@ -52,6 +52,8 @@ build, CI or architecture work, condensed to one line; the reasoning lives in
   generator now formats through Oxfmt's API instead of Prettier's.
 - **Internal — Bundle:** esbuild now emits UTF-8 characters directly instead of `\uXXXX` escapes in
   the extension and both webview bundles, saving ~260 KB from the minified `extension.mjs`.
+- **Internal — Packaging:** the generated `.vscodeignore` allow-list now covers every platform variant
+  declared by the SDK's optional dependencies, so the release gate passes on macOS, Linux and Windows.
 
 ## 0.3.26 — 2026-11-24
 

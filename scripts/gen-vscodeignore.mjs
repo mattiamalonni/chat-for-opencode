@@ -35,17 +35,38 @@ function readdirSafe(dir) {
   }
 }
 
+/**
+ * Platform packages are optional dependencies: npm installs only the variant for the current OS,
+ * so the installed tree alone cannot describe the allow-list. Read the declarations instead, which
+ * are identical on every platform, and keep the generated file stable across macOS/Linux/Windows.
+ */
+function declaredOptionalPackages(installed) {
+  const names = new Set();
+  for (const name of installed) {
+    try {
+      const manifest = JSON.parse(readFileSync(require.resolve(`${name}/package.json`), "utf8"));
+      for (const dep of Object.keys(manifest.optionalDependencies ?? {})) names.add(dep);
+    } catch {
+      // A package without a readable manifest cannot declare anything.
+    }
+  }
+  return [...names];
+}
+
 const installed = installedPackages();
-const roots = EXTERNAL_MODULES.flatMap((p) => expandPattern(p, installed));
+const candidates = [...new Set([...installed, ...declaredOptionalPackages(installed)])];
+const roots = EXTERNAL_MODULES.flatMap((p) => expandPattern(p, candidates));
 const seen = new Set();
 const dirs = new Set();
 
-function visit(name) {
+function visit(name, fromRoot = false) {
   if (seen.has(name)) return;
   let manifest;
   try {
     manifest = require.resolve(`${name}/package.json`);
   } catch {
+    // An external platform package that npm did not install here: still allow it when present.
+    if (fromRoot) dirs.add(name);
     return;
   }
   seen.add(name);
@@ -58,7 +79,7 @@ function visit(name) {
   for (const dep of Object.keys(pkg.dependencies ?? {})) visit(dep);
 }
 
-roots.forEach(visit);
+roots.forEach((name) => visit(name, true));
 
 const lines = [begin, ...[...dirs].sort().map((d) => `!node_modules/${d}/**`), end].join("\n");
 const file = join(root, ".vscodeignore");
