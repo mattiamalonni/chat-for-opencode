@@ -96,53 +96,9 @@ build, CI or architecture work, condensed to one line; the reasoning lives in
   opened, even though the request was granted automatically and the agent carried on. Questions still
   show it, because they always need an answer.
 
-## 0.3.25 — 2026-11-24
-
-- **User — External approvals:** a permission or question raised by a turn started in another client
-  on the same server (for example the TUI) now appears in the approval panel, labelled with its
-  session title, and can be answered from the extension. Previously those requests were dropped
-  because their session was neither open nor a tracked subagent; the reply has always addressed the
-  request's own session.
-- **User — Subagents:** the conversation modal is no longer read-only. Its compact composer replies to
-  the child session (`Enter` queues while it works, `Ctrl/Cmd+Enter` sends now) and **Stop** interrupts
-  that child; the parent chat keeps its own session and draft. `send`/`abort` now accept an explicit
-  `sessionId`, so commands can address a session other than the open one.
-- **User — Steps:** `edit`, `read` and `write` calls now render as a single line: status, action, file icon, name and path,
-  with the diff counts pushed to the right. The tool header and the changed-file row are merged, so the file is no
-  longer shown twice; clicking the file name opens it, the counts open the diff, and the rest of the row folds the
-  details. Extra files and the raw input/output remain in those details.
-- **User — Fix:** clicking a step's file name opens it even when it lives outside the opened folders. The click is the
-  explicit consent; file references in chat prose still go through the workspace-only guard.
-- **User — Connect:** new **OpenCode: Connect Provider…** panel, a graphical equivalent of `/connect`,
-  replaces the terminal hand-off for sign-in. Click a provider card to sign in with an API key (including
-  provider-specific forms), browser OAuth, a sign-in command or external credentials. Environment-variable
-  methods are hidden because they must be set on the server process. Saved accounts are listed at the top
-  (active first) and can be activated, renamed or removed; one-method providers skip the method picker.
-- **User — Consistency:** the status bar tooltip and **OpenCode: Account** now list every saved provider
-  account from the same server API as the Connect panel, instead of showing only the built-in OpenCode login.
-  Signing in or switching accounts keeps the chat connected and refreshes its model list; the Connect
-  code screen closes by itself when the browser flow finishes.
-- **Internal — Connect:** added integration/credential endpoints and client methods, a dedicated webview
-  bundle with validated host/webview protocols, cancellation of in-flight requests when the panel closes,
-  and tests (unit, UI, integration). Fixed `.vscodeignore` so the new `connect.js`/`connect.css` bundles are
-  included in the VSIX.
-
-- **User — Shortcut:** `Cmd/Ctrl+L` toggles the in-chat session list while the chat has focus (instead
-  of VS Code's Expand Line Selection). `↑`/`↓` walk the sessions from the filter field, `Enter`
-  selects one and focus returns to the composer; `Esc` or the shortcut closes the list. `Cmd/Ctrl+M`
-  opens the model picker from the chat, and choosing a model leaves focus in the composer.
-- **User — Focus:** selecting a session from a search hit (`Cmd/Ctrl+Alt+F`) leaves focus in the
-  composer, ready for the next prompt.
-- **User — Removed:** the **OpenCode: Focus Chat** (`Cmd/Ctrl+Alt+O`) and **OpenCode: Ask OpenCode…**
-  (`Cmd/Ctrl+Alt+Shift+O`) commands are gone. The status bar icons and the walkthrough now focus the
-  chat view directly; the composer is still reachable by clicking it or using the OpenCode view icon.
-- **User — Removed:** **OpenCode: Quick Switch Session** (`Cmd/Ctrl+Alt+L`) and its recent-session
-  picker are gone. Switch conversations from the session list in the chat (`Cmd/Ctrl+L`) or search
-  all conversations with `Cmd/Ctrl+Alt+F`.
-
 ## Older releases
 
-Releases before 0.3.25 are documented in [GitHub Releases](https://github.com/mattiamalonni/chat-for-opencode/releases).
+Releases before 0.3.26 are documented in [GitHub Releases](https://github.com/mattiamalonni/chat-for-opencode/releases).
 At tag time each release's notes were generated from this file, so no history was lost when the
 older sections were retired. The release workflow still needs the `## X.Y.Z — date` section of the
 version being published; see [docs/RELEASING.md](docs/RELEASING.md).
