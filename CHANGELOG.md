@@ -21,6 +21,9 @@ build, CI or architecture work, condensed to one line; the reasoning lives in
 - **User — Fix:** sessions persist across VS Code reloads again. `OpenCode.create()` defaults to an
   in-memory database; the embedded host now points at OpenCode's real global database, so history is
   kept and remains visible to the CLI/TUI. Covered by a new e2e test that closes and recreates a host.
+- **Internal — Tooling:** ESLint and Prettier were replaced by Oxlint and Oxfmt (`oxlint.config.ts`,
+  `oxfmt.config.ts`); the `lint`, `format` and `format:check` scripts keep their names and the docs
+  generator now formats through Oxfmt's API instead of Prettier's.
 
 ## 0.3.26 — 2026-11-24
 
