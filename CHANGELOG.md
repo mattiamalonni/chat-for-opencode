@@ -125,21 +125,9 @@ build, CI or architecture work, condensed to one line; the reasoning lives in
   picker are gone. Switch conversations from the session list in the chat (`Cmd/Ctrl+L`) or search
   all conversations with `Cmd/Ctrl+Alt+F`.
 
-## 0.3.24 — 2026-11-24
-
-- **User — Fix:** an empty model list from OpenCode 2.4's lazily booted providers no longer produces
-  an immediate "No model provider is configured" error. The extension retries the catalog a few
-  times before treating it as a real setup problem, so the chat connects as soon as the server's
-  model snapshot settles.
-- **User — Version banner:** dismissing the untested-version warning now sticks for the whole minor
-  series (e.g. 2.4.x), not just the exact patch release that was running when you dismissed it.
-- **User — OpenCode 2.4.0:** the supported server version, OpenAPI snapshot and generated wire types
-  are now based on 2.4.0. The contract is additive over 2.3.0 for the endpoints the extension uses;
-  servers on another minor still show the dismissible version banner.
-
 ## Older releases
 
-Releases before 0.3.24 are documented in [GitHub Releases](https://github.com/mattiamalonni/chat-for-opencode/releases).
+Releases before 0.3.25 are documented in [GitHub Releases](https://github.com/mattiamalonni/chat-for-opencode/releases).
 At tag time each release's notes were generated from this file, so no history was lost when the
 older sections were retired. The release workflow still needs the `## X.Y.Z — date` section of the
 version being published; see [docs/RELEASING.md](docs/RELEASING.md).
