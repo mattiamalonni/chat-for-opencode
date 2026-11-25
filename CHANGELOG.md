@@ -123,20 +123,9 @@ build, CI or architecture work, condensed to one line; the reasoning lives in
   are now based on 2.4.0. The contract is additive over 2.3.0 for the endpoints the extension uses;
   servers on another minor still show the dismissible version banner.
 
-## 0.3.23 — 2026-11-23
-
-- **User — Removed:** the on-demand context sources (`problems`, `git`, `terminal`, `openEditors`,
-  `symbol`) are gone: no `#` picker, no **Add context** button, no inline content chips, and no
-  `contextSources` / `addContextSource` / `removeContextSource` messages. The `$diff` and `$problems`
-  prompt variables still work — they are resolved directly into the prompt text. `@` remains the
-  trigger for workspace files, and `/` for skills, prompts and commands.
-- **User — UI:** the **Changed files** panel now starts folded. Its header, file totals and actions stay
-  visible, but the file list is revealed only when you open it, and your choice is kept while the chat
-  re-renders.
-
 ## Older releases
 
-Releases before 0.3.23 are documented in [GitHub Releases](https://github.com/mattiamalonni/chat-for-opencode/releases).
+Releases before 0.3.24 are documented in [GitHub Releases](https://github.com/mattiamalonni/chat-for-opencode/releases).
 At tag time each release's notes were generated from this file, so no history was lost when the
 older sections were retired. The release workflow still needs the `## X.Y.Z — date` section of the
 version being published; see [docs/RELEASING.md](docs/RELEASING.md).
