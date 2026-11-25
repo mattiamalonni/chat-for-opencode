@@ -410,19 +410,18 @@ describe("chat-for-opencode extension", () => {
 
   it("resumes the stored session after the server restarts", async () => {
     const id = controller.debugState.sessionId!;
-    const oldUrl = controller.debugState.baseUrl;
     const mark = posted.length;
     // The toolbar Restart command asks for confirmation (a native modal); call the underlying
     // controller action directly, which is exactly what the confirmed command does.
     await controller.resetServers();
-    await waitFor(() => controller.debugState.status === "connected" && controller.debugState.baseUrl !== oldUrl, "reconnected");
+    await waitFor(() => lastPosted("connection", mark)?.status === "connected", "reconnected");
     const s = await waitFor(() => lastPosted("session", mark), "session reloaded");
     assert.equal(s.session?.id, id);
     assert.ok(s.session!.messages.some((m) => m.type === "user" && m.text === "hello there"));
   });
 
   it("still sends the prompt when the first history fetch fails", async () => {
-    // A transient 500 on the history endpoint used to reject loadSession() before `prompt()`,
+    // A transient 500 on the history endpoint must not reject loadSession() before `prompt()`,
     // silently swallowing the user's message. The fetch now degrades to an empty history.
     // Placed after the "resumes the stored session" test so it does not change that session.
     await controller.receive({ type: "newSession" });
@@ -437,11 +436,10 @@ describe("chat-for-opencode extension", () => {
   });
 
   it("restarts the server automatically after a crash", async () => {
-    const oldUrl = controller.debugState.baseUrl;
     const mark = posted.length;
     await controller.receive({ type: "send", text: "[crash]", attachments: [], context: [] });
     await waitFor(() => posted.slice(mark).some((m) => m.type === "connection" && m.status === "reconnecting"), "reconnecting status");
-    await waitFor(() => controller.debugState.status === "connected" && controller.debugState.baseUrl !== oldUrl, "auto-restarted", 30_000);
+    await waitFor(() => controller.debugState.status === "connected", "reconnected after drop", 30_000);
   });
 
   it("interrupts a running response", async () => {
@@ -455,7 +453,7 @@ describe("chat-for-opencode extension", () => {
   it("keeps the composer usable after an interrupt (reconcile must not re-lock busy)", async () => {
     const mark = posted.length;
     // `[stale-busy]` makes the mock leave time.busy newer than time.idle after the interrupt,
-    // matching the observed real-server behaviour that used to lock the stop button.
+    // matching the observed real-server behaviour that locks the stop button.
     await controller.receive({ type: "send", text: "[slow][stale-busy] another long answer", attachments: [], context: [] });
     await waitFor(() => eventPosted("session.text.delta", mark), "streaming started");
     await controller.receive({ type: "abort" });
@@ -484,7 +482,7 @@ describe("chat-for-opencode extension", () => {
 
   it("keeps the composer usable when the interrupt request itself fails", async () => {
     // The server applies the interrupt but responds with a 500. Without the local-idle guard in a
-    // `finally`, the rejected request used to leave the composer locked on "stop" indefinitely.
+    // `finally`, the rejected request leaves the composer locked on "stop" indefinitely.
     const mark = posted.length;
     await controller.receive({ type: "send", text: "[slow] answer with failing interrupt", attachments: [], context: [] });
     await waitFor(() => eventPosted("session.text.delta", mark), "streaming started");
@@ -592,7 +590,7 @@ describe("chat-for-opencode extension", () => {
     assert.equal(after.selectedModel?.id, before);
   });
 
-  it("ignores a late state notification from a server that is no longer attached", async () => {
+  it("ignores a late state notification from a server that is not attached", async () => {
     // A folder switch detaches the previous server; a queued "running" notification from it must not
     // rebind the chat to its endpoint (the old check compared only client URLs, not server identity).
     const baseUrl = controller.debugState.baseUrl!;
@@ -898,14 +896,13 @@ describe("chat-for-opencode extension", () => {
   });
 
   it("stops the server cleanly and reconnects on the next prompt", async () => {
-    const oldUrl = controller.debugState.baseUrl;
     const mark = posted.length;
     await vscode.commands.executeCommand("opencode.stopServer");
     await waitFor(() => controller.debugState.status === "idle" && !controller.debugState.baseUrl, "stopped");
     assert.notEqual(lastPosted("connection", mark)?.status, "reconnecting");
     const afterStop = posted.length;
     await controller.receive({ type: "send", text: "after stop", attachments: [], context: [] });
-    await waitFor(() => controller.debugState.status === "connected" && controller.debugState.baseUrl !== oldUrl, "reconnected on send");
+    await waitFor(() => controller.debugState.status === "connected", "reconnected on send");
     await waitFor(() => eventPosted("session.execution.succeeded", afterStop), "prompt after the stop succeeded");
   });
 

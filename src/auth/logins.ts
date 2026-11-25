@@ -12,7 +12,7 @@ export type AuthMenuItem = vscode.QuickPickItem & { id?: string; integrationID?:
 
 /**
  * Both the status bar and the Account picker use this projection of `GET /api/credential`, the same
- * source as the Connect panel. Reading the CLI's `auth list --format json` here used to hide every
+ * source as the Connect panel. Reading the CLI's `auth list --format json` here hides every
  * provider except the built-in `opencode` one, so the two views could disagree.
  */
 export function toAuthItems(credentials: CredentialSummary[]): AuthQuickPickItem[] {

@@ -1,7 +1,7 @@
 /**
  * Routes normalized server events to the chat's state owners.
  *
- * This used to be a 140-line block in `ChatController`, mixing subagent bookkeeping, inbox scheduling,
+ * A dedicated router separates subagent bookkeeping, inbox scheduling,
  * turn lifecycle, notifications and picker refreshes. The hooks below are the whole boundary: the
  * router knows *what* an event means, the controller owns *how* each side effect is performed. Unit
  * tests can therefore drive the router with fakes instead of a VS Code host.

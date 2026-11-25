@@ -69,7 +69,7 @@ export class ChatController implements vscode.Disposable {
   private readonly bulkDelete: ChatBulkDelete;
   /** All live chats and their listeners; see views.ts. */
   private readonly chatViews: ChatViews;
-  /** Server process, HTTP client and SSE stream ownership; see connectionSupervisor.ts. */
+  /** SDK host, generated client and event-stream ownership; see connectionSupervisor.ts. */
   private readonly supervisor: ConnectionSupervisor;
   /** Server-provided catalog and the user's model/agent selection. */
   private readonly catalog: CatalogService;
@@ -156,8 +156,7 @@ export class ChatController implements vscode.Disposable {
         this.externalAttention.reset();
       },
       toUiError: (err, fallback) => {
-        // Child-process output is diagnostic-only: redacted by the server, capped, and written here
-        // instead of being forwarded to the webview as an error detail.
+        // SDK host diagnostics are written here only, never forwarded to the webview.
         if (err instanceof ServerError && err.logDetail) output.warn(`[server] ${err.logDetail}`);
         return toUiError(err, fallback);
       },
@@ -822,9 +821,9 @@ export class ChatController implements vscode.Disposable {
   // ---- connection -------------------------------------------------------------------------
 
   /**
-   * An untrusted workspace must never start a configurable executable or read stored credentials.
-   * VS Code returns restricted configuration defaults there, but `ensure()` would still spawn the
-   * default `opencode` binary, so the gate belongs before any server/secret access.
+   * An untrusted workspace must never create an OpenCode host or read stored credentials.
+   * VS Code returns restricted configuration defaults there, so the gate belongs before any
+   * host/secret access.
    */
   private trustBlocked(): boolean {
     return !vscode.workspace.isTrusted;
@@ -960,7 +959,7 @@ export class ChatController implements vscode.Disposable {
 
   async dispose(): Promise<void> {
     // Use the hard detach: `detachServerOnly()` left `connecting` alive, so a `server.ensure()` still
-    // in flight could complete after teardown, pass its stale check and open a fresh SSE stream +
+    // in flight could complete after teardown, pass its stale check and open a fresh event stream +
     // poll interval against a disposed controller. The hard path bumps the connect generation.
     this.connectionService.invalidateConnection();
     await this.attachments.dispose();

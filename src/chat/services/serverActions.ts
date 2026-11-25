@@ -30,9 +30,7 @@ export class ChatServerActions {
     ).baseUrl;
     if (!endpoint) {
       void vscode.window.showInformationMessage(
-        vscode.l10n.t(
-          "A password is only needed for an external server (setting opencode.endpoint). The managed server uses a random password automatically.",
-        ),
+        vscode.l10n.t("A password is only needed for an external server (setting opencode.endpoint). The bundled host needs none."),
       );
       return;
     }
@@ -48,24 +46,23 @@ export class ChatServerActions {
   }
 
   /**
-   * First-run help. A bare docs link used to be a dead end: now the command is visible and
-   * copyable, Windows users get platform-specific instructions, and the retry stays in the flow.
+   * First-run help: settings, logs and retry stay in the same flow.
    */
   private async install(): Promise<void> {
-    const isWindows = process.platform === "win32";
-    const command = "curl -fsSL https://opencode.ai/v2/install | bash";
-    const copy = vscode.l10n.t("Copy install command");
-    const docs = vscode.l10n.t("Open install instructions");
+    const settings = vscode.l10n.t("Open settings");
+    const logs = vscode.l10n.t("Show logs");
     const retry = vscode.l10n.t("Retry connection");
-    const message = isWindows
-      ? vscode.l10n.t(
-          "OpenCode is not installed or is not on PATH. Follow the Windows install instructions (PowerShell or WSL), then retry.",
-        )
-      : vscode.l10n.t("OpenCode is not installed or is not on PATH. Install it, then retry.\n\n{0}", command);
-    const choice = await vscode.window.showInformationMessage(message, { modal: true }, ...(isWindows ? [] : [copy]), docs, retry);
-    if (choice === copy) await vscode.env.clipboard.writeText(command);
-    else if (choice === docs) await vscode.env.openExternal(vscode.Uri.parse("https://opencode.ai/docs/#installation"));
-    else if (choice === retry) await this.d.reconnect();
+    const message = vscode.l10n.t(
+      "OpenCode is bundled with this extension (no CLI or server is needed). To connect to your own server instead, set opencode.endpoint. Check the logs if the bundled host failed to start.",
+    );
+    const choice = await vscode.window.showInformationMessage(message, { modal: true }, settings, logs, retry);
+    if (choice === settings) {
+      await vscode.commands.executeCommand("workbench.action.openSettings", "@ext:mattiamalonni.chat-for-opencode");
+    } else if (choice === logs) {
+      this.d.output.show(true);
+    } else if (choice === retry) {
+      await this.d.reconnect();
+    }
   }
 
   /** Sign-in is a prerequisite, not a side quest: open the dedicated provider panel. */
@@ -104,7 +101,7 @@ export class ChatServerActions {
         const failed = d.state.failedPrompt;
         if (!failed) return;
         if (await d.send(failed.text, failed.attachments, failed.context, failed.delivery)) {
-          // The restored text is no longer needed: clear it from both the composer and storage.
+          // Clear the restored text from both the composer and storage.
           if (failed.sessionId) await d.saveDraft(failed.sessionId, "").catch(() => undefined);
           d.post({ type: "draftRestored", sessionId: failed.sessionId, text: "", force: true });
         }

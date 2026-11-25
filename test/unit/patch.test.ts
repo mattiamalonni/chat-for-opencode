@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { applyPatch, hunksSides, parseHunks, sidesFromPatch } from "../../src/shared/patch";
 
-// Real patches recorded from opencode serve 2.2.7.
+// Real patches recorded from OpenCode 2.2.7.
 const TOOL_PATCH =
   "Index: a.txt\n===================================================================\n--- a.txt\n+++ a.txt\n@@ -1,1 +1,1 @@\n-a\n+b\n";
 const GIT_PATCH = "diff --git a/a.txt b/a.txt\nindex 7898192..6178079 100644\n--- a/a.txt\n+++ b/a.txt\n@@ -1 +1 @@\n-a\n+b\n";

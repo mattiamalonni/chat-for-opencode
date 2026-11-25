@@ -47,7 +47,7 @@ type StepPiece = { kind: "prose" | "details"; item: ConversationItem };
 /**
  * Splits one step into always-visible prose and collapsible thoughts/tools, keeping their real
  * order. The model usually thinks before it speaks, but a reasoning part can also arrive *after*
- * a text part in the same assistant message; grouping all thoughts first used to move that late
+ * a text part in the same assistant message; grouping all thoughts first moves that late
  * thought above the sentence it followed (visible until the next part re-rendered the step).
  */
 function splitStep(items: ConversationItem[]): StepPiece[] {

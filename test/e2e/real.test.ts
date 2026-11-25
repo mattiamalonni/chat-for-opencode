@@ -1,5 +1,5 @@
-/* End-to-end test against a real `opencode serve` (OpenCode v2).
- * Skipped automatically when `opencode` is not installed or no model provider is configured.
+/* End-to-end test against the real embedded OpenCode SDK host.
+ * Individual model tests skip themselves when no provider is configured.
  * Model selection: OC_E2E_MODEL="provider/model" or the first free OpenCode model.
  */
 import { execFileSync } from "node:child_process";
@@ -10,23 +10,14 @@ import { pathToFileURL } from "node:url";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { OpenCodeClient } from "../../src/client/http";
 import { EventStream } from "../../src/client/sse";
+import { createHost, makeNetworkApi } from "../../src/sdk/bridge";
+import { setSdkBridge } from "../../src/sdk/loader";
 import { ManagedServer } from "../../src/server/server";
 import type { ModelRef, ServerEvent } from "../../src/shared/api";
 import { chatReducer, initialChatState, type ChatState, type UiAssistantMessage } from "../../src/shared/chatReducer";
 import { applyPatch } from "../../src/shared/patch";
 
-function hasOpencode(): boolean {
-  try {
-    execFileSync("opencode", ["--version"], { stdio: "pipe" });
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-const available = hasOpencode();
-
-describe.skipIf(!available)("real opencode serve", () => {
+describe("embedded OpenCode SDK", () => {
   let dir: string;
   let server: ManagedServer;
   let client: OpenCodeClient;
@@ -41,17 +32,14 @@ describe.skipIf(!available)("real opencode serve", () => {
     writeFileSync(join(dir, "lines.txt"), "alpha\nbravo\ncharlie\n");
     execFileSync("git", ["add", "."], { cwd: dir });
     execFileSync("git", ["-c", "user.email=e2e@test", "-c", "user.name=e2e", "commit", "-qm", "init"], { cwd: dir });
-    server = new ManagedServer({
-      folder: dir,
-      executable: "opencode",
-      startupTimeoutMs: 30_000,
-      autoRestart: false,
-      log: () => {},
-      recordsDir: mkdtempSync(join(tmpdir(), "oc-e2e-records-")),
-    });
+    setSdkBridge({ createHost, makeNetworkApi });
+    server = new ManagedServer({ folder: dir, log: () => {} });
     const conn = await server.ensure();
-    client = new OpenCodeClient(conn);
-    stream = new EventStream({ url: client.eventUrl(), headers: client.headers(), onEvent: (e) => events.push(e) });
+    client = OpenCodeClient.create(conn);
+    stream = new EventStream({
+      subscribe: (onEvent, onClose, signal) => client.subscribe(onEvent, onClose, signal),
+      onEvent: (e) => events.push(e),
+    });
     stream.start();
     const models = await client.models();
     const wanted = process.env.OC_E2E_MODEL;
@@ -64,9 +52,8 @@ describe.skipIf(!available)("real opencode serve", () => {
 
   afterAll(async () => {
     stream?.close();
-    const pid = server?.pid;
     await server?.dispose();
-    if (pid) expect(() => process.kill(pid, 0)).toThrow();
+    setSdkBridge(undefined);
   });
 
   async function waitForEvent(sessionId: string, types: string[], from: number, timeoutMs = 120_000): Promise<ServerEvent> {
@@ -169,5 +156,23 @@ describe.skipIf(!available)("real opencode serve", () => {
     expect((await client.listSessions(dir)).some((s) => s.id === session.id)).toBe(true);
     await client.deleteSession(session.id);
     expect((await client.listSessions(dir)).some((s) => s.id === session.id)).toBe(false);
+  });
+
+  it("keeps sessions when the host is closed and recreated with the same database", async () => {
+    const db = join(mkdtempSync(join(tmpdir(), "oc-e2e-db-")), "opencode.db");
+    const id = "ses_e2e_persist";
+    const first = await createHost({ databasePath: db });
+    try {
+      await first.session.create({ id, location: { directory: dir } });
+    } finally {
+      await first.close?.();
+    }
+    const second = await createHost({ databasePath: db });
+    try {
+      const list = await second.session.list({ directory: dir, limit: 50 });
+      expect(list.data.map((s) => s.id)).toContain(id);
+    } finally {
+      await second.close?.();
+    }
   });
 });

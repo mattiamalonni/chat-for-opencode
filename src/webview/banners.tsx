@@ -84,8 +84,8 @@ export function SetupWelcome({ error }: { error: UiError }) {
     },
     {
       label: t("setupInstall"),
-      done: error.kind !== "notInstalled" && error.kind !== "startFailed",
-      action: error.kind === "notInstalled" || error.kind === "startFailed" ? "install" : undefined,
+      done: error.kind !== "startFailed",
+      action: error.kind === "startFailed" ? "install" : undefined,
     },
     {
       label: t("setupProvider"),

@@ -1,6 +1,5 @@
 import * as vscode from "vscode";
 import { ApiError } from "../../client/http";
-import { DEFAULT_STARTUP_TIMEOUT_MS } from "../../shared/constants";
 import type { SessionMessage } from "../../shared/api";
 import type { UiError, UiErrorKind } from "../../shared/protocol";
 import { STRINGS, type Strings } from "../../shared/strings";
@@ -13,8 +12,8 @@ export const MAX_DELETE_PAGES = 100;
 export const MAX_DELETE_IDS = 10_000;
 
 /**
- * How often an open session is re-read from history. The SSE stream only carries events from the
- * server process we connected to: a prompt typed in the TUI (or any other client sharing the
+ * How often an open session is re-read from history. The event stream only carries events from the
+ * host we connected to: a prompt typed in the TUI (or any other client sharing the
  * on-disk session storage) never reaches it, so history is the only way to see it live.
  */
 export const LIVE_POLL_MS = 2000;
@@ -46,7 +45,6 @@ export class ServerRegistry implements vscode.Disposable {
   constructor(
     private readonly secrets: vscode.SecretStorage,
     private readonly log: (line: string) => void,
-    private readonly recordsDir: string,
   ) {}
 
   get(folder: vscode.WorkspaceFolder): ServerHandle {
@@ -65,11 +63,7 @@ export class ServerRegistry implements vscode.Disposable {
           })
         : new ManagedServer({
             folder: folder.uri.fsPath,
-            executable: cfg.get<string>("executablePath", "opencode").trim() || "opencode",
-            startupTimeoutMs: cfg.get<number>("startupTimeout", DEFAULT_STARTUP_TIMEOUT_MS),
-            autoRestart: cfg.get<boolean>("autoRestart", true),
             log: this.log,
-            recordsDir: this.recordsDir,
           });
       this.servers.set(key, server);
     }
@@ -91,13 +85,6 @@ export function toUiError(err: unknown, fallback: UiErrorKind = "requestFailed")
   const s = translatedStrings();
   if (err instanceof ServerError) {
     switch (err.kind) {
-      case "notInstalled":
-        return {
-          kind: "notInstalled",
-          message: s["error.notInstalled"],
-          detail: err.detail ?? err.message,
-          actions: ["install", "openSettings", "showLogs"],
-        };
       case "unauthorized":
         return { kind: "unauthorized", message: s["error.unauthorized"], detail: err.message, actions: ["setPassword", "openSettings"] };
       case "unreachable":

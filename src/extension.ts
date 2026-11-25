@@ -1,11 +1,11 @@
-import * as path from "node:path";
 import * as vscode from "vscode";
 import { registerCommands } from "./commands";
 import { ChatController, ServerRegistry } from "./chat/controller";
 import { DIFF_SCHEME, DiffService } from "./chat/diff";
 import { ChatViewProvider } from "./chat/viewProvider";
+import { createHost, makeNetworkApi } from "./sdk/bridge";
+import { setSdkBridge } from "./sdk/loader";
 import { ConnectController } from "./connect/controller";
-import { cleanupOrphanServers } from "./server/orphans";
 import { createAccountStatus } from "./status/account";
 import { createUsageStatus } from "./status/usage";
 
@@ -17,14 +17,12 @@ export interface ExtensionApi {
 }
 
 export function activate(context: vscode.ExtensionContext): ExtensionApi {
+  if (!process.env.OC_SDK_BRIDGE_MODULE) setSdkBridge({ createHost, makeNetworkApi });
   const output = vscode.window.createOutputChannel("OpenCode", { log: true });
   const log = (line: string) => output.info(line);
   const logError = (line: string) => output.error(line);
-  const recordsDir = path.join(context.globalStorageUri.fsPath, "servers");
-  // A server whose extension host died (VS Code crash) cannot clean up after itself. Reap it
-  // before starting any new one, but leave servers owned by other live VS Code windows alone.
-  void cleanupOrphanServers(recordsDir, log);
-  registry = new ServerRegistry(context.secrets, log, recordsDir);
+  // OpenCode runs in this process through the bundled SDK; there is no child server process.
+  registry = new ServerRegistry(context.secrets, log);
   const diffs = new DiffService((line) => output.warn(line));
   controller = new ChatController(context, registry, diffs, output);
   const chat = controller;
@@ -51,8 +49,8 @@ export function activate(context: vscode.ExtensionContext): ExtensionApi {
     account.item,
     chat.onDidPost((msg) => {
       usage.onMessage(msg);
-      // The account tooltip now uses the same server API as the Connect panel. Refresh it once the
-      // chat has a live client, without starting a server just to populate a status bar.
+      // The account tooltip uses the same server API as the Connect panel. Refresh it once the
+      // chat has a live client, without creating a host just to populate a status bar.
       if (msg.type === "connection" && msg.status === "connected") void account.loadLogins();
     }),
     vscode.workspace.onDidChangeConfiguration((e) => usage.onConfigurationChanged(e)),

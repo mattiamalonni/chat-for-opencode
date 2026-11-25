@@ -1,299 +1,193 @@
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { ApiError, OpenCodeClient } from "../../src/client/http";
-import { startMockServer, type MockServer } from "../mock/mockServer";
+import { describe, expect, it, vi } from "vitest";
+import { OpenCodeClient, type Connection } from "../../src/client/http";
+import type { SdkHost } from "../../src/sdk/bridge";
 
-describe("OpenCodeClient against the mock server", () => {
-  let mock: MockServer;
-  let client: OpenCodeClient;
-  beforeEach(async () => {
-    mock = await startMockServer({ password: "secret", directory: "/work" });
-    client = new OpenCodeClient({ baseUrl: mock.url, password: "secret" });
-  });
-  afterEach(() => mock.close());
+/** Builds a Connection backed by a fake generated client: no HTTP, no SDK bundle in unit tests. */
+function connection(api: Record<string, unknown>): Connection {
+  return { key: "test", embedded: true, baseUrl: "in-process", api: api as unknown as SdkHost };
+}
 
-  it("sends Basic auth with the fixed username 'opencode'", async () => {
-    expect((await client.info()).version).toBe("2.4.0-mock");
-    const bad = new OpenCodeClient({ baseUrl: mock.url, password: "wrong" });
-    await expect(bad.info()).rejects.toMatchObject({ status: 401, tag: "UnauthorizedError" });
-  });
+function group(...methods: string[]): Record<string, ReturnType<typeof vi.fn>> {
+  return Object.fromEntries(methods.map((name) => [name, vi.fn()]));
+}
 
-  it("creates, lists, renames and deletes sessions", async () => {
-    const s = await client.createSession({
-      directory: "/work",
-      agent: "plan",
-      model: { id: "mock-smart", providerID: "mock", variant: "high" },
-    });
-    expect(s.id).toMatch(/^ses_/);
-    expect(mock.requests.at(-1)?.body).toEqual({
+describe("OpenCodeClient adapter over the SDK", () => {
+  it("maps info and session CRUD to the generated groups", async () => {
+    const api = {
+      server: group("info"),
+      session: group("create", "get", "update", "remove", "list"),
+    };
+    api.server.info.mockResolvedValue({ version: "2.4.1" });
+    api.session.create.mockResolvedValue({ id: "ses_1" });
+    api.session.get.mockResolvedValue({ id: "ses_1", title: "Renamed" });
+    api.session.list.mockResolvedValue({ data: [{ id: "ses_1" }], cursor: {} });
+    const client = OpenCodeClient.create(connection(api));
+
+    expect((await client.info()).version).toBe("2.4.1");
+    expect(await client.createSession({ directory: "/work", agent: "plan", model: { id: "m", providerID: "p" } })).toEqual({ id: "ses_1" });
+    expect(api.session.create).toHaveBeenCalledWith({
       location: { directory: "/work" },
       agent: "plan",
-      model: { id: "mock-smart", providerID: "mock", variant: "high" },
+      model: { id: "m", providerID: "p" },
+      permissions: undefined,
     });
-    expect((await client.listSessions("/work")).map((x) => x.id)).toEqual([s.id]);
-    expect(mock.requests.at(-1)?.path).toBe("/api/session?directory=%2Fwork&limit=50&order=desc&parentID=null");
-    await client.renameSession(s.id, "Renamed");
-    expect((await client.getSession(s.id)).title).toBe("Renamed");
-    await client.deleteSession(s.id);
-    await expect(client.getSession(s.id)).rejects.toBeInstanceOf(ApiError);
-  });
-
-  it("paginates sessions with an opaque cursor and sends order only on the first page", async () => {
-    const paged = await startMockServer({ password: "secret", directory: "/work", sessionPageSize: 2 });
-    try {
-      const c = new OpenCodeClient({ baseUrl: paged.url, password: "secret" });
-      for (let i = 0; i < 3; i++) await c.createSession({ directory: "/work" });
-      const first = await c.listSessionsPage("/work", 2);
-      expect(first.items).toHaveLength(2);
-      expect(first.next).toBeDefined();
-      expect(paged.requests.at(-1)?.path).toContain("order=desc");
-      const second = await c.listSessionsPage("/work", 2, first.next);
-      expect(second.items).toHaveLength(1);
-      expect(second.next).toBeUndefined();
-      expect(paged.requests.at(-1)?.path).toContain("cursor=");
-      expect(paged.requests.at(-1)?.path).not.toContain("order=");
-    } finally {
-      await paged.close();
-    }
-  });
-
-  it("only sends permissions when configured", async () => {
-    await client.createSession({ permissions: [] });
-    expect(mock.requests.at(-1)?.body).toEqual({});
-    await client.createSession({ permissions: [{ action: "edit", resource: "*", effect: "ask" }] });
-    expect(mock.requests.at(-1)?.body).toEqual({ permissions: [{ action: "edit", resource: "*", effect: "ask" }] });
-  });
-
-  it("prompts with file attachments and reads back history in order", async () => {
-    const s = await client.createSession({});
-    await client.prompt(s.id, "hello", [{ uri: "file:///work/a.ts?start=1&end=2", name: "a.ts" }]);
-    expect(mock.requests.at(-1)?.body).toEqual({ text: "hello", files: [{ uri: "file:///work/a.ts?start=1&end=2", name: "a.ts" }] });
-    await waitForIdle(client, s.id);
-    const msgs = await client.messages(s.id);
-    expect(msgs.map((m) => m.type)).toEqual(["user", "assistant", "idle"]);
-  });
-
-  it("reads only messages newer than a known id, and reports an unknown overlap", async () => {
-    const s = await client.createSession({});
-    await client.prompt(s.id, "first");
-    await waitForIdle(client, s.id);
-    const first = await client.messages(s.id);
-    await client.prompt(s.id, "second");
-    for (let i = 0; i < 300; i++) {
-      if ((await client.messages(s.id)).filter((m) => m.type === "idle").length >= 2) break;
-      await new Promise((r) => setTimeout(r, 10));
-    }
-    const all = await client.messages(s.id);
-    expect((await client.messagesNewerThan(s.id, first[1].id))?.map((m) => m.id)).toEqual(all.slice(2).map((m) => m.id));
-    expect(await client.messagesNewerThan(s.id, "msg_missing")).toBeUndefined();
-    expect(mock.requests.at(-1)?.path).toContain("order=desc");
-  });
-
-  it("sends steer and queue delivery modes on the prompt", async () => {
-    const s = await client.createSession({});
-    await client.prompt(s.id, "queued", [], "queue");
-    expect(mock.requests.at(-1)?.body).toEqual({ text: "queued", delivery: "queue" });
-    await client.prompt(s.id, "now", [], "steer");
-    expect(mock.requests.at(-1)?.body).toEqual({ text: "now", delivery: "steer" });
-    await client.prompt(s.id, "plain");
-    expect(mock.requests.at(-1)?.body).toEqual({ text: "plain" });
-  });
-
-  it("lists catalog data", async () => {
-    expect((await client.models()).map((m) => m.id)).toEqual(["mock-fast", "mock-smart"]);
-    expect(mock.requests.at(-1)?.path).toBe("/api/model?types=chat");
-    expect((await client.defaultModel())?.id).toBe("mock-fast");
-    expect((await client.agents()).map((a) => a.id)).toContain("plan");
-    expect((await client.skills()).map((s) => s.id)).toEqual(["mock-review"]);
-    expect(mock.requests.at(-1)?.path).toBe("/api/skill");
-    expect((await client.commands()).map((c) => c.name)).toEqual(["mock-init"]);
-    expect(mock.requests.at(-1)?.path).toBe("/api/command");
-  });
-
-  it("runs a slash command through the command endpoint", async () => {
-    const s = await client.createSession({});
-    await client.command(s.id, "mock-init", "some argument", [{ uri: "file:///work/a.ts", name: "a.ts" }]);
-    expect(mock.requests.at(-1)).toMatchObject({
-      method: "POST",
-      path: `/api/session/${s.id}/command`,
-      body: { name: "mock-init", text: "some argument", files: [{ uri: "file:///work/a.ts", name: "a.ts" }] },
+    expect((await client.listSessions("/work")).map((s) => s.id)).toEqual(["ses_1"]);
+    expect(api.session.list).toHaveBeenCalledWith({
+      directory: "/work",
+      limit: 50,
+      cursor: undefined,
+      order: "desc",
+      parentID: null,
     });
-    await waitForIdle(client, s.id);
-    const first = (await client.messages(s.id))[0];
-    expect(first.type === "user" && first.text).toBe("/mock-init some argument");
+    await client.renameSession("ses_1", "Renamed");
+    expect(api.session.update).toHaveBeenCalledWith({ sessionID: "ses_1", title: "Renamed" });
+    expect((await client.getSession("ses_1")).title).toBe("Renamed");
+    await client.deleteSession("ses_1");
+    expect(api.session.remove).toHaveBeenCalledWith({ sessionID: "ses_1" });
   });
 
-  it("honors queue/steer delivery when running a slash command", async () => {
-    const s = await client.createSession({});
-    await client.command(s.id, "mock-init", "queued", [], "queue");
-    expect(mock.requests.at(-1)?.body).toMatchObject({ name: "mock-init", text: "queued", delivery: "queue" });
-    await client.command(s.id, "mock-init", "now", [], "steer");
-    expect(mock.requests.at(-1)?.body).toMatchObject({ name: "mock-init", text: "now", delivery: "steer" });
+  it("omits empty permissions and honours the connection directory", async () => {
+    const api = { session: group("create") };
+    api.session.create.mockResolvedValue({ id: "ses_2" });
+    const conn = connection(api);
+    conn.directory = "/workspace";
+    await OpenCodeClient.create(conn).createSession({ permissions: [] });
+    expect(api.session.create).toHaveBeenCalledWith({
+      location: { directory: "/workspace" },
+      agent: undefined,
+      model: undefined,
+      permissions: undefined,
+    });
   });
 
-  it("replies to permissions and interrupts", async () => {
-    const s = await client.createSession({});
-    await client.prompt(s.id, "[permission] edit please");
-    let perms = await client.permissions(s.id);
-    for (let i = 0; i < 100 && perms.length === 0; i++) {
-      await new Promise((r) => setTimeout(r, 10));
-      perms = await client.permissions(s.id);
-    }
-    expect(perms[0].action).toBe("edit");
-    await client.replyPermission(s.id, perms[0].id, "once");
-    expect(mock.requests.at(-1)?.body).toEqual({ decision: "once" });
-    await waitForIdle(client, s.id);
-    expect((await client.diff(s.id))[0].file).toBe("src/a.txt");
-    expect(await client.interrupt(s.id)).toBe(true);
+  it("follows session and message cursors without resending order", async () => {
+    const api = {
+      session: group("list"),
+      message: group("list"),
+    };
+    api.session.list
+      .mockResolvedValueOnce({ data: [{ id: "a" }, { id: "b" }], cursor: { next: "cur" } })
+      .mockResolvedValueOnce({ data: [{ id: "c" }], cursor: {} });
+    api.message.list
+      .mockResolvedValueOnce({ data: [{ id: "m1" }], cursor: { next: "mcur" } })
+      .mockResolvedValueOnce({ data: [{ id: "m2" }], cursor: {} });
+    const client = OpenCodeClient.create(connection(api));
+
+    const first = await client.listSessionsPage("/w", 2);
+    expect(first.items).toHaveLength(2);
+    expect(first.next).toBe("cur");
+    const second = await client.listSessionsPage("/w", 2, first.next);
+    expect(second.items.map((s) => s.id)).toEqual(["c"]);
+    expect(api.session.list.mock.calls[1][0]).toMatchObject({ cursor: "cur", order: undefined });
+    expect((await client.messages("ses")).map((m) => m.id)).toEqual(["m1", "m2"]);
+    expect(api.message.list.mock.calls[1][0]).toMatchObject({ cursor: "mcur", order: undefined });
   });
 
-  it("surfaces error messages from the server envelope", async () => {
-    await expect(client.replyPermission("ses_missing", "per_x", "once")).rejects.toMatchObject({
+  it("maps prompt, command and delivery modes", async () => {
+    const api = { session: group("prompt", "command") };
+    api.session.prompt.mockResolvedValue({ id: "msg_1" });
+    const client = OpenCodeClient.create(connection(api));
+    const files = [{ uri: "file:///work/a.ts", name: "a.ts" }];
+    expect(await client.prompt("ses", "hello", files, "steer")).toEqual({ id: "msg_1" });
+    expect(api.session.prompt).toHaveBeenCalledWith({ sessionID: "ses", text: "hello", files, delivery: "steer" });
+    await client.command("ses", "init", "arg", files, "queue");
+    expect(api.session.command).toHaveBeenCalledWith({ sessionID: "ses", name: "init", text: "arg", files, delivery: "queue" });
+  });
+
+  it("unwraps catalog envelopes", async () => {
+    const api = {
+      model: group("list", "default"),
+      agent: group("list"),
+      skill: group("list"),
+      command: group("list"),
+    };
+    api.model.list.mockResolvedValue({ location: {}, data: [{ id: "fast" }] });
+    api.model.default.mockResolvedValue({ location: {}, data: { id: "fast" } });
+    api.agent.list.mockResolvedValue({ location: {}, data: [{ id: "build" }] });
+    api.skill.list.mockResolvedValue({ location: {}, data: [{ id: "review" }] });
+    api.command.list.mockResolvedValue({ location: {}, data: [{ name: "init" }] });
+    const client = OpenCodeClient.create(connection(api));
+    expect((await client.models()).map((m) => m.id)).toEqual(["fast"]);
+    expect(api.model.list).toHaveBeenCalledWith({ types: ["chat"], location: undefined });
+    expect((await client.defaultModel())?.id).toBe("fast");
+    expect((await client.agents()).map((a) => a.id)).toEqual(["build"]);
+    expect((await client.skills()).map((s) => s.id)).toEqual(["review"]);
+    expect((await client.commands()).map((c) => c.name)).toEqual(["init"]);
+  });
+
+  it("maps permissions, forms, inbox, diff and revert", async () => {
+    const inbox = group("list", "update", "cancel");
+    const revert = group("stage", "commit", "clear");
+    const form = group("list", "reply", "cancel");
+    const session = { form, inbox, revert, diff: vi.fn(), wait: vi.fn(), interrupt: vi.fn() };
+    const api = { permission: group("list", "reply"), session };
+    api.permission.list.mockResolvedValue([{ id: "per_1" }]);
+    form.list.mockResolvedValue([{ id: "form_1" }]);
+    inbox.list.mockResolvedValue([{ id: "in_1", delivery: "queue" }]);
+    session.diff.mockResolvedValue([{ file: "a.ts", patch: "+" }]);
+    session.wait.mockResolvedValue(undefined);
+    session.interrupt.mockResolvedValue({ interrupted: true });
+    const client = OpenCodeClient.create(connection(api));
+
+    expect((await client.permissions("ses")).map((p) => p.id)).toEqual(["per_1"]);
+    await client.replyPermission("ses", "per_1", "once");
+    expect(api.permission.reply).toHaveBeenCalledWith({ sessionID: "ses", requestID: "per_1", decision: "once" });
+    expect((await client.forms("ses"))[0].id).toBe("form_1");
+    await client.replyForm("ses", "form_1", { answer: "yes" });
+    expect(form.reply).toHaveBeenCalledWith({ sessionID: "ses", formID: "form_1", answer: { answer: "yes" } });
+    expect((await client.inbox("ses"))[0].delivery).toBe("queue");
+    await client.setInboxDelivery("ses", "in_1", "steer");
+    expect(inbox.update).toHaveBeenCalledWith({ sessionID: "ses", inboxID: "in_1", delivery: "steer" });
+    expect((await client.diff("ses"))[0].file).toBe("a.ts");
+    await client.waitIdle("ses");
+    await client.revertStage("ses", "msg_1", false);
+    expect(revert.stage).toHaveBeenCalledWith({ sessionID: "ses", messageID: "msg_1", files: false });
+    await client.revertCommit("ses");
+    await client.revertClear("ses");
+    expect(await client.interrupt("ses")).toBe(true);
+  });
+
+  it("unwraps OAuth attempts and projects credentials without secrets", async () => {
+    const api = {
+      integration: { ...group("list", "get"), oauth: group("connect", "status"), connect: group("key") },
+      credential: group("list", "update", "remove", "activate"),
+    };
+    api.integration.oauth.connect.mockResolvedValue({ location: {}, data: { id: "att_1" } });
+    api.integration.oauth.status.mockResolvedValue({ location: {}, data: { status: "ok" } });
+    api.credential.list.mockResolvedValue([
+      { id: "c1", integrationID: "github", label: "GitHub", active: true, value: { type: "oauth", token: "SECRET" } },
+      { id: "c2", integrationID: "bad", label: "Bad", active: true, value: { type: "unknown" } },
+    ]);
+    const client = OpenCodeClient.create(connection(api));
+    expect(await client.startOAuth("github", "device", {}, "laptop", "/w")).toEqual({ id: "att_1" } as never);
+    expect(await client.oauthStatus("github", "att_1", "/w")).toEqual({ status: "ok" } as never);
+    expect(await client.credentials()).toEqual([{ id: "c1", integrationID: "github", label: "GitHub", active: true, type: "oauth" }]);
+    expect(JSON.stringify(await client.credentials())).not.toContain("SECRET");
+  });
+
+  it("converts SDK failures into ApiError", async () => {
+    const api = { session: group("get") };
+    api.session.get.mockRejectedValue({ status: 404, _tag: "SessionNotFoundError", message: "missing" });
+    await expect(OpenCodeClient.create(connection(api)).getSession("nope")).rejects.toMatchObject({
       status: 404,
       tag: "SessionNotFoundError",
+      message: "missing",
     });
   });
 
-  it("caps an oversized error body before it can reach the chat UI", async () => {
-    const huge = "x".repeat(50_000);
-    const fetchImpl = (async () => new Response(JSON.stringify({ message: huge }), { status: 500 })) as typeof fetch;
-    const bounded = new OpenCodeClient({ baseUrl: "http://localhost:1", password: "secret" }, fetchImpl);
-    let error: ApiError | undefined;
-    try {
-      await bounded.info();
-    } catch (err) {
-      error = err as ApiError;
-    }
-    expect(error).toBeInstanceOf(ApiError);
-    expect(error?.message.length).toBeLessThanOrEqual(4000);
-  });
-
-  it("rejects a success body larger than the memory cap", async () => {
-    const huge = "x".repeat(20 * 1024 * 1024 + 1);
-    const fetchImpl = (async () => new Response(huge, { status: 200 })) as typeof fetch;
-    const bounded = new OpenCodeClient({ baseUrl: "http://localhost:1", password: "secret" }, fetchImpl);
-    await expect(bounded.info()).rejects.toMatchObject({ status: 413, message: /too large/i });
-  });
-
-  it("stages and commits a revert at any message, and can clear a staged one", async () => {
-    const s = await client.createSession({});
-    await client.prompt(s.id, "first");
-    await waitForIdle(client, s.id);
-    await client.prompt(s.id, "second");
-    for (let i = 0; i < 300; i++) {
-      if ((await client.messages(s.id)).filter((m) => m.type === "idle").length >= 2) break;
-      await new Promise((r) => setTimeout(r, 10));
-    }
-    const before = await client.messages(s.id);
-    const firstUser = before.find((m) => m.type === "user")!;
-    expect(before.filter((m) => m.type === "user")).toHaveLength(2);
-
-    await client.waitIdle(s.id);
-    expect(mock.requests.at(-1)?.path).toBe(`/api/experimental/session/${s.id}/wait`);
-
-    // An intermediate boundary drops that turn and everything after it, not just the last one.
-    await client.revertStage(s.id, firstUser.id, false);
-    expect(mock.requests.at(-1)).toMatchObject({
-      method: "POST",
-      path: `/api/session/${s.id}/revert/stage`,
-      body: { messageID: firstUser.id, files: false },
-    });
-    expect(mock.sessions.get(s.id)!.info.revert).toMatchObject({ messageID: firstUser.id });
-
-    await client.revertCommit(s.id);
-    expect(mock.requests.at(-1)?.path).toBe(`/api/session/${s.id}/revert/commit`);
-    expect(await client.messages(s.id)).toHaveLength(0);
-    expect(mock.sessions.get(s.id)!.info.revert).toBeUndefined();
-
-    // Without `files` the body only carries the message id; clearing keeps the history intact.
-    await client.prompt(s.id, "third");
-    await waitForIdle(client, s.id);
-    const third = (await client.messages(s.id)).find((m) => m.type === "user")!;
-    await client.revertStage(s.id, third.id);
-    expect(mock.requests.at(-1)?.body).toEqual({ messageID: third.id });
-    await client.revertClear(s.id);
-    expect(mock.requests.at(-1)).toMatchObject({ method: "DELETE", path: `/api/session/${s.id}/revert` });
-    expect(mock.sessions.get(s.id)!.info.revert).toBeUndefined();
-    expect((await client.messages(s.id)).some((m) => m.id === third.id)).toBe(true);
-  });
-
-  it("forks history before a message without touching the original session", async () => {
-    const s = await client.createSession({});
-    await client.prompt(s.id, "first");
-    await waitForIdle(client, s.id);
-    await client.prompt(s.id, "second");
-    await waitForIdle(client, s.id);
-    const all = await client.messages(s.id);
-    const secondUser = all.find((m, i) => m.type === "user" && all.slice(0, i).some((p) => p.type === "user"))!;
-    const fork = await client.forkSession(s.id, secondUser.id);
-    expect(mock.requests.at(-1)).toMatchObject({
-      method: "POST",
-      path: `/api/session/${s.id}/fork`,
-      body: { before: secondUser.id },
-    });
-    expect(fork.id).not.toBe(s.id);
-    const texts = (await client.messages(fork.id)).filter((m) => m.type === "user").map((m) => (m.type === "user" ? m.text : ""));
-    expect(texts).toEqual(["first"]);
-    expect((await client.messages(s.id)).filter((m) => m.type === "user")).toHaveLength(2);
-  });
-
-  it("lists, promotes and cancels pending inbox items", async () => {
-    const s = await client.createSession({});
-    const item = {
-      id: "msg_queued",
-      sessionID: s.id,
-      time: { created: 1 },
-      type: "user",
-      delivery: "queue",
-      payload: { text: "queued prompt" },
-    };
-    await fetch(`${mock.url}/__mock/inbox`, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ sessionID: s.id, items: [item] }),
-    });
-    expect(await client.inbox(s.id)).toEqual([item]);
-    await client.setInboxDelivery(s.id, item.id, "steer");
-    expect(mock.requests.at(-1)).toMatchObject({
-      method: "PATCH",
-      path: `/api/session/${s.id}/inbox/${item.id}`,
-      body: { delivery: "steer" },
-    });
-    expect((await client.inbox(s.id))[0].delivery).toBe("steer");
-    await client.cancelInbox(s.id, item.id);
-    expect(mock.requests.at(-1)).toMatchObject({ method: "DELETE", path: `/api/session/${s.id}/inbox/${item.id}` });
-    expect(await client.inbox(s.id)).toEqual([]);
+  it("forwards live events and reports stream end", async () => {
+    const api = { event: group("subscribe") };
+    api.event.subscribe.mockImplementation(() => ({
+      async *[Symbol.asyncIterator]() {
+        yield { type: "session.idle", data: { sessionID: "ses" }, location: { directory: "/w" } };
+      },
+    }));
+    const client = OpenCodeClient.create(connection(api));
+    const events: unknown[] = [];
+    const closed = vi.fn();
+    client.subscribe((e) => events.push(e), closed, new AbortController().signal);
+    await new Promise((r) => setTimeout(r, 0));
+    expect(events).toMatchObject([{ type: "session.idle" }]);
+    expect(closed).toHaveBeenCalled();
   });
 });
-
-describe("OpenCodeClient at the trust boundary", () => {
-  const fetchText =
-    (text: string, status = 200): typeof fetch =>
-    async () =>
-      new Response(text, { status });
-
-  it("turns a malformed 200 body into an ApiError instead of a SyntaxError", async () => {
-    const client = new OpenCodeClient({ baseUrl: "http://localhost/" }, fetchText("<html>proxy error</html>"));
-    await expect(client.info()).rejects.toMatchObject({ status: 200, tag: "malformedResponse" });
-  });
-
-  it("rejects a missing data envelope and a wrong list shape", async () => {
-    const missing = new OpenCodeClient({ baseUrl: "http://localhost/" }, fetchText('{"version":"2.4.0"}'));
-    await expect(missing.listSessions()).rejects.toMatchObject({ status: 200, tag: "malformedResponse" });
-    const wrong = new OpenCodeClient({ baseUrl: "http://localhost/" }, fetchText('{"data":"not-an-array"}'));
-    await expect(wrong.inbox("s1")).rejects.toMatchObject({ status: 200, tag: "malformedResponse" });
-  });
-
-  it("still accepts an empty body for void endpoints", async () => {
-    const client = new OpenCodeClient({ baseUrl: "http://localhost/" }, fetchText(""));
-    await expect(client.compact("s1")).resolves.toBeUndefined();
-  });
-});
-
-async function waitForIdle(client: OpenCodeClient, id: string): Promise<void> {
-  for (let i = 0; i < 300; i++) {
-    const msgs = await client.messages(id);
-    if (msgs.some((m) => m.type === "idle")) return;
-    await new Promise((r) => setTimeout(r, 10));
-  }
-  throw new Error("session never became idle");
-}

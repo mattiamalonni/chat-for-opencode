@@ -32,7 +32,7 @@ export class ChatRefreshActions {
 
   /**
    * Re-read the pending prompts from the server. A queued message is stored server-side, so the
-   * webview cannot reconstruct the list from the SSE events (which carry no replay).
+   * webview cannot reconstruct the list from the event stream (which carries no replay).
    */
   async refreshInbox(sid = this.d.state.sessionId): Promise<void> {
     const d = this.d;

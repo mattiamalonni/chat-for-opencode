@@ -55,7 +55,7 @@ export class SessionListService {
   private pagingAbort?: AbortController;
   private searchAbort?: AbortController;
 
-  /** Abort a search that is no longer relevant (new query, folder switch, controller dispose). */
+  /** Abort a search that has become irrelevant (new query, folder switch, controller dispose). */
   cancelSearch(): void {
     this.searchAbort?.abort();
     this.searchAbort = undefined;
@@ -220,7 +220,7 @@ export class SessionListService {
     if (!client || !directory || !this.cursor || this.loadingMore) return;
     this.loadingMore = true;
     // Use the paging generation, not the refresh one: event bursts refresh the picker constantly,
-    // and used to invalidate every "Load more" click before it could publish its page.
+    // and invalidates every "Load more" click before it can publish its page.
     const token = this.pagingGeneration.bump();
     this.pagingAbort?.abort();
     const abort = new AbortController();

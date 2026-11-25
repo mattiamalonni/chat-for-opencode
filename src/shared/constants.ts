@@ -1,9 +1,6 @@
 /**
- * Runtime defaults shared across the host and its tests. The matching literals in package.json
- * cannot import TS, so a unit test asserts parity; everything in code reads these constants.
+ * Retry timing shared across the host and its tests.
  */
-export const DEFAULT_STARTUP_TIMEOUT_MS = 30_000;
-export const DEFAULT_HTTP_TIMEOUT_MS = 30_000;
 
 /**
  * Adds ±50% jitter to a retry delay. Several VS Code windows (or an extension and a TUI) can lose

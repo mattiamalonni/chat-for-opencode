@@ -19,11 +19,8 @@ const MARKERS = {
 // Hints that cannot be derived from the manifest (where a command lives, what it does).
 // Keep them next to the generator so REFERENCE.md stays the single generated artefact.
 const COMMAND_NOTES = {
-  "opencode.focus": "also the OpenCode icon in the status bar",
   "opencode.account": "view saved logins or sign in",
-  "opencode.install": "copy the install command, open platform instructions, retry the connection",
-  "opencode.ask": "fills the composer from anywhere, with the current selection attached",
-  "opencode.quickSwitchSession": "recent sessions first; typing searches all conversations",
+  "opencode.install": "show the bundled-SDK setup help, open settings or logs, retry the connection",
   "opencode.searchSessions": "searches titles and message bodies across every session",
   "opencode.stopTurn": "also click the status bar while a turn runs",
   "opencode.openSettings": "toolbar gear icon",

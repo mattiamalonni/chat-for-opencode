@@ -175,8 +175,8 @@ export interface FormField {
   placeholder?: string;
   default?: unknown;
   url?: string;
-  minimum?: number;
-  maximum?: number;
+  minimum?: number | "Infinity" | "-Infinity" | "NaN";
+  maximum?: number | "Infinity" | "-Infinity" | "NaN";
   when?: FormWhen[];
 }
 
@@ -221,7 +221,7 @@ export interface ConnectAttempt {
 }
 
 export interface AttemptStatus {
-  status: "pending" | "complete" | "failed" | "needs_auth";
+  status: "pending" | "complete" | "failed" | "needs_auth" | "expired";
   message?: string;
   url?: string;
 }

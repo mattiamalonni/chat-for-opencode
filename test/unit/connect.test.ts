@@ -1,10 +1,11 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { toAuthItems } from "../../src/auth/logins";
-import { OpenCodeClient } from "../../src/client/http";
+import { OpenCodeClient, type Connection } from "../../src/client/http";
+import type { SdkHost } from "../../src/sdk/bridge";
 import { isConnectHostMessage, isConnectWebviewMessage } from "../../src/shared/protocolGuards";
 
-function json(body: unknown): Response {
-  return new Response(JSON.stringify(body), { status: 200, headers: { "content-type": "application/json" } });
+function connection(api: Record<string, unknown>): Connection {
+  return { key: "test", embedded: true, baseUrl: "in-process", api: api as unknown as SdkHost };
 }
 
 describe("Connect protocol guards", () => {
@@ -45,17 +46,11 @@ describe("Connect protocol guards", () => {
 });
 
 describe("integration discovery", () => {
-  it("passes location.directory in dot notation (brackets return an empty list)", async () => {
-    let requested = "";
-    const fetchImpl = async (input: string | URL | Request): Promise<Response> => {
-      requested = String(input);
-      return json({ location: { directory: "/work" }, data: [] });
-    };
-    const client = new OpenCodeClient({ baseUrl: "http://127.0.0.1:1" }, fetchImpl);
+  it("passes the requested directory as a location", async () => {
+    const list = vi.fn().mockResolvedValue({ location: { directory: "/work" }, data: [] });
+    const client = OpenCodeClient.create(connection({ integration: { list } }));
     expect(await client.integrations("/work")).toEqual([]);
-    const url = new URL(requested);
-    expect(url.pathname).toBe("/api/integration");
-    expect(url.searchParams.get("location.directory")).toBe("/work");
+    expect(list).toHaveBeenCalledWith({ location: { directory: "/work" } });
   });
 });
 
@@ -72,17 +67,12 @@ describe("status/account projection", () => {
 
 describe("credential projection", () => {
   it("never exposes a stored secret to the webview", async () => {
-    const fetchImpl = async (input: string | URL | Request): Promise<Response> => {
-      expect(new URL(String(input)).pathname).toBe("/api/credential");
-      return json({
-        data: [
-          { id: "c1", integrationID: "openai", label: "work", active: true, value: { type: "key", key: "sk-very-secret" } },
-          { id: "c2", integrationID: "anthropic", label: "personal", active: false, value: { type: "oauth", access: "token" } },
-          { id: "c3", integrationID: "broken", label: "bad", active: true, value: { type: "unknown" } },
-        ],
-      });
-    };
-    const client = new OpenCodeClient({ baseUrl: "http://127.0.0.1:1" }, fetchImpl);
+    const list = vi.fn().mockResolvedValue([
+      { id: "c1", integrationID: "openai", label: "work", active: true, value: { type: "key", key: "sk-very-secret" } },
+      { id: "c2", integrationID: "anthropic", label: "personal", active: false, value: { type: "oauth", access: "token" } },
+      { id: "c3", integrationID: "broken", label: "bad", active: true, value: { type: "unknown" } },
+    ]);
+    const client = OpenCodeClient.create(connection({ credential: { list } }));
     const credentials = await client.credentials();
     expect(credentials).toEqual([
       { id: "c1", integrationID: "openai", label: "work", active: true, type: "key" },

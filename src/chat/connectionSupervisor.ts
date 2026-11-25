@@ -32,9 +32,9 @@ export interface SupervisorHooks {
 }
 
 /**
- * Owns the server process handle, the HTTP client and the SSE stream: who we are connected to and
+ * Owns the host handle, the generated client and the event stream: who we are connected to and
  * when that connection is stale. The controller keeps the chat-state work (`useConnection`,
- * `loadAll`, resync) and reacts through hooks, so connection ownership is no longer interleaved with
+ * `loadAll`, resync) and reacts through hooks, so connection ownership stays separate from
  * state publication in the monolithic controller.
  */
 export class ConnectionSupervisor {
@@ -67,10 +67,9 @@ export class ConnectionSupervisor {
     onStreamStatus: (status: string, error?: unknown) => void,
   ): OpenCodeClient {
     this.stream?.close();
-    this.client = new OpenCodeClient(conn);
+    this.client = OpenCodeClient.create(conn);
     this.stream = new EventStream({
-      url: this.client.eventUrl(),
-      headers: this.client.headers(),
+      subscribe: (onSdkEvent, onClose, signal) => this.client?.subscribe(onSdkEvent, onClose, signal),
       onEvent,
       onStatus: onStreamStatus,
     });
@@ -90,18 +89,11 @@ export class ConnectionSupervisor {
 
   matches(conn: Connection): boolean {
     const loaded = this.loadedConnection;
-    return (
-      !!loaded &&
-      this.client !== undefined &&
-      this.client.conn.baseUrl === conn.baseUrl &&
-      this.client.conn.password === conn.password &&
-      loaded.baseUrl === conn.baseUrl &&
-      loaded.password === conn.password
-    );
+    return !!loaded && this.client !== undefined && this.client.conn.key === conn.key && loaded.key === conn.key;
   }
 
   markLoaded(conn: Connection): void {
-    this.loadedConnection = { baseUrl: conn.baseUrl, password: conn.password };
+    this.loadedConnection = { ...conn };
   }
 
   clearLoaded(): void {
@@ -216,13 +208,9 @@ export class ConnectionSupervisor {
     const stale = () => this.isStale(token);
     if (state.status === "starting" && this.hooks.getStatus() === "connected") {
       this.hooks.setStatus("reconnecting");
-    } else if (
-      state.status === "running" &&
-      this.client &&
-      (this.client.conn.baseUrl !== state.conn.baseUrl || this.client.conn.password !== state.conn.password)
-    ) {
-      // The managed process was restarted: port *and* random password can change. Comparing only
-      // the URL would leave a stale client on a reused port (endless 401s).
+    } else if (state.status === "running" && this.client && this.client.conn.key !== state.conn.key) {
+      // A restarted host (or a changed endpoint) gets a new connection identity; the previous
+      // client must be replaced instead of being reused.
       void this.hooks.onReady(state.conn, state.version, stale).then(
         () => {
           if (!stale()) this.hooks.log("[chat] reconnected to restarted server");

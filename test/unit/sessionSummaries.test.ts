@@ -76,7 +76,7 @@ describe("session list summaries", () => {
     );
     await s.refresh();
     const loading = s.loadMore();
-    // Event bursts call refresh constantly; with a single shared generation this used to throw
+    // Event bursts call refresh constantly; with a single shared generation this throws
     // away the page the user had just asked for.
     await s.refresh();
     await loading;

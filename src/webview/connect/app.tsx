@@ -17,7 +17,7 @@ interface Notice {
 }
 
 interface AttemptStatus {
-  status: "pending" | "complete" | "failed" | "needs_auth";
+  status: "pending" | "complete" | "failed" | "needs_auth" | "expired";
   message?: string;
 }
 

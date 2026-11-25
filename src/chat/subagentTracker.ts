@@ -14,7 +14,7 @@ export interface SubagentCreated {
 /**
  * Follows the child sessions spawned by the open chat: discovery, live-event routing and one-shot
  * history snapshots. The controller keeps only one-liners that delegate to it, so its `onEvent`
- * no longer interleaves subagent bookkeeping with session/permission logic.
+ * keeps subagent bookkeeping separate from session/permission logic.
  */
 export class SubagentTracker {
   private readonly childSessions = new Set<string>();

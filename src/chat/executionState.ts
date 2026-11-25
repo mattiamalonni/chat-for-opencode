@@ -1,10 +1,10 @@
 /**
  * The single owner of "is a turn running?" on the host side.
  *
- * The controller used to keep `executionState`, a separate `localIdle` override and an execution
+ * A single `ExecutionStateService` owns `executionState`, the local-idle override and the execution
  * generation side by side, with each async path responsible for updating all three. That produced
  * status bars stuck on "running" and composers that re-locked after a resync. Everything about a
- * turn's lifecycle now lives here: the status, the invalidation token, the local-idle grace period
+ * turn's lifecycle lives here: the status, the invalidation token, the local-idle grace period
  * and the listener fan-out. Both the status bar (`onDidChange`) and the controller's reconciler read
  * this one source of truth.
  */
@@ -126,8 +126,8 @@ export class ExecutionStateService {
   }
 
   /**
-   * The open session changed. A turn belonging to the previous session can no longer be closed by
-   * its terminal events (they are filtered by session id), so end it here instead of leaving the
+   * The open session changed. A turn belonging to the previous session cannot be closed by
+   * its terminal events (they are filtered by session id), so end it here rather than leaving the
    * status bar spinning forever. No-op for a same-session resync.
    */
   ensureSession(sid?: string): void {

@@ -2,7 +2,7 @@
  *
  * Library:  const mock = await startMockServer({ password: "pw" })
  * CLI:      node test/mock/mockServer.ts serve --hostname 127.0.0.1 --port 0
- *           (prints "server listening on http://…" like `opencode serve`)
+ *           (prints "server listening on http://…" like the OpenCode HTTP API)
  *
  * Prompt text drives scenarios: [permission] [question] [error] [slow] [drop] [todo] [crash].
  * Only erasable TypeScript syntax is used so Node can run this file directly.
@@ -211,8 +211,16 @@ export function startMockServer(opts: MockOptions = {}): Promise<MockServer> {
     emit({ type: "session.execution.started", data: { sessionID: sid } });
     emit({ type: "session.inbox.delivered", data: { sessionID: sid, inboxID: userId } });
 
-    if (text.includes("[crash]") && isCli) {
-      setTimeout(() => process.exit(3), 5);
+    if (text.includes("[crash]")) {
+      // As a CLI the process dies (the old managed-server path restarted it). As a library inside
+      // the integration test host, simulate the same thing by dropping every live event stream so
+      // the SDK subscription ends and the connection supervisor reconnects.
+      if (isCli) setTimeout(() => process.exit(3), 5);
+      else
+        setTimeout(() => {
+          for (const c of clients) c.destroy();
+          clients.clear();
+        }, 5);
       return;
     }
     if (text.includes("[error]")) {
@@ -432,7 +440,7 @@ export function startMockServer(opts: MockOptions = {}): Promise<MockServer> {
     emit({ type: "session.execution.interrupted", data: { sessionID: s.info.id, reason: "user" } });
     finish(s);
     // Reproduce a real 2.2.7 quirk: after an interrupt, `time.busy` can end up newer than
-    // `time.idle`, which used to make the extension re-mark the session as busy on reconcile.
+    // `time.idle`, which makes the extension re-mark the session as busy on reconcile.
     const lastUser = [...s.messages].reverse().find((x) => x.type === "user") as Json | undefined;
     if (typeof lastUser?.text === "string" && lastUser.text.includes("[stale-busy]")) {
       s.info.time = { ...(s.info.time as Json), busy: Number((s.info.time as Json).idle) + 105, updated: Date.now() };
@@ -602,7 +610,8 @@ export function startMockServer(opts: MockOptions = {}): Promise<MockServer> {
       }
       if (rest === "" && req.method === "PATCH") {
         if (typeof b.title === "string") s.info.title = b.title;
-        return send(res, 200, { data: s.info });
+        // The generated SDK client expects 204 for `session.update` (void output).
+        return send(res, 204);
       }
       if (rest === "message") {
         if (failHistoryOnce) {
@@ -780,7 +789,7 @@ export function startMockServer(opts: MockOptions = {}): Promise<MockServer> {
   });
 }
 
-// CLI entry: behaves like `opencode serve` for process-management tests.
+// CLI entry: serves the OpenCode HTTP API for integration tests.
 if (isCli) {
   const portIdx = process.argv.indexOf("--port");
   const port = portIdx > 0 ? Number(process.argv[portIdx + 1]) : 0;

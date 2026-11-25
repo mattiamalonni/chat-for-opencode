@@ -1,8 +1,8 @@
 **
 # vsce applies `!` patterns after all ignore patterns: a broad `!dist/**` would also re-include
-# source maps and any stale build artifact. List the five files esbuild actually produces
-# (extension host, chat webview, Connect webview).
-!dist/extension.js
+# source maps and any stale build artifact. List the single extension-host bundle and the two
+# webview bundles.
+!dist/extension.mjs
 !dist/webview.js
 !dist/webview.css
 !dist/connect.js
@@ -14,3 +14,19 @@
 !CHANGELOG.md
 !LICENSE
 !THIRD_PARTY_NOTICES.md
+# BEGIN GENERATED node_modules
+!node_modules/@ff-labs/fff-bin-darwin-arm64/**
+!node_modules/@number0/iroh-darwin-arm64/**
+!node_modules/@parcel/watcher-darwin-arm64/**
+!node_modules/@silvia-odwyer/photon-node/**
+!node_modules/@yuuang/ffi-rs-darwin-arm64/**
+# END GENERATED node_modules
+node_modules/**/*.md
+node_modules/**/*.d.ts
+node_modules/**/*.map
+node_modules/**/test/**
+node_modules/**/tests/**
+node_modules/**/__tests__/**
+node_modules/**/docs/**
+node_modules/**/examples/**
+node_modules/**/.cache/**

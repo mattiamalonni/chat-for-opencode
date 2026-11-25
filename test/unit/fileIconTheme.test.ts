@@ -140,7 +140,7 @@ describe("file icon theme resolver", () => {
   });
 
   it("inlines only the definitions a path actually resolves to", async () => {
-    // The unused entries point at files that do not exist. Eagerly inlining the whole theme used to
+    // The unused entries point at files that do not exist. Eagerly inlining the whole theme
     // reject the first icon request because of them, delaying (and sometimes breaking) every chip.
     const theme = JSON.stringify({
       fonts: [{ id: "unused", src: [{ path: "./missing.woff" }] }],

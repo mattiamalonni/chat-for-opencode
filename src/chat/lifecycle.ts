@@ -3,7 +3,7 @@ import { Generation } from "./generation";
 /**
  * Owns the controller's in-flight invalidation tokens and deferred work.
  *
- * The controller used to declare five `Generation` counters and six timer fields side by side. Every
+ * Five `Generation` counters and six timer fields live side by side. Every
  * async path had to remember which counter and which timer it belonged to; forgetting one produced
  * the races that filled the changelog. Keeping them here gives every piece of deferred work one
  * name, one owner and one `clearAll()` path, so the controller can reason in terms of operations

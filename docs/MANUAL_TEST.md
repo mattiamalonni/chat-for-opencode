@@ -1,7 +1,7 @@
-# Manual test (real VS Code + real `opencode serve`)
+# Manual test (real VS Code + embedded OpenCode SDK)
 
-Prerequisites: OpenCode v2 on `PATH` (`opencode --version`), a provider configured
-(`opencode models` lists models), the `.vsix` built with `npx @vscode/vsce package`.
+Prerequisites: VS Code 1.134+, a provider configured through the Connect panel, and the `.vsix`
+built with `npx @vscode/vsce package`. OpenCode itself is bundled — no CLI or server is needed.
 
 ## What is already automated
 
@@ -28,7 +28,7 @@ screen readers and multi-window process management.
    `"opencode.sessionPermissions": [{"action":"edit","resource":"*","effect":"ask"}]`
    so edits require approval.
 3. **Open the sidebar**: click the OpenCode icon. Expect "Starting OpenCode…" then the welcome text.
-   _OpenCode: Show Logs_ shows `server listening on http://127.0.0.1:<port>` and the password as `***`.
+   _OpenCode: Show Logs_ shows `[sdk] host ready (opencode …)` and no password.
    3b. **Connect panel**: run _OpenCode: Connect Provider…_ from the palette (or the plug icon in the
    chat header). The provider grid loads and saved accounts, if any, appear in a **Connected
    accounts** card at the top, active first. The chat must stay connected — no "Starting OpenCode…"
@@ -76,7 +76,7 @@ screen readers and multi-window process management.
     in the chat header (just before the refresh icon); switch
     back. Before switching, type a half-finished message; come back and confirm the **draft for that
     session is still there**, while the other session kept its own (empty) draft. Sending clears it.
-    Quit and reopen VS Code: the draft must still be there (it is now in `workspaceState`).
+    Quit and reopen VS Code: the draft must still be there (`workspaceState` holds it).
     12b. **Queue and steer**: start a long answer, then type another message. The hint should say that
     `Enter` queues it and `Ctrl/Cmd+Enter` sends now; press `Enter` and confirm the message shows up
     in the **Queued messages** panel but **not** in the chat conversation yet. When the current
@@ -97,18 +97,14 @@ screen readers and multi-window process management.
     the refresh icon opens **Restart Server…** with a modal confirmation that has exactly one
     _Cancel_ button (the native one) plus _Restart_; the gear icon opens the VS Code Settings view
     filtered to this extension. Cancelling the restart must leave the chat and its server connected.
-13. **Resume after restart**: quit VS Code completely (`Cmd/Ctrl+Q`), check `ps aux | grep "opencode serve"`
-    shows no process started by the extension, reopen the folder and the sidebar. The last session
-    and its messages are restored.
+13. **Resume after restart**: quit VS Code completely (`Cmd/Ctrl+Q`), confirm no `opencode` process
+    exists, reopen the folder and the sidebar. The last session and its messages are restored.
 14. **Two windows on the same folder**: open the same folder in a second VS Code window. Each window
-    should start **its own** server; in global storage there should be two PID records named
-    `<folderHash>-<ownerPid>.json`. Quit one window and confirm the other window's server keeps
-    running and its chat stays usable (the orphan reaper must not kill a live owner's server).
-15. **Errors and contract banner**: set `opencode.executablePath` to `/nope` → banner _OpenCode is not
-    installed…_ with _Install OpenCode / Open settings / Show logs_. Reset the setting → reconnects.
-    Kill the server process (`kill <pid>` from the logs) → banner "Reconnecting…" then back to normal.
-    If you can point `opencode.endpoint` at a **different** OpenCode version, confirm the contract
-    banner names the features whose response shape changed (the adapter normalises fields, but the
+    has its own embedded SDK host inside its extension host; closing one must not affect the other.
+15. **Errors and contract banner**: with `opencode.endpoint` pointed at an unreachable URL you get a
+    _Reconnecting…_ banner; fixing the setting reconnects. If the endpoint runs a **different**
+    OpenCode version, confirm the contract banner names the features whose response shape changed
+    (the adapter normalises fields, but the
     raw-shape warning must still appear) and that dismissing it persists for that signature.
     With an `opencode.endpoint` on another host/container, attach the current file and a selection
     and send: the prompt must succeed instead of failing with _Unable to read attachment_, because
@@ -122,7 +118,7 @@ screen readers and multi-window process management.
 17. **IME** (if available): type Japanese with the system IME and confirm a candidate with Enter: the
     message must not be sent until a second Enter.
 18. **Language**: _Configure Display Language → it_, restart: the UI strings stay in English (there is
-    no Italian bundle), but the webview's `<html lang>` must now follow VS Code. In the webview
+    no Italian bundle), the webview's `<html lang>` follows VS Code. In the webview
     developer tools, `document.documentElement.lang` should be `"it"` (it was hard-coded `"en"`).
 19. **Incremental resync** (only if you can drop just the SSE stream, e.g. a local proxy that closes
     `GET /api/event` without restarting the server): after a reconnect, the conversation must **not**

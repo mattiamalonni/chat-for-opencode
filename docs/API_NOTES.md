@@ -1,9 +1,8 @@
 # OpenCode server API notes
 
-The endpoints and events below were **probed against a running `opencode serve` v2.2.7**
-(macOS, 2026-11-16) unless marked _(docs only)_, then checked against the v2.4.0 OpenAPI schema.
+The endpoints and events below are taken from OpenCode v2.2.7 unless marked _(docs only)_, and checked against the v2.4.0 OpenAPI schema.
 2.3.0 and 2.4.0 add fields, event types and experimental routes outside the surface used here, so
-none of the shapes below changed. The full OpenAPI 3.1 document for the supported 2.4.0 contract is
+the shapes below are unchanged across these versions. The full OpenAPI 3.1 document for the supported 2.4.0 contract is
 saved in [`openapi-2.4.0.json`](./openapi-2.4.0.json) (from `@opencode/protocol` at tag `v2.4.0`); the
 previous [`openapi-2.3.0.json`](./openapi-2.3.0.json) and the original
 [`openapi-2.2.7.json`](./openapi-2.2.7.json) are kept for history and the recorded fixtures.
@@ -19,7 +18,6 @@ https://opencode.ai/docs/attachments/, https://opencode.ai/docs/build/client/.
 
 | Fact                                                                                      | How verified |
 | ----------------------------------------------------------------------------------------- | ------------ |
-| `opencode serve --hostname 127.0.0.1 --port 0` picks a free port                          | run          |
 | First stdout line: `server listening on http://127.0.0.1:60859`                           | run          |
 | Without `OPENCODE_PASSWORD`, prints a second line `server password <random>`              | run          |
 | `OPENCODE_PASSWORD=<pw>` env sets a fixed password (no password line printed)             | run + docs   |

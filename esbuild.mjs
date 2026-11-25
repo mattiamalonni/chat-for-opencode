@@ -1,5 +1,6 @@
 import * as esbuild from "esbuild";
 import { rmSync } from "node:fs";
+import { EXTERNAL_MODULES } from "./scripts/external-modules.mjs";
 
 const production = process.argv.includes("--production");
 const watch = process.argv.includes("--watch");
@@ -11,12 +12,18 @@ const builds = [
   {
     entryPoints: ["src/extension.ts"],
     bundle: true,
-    format: "cjs",
+    format: "esm",
     platform: "node",
-    target: "node20",
-    outfile: "dist/extension.js",
-    external: ["vscode"],
-    sourcemap: !production,
+    target: "node24",
+    outfile: "dist/extension.mjs",
+    // The OpenCode SDK is bundled into this single file. Native/optional modules stay external so
+    // their platform binaries ship unchanged; their dependency closure is generated at package time.
+    mainFields: ["module", "main"],
+    external: ["vscode", ...EXTERNAL_MODULES],
+    banner: {
+      js: 'import { createRequire as __ocCreateRequire } from "node:module"; const require = __ocCreateRequire(import.meta.url);',
+    },
+    sourcemap: false,
     minify: production,
     logLevel: "warning",
   },

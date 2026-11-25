@@ -1,3 +1,7 @@
-The extension controls the OpenCode **v2** CLI, so the `opencode` executable must be available on your `PATH`. Install it by following the [official instructions](https://opencode.ai/docs/#installation) for your platform; PowerShell and WSL both work on Windows.
+OpenCode is **bundled in this extension** through `@opencode/sdk`: there is no CLI to install, no
+server process to start and no port to open. You only need a provider (next step). The bundled SDK
+runs OpenCode's router in memory inside VS Code.
 
-Click **Show install command** to copy the install command or open the platform instructions, then **Retry** to reconnect without restarting VS Code. If you use a custom location, set `opencode.executablePath` in the extension settings.
+If you already use the `opencode` CLI on this machine, the extension does not depend on it. If you
+want to connect to a server you run yourself instead, set `opencode.endpoint` in the extension
+settings (and store its password with **OpenCode: Set Server Password…**).

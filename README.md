@@ -3,30 +3,32 @@
 [![CI](https://github.com/mattiamalonni/chat-for-opencode/actions/workflows/ci.yml/badge.svg)](https://github.com/mattiamalonni/chat-for-opencode/actions/workflows/ci.yml)
 [![Release](https://img.shields.io/github/v/release/mattiamalonni/chat-for-opencode)](https://github.com/mattiamalonni/chat-for-opencode/releases/latest)
 [![License: MIT](https://img.shields.io/github/license/mattiamalonni/chat-for-opencode)](LICENSE)
-[![VS Code 1.99+](https://img.shields.io/badge/VS_Code-1.99%2B-007ACC?logo=visualstudiocode)](https://marketplace.visualstudio.com/items?itemName=mattiamalonni.chat-for-opencode)
+[![VS Code 1.130+](https://img.shields.io/badge/VS_Code-1.134%2B-007ACC?logo=visualstudiocode)](https://marketplace.visualstudio.com/items?itemName=mattiamalonni.chat-for-opencode)
 [![Last commit](https://img.shields.io/github/last-commit/mattiamalonni/chat-for-opencode)](https://github.com/mattiamalonni/chat-for-opencode/commits/main)
 [![Release date](https://img.shields.io/github/release-date/mattiamalonni/chat-for-opencode)](https://github.com/mattiamalonni/chat-for-opencode/releases/latest)
-[![OpenCode v2](https://img.shields.io/badge/OpenCode-v2-blueviolet)](https://opencode.ai)
+[![OpenCode SDK 2.4.1](https://img.shields.io/badge/OpenCode_SDK-2.4.1-blueviolet)](https://opencode.ai/docs/sdk/)
 [![Telemetry: none](https://img.shields.io/badge/telemetry-none-brightgreen)](#privacy--security)
 [![TypeScript](https://img.shields.io/github/languages/top/mattiamalonni/chat-for-opencode)](https://www.typescriptlang.org/)
 
 > **Unofficial.** This extension is a vibe-coded community project and is not affiliated with or endorsed by the OpenCode team.
 
 A Copilot-style chat in the VS Code sidebar for [OpenCode](https://opencode.ai), the open-source
-coding agent. It is a **client** of the OpenCode v2 server (`opencode serve`) running on your
-machine: it does not reimplement the agent, never stores provider API keys itself (the **Connect**
-panel forwards them once to the local OpenCode server, which owns credential storage) and sends
-**no telemetry**.
+coding agent. OpenCode runs **inside the extension** through the bundled `@opencode/sdk` (its HTTP
+router executes in memory — no separate process, no port, no CLI to install). The extension never
+stores provider API keys itself (the **Connect** panel forwards them once to OpenCode's credential
+store) and sends **no telemetry**.
 
 **[Install Chat for OpenCode from the Visual Studio Marketplace](https://marketplace.visualstudio.com/items?itemName=mattiamalonni.chat-for-opencode)**
 
 ## Install
 
-- VS Code **1.99+** and a **trusted workspace** — before you trust the folder the extension starts
-  no process, reads no saved login and ignores workspace-specific settings.
-- **OpenCode v2** on your `PATH` (contract matched to 2.4.0); follow the
-  [official installation instructions](https://opencode.ai/docs/#installation). A dismissible banner reports version drift.
-- One provider configured from the **OpenCode: Connect Provider…** panel (or with `opencode auth login`).
+- VS Code **1.134+** (its extension host needs Node 24 for the SDK) and a **trusted workspace** —
+  before you trust the folder the extension creates no OpenCode host, reads no saved login and
+  ignores workspace-specific settings.
+- **No CLI, server or other software to install**: OpenCode 2.4.1 is bundled in the extension.
+  Setting `opencode.endpoint` is optional and connects to a server you run yourself.
+- One provider configured from the **OpenCode: Connect Provider…** panel (or with `opencode auth login`
+  on a machine that has the CLI).
 
 ```sh
 code --install-extension chat-for-opencode-<version>.vsix
@@ -41,7 +43,7 @@ repository to launch an Extension Development Host.
    running: stop; amber `?`: approval needed; finished: open chat) or the Secondary
    Side Bar icon. On VS Code 1.99–1.103 it appears in the Explorer; use _OpenCode: Move Chat View…_ to
    move it right. **Help → Welcome → Get started with OpenCode** is a four-step walkthrough.
-2. Trust the folder to start `opencode serve` in the background; otherwise you get a _Trust workspace_
+2. Trust the folder to create the in-process OpenCode host; otherwise you get a _Trust workspace_
    action and nothing starts.
 3. Type a message. `Enter` sends, `Shift+Enter` adds a line, `@` finds files, `/` finds skills and
    prompt library entries, `Esc` stops. While the agent runs, `Enter` queues and `Ctrl/Cmd+Enter`
@@ -87,12 +89,14 @@ Every command, default key and setting: [docs/REFERENCE.md](docs/REFERENCE.md).
 
 ## How it works
 
-- One managed `opencode serve` per workspace folder (lazy start, random in-memory password, health
-  check, restart, clean shutdown), or connect to your own `opencode.endpoint` with its password in
-  the OS keychain.
-- Live updates arrive over SSE `GET /api/event`, with reconnect + resync because the stream has no
-  replay; a two-second history poll also folds in writes from other clients such as the TUI.
-- The server is the source of truth: the webview reducer is rebuilt from history and kept live by
+- One embedded SDK host, created lazily and closed on deactivation; every workspace folder is a
+  `location`. It uses OpenCode's own SQLite database under ~/.local/share/opencode (or
+  $XDG_DATA_HOME), so sessions survive window reloads and are shared with the CLI/TUI. Optionally
+  connect to your own `opencode.endpoint` with its password in the OS keychain.
+- All calls go through OpenCode's generated client. Live events come from `events.subscribe()`;
+  because that stream is live-only without replay, a resync follows every reconnect, and a
+  two-second history poll folds in writes from other clients such as the TUI.
+- OpenCode is the source of truth: the webview reducer is rebuilt from history and kept live by
   deltas. Details in [SPEC.md](SPEC.md), [DECISIONS.md](docs/DECISIONS.md),
   [API_NOTES.md](docs/API_NOTES.md) and [KNOWN_LIMITS.md](docs/KNOWN_LIMITS.md).
 

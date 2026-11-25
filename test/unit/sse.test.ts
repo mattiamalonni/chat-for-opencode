@@ -1,7 +1,6 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { EventStream, SseOverflowError, SseParser, parseServerEvent, type SseMessage } from "../../src/client/sse";
+import { EventStream, SseOverflowError, SseParser, parseServerEvent, type EventSubscriber, type SseMessage } from "../../src/client/sse";
 import type { ServerEvent } from "../../src/shared/api";
-import { startMockServer, type MockServer } from "../mock/mockServer";
 
 function collect(chunks: string[]): { messages: SseMessage[]; comments: string[] } {
   const messages: SseMessage[] = [];
@@ -15,7 +14,7 @@ function collect(chunks: string[]): { messages: SseMessage[]; comments: string[]
   return { messages, comments };
 }
 
-describe("SseParser", () => {
+describe("SseParser (recorded wire fixtures)", () => {
   it("parses data-only events and heartbeats like opencode emits them", () => {
     const { messages, comments } = collect([
       'data: {"type":"server.connected","data":{}}\n\n: heartbeat\n\ndata: {"type":"x","data":1}\n\n',
@@ -52,7 +51,7 @@ describe("SseParser", () => {
       () => {},
       { maxUnfinishedBytes: 100 },
     );
-    for (let i = 0; i < 10; i++) p.feed("x".repeat(10)); // 100 bytes is fine
+    for (let i = 0; i < 10; i++) p.feed("x".repeat(10));
     expect(() => p.feed("x".repeat(11))).toThrow(SseOverflowError);
   });
 
@@ -75,147 +74,65 @@ describe("SseParser", () => {
   });
 });
 
-describe("EventStream", () => {
-  let mock: MockServer | undefined;
+describe("EventStream over SDK subscriptions", () => {
   let stream: EventStream | undefined;
-  afterEach(async () => {
-    stream?.close();
-    await mock?.close();
-  });
+  afterEach(() => stream?.close());
 
-  it("reconnects after the server drops the connection", async () => {
-    mock = await startMockServer({ password: "pw" });
+  it("delivers events and resubscribes when the iterable ends", async () => {
+    let connections = 0;
+    const statuses: string[] = [];
     const events: ServerEvent[] = [];
-    const statuses: string[] = [];
-    stream = new EventStream({
-      url: `${mock.url}/api/event`,
-      headers: { authorization: "Basic " + Buffer.from("opencode:pw").toString("base64") },
-      onEvent: (e) => events.push(e),
-      onStatus: (s) => statuses.push(s),
-      minBackoffMs: 20,
-    });
-    stream.start();
-    await waitUntil(() => events.length === 1);
-    mock.dropConnections();
-    await waitUntil(() => events.filter((e) => e.type === "server.connected").length === 2);
-    expect(statuses).toEqual(["connected", "reconnecting", "connected"]);
-    mock.emit({ type: "custom.ping", data: { ok: true } });
-    await waitUntil(() => events.some((e) => e.type === "custom.ping"));
-  });
-
-  it("flushes a multi-byte character split at the very end of the stream", async () => {
-    const bytes = new TextEncoder().encode('data: {"type":"custom.unicode","data":{"v":"é"}}\n\n');
-    const split = bytes.indexOf(0xc3); // first byte of the two-byte é
-    const fetchImpl = (async () =>
-      new Response(
-        new ReadableStream<Uint8Array>({
-          start(controller) {
-            controller.enqueue(bytes.slice(0, split + 1));
-            controller.enqueue(bytes.slice(split + 1));
-            controller.close();
-          },
-        }),
-        { status: 200 },
-      )) as typeof fetch;
-    const events: ServerEvent[] = [];
-    stream = new EventStream({
-      url: "http://localhost/api/event",
-      headers: {},
-      onEvent: (e) => events.push(e),
-      fetchImpl,
-      minBackoffMs: 10,
-      maxBackoffMs: 20,
-    });
-    stream.start();
-    await waitUntil(() => events.some((e) => e.type === "custom.unicode"));
-    expect((events.find((e) => e.type === "custom.unicode")!.data as { v: string }).v).toBe("é");
-  });
-
-  it("reports reconnecting on 401 and keeps retrying", async () => {
-    mock = await startMockServer({ password: "pw" });
-    const statuses: string[] = [];
-    stream = new EventStream({
-      url: `${mock.url}/api/event`,
-      headers: {},
-      onEvent: () => {},
-      onStatus: (s) => statuses.push(s),
-      minBackoffMs: 10,
-      maxBackoffMs: 20,
-    });
-    stream.start();
-    await waitUntil(() => mock!.requests.filter((r) => r.path === "/api/event").length >= 3);
-    expect(statuses[0]).toBe("reconnecting");
-    expect(statuses).not.toContain("connected");
-  });
-
-  it("reconnects when the server accepts the socket but never sends headers", async () => {
-    let connects = 0;
-    const statuses: string[] = [];
-    // A real fetch rejects when its signal aborts; the stalled server is emulated that way.
-    const fetchImpl = ((_url: string, init?: RequestInit) => {
-      connects++;
-      return new Promise<Response>((_resolve, reject) => {
-        init?.signal?.addEventListener("abort", () => reject(new Error("connect timed out")), { once: true });
+    const subscribe: EventSubscriber = (onEvent, onClose) => {
+      connections++;
+      queueMicrotask(() => {
+        onEvent({ type: "session.idle", data: { sessionID: "ses" } } as ServerEvent);
+        onClose();
       });
-    }) as typeof fetch;
-    stream = new EventStream({
-      url: "http://localhost/api/event",
-      headers: {},
-      onEvent: () => {},
-      onStatus: (s) => statuses.push(s),
-      fetchImpl,
-      connectTimeoutMs: 30,
-      minBackoffMs: 10,
-      maxBackoffMs: 20,
-    });
+    };
+    stream = new EventStream({ subscribe, onEvent: (e) => events.push(e), onStatus: (s) => statuses.push(s), minBackoffMs: 10 });
     stream.start();
-    await waitUntil(() => connects >= 2, 2000);
-    expect(statuses).toContain("reconnecting");
+    await waitUntil(() => connections >= 2, 2000);
+    expect(events[0].type).toBe("session.idle");
+    expect(statuses.slice(0, 3)).toEqual(["connected", "reconnecting", "connected"]);
   });
 
-  it("does not let a closed loop schedule a retry after a restart", async () => {
-    let connects = 0;
-    const fetchImpl = ((_url: string, init?: RequestInit) => {
-      connects++;
-      // The first fetch hangs; the one started after close() stays connected without retrying.
-      if (connects > 1) return Promise.resolve(new Response(new ReadableStream<Uint8Array>({ start() {} }), { status: 200 }));
-      return new Promise<Response>((_resolve, reject) => {
-        init?.signal?.addEventListener("abort", () => reject(new Error("aborted")), { once: true });
-      });
-    }) as typeof fetch;
-    stream = new EventStream({
-      url: "http://localhost/api/event",
-      headers: {},
-      onEvent: () => {},
-      fetchImpl,
-      connectTimeoutMs: 1000,
-      minBackoffMs: 10,
-      maxBackoffMs: 20,
-    });
+  it("reports an error that ends a subscription", async () => {
+    let done: ((error?: unknown) => void) | undefined;
+    const statuses: string[] = [];
+    const subscribe: EventSubscriber = (_onEvent, onClose) => {
+      done = onClose;
+    };
+    stream = new EventStream({ subscribe, onEvent: () => {}, onStatus: (s, e) => statuses.push(e ? "error" : s), minBackoffMs: 10 });
     stream.start();
-    await waitUntil(() => connects === 1);
+    done?.(new Error("stream broke"));
+    expect(statuses).toContain("error");
+  });
+
+  it("does not resubscribe after close()", async () => {
+    let connections = 0;
+    let done: ((error?: unknown) => void) | undefined;
+    const subscribe: EventSubscriber = (_onEvent, onClose) => {
+      connections++;
+      done = onClose;
+    };
+    stream = new EventStream({ subscribe, onEvent: () => {}, minBackoffMs: 10 });
+    stream.start();
     stream.close();
-    stream.start();
-    await waitUntil(() => connects === 2);
-    await new Promise((r) => setTimeout(r, 80));
-    // The stale loop saw the aborted fetch but must not have started a parallel reconnect chain.
-    expect(connects).toBe(2);
+    done?.();
+    await new Promise((r) => setTimeout(r, 40));
+    expect(connections).toBe(1);
   });
 
-  it("aborts and reconnects when idle longer than the watchdog", async () => {
-    mock = await startMockServer({ password: "pw" });
-    let connects = 0;
-    stream = new EventStream({
-      url: `${mock.url}/api/event`,
-      headers: { authorization: "Basic " + Buffer.from("opencode:pw").toString("base64") },
-      onEvent: (e) => {
-        if (e.type === "server.connected") connects++;
-      },
-      idleTimeoutMs: 50, // mock heartbeats every 1s, so the watchdog fires first
-      minBackoffMs: 10,
-    });
+  it("passes an abort signal so a closed subscription can be cancelled", async () => {
+    const seen: AbortSignal[] = [];
+    const subscribe: EventSubscriber = (_onEvent, _onClose, signal) => {
+      seen.push(signal);
+    };
+    stream = new EventStream({ subscribe, onEvent: () => {} });
     stream.start();
-    await waitUntil(() => connects >= 2, 3000);
+    expect(seen[0].aborted).toBe(false);
+    stream.close();
+    expect(seen[0].aborted).toBe(true);
   });
 });
 

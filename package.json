@@ -21,7 +21,7 @@
   },
   "pricing": "Free",
   "engines": {
-    "vscode": "^1.99.0"
+    "vscode": "^1.134.0"
   },
   "categories": [
     "AI",
@@ -36,13 +36,12 @@
     "llm",
     "assistant"
   ],
-  "main": "./dist/extension.js",
+  "main": "./dist/extension.mjs",
   "capabilities": {
     "untrustedWorkspaces": {
       "supported": "limited",
       "description": "%workspaceTrust.description%",
       "restrictedConfigurations": [
-        "opencode.executablePath",
         "opencode.endpoint"
       ]
     }
@@ -263,12 +262,6 @@
     "configuration": {
       "title": "OpenCode",
       "properties": {
-        "opencode.executablePath": {
-          "type": "string",
-          "default": "opencode",
-          "scope": "machine-overridable",
-          "markdownDescription": "%config.executablePath%"
-        },
         "opencode.endpoint": {
           "type": "string",
           "default": "",
@@ -284,17 +277,6 @@
           "type": "boolean",
           "default": true,
           "markdownDescription": "%config.dropzone%"
-        },
-        "opencode.startupTimeout": {
-          "type": "number",
-          "default": 30000,
-          "minimum": 2000,
-          "markdownDescription": "%config.startupTimeout%"
-        },
-        "opencode.autoRestart": {
-          "type": "boolean",
-          "default": true,
-          "markdownDescription": "%config.autoRestart%"
         },
         "opencode.sessionPermissions": {
           "type": "array",
@@ -410,23 +392,26 @@
     }
   },
   "scripts": {
-    "vscode:prepublish": "npm run compile:prod",
+    "vscode:prepublish": "npm run compile:prod && npm run gen:vscodeignore",
     "compile": "npm run typecheck && node esbuild.mjs",
     "compile:prod": "npm run typecheck && node esbuild.mjs --production",
     "typecheck": "tsc -p . --noEmit && tsc -p src/webview --noEmit && tsc -p test/ui --noEmit && tsc -p test/integration --noEmit",
     "gen:types": "node scripts/gen-openapi-types.mjs",
     "gen:docs": "node scripts/gen-docs.mjs",
+    "gen:vscodeignore": "node scripts/gen-vscodeignore.mjs",
+    "verify:vscodeignore": "node scripts/gen-vscodeignore.mjs --check",
     "verify:docs": "node scripts/gen-docs.mjs --check",
     "verify:links": "node scripts/check-doc-links.mjs",
     "watch": "node esbuild.mjs --watch",
     "lint": "eslint .",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "audit": "npm audit --omit=dev --audit-level=high",
+    "audit": "npm audit --omit=dev --audit-level=critical",
+    "audit:high": "npm audit --omit=dev --audit-level=high",
     "verify:types": "npm run gen:types && git diff --exit-code -- src/shared/openapi.generated.ts",
     "pretest": "npm run lint && npm run format:check && npm run typecheck",
     "test": "npm run test:unit && npm run test:ui && npm run test:integration",
-    "verify": "npm run audit && npm run verify:types && npm run verify:docs && npm run verify:links && npm run lint && npm run format:check && npm run typecheck && npm run test:coverage && npm run test:coverage:ui && npm run test:ui:prod && npm run test:integration",
+    "verify": "npm run audit && npm run verify:types && npm run verify:docs && npm run verify:vscodeignore && npm run verify:links && npm run lint && npm run format:check && npm run typecheck && npm run test:coverage && npm run test:coverage:ui && npm run test:ui:prod && npm run test:integration && npm run test:integration:embedded",
     "test:unit": "vitest run",
     "test:coverage": "vitest run --coverage",
     "test:coverage:ui": "npm run compile && npm run test:coverage:ui:ci",
@@ -434,13 +419,17 @@
     "test:ui:prod": "npm run compile:prod && cross-env OC_PROD_BUNDLE=1 playwright test test/ui/prod.spec.ts",
     "test:ui": "node esbuild.mjs && playwright test",
     "test:integration": "node esbuild.mjs && tsc -p test/integration && node out/test/integration/runTest.js",
-    "test:e2e": "vitest run --config vitest.e2e.config.mts",
+    "test:integration:embedded": "node esbuild.mjs && tsc -p test/integration && cross-env OC_IT_SUITE=embedded.test.js node out/test/integration/runTest.js",
+    "test:e2e": "npm run compile && vitest run --config vitest.e2e.config.mts",
     "package": "vsce package",
     "test:integration:real": "node esbuild.mjs && tsc -p test/integration && cross-env OC_IT_REAL=1 node out/test/integration/runTest.js",
     "test:integration:e2e": "node esbuild.mjs && tsc -p test/integration && cross-env OC_IT_E2E=1 node out/test/integration/runTest.js",
     "test:integration:real:e2e": "node esbuild.mjs && tsc -p test/integration && cross-env OC_IT_REAL=1 OC_IT_E2E=1 node out/test/integration/runTest.js"
   },
   "dependencies": {
+    "@anthropic-ai/claude-agent-sdk": "0.3.301",
+    "@opencode/client": "2.4.1",
+    "@opencode/sdk": "2.4.1",
     "dompurify": "^3.4.18",
     "highlight.js": "^11.12.0",
     "marked": "^18.2.1",
@@ -452,7 +441,7 @@
     "@playwright/test": "^1.65.1",
     "@types/mocha": "^10.0.10",
     "@types/node": "^22.20.5",
-    "@types/vscode": "1.99.0",
+    "@types/vscode": "1.134.0",
     "@vitest/coverage-v8": "5.1.0",
     "@vscode/test-electron": "^3.1.0",
     "@vscode/vsce": "^4.1.1",

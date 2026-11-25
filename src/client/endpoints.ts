@@ -1,13 +1,10 @@
 /**
- * Every HTTP endpoint the extension calls, declared once.
- *
- * `OpenCodeClient` builds its requests from this registry and the contract gate compares it with the
- * pinned OpenAPI snapshot. A hand-written list in the test used to cover only part of the client,
- * so removing an endpoint from 2.2.8 could pass CI unnoticed.
+ * Pinned registry of the OpenCode endpoints covered by the contract fixture. The compile-time gate
+ * in `src/shared/sdkContract.ts` checks the wire types against the SDK's generated client.
  */
 export interface ApiEndpoint {
   readonly method: "GET" | "POST" | "PATCH" | "DELETE";
-  /** OpenAPI-style path template; `{name}` segments are encoded by `endpointPath`. */
+  /** OpenAPI-style path template with `{name}` segments. */
   readonly path: string;
 }
 
@@ -63,8 +60,3 @@ export const ENDPOINTS = {
 } as const satisfies Record<string, ApiEndpoint>;
 
 export const REQUIRED_ENDPOINTS: readonly ApiEndpoint[] = Object.values(ENDPOINTS);
-
-/** Fill a template with encoded path segments. */
-export function endpointPath(template: string, params: Record<string, string> = {}): string {
-  return template.replace(/\{(\w+)\}/g, (_match, key: string) => encodeURIComponent(params[key] ?? ""));
-}

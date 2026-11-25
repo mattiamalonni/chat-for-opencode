@@ -15,7 +15,7 @@ export interface FailedPrompt {
 /**
  * Every mutable scalar shared by the controller's feature areas.
  *
- * The fields used to be scattered as private members of `ChatController`, which forced every
+ * The fields are grouped here rather than scattered as private members of `ChatController`, which forces every
  * extracted service to reach back through a wide hook interface. Keeping them in one object lets
  * the services read and write the same state by reference while the controller stays a coordinator.
  * Generation tokens and timers remain in their own owners (`ChatLifecycle`, `ExecutionStateService`,

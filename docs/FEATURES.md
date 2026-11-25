@@ -111,7 +111,7 @@ commands. Questions still always require your answer.
   filled with what your server actually returns (e.g. _Build_ / _Plan_). `Cmd/Ctrl+M` opens the model
   picker while the chat has focus and returns focus to the composer after a selection.
 - **Onboarding**: the welcome screen offers starter prompts that the current editor context can
-  satisfy, or a short checklist — trust the workspace, install the CLI, sign in to a provider —
+  satisfy, or a short checklist — trust the workspace, check the bundled setup, sign in to a provider —
   with the missing action one click away.
 - Keyboard friendly and screen-reader labelled; works with IMEs; English UI.
 

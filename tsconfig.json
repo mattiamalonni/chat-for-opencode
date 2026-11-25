@@ -3,6 +3,11 @@
     "target": "ES2022",
     "module": "commonjs",
     "moduleResolution": "node10",
+    "baseUrl": ".",
+    "paths": {
+      "@opencode/sdk": ["./node_modules/@opencode/sdk/dist/index.d.ts"],
+      "@opencode/client": ["./node_modules/@opencode/client/dist/promise/index.d.ts"]
+    },
     "lib": ["ES2022"],
     "types": ["node", "vscode"],
     "strict": true,

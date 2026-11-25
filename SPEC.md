@@ -2,10 +2,11 @@
 
 ## Goal
 
-A VS Code extension that provides a Copilot-style chat sidebar for **OpenCode v2**. It is a pure
-client of `opencode serve`: it never re-implements the agent, never stores provider API keys itself
-and sends no telemetry. Its Connect panel collects a key or starts an OAuth/command flow and sends
-the credential once to the local server, which remains the sole owner of credential storage.
+A VS Code extension that provides a Copilot-style chat sidebar for **OpenCode v2**. OpenCode itself
+is hosted in-process through `@opencode/sdk` (no CLI, child process or listener): the extension never
+stores provider API keys itself and sends no telemetry. Its Connect panel collects a key or starts
+an OAuth/command flow and sends the credential once to OpenCode, the sole owner of
+credential storage.
 
 ## Architecture
 
@@ -13,14 +14,13 @@ the credential once to the local server, which remains the sole owner of credent
 ┌──────────────────────── VS Code extension host (Node) ────────────────────────┐
 │ extension.ts ── composition root; commands.ts registers the commands          │
 │   ServerRegistry ── one ServerHandle per workspace folder                     │
-│     ManagedServer   spawn `opencode serve --hostname 127.0.0.1 --port 0`      │
-│                     cwd = folder, env OPENCODE_PASSWORD = random per spawn    │
-│                     health check, auto-restart w/ backoff, clean shutdown     │
+│     ManagedServer   `OpenCode.create()` from the bundled SDK                  │
+│                     one in-process host, folder = location, closed on exit    │
 │     ExternalServer  `opencode.endpoint` + password from SecretStorage         │
-│   OpenCodeClient (client/http.ts)  typed fetch wrapper (Basic auth)           │
+│   OpenCodeClient (client/http.ts)  facade over OpenCode's generated client    │
 │     adapter      (shared/adapter)  raw wire shapes -> canonical UI types      │
-│                                    (generated from docs/openapi-2.4.0.json)   │
-│   EventStream    (client/sse.ts)   SSE parser + auto-reconnecting stream      │
+│     sdkContract  (shared/)         compile-time check against generated types │
+│   EventStream    (client/sse.ts)   events.subscribe() + resync on reconnect  │
 │   ChatController (chat/controller.ts)                                         │
 │     glue between server and webview, session persistence (workspaceState),    │
 │     editor context, @-file search, skill catalog, diff opening                │
@@ -35,9 +35,8 @@ the credential once to the local server, which remains the sole owner of credent
 └───────────────────────────────────────────────────────────────────────────────┘
 ```
 
-The **server is the source of truth**. The webview reducer is rebuilt from
-`GET /api/session/{id}/message` when the view is (re)created, then kept live by forwarding the
-session's SSE events. After a stream reconnect or a completed turn the controller looks for the last
+OpenCode is the source of truth. The webview reducer is rebuilt from session history when the view
+is (re)created, then kept live by forwarding the session's SDK events. After a stream reconnect or a completed turn the controller looks for the last
 known message id in a descending history page (`messagesNewerThan`): if the overlap is known it
 posts a `sessionDelta` with only the new messages, preserving scroll position, staged attachments and
 drafts; if history was trimmed/compacted it falls back to a full `session` load. The webview
@@ -50,17 +49,15 @@ an `executionGen` guard until the next turn starts, so stale server timestamps c
 button back. Queued prompts are consumed in order at `execution.started`: each opens its own turn
 under the real user message id and is delivered even when its `inbox.delivered` event was missed.
 
-The SSE stream has two watchdogs — an **idle timeout** (no event or heartbeat) and a **connect
-timeout** (`connectTimeoutMs`, waiting for response headers). Either aborts the request, so a server
-that stalls before replying takes the normal reconnect-with-backoff path instead of freezing the
-chat. Managed-server lifecycle uses a generation token so a `stop()` still awaiting a child kill
-cannot overwrite a replacement's state or trigger a spurious auto-restart, and a PID record is
-removed only if it still names the child that is exiting.
+The event stream is the SDK's `events.subscribe()` async iterable. It is live-only (no replay),
+so when it ends the supervisor backs off, resubscribes and resyncs from history. A generation token
+prevents a stale stream or a late `stop()` from overwriting a newer connection. The
+embedded host has no child process, port, password or orphaned-server record to manage.
 
 Raw server payloads are normalised by `src/shared/adapter.ts` before reaching the reducer. The raw
 wire shapes for the 2.4.0 snapshot are generated from `docs/openapi-2.4.0.json` by
 `npm run gen:types` (CI checks that the generated file is current) and serve as the reference for
-those normalisers. The contract smoke test still observes the **raw** values, so an adapter that
+those normalisers. The contract smoke test observes the **raw** values, so an adapter that
 drops malformed entries cannot hide an unsupported server.
 
 ## Folder layout
@@ -71,17 +68,18 @@ src/
   commands.ts             command/palette registration
   auth/                   `opencode auth list` parsing
   status/                 usage and account status-bar presenters
-  server/                 process management (managed / external)
-  client/                 HTTP client, SSE parser + stream, API types
+  sdk/                    bridge to the bundled SDK
+  server/                 embedded-host lifecycle / external endpoint
+  client/                 generated-client facade + event stream, API types
   chat/                   ChatController, ViewProvider, diff, context, feature services in services/
   shared/                 code shared by host and webview (protocol, reducer, patch, keys);
                           the reducer is split into modules under chatReducer/
   webview/                Preact app (App orchestrator + focused view modules, bundled separately)
 test/
   unit/                   vitest unit tests (client, sse, reducer, patch, keys, server)
-  mock/                   mock OpenCode server (HTTP + scripted SSE)
+  mock/                   mock OpenCode HTTP API and event stream
   integration/            @vscode/test-electron suite (runs against the mock server)
-  e2e/                    real `opencode serve` test (skipped when no provider)
+  e2e/                    real embedded SDK test (model tests skip without a provider)
   ui/                     Playwright test of the webview with a fake VS Code host
 package.nls.json          manifest strings (English); `vscode.l10n.t` uses the source strings inline
 docs/                     documentation index, API notes, decisions, limits, test/release docs
@@ -116,8 +114,8 @@ the prompt is sent. Tokens matching a known command or skill are underlined like
 transparent overlay above the textarea; unknown ones stay plain text.
 
 `UiError = { kind, message, detail?, actions: ActionId[], target?: { kind: "permission" \| "form", id } }`, kinds:
-`notInstalled`, `startFailed`, `unauthorized`, `noProvider`, `connectionLost`, `promptFailed`,
-`noWorkspace`, `requestFailed`.
+`startFailed`, `unauthorized`, `noProvider`, `connectionLost`, `promptFailed`,
+`noWorkspace`, `untrustedWorkspace`, `requestFailed`.
 
 The `skills` catalog is fetched from `GET /api/skill` without a workspace-location override so
 OpenCode includes its global skill sources. The webview receives only each skill's ID, name and
@@ -175,9 +173,8 @@ img-src ${cspSource} data:; font-src ${cspSource}`. No remote scripts, no `conne
 - File-icon theme assets are read from the installed theme only; paths are resolved (no `..` escape)
   and remote `https:` assets are not fetched — the extension makes no network calls beyond the
   configured server and the webview CSP allows no remote images or fonts.
-- Managed server password: random 24 bytes per spawn, kept in memory only.
-  External server password: `SecretStorage`.
-- Server is bound to `127.0.0.1`.
+- Remote endpoint password: stored in `SecretStorage`, never in the extension state.
+- The embedded host opens no listener.
 - Permissions and questions are only auto-answered when the user explicitly opts in
   (`opencode.autoApprovePermissions` or the per-chat toggle); both default to off. Questions
   (forms) always require a user answer, even with auto-approval enabled.

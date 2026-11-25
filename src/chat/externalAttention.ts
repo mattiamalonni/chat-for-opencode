@@ -17,7 +17,7 @@ const dataOf = (event: ServerEvent): Record<string, unknown> =>
 
 /**
  * Keeps the pending requests of sessions that are neither the open chat nor tracked subagents.
- * Those events reach the extension over the shared SSE stream but the normal router sends them
+ * Those events reach the extension over the shared event stream but the normal router sends them
  * nowhere (there is no view for them), so a turn started in the TUI could block with no way to
  * answer it here. The cards use the request's own session id, so replying is unchanged.
  *

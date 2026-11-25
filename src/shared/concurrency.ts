@@ -1,7 +1,7 @@
 /**
  * Run async work over a list with a bounded number of concurrent workers.
  *
- * The session picker used to fire `Promise.all` over every session and up to three requests each on
+ * The session picker fires `Promise.all` over every session and up to three requests each on
  * every event burst. With dozens of busy sessions that is hundreds of parallel HTTP requests. A
  * small pool keeps the same result order and keeps the server (and the extension host) responsive.
  */

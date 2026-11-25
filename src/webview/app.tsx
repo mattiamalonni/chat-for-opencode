@@ -152,7 +152,7 @@ export function App() {
   // Conversation-scoped state must be dropped when the loaded session changes (new session,
   // folder switch, switching/deleting a session) but not on a same-session resync.
   const lastSessionId = useRef<string | null | undefined>(undefined);
-  // The message filter is kept per session: switching to compare two chats used to wipe it.
+  // The message filter is kept per session: switching between chats preserves it.
   const searchQueries = useRef(new Map<string, string>());
 
   useEffect(() => {
@@ -410,7 +410,7 @@ export function App() {
   useEffect(() => {
     // This effect runs after every render (including every streamed token). Keep at most one frame
     // pending instead of cancelling and rescheduling it each time: new cards get measured on the
-    // next frame, while continuous streaming no longer churns the scheduler.
+    // next frame, while continuous streaming avoids churning the scheduler.
     if (tooltipFrame.current !== undefined) return;
     tooltipFrame.current = requestAnimationFrame(() => {
       tooltipFrame.current = undefined;

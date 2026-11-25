@@ -35,7 +35,7 @@ export function onHostMessage(handler: (msg: HostMessage) => void): () => void {
 }
 
 interface PersistedState {
-  /** Legacy global draft, kept for old saved state and for the "no session" case. */
+  /** Global draft for the "no session" case and saved state without a session id. */
   draft?: string;
   /** Drafts keyed by session id. */
   drafts?: Record<string, string>;
@@ -49,7 +49,7 @@ function setPersisted(state: PersistedState): void {
   api.setState(state);
 }
 
-/** Read the composer draft for a session; without a session id, use the legacy global field. */
+/** Read the composer draft for a session; without a session id, use the global field. */
 export function getDraft(sessionId?: string): string {
   const state = getPersisted();
   return sessionId === undefined ? (state.draft ?? "") : (state.drafts?.[sessionId] ?? "");

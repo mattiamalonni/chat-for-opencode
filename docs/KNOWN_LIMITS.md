@@ -10,18 +10,18 @@ test or a manual probe actually ran.
   automated tests. A full live OAuth login was manually verified with **GitHub Copilot**; other
   providers' OAuth/command/external methods follow the same API but have not been tried one by one.
   Environment-variable methods are deliberately hidden from the panel because a webview cannot set
-  a variable on the server process — configure those on `opencode serve` (or `opencode service set
-env`) and refresh.
+  a variable on the host process — configure those in your OpenCode config (or on a server you run
+  yourself), then refresh.
 - **Clicking the real sidebar with a real server.** `npm run test:integration:e2e` attaches to the
   real VS Code webview over CDP against the **mock** server (typing, streaming, permission approval).
   `npm run test:integration:real` runs the extension inside real VS Code against a real
-  `opencode serve` but drives the controller through its message API. `npm run test:integration:real:e2e`
-  combines the two: real webview clicks plus a real server, waiting for the real streamed reply.
+  embedded SDK but drives the controller through its message API. `npm run test:integration:real:e2e`
+  combines the two: real webview clicks plus a real host, waiting for the real streamed reply.
   A full VS Code quit/relaunch is still manual; see [MANUAL_TEST.md](MANUAL_TEST.md).
 - **Windows and Linux.** Development and manual checks ran on macOS (arm64); CI runs lint, unit,
   integration and packaging on `ubuntu-latest`, `macos-latest` and `windows-latest`, so the
-  Windows-specific paths (`.cmd` shims under `shell: true`, `taskkill /T`, AltGr handling) now have
-  automated coverage. The `ManagedServer` unit tests are no longer skipped on Windows. What is
+  Windows-specific paths (`.cmd` shims under `shell: true`, `taskkill /T`, AltGr handling) have
+  automated coverage. The `ManagedServer` unit tests cover Windows as well. What is
   still unverified is real human interaction on those OSes (see IME below) and the author's own
   manual walkthrough.
 - **Real IME / Caps Lock on Windows.** IME behaviour is tested with synthetic composition events
@@ -32,7 +32,7 @@ env`) and refresh.
   Select All (`Cmd+A`) was also verified end to end in the real VS Code webview over CDP (the chord
   reaches the preload and the whole prompt is selected). Other chords such as Ctrl+J were not tested
   by pressing real keys in a real VS Code webview.
-- **Screen readers.** ARIA roles/labels and live regions are present, and the UI suite now checks
+- **Screen readers.** ARIA roles/labels and live regions are present, and the UI suite checks
   the accessibility tree of the composer and permission cards; no test with NVDA/VoiceOver.
 - **Long sessions / performance.** History pagination is capped at 2000 messages; markdown is
   re-rendered per streaming frame (cached, batched with `requestAnimationFrame`). Reconnects fetch
@@ -45,26 +45,26 @@ env`) and refresh.
   growth, but a single conversation with very large messages or patches is still not profiled.
 - **External server mode with a real remote server** — tested only against the mock server (unit).
 - **Real OpenCode contract drift.** The `contract` job runs only on manual CI dispatch against a
-  pinned `opencode@2.4.0`, with `continue-on-error`: it reports a regression but does not block a
-  release, because it needs a real binary and provider credentials. A failure now writes a
+  pinned SDK, with `continue-on-error`: it reports a regression but does not block a
+  release, because it needs a real binary and provider credentials. A failure writes a
   run summary and opens (or comments on) a `contract-drift` issue, so it cannot pass unnoticed; all
   CI jobs also have explicit timeouts. The deterministic half is
-  now a blocking gate in release CI: `test:unit` checks that all 989 recorded 2.2.7 SSE events
-  still normalize and that the OpenAPI snapshot still lists every endpoint the client calls.
+  a blocking gate in release CI: `test:unit` checks that all 989 recorded 2.2.7 SSE events
+  normalize and that the OpenAPI snapshot lists every endpoint the client calls.
 - **Untrusting a workspace mid-session.** The 1.99 API exposes only `onDidGrantWorkspaceTrust`;
   removing trust takes effect in VS Code after a window reload. The extension re-checks `isTrusted`
   on every connect/reconnect, so no process is started or secret read in the meantime.
 
 ## Architectural debt
 
-- **`ChatController` is still the orchestrator for many concerns, but no longer implements them.**
+- **`ChatController` orchestrates many concerns through dedicated services.**
   Connection supervision, session listing, subagents, attachments, diffs, permissions, turn state,
   server-event routing and webview command dispatch live in dedicated services (`ConnectionSupervisor`,
   `SessionListService`, `SubagentTracker`, `AttachmentService`, `DiffService`, `PermissionService`,
   `ExecutionStateService`, `ChatEventRouter`, `ChatCommandHandler`). The controller wires them
   together and owns the session/conversation lifecycle; it is under 1,000 lines, but the two previous
-  dispatch monoliths are now independently testable through explicit hooks objects. Turn state itself
-  is no longer duplicated — see `src/chat/executionState.ts`.
+  dispatch units are independently testable through explicit hooks objects. Turn state itself
+  is kept in one place — see `src/chat/executionState.ts`.
 - **The webview's `busy` flag is still derived from server events**, not from the host's execution
   status. This is deliberate: it renders per-step history and queued turns. The two state machines
   can still disagree briefly during a resync, but the host-side one (status bar, composer unlocking)
@@ -118,15 +118,6 @@ env`) and refresh.
   switching sessions in either view switches both. The tab is restored after a window reload via a
   webview panel serializer, but its scroll position and any unsubmitted text are not.
 
-- **Orphaned servers if VS Code crashes.** Managed servers are stopped on `deactivate` and a PID
-  record (no password) is written on start, keyed by folder **and** owning extension-host PID, so
-  two windows on the same folder keep separate records. On the next activation, records whose owner
-  is gone are reaped only if the HTTP probe matches the recorded PID _and_ the OS confirms that PID
-  listens on the recorded port (`lsof` on macOS/Linux, `netstat` on Windows). If that tool is
-  unavailable, the reap is skipped on purpose: leaking a server is safer than killing a process
-  whose PID was reused. A server that dies before the record is written is still not covered.
-  A record is cleared only if it still names the child that is exiting, so the late exit of a failed
-  start cannot delete the record of the replacement the user reconnected to.
 - **OpenCode's base policy** allows every action without asking (observed with 2.2.7). Sessions
   created by the extension start with `edit`, `shell` and `external_directory` set to `ask` (the
   `opencode.sessionPermissions` default). Sessions created elsewhere, or after setting that option
@@ -157,15 +148,17 @@ env`) and refresh.
 - **Inline attachment copies** (clipboard images, files pasted or dropped without a path) are written
   to the OS temp folder so their chips can be opened in the editor. The host keeps at most 50 of them,
   evicting the oldest when a new one arrives; the rest are removed on extension deactivation. A copy
-  evicted this way is no longer openable from an old chip, though its bytes are still in that prompt.
-- **Other OpenCode versions** are not supported: only the 2.4.0 contract was checked (types from its
-  OpenAPI schema, SSE fixtures recorded on 2.2.7). Other 2.4.x patch releases are assumed compatible
-  without a warning; the chat warns for
-  another minor (untested) or major (unsupported) version. A runtime smoke test checks the raw
-  response shape of the catalog and history endpoints and names the affected features in a banner.
-  `src/shared/adapter.ts` normalises missing/renamed fields so the UI degrades gracefully, and the
-  raw wire types are generated from the snapshot with `npm run gen:types`, but neither can adapt to
-  changed endpoints or event semantics. Supporting a new version means extending the adapter.
+  evicted this way is not openable from an old chip, though its bytes are still in that prompt.
+- **Dependency advisories.** `@opencode/core` depends on `gitlab-ai-provider`, which pins `zod` 3.x;
+  npm reports a high-severity advisory for that version. The extension keeps OpenCode's dependency
+  tree intact instead of overriding a transitive package, so `npm audit --audit-level=high` stays
+  dirty. The release gate checks `critical` advisories and `npm run audit:high` prints the full list.
+- **Version policy.** The extension ships a pinned SDK (2.4.1), so an installed release has exactly
+  one OpenCode version and cannot drift at runtime. Upgrading OpenCode requires a new extension
+  release; the embedded host does not read a CLI version from the machine. The contract smoke test,
+  version banner and `src/shared/adapter.ts` normalisers apply to a server reached through
+  `opencode.endpoint` and provide a safety net for the webview. Supporting a different SDK means
+  bumping the dependency, regenerating types if needed, and re-running the full suite.
 - **Status bar usage is the same estimate** as the composer's context meter (see API_NOTES). It is
   unknown until the first reply (and after a compaction), so the item stays hidden until OpenCode
   reports numbers. It mirrors the **open session** only and is cleared when that session closes;
@@ -176,11 +169,11 @@ env`) and refresh.
   provider.
 - **Todo list** requires OpenCode's experimental flag `experimental.todo` (tool `todowrite`);
   without it there is no todo data to show.
-- **Session diff** (`GET /session/{id}/diff`) is empty outside git repositories. The webview now
+- **Session diff** (`GET /session/{id}/diff`) is empty outside git repositories. The webview
   fills the changed-files panel from completed tools' patch metadata as a fallback, but the panel
   can miss a change whose tool did not record `metadata.files`.
 - **Diff reconstruction** applies the server's patch to the current file for a single-file diff. If
-  the file changed again afterwards and the patch no longer applies, the fallback shows the hunk-only
+  the file changed again afterwards and the patch does not apply, the fallback shows the hunk-only
   before/after. The combined turn/session diff always uses that hunk-only form, so it shows only the
   recorded changes and never the full file content.
 - **Auto context** shows the whole active file as a chip, but the file is attached only when you add

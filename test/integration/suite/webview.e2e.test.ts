@@ -5,7 +5,7 @@ import * as vscode from "vscode";
  * Drives the *real* Preact webview inside VS Code. The other integration suites talk to the
  * ChatController through its message API and the UI suite uses a fake host; this one attaches to
  * the extension host's Chromium over CDP, so clicks, keyboard isolation and the permission cards
- * are exercised end to end against the mock `opencode serve`.
+ * are exercised end to end against the mock OpenCode API.
  *
  * Run with `npm run test:integration:e2e` (adds --remote-debugging-port to the VS Code launch).
  */

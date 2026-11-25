@@ -25,7 +25,6 @@ export type ConnectionStatus = "idle" | "starting" | "connected" | "reconnecting
 
 /** Runtime whitelists live next to the types so protocol guards cannot silently drift from them. */
 export const UI_ERROR_KINDS = [
-  "notInstalled",
   "startFailed",
   "unauthorized",
   "noProvider",
@@ -159,7 +158,7 @@ interface SessionPayload {
 }
 
 /**
- * Tail of a session after an SSE reconnect. Unlike `session`, it is merged into the existing
+ * Tail of a session after an event-stream resubscribe. Unlike `session`, it is merged into the existing
  * conversation instead of rebuilding it, so scroll position, staged attachments and the draft
  * survive a resync that found no changes (or only new messages).
  */
@@ -368,7 +367,7 @@ export type ConnectHostMessage =
   | { type: "init"; strings: Strings; platform: "mac" | "windows" | "linux" }
   | { type: "integrations"; items: IntegrationInfo[]; credentials: CredentialSummary[] }
   | { type: "attempt"; attempt: ConnectAttemptView }
-  | { type: "attemptStatus"; status: "pending" | "complete" | "failed" | "needs_auth"; message?: string; url?: string }
+  | { type: "attemptStatus"; status: "pending" | "complete" | "failed" | "needs_auth" | "expired"; message?: string; url?: string }
   /** The attempt ended (completed, failed or cancelled): leave the code-entry screen. */
   | { type: "attemptClosed" }
   | { type: "notice"; kind: "success" | "error"; message: string }

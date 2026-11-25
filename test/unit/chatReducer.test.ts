@@ -833,7 +833,7 @@ describe("a prompt queued while a turn is running", () => {
     });
     expect(queued.queuedTurnIds).toEqual(["u2"]);
 
-    // The server no longer has the item: its delivered/cancelled event was lost in a reconnect.
+    // The server does not have the item: its delivered/cancelled event was lost in a reconnect.
     const synced = chatReducer(queued, { type: "inbox", items: [] });
     expect(synced.queuedMessages?.u2).toBeUndefined();
     expect(synced.queuedTurnIds).toEqual([]);

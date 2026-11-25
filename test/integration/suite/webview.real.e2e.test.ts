@@ -2,10 +2,10 @@ import { chromium, type Browser, type Frame } from "@playwright/test";
 import * as vscode from "vscode";
 
 /**
- * The last manual gap: real clicks in the real webview AND a real `opencode serve`.
+ * The last manual gap: real clicks in the real webview AND a real model provider.
  * Run with `npm run test:integration:real:e2e` (uses your configured default model).
  */
-describe("real webview + real opencode serve", () => {
+describe("real webview + embedded SDK", () => {
   const inputSelector = 'body[data-oc-e2e="1"] textarea[aria-label="Message to OpenCode"]';
   let browser: Browser | undefined;
 

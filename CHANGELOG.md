@@ -4,6 +4,24 @@ Legend: **`User — …`** entries change something you can see or use. **`Inter
 build, CI or architecture work, condensed to one line; the reasoning lives in
 [DECISIONS.md](docs/DECISIONS.md) and [SPEC.md](SPEC.md).
 
+## Unreleased
+
+- **User — No external software required:** OpenCode now runs inside the extension through the
+  bundled `@opencode/sdk` (2.4.1). There is no CLI to install, no `opencode serve` process, no port
+  and no password for the local host. Requires VS Code 1.134+ (Node 24 in the extension host).
+  `opencode.endpoint` still lets you connect to a server you run yourself.
+- **Internal — SDK adapter:** `OpenCodeClient` now delegates to OpenCode's generated client instead
+  of hand-written fetch/SSE; events arrive from `events.subscribe()` and a resync follows a
+  reconnect. The extension entry and the bundled SDK are a single ESM file; only native/optional modules ship
+  in `node_modules` (VSIX ~15 MB). A compile-time contract checks the webview's wire types against
+  the SDK's generated types, and a dedicated integration suite exercises the embedded-host path.
+- **Internal — Version policy:** the OpenCode version is pinned by the extension instead of the
+  user's CLI, so there is no runtime version drift. Upgrading OpenCode now requires a new extension
+  release. The old `executablePath` / `startupTimeout` / `autoRestart` settings are kept but ignored.
+- **User — Fix:** sessions persist across VS Code reloads again. `OpenCode.create()` defaults to an
+  in-memory database; the embedded host now points at OpenCode's real global database, so history is
+  kept and remains visible to the CLI/TUI. Covered by a new e2e test that closes and recreates a host.
+
 ## 0.3.26 — 2026-11-24
 
 - **User — Session timeline:** `Cmd/Ctrl+G` opens a searchable timeline of the current session's turns (newest first, with steps, tokens and change counts). Selecting one scrolls to its prompt, highlights it and returns focus to the composer — the in-chat equivalent of the TUI's `session.timeline`.

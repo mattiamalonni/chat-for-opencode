@@ -276,7 +276,7 @@ test("@ mentions search only workspace files", async ({ page }) => {
   await expect(page.locator(".mention-popup")).toContainText("src/app.ts");
   await expect(page.locator(".mention-popup li")).toHaveCount(1);
 
-  // `#` is no longer a trigger: typing it leaves plain text and posts no search.
+  // `#` is not a trigger: typing it leaves plain text and posts no search.
   await input.fill("#git");
   await expect(page.locator(".mention-popup")).toHaveCount(0);
   expect((await posted(page)).filter((m) => m.type === "searchFiles" && m.query === "git")).toEqual([]);
@@ -967,7 +967,7 @@ test("expanding an older turn does not stop later turns from auto-folding", asyn
     ev("session.execution.succeeded", 2200, base),
   ]);
   await expect.poll(states).toEqual(["false", "false"]);
-  // Reviewing the old reply must not keep later replies expanded when they are no longer current.
+  // Reviewing a reply must not keep later replies expanded when they are not current.
   await headers.first().click();
   await expect(headers.first()).toHaveAttribute("aria-expanded", "true");
 
@@ -1010,7 +1010,7 @@ test("opening a long session lands at the bottom and the view stays scrollable",
   await page.setViewportSize({ width: 420, height: 500 });
   await boot(page);
   // Many turns make `content-visibility: auto` estimate the height of off-screen cards, so a single
-  // scrollTop assignment used to stop ~1400px short of the real bottom on session open.
+  // A plain scrollTop assignment stops ~1400px short of the real bottom on session open.
   const longHistory: SessionMessage[] = Array.from({ length: 60 }, (_, i) =>
     i % 2 === 0
       ? { id: `u${i}`, type: "user", text: `prompt ${i}`, time: { created: i } }
@@ -1060,7 +1060,7 @@ test("scrolling up near the bottom is not snapped back by unrelated re-renders",
   const nudged = await conversation.evaluate((el) => el.scrollTop);
   expect(nudged).toBeLessThan(bottom);
 
-  // An unrelated state update used to trigger an unconditional scrollToBottom and undo the nudge.
+  // An unrelated state update would trigger an unconditional scrollToBottom and undo the nudge.
   await host(page, {
     type: "context",
     items: [{ id: "file:///work/src/app.ts", kind: "file", uri: "file:///work/src/app.ts", label: "app.ts", detail: "src/app.ts" }],
@@ -2697,22 +2697,22 @@ test("session cost from usage updates appears in the context meter tooltip", asy
   await expect.poll(async () => meter.getAttribute("data-tooltip")).toContain("$0.43");
 });
 
-test("errors show actionable banners (server missing, provider, interrupted stream)", async ({ page }) => {
+test("errors show actionable banners (startup failure, provider, interrupted stream)", async ({ page }) => {
   await boot(page);
   await host(page, {
     type: "connection",
     status: "error",
     error: {
-      kind: "notInstalled",
-      message: STRINGS["error.notInstalled"],
-      detail: '"opencode" was not found.',
+      kind: "startFailed",
+      message: STRINGS["error.startFailed"],
+      detail: "The embedded host failed to start.",
       actions: ["install", "openSettings", "showLogs"],
     },
   });
   const alert = page.getByRole("alert");
-  await expect(alert).toContainText(STRINGS["error.notInstalled"]);
+  await expect(alert).toContainText(STRINGS["error.startFailed"]);
   await expect(page.getByRole("textbox", { name: STRINGS.inputLabel })).toBeDisabled();
-  await page.screenshot({ path: join(SHOTS, "07-error-not-installed-dark.png") });
+  await page.screenshot({ path: join(SHOTS, "07-error-start-failed-dark.png") });
   await alert.getByRole("button", { name: STRINGS["action.install"] }).click();
   expect(await lastPosted(page, "action")).toEqual({ type: "action", id: "install" });
 
@@ -3160,7 +3160,7 @@ test("question options stack title above description in one column", async ({ pa
 
 test("long chip tooltips do not create horizontal scroll", async ({ page }) => {
   await boot(page);
-  // Long labels make chips wrap all the way to the right edge. Their hidden tooltips used to grow
+  // Long labels make chips wrap all the way to the right edge. Their hidden tooltips can grow
   // rightwards past the viewport, leaving an empty horizontal scrollbar (issue reported on 0.3.8).
   const items = Array.from({ length: 6 }, (_, i) => ({
     id: `file:///work/src/a/very/long/path/to/component-${i}.tsx`,
@@ -3939,16 +3939,16 @@ test("a setup blocker replaces the welcome prompts with a first-run checklist", 
     type: "connection",
     status: "error",
     error: {
-      kind: "notInstalled",
-      message: STRINGS["error.notInstalled"],
-      detail: "spawn opencode ENOENT",
+      kind: "startFailed",
+      message: STRINGS["error.startFailed"],
+      detail: "embedded host ENOENT",
       actions: ["install", "openSettings", "showLogs"],
     },
   });
   await expect(page.getByRole("heading", { name: STRINGS.setupTitle })).toBeVisible();
   await expect(page.locator(".setup-steps li.pending")).toHaveCount(1);
   await expect(page.locator(".setup-steps li.done")).toHaveCount(2);
-  // The actual cause is no longer hidden behind a collapsed "Details" toggle.
+  // The actual cause stays visible instead of hiding behind a collapsed "Details" toggle.
   await expect(page.locator(".banner-detail-inline")).toContainText("ENOENT");
   await expect(page.locator(".welcome-starter")).toHaveCount(0);
   await expect(page.locator(".banner-detail")).toHaveCount(0);

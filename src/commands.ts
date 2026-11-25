@@ -80,10 +80,10 @@ export function registerCommands(deps: CommandDependencies): vscode.Disposable[]
         logError(`[auth] failed to read OpenCode logins: ${String(err)}`);
         account.clearLogins();
         const action = await vscode.window.showErrorMessage(
-          vscode.l10n.t("Could not load OpenCode login information. Check the OpenCode installation and executable path."),
+          vscode.l10n.t("Could not load OpenCode login information. Check the extension settings."),
           vscode.l10n.t("Open settings"),
         );
-        if (action) await vscode.commands.executeCommand("workbench.action.openSettings", "opencode.executablePath");
+        if (action) await vscode.commands.executeCommand("workbench.action.openSettings", "@ext:mattiamalonni.chat-for-opencode");
         return;
       }
 
@@ -114,16 +114,11 @@ export function registerCommands(deps: CommandDependencies): vscode.Disposable[]
     }),
     vscode.commands.registerCommand("opencode.showLogs", () => output.show(true)),
     vscode.commands.registerCommand("opencode.setServerPassword", () => chat.setPassword()),
-    // Reset only the registry would leave the controller holding a disposed handle and an SSE
-    // stream reconnecting to a dead port; tear down the whole connection through the controller.
+    // Reset only the registry would leave the controller holding a disposed handle and a live
+    // event subscription; tear down the whole connection through the controller.
     vscode.commands.registerCommand("opencode.stopServer", () => chat.stopServer()),
     vscode.workspace.onDidChangeConfiguration((e) => {
-      if (
-        e.affectsConfiguration("opencode.executablePath") ||
-        e.affectsConfiguration("opencode.endpoint") ||
-        e.affectsConfiguration("opencode.startupTimeout") ||
-        e.affectsConfiguration("opencode.autoRestart")
-      ) {
+      if (e.affectsConfiguration("opencode.endpoint")) {
         void chat.resetServers();
       }
     }),

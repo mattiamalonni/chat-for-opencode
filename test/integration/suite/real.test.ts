@@ -1,4 +1,4 @@
-// Opt-in (OC_IT_REAL=1): the extension inside real VS Code, driving a real `opencode serve`.
+// Opt-in (OC_IT_REAL=1): the extension inside real VS Code, driving the embedded SDK and a real provider.
 import * as assert from "node:assert/strict";
 import * as path from "node:path";
 import * as vscode from "vscode";
@@ -23,7 +23,7 @@ const ev = (type: string, since: number) => posted.slice(since).find((m) => m.ty
 const done = (since: number) =>
   posted.slice(since).find((m) => m.type === "event" && /^session\.execution\.(succeeded|failed|interrupted)$/.test(m.event.type));
 
-describe("real opencode serve inside VS Code", () => {
+describe("embedded SDK inside VS Code", () => {
   before(async () => {
     const ext = vscode.extensions.getExtension("mattiamalonni.chat-for-opencode")!;
     controller = ((await ext.activate()) as { controller: ChatController }).controller;

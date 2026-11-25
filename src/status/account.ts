@@ -18,7 +18,7 @@ export function createAccountStatus(logError: (line: string) => void, readCreden
   item.name = vscode.l10n.t("OpenCode account");
   item.text = "$(comment-discussion)";
   let authLogins: vscode.QuickPickItem[] | undefined;
-  // Only the tooltip reads it now; the icon itself comes straight from the execution event.
+  // Only the tooltip reads it; the icon comes straight from the execution event.
   let executionStatus: ExecutionStatus = "idle";
   const statusDescriptions: Record<ExecutionStatus, string> = {
     idle: vscode.l10n.t("Idle"),

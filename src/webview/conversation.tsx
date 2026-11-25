@@ -133,7 +133,7 @@ export function Conversation({
     const container = ref.current;
     if (!container) return;
     // Compare `dataset` instead of interpolating the id into a CSS selector: message ids come from
-    // the server, so quotes/brackets in one used to throw a SyntaxError and take down the webview.
+    // the server, so quotes/brackets in one would throw a SyntaxError and take down the webview.
     const el = Array.from(container.querySelectorAll<HTMLElement>("[data-message-id]")).find(
       (candidate) => candidate.dataset.messageId === revealMessageId,
     );
@@ -152,7 +152,7 @@ export function Conversation({
   }, [revealMessageId, chat.messages, onRevealed]);
 
   // Pin to the bottom only when the conversation actually grows (a streamed token, a new
-  // message, a new card). This used to run after *every* render, so an unrelated state change
+  // message, a new card). It runs only on identity changes, so an unrelated state change
   // (tooltip direction, context chips, session refresh) yanked the view back
   // down while the user was scrolling up through old history — the chat felt stuck to the
   // bottom. Comparing scroll heights also avoids fighting the user when content is replaced

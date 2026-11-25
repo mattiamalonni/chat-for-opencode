@@ -1,35 +1,9 @@
 # Decisions
 
-## D1 — Direct HTTP/SSE instead of an SDK
-
-- `@opencode-ai/sdk` (1.19.x) targets the **v1** API (`/session`, `/event`); the supported server is
-  v2.4.0 and exposes everything under `/api/*`. Incompatible.
-- `@opencode/client` (2.4.0) is the v2 client but: it is described on npm as a _"Private
-  generation target"_, it is ESM-only (VS Code extensions load CJS), it pulls `@opencode/schema` and
-  `@opencode/protocol` (~1.2 MB unpacked for the client alone), it would duplicate the contract we
-  can take straight from the server's own schema, and its event subscriptions have "no replay or
-  automatic reconnection" anyway.
-- We use ~20 endpoints. A thin hand-written client with types taken from the server's own
-  `/openapi.json` (saved in `docs/openapi-2.4.0.json`) is small, testable against a mock server,
-  and lets us implement reconnection exactly as we need.
-
-## D2 — Managed server: random password via `OPENCODE_PASSWORD`
-
-v2 servers always require Basic auth. Documented env var `OPENCODE_PASSWORD` sets it; we
-generate 24 random bytes per spawn (base64url) and keep them in memory only. `--port 0` lets the OS pick a
-free port; the URL is parsed from the `server listening on <url>` stdout line, then `/api/info` is
-polled as a health check.
-
-## D3 — One process per workspace folder, cwd = folder
-
-The server's default location is its cwd, and sessions are created with an explicit
-`location.directory`, so each folder's server sees only its own project. Processes start lazily
-(first time the chat view needs that folder).
-
 ## D4 — Reducer in the webview, server as source of truth
 
-History is re-fetched on view creation and after every SSE reconnect; live events are forwarded
-unchanged. This keeps the host stateless w.r.t. message content, avoids `retainContextWhenHidden`
+History is re-fetched on view creation and after every event-stream resubscribe; live events are
+forwarded unchanged. This keeps the host stateless w.r.t. message content, avoids `retainContextWhenHidden`
 (memory), and makes the reducer a pure function testable in Node.
 
 ## D5 — Preact + marked + DOMPurify + highlight.js (common subset)
@@ -151,13 +125,12 @@ session, so children inherit the parent's toggle. To keep the thread honest, the
 shows an amber waiting marker while its child is blocked — the actionable card still lives only in
 the overlay.
 
-## D16 — Workspace Trust blocks process and secret access, not just configuration
+## D16 — Workspace Trust gates host creation and secret access
 
-`untrustedWorkspaces.supported: "limited"` restricts `opencode.executablePath` and `opencode.endpoint`,
-but VS Code would still let the extension spawn the default `opencode` binary and read `SecretStorage`.
-The `isTrusted` check therefore sits before `server.ensure()` / `server.restart()` and before any
+`untrustedWorkspaces.supported: "limited"` restricts `opencode.endpoint`.
+The `isTrusted` check therefore sits before host creation and before any
 credential listing (`ChatController.credentials()` / `GET /api/credential`), and publishes an error
-card with a _Trust workspace_ action. VS Code 1.99 only
+card with a _Trust workspace_ action. The API
 exposes `onDidGrantWorkspaceTrust`, so gaining trust reconnects without a reload while losing trust
 takes effect on the next reload (all entry points re-check `isTrusted` in the meantime).
 
@@ -204,7 +177,7 @@ refusals in pure hooks; the host only resolves the target path and performs the 
 
 `ServerRegistry` already keeps one handle per folder and the controller already persists the last
 session per folder, so a full multi-connection chat was unnecessary for the main monorepo pain
-point: not seeing the rest of the repository. `FileIndex` now scans every workspace folder and
+point: not seeing the rest of the repository. `FileIndex` scans every workspace folder and
 qualifies ambiguous paths with the folder name; path validation accepts any folder the user
 explicitly opened (still after real-path resolution, so `../` and symlink escapes remain blocked);
 session summaries carry their folder name. The active folder stays the single join root for

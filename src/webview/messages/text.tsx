@@ -29,7 +29,7 @@ export function Markdown({ text }: { text: string }) {
 /**
  * Plain-text representation used for header search and Markdown export. Messages are immutable
  * (the reducer allocates a new object only for the one that changed), so cache by identity: the
- * search count and the export no longer rebuild strings for every unchanged message each frame.
+ * search count and the export avoid rebuilding strings for unchanged messages each frame.
  */
 const searchTextCache = new WeakMap<UiMessage, string>();
 export function messageSearchText(message: UiMessage): string {

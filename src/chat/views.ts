@@ -7,7 +7,7 @@ export type ChatWebview = vscode.WebviewView | vscode.WebviewPanel;
 /**
  * Owns every live chat view (the sidebar plus any editor tabs) and the listeners attached to them.
  *
- * The controller used to keep six interleaved fields (`views`, `view`, `sidebarView`, `panel`,
+ * Six interleaved fields (`views`, `view`, `sidebarView`, `panel`,
  * `viewSubscriptions`, `postListeners`) and the code that kept them in sync. Isolating that bookkeeping
  * here makes handle disposal a single responsibility and lets the lifecycle tests exercise it
  * without constructing a whole controller.

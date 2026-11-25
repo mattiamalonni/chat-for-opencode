@@ -161,7 +161,7 @@ export class ChatSessionService {
   }
 
   /**
-   * Applies only the messages added since the last load. The SSE stream is live-only and has no
+   * Applies only the messages added since the last load. The event stream is live-only and has no
    * replay, but the history endpoint can find the overlap by id (`order=desc`). When nothing (or
    * only a few messages) changed, the webview keeps its scroll position, attachments and draft
    * instead of being rebuilt from a full `session` payload.
@@ -219,7 +219,7 @@ export class ChatSessionService {
       const generation = this.d.lifecycle.generations.load.current();
       // `resync()` is fire-and-forget from the stream status and view visibility handlers. Capture
       // the connection too: a folder switch or a new connect during the awaits below must not let an
-      // old resync publish "connected" for a client we no longer own.
+      // old resync publish "connected" for a client we do not own.
       const connectGeneration = this.d.lifecycle.generations.connect.current();
       const client = this.d.getClient();
       const sid = this.d.state.sessionId;
@@ -261,7 +261,7 @@ export class ChatSessionService {
   }
 
   /**
-   * The SSE stream is scoped to the server process we connected to. Another client (e.g. the TUI
+   * The event stream is scoped to the host we connected to. Another client (e.g. the TUI
    * running as a separate process) writes sessions to the same on-disk storage but emits no event
    * on our stream, so its prompts are invisible until a manual Sync/Reconnect re-reads history.
    * Poll the open session's tail instead and fold new messages in through the same `sessionDelta`
@@ -288,7 +288,7 @@ export class ChatSessionService {
       const generation = this.d.lifecycle.generations.load.current();
       const stale = () => !this.d.lifecycle.generations.load.is(generation) || sid !== this.d.state.sessionId;
       // The tail itself is authoritative. `time.updated` is not a reliable gate: it can stay equal
-      // on a coarse clock, or move for changes we do not render, which used to hide real messages.
+      // on a coarse clock, or move for changes we do not render, which hides real messages.
       const newer = await client.messagesNewerThan(sid, head.id).catch(() => undefined);
       if (stale()) return;
       if (newer === undefined) {
@@ -387,7 +387,7 @@ export class ChatSessionService {
     const forms = normalizeList(rawForms, normalizeForm);
     const changed = this.d.state.sessionId !== info.id;
     // Publish the new session before touching children: `loadSubagentSnapshot` captures the parent
-    // synchronously and drops its result if that id no longer matches the open session. Setting it
+    // synchronously and drops its result if that id does not match the open session. Setting it
     // afterwards made every subagent of a freshly selected session fail its own staleness guard.
     this.d.state.sessionId = info.id;
     if (changed) {
@@ -462,7 +462,7 @@ export class ChatSessionService {
   }
 
   /**
-   * One teardown path for "the current work no longer matters". Callers used to repeat a different
+   * One teardown path for "the current work does not matter". Callers otherwise repeat a different
    * subset of these steps in a different order; forgetting one was the source of stale-state races.
    */
   invalidateSessionState(): void {
