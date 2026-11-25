@@ -4,7 +4,7 @@
 import { readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import * as prettier from "prettier";
+import { format } from "oxfmt";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const manifest = JSON.parse(readFileSync(path.join(root, "package.json"), "utf8"));
@@ -102,8 +102,12 @@ async function build() {
   let doc = readFileSync(docPath, "utf8");
   doc = replaceBlock(doc, "commands", commandTable());
   doc = replaceBlock(doc, "settings", settingsTable());
-  const config = (await prettier.resolveConfig(docPath)) ?? {};
-  return prettier.format(doc, { ...config, filepath: docPath });
+  // `format()` does not discover config files, so keep these options in sync with oxfmt.config.ts.
+  const { code, errors } = await format(docPath, doc, { printWidth: 140, endOfLine: "lf", tabWidth: 2 });
+  if (errors.length > 0) {
+    throw new Error(`docs/REFERENCE.md formatting failed: ${errors.map((error) => error.message).join("; ")}`);
+  }
+  return code;
 }
 
 const check = process.argv.includes("--check");

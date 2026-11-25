@@ -167,8 +167,11 @@ describe("session list summaries", () => {
     return { s, post };
   }
 
-  const needsInputOf = (post: ReturnType<typeof vi.fn>) =>
-    (post.mock.calls.at(-1)?.[0] as { items: Array<{ needsInput: boolean }> }).items[0].needsInput;
+  const needsInputOf = (post: ReturnType<typeof vi.fn>) => {
+    const call = post.mock.calls.at(-1);
+    if (!call) throw new Error("no post call recorded");
+    return (call[0] as { items: Array<{ needsInput: boolean }> }).items[0].needsInput;
+  };
 
   it("marks a pending permission as needing input when auto-approval does not apply", async () => {
     const { s, post } = withRequests([pendingPermission], [], () => false);

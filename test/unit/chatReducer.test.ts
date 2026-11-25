@@ -184,7 +184,7 @@ describe("chatReducer with recorded opencode 2.2.7 streams", () => {
       .flatMap((a) => a.parts)
       .find((p) => p.kind === "tool" && p.name === "edit");
     expect(edit && edit.kind === "tool" && edit.status).toBe("completed");
-    expect(edit && edit.kind === "tool" && (edit.metadata?.files as unknown[]).length).toBe(1);
+    expect(edit && edit.kind === "tool" && edit.metadata && (edit.metadata.files as unknown[]).length).toBe(1);
   });
 
   it("tracks question forms", () => {

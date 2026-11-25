@@ -403,9 +403,9 @@
     "verify:docs": "node scripts/gen-docs.mjs --check",
     "verify:links": "node scripts/check-doc-links.mjs",
     "watch": "node esbuild.mjs --watch",
-    "lint": "eslint .",
-    "format": "prettier --write .",
-    "format:check": "prettier --check .",
+    "lint": "oxlint",
+    "format": "oxfmt",
+    "format:check": "oxfmt --check",
     "audit": "npm audit --omit=dev --audit-level=critical",
     "audit:high": "npm audit --omit=dev --audit-level=high",
     "verify:types": "npm run gen:types && git diff --exit-code -- src/shared/openapi.generated.ts",
@@ -436,7 +436,6 @@
     "preact": "^11.2.0"
   },
   "devDependencies": {
-    "@eslint/js": "^10.0.1",
     "@jridgewell/trace-mapping": "^0.3.31",
     "@playwright/test": "^1.65.1",
     "@types/mocha": "^10.0.10",
@@ -447,11 +446,10 @@
     "@vscode/vsce": "^4.1.1",
     "cross-env": "^10.1.0",
     "esbuild": "^0.28.2",
-    "eslint": "^10.15.0",
     "mocha": "^11.8.0",
-    "prettier": "^3.10.1",
+    "oxfmt": "^0.80.0",
+    "oxlint": "^1.95.0",
     "typescript": "~6.0.3",
-    "typescript-eslint": "^8.73.0",
     "vitest": "5.1.0"
   }
 }

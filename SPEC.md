@@ -162,7 +162,7 @@ hunks only (`hunksSides`, with a `===== file =====` header per file) and opens o
 ## Security
 
 - Webview CSP: `default-src 'none'; script-src 'nonce-…'; style-src ${cspSource};
-img-src ${cspSource} data:; font-src ${cspSource}`. No remote scripts, no `connect-src`
+  img-src ${cspSource} data:; font-src ${cspSource}`. No remote scripts, no `connect-src`
   (the webview never talks to the server directly).
 - Markdown HTML is sanitised with DOMPurify _before_ prose is linkified, so a crafted
   `<a data-file>`/`data-action` in a reply cannot become a clickable file link or a fake code-copy

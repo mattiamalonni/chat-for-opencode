@@ -113,6 +113,8 @@ See [docs/README.md](docs/README.md) for the index of the contributor documentat
 
 ## Style
 
-Prettier (`npm run format`) and ESLint (`npm run lint`) define the style. Keep line endings LF;
-`.editorconfig` and `.gitattributes` enforce that across platforms. Prefer small services with
-explicit dependencies over adding more state to `ChatController`.
+Oxfmt (`npm run format`) and Oxlint (`npm run lint`) define the style. Their options live in
+`oxfmt.config.ts` and `oxlint.config.ts`; use the Node version from `.nvmrc`, which is recent enough
+to load those TypeScript configs. Keep line endings LF; `.editorconfig` and `.gitattributes` enforce
+that across platforms. Prefer small services with explicit dependencies over adding more state to
+`ChatController`.

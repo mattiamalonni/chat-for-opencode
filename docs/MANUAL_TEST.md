@@ -127,7 +127,7 @@ screen readers and multi-window process management.
     full reload, which is expected. The merge itself is covered by the reducer unit tests and by a
     Playwright UI test that sends a `sessionDelta` and checks that staged chips are preserved.
     19b. **Subagent modal**: ask the agent to use a subagent (`Use the 'explore' subagent to list the
-files in this folder`). While it runs, the inline card shows a one-line activity; click the
+    files in this folder`). While it runs, the inline card shows a one-line activity; click the
     **Open subagent conversation** button on the card. Expect a modal with the child's own task,
     thoughts, tool steps and final report, with breadcrumbs ending in the agent name. Click the
     parent crumb (or press `Esc`, or click the backdrop) to return. Have that subagent spawn a
