@@ -19,6 +19,8 @@ export interface ComposerProps {
   /** Prompt returned by a rollback; unlike `draftToken` this replaces even non-empty input. */
   restoredDraft?: { text: string; token: number };
   busy: boolean;
+  /** A background shell is still running after the turn ended; the chat resumes on completion. */
+  waitingShell?: boolean;
   disabled: boolean;
   models: ModelInfo[];
   agents: AgentInfo[];
@@ -483,6 +485,7 @@ export function Composer(props: ComposerProps) {
       </div>
       <StatusBar
         busy={props.busy}
+        waitingShell={props.waitingShell}
         disabled={props.disabled}
         text={text}
         autoApprove={props.autoApprove}

@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "preact/hooks";
 import type { ModelInfo } from "../shared/api";
-import { chatReducer } from "../shared/chatReducer";
+import { chatReducer, selectPendingShells } from "../shared/chatReducer";
 
 import type { ConnectionStatus, UiError } from "../shared/protocol";
 
@@ -44,6 +44,7 @@ export function Conversation({
   const lastId = useRef<string | undefined>(undefined);
   const [atBottom, setAtBottom] = useState(true);
   const items = useMemo(() => conversationItems(chat.messages, chat.turns), [chat.messages, chat.turns]);
+  const pendingShells = useMemo(() => selectPendingShells(chat), [chat.messages]);
   const query = searchQuery.trim().toLowerCase();
 
   // Fold state is owned here so one control can expand/collapse every step of a turn. Defaults
@@ -308,6 +309,19 @@ export function Conversation({
               </div>
             ))}
           {items.map((item) => renderItem(item, query))}
+          {pendingShells.length > 0 && (
+            <div class="waiting-shell" role="status" aria-label={t("waitingForShell")}>
+              <span class="waiting-shell-spinner" aria-hidden="true" />
+              <div class="waiting-shell-body">
+                <strong>{t("waitingForShell")}</strong>
+                {pendingShells.map((shell) => (
+                  <code key={shell.id} title={shell.command}>
+                    {shell.command ?? shell.id}
+                  </code>
+                ))}
+              </div>
+            </div>
+          )}
           {chat.busy && chat.messages.at(-1)?.kind !== "assistant" && (
             <div class="typing" aria-label={t("thinking")}>
               <span />

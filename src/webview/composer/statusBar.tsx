@@ -6,6 +6,8 @@ import { post } from "../vscode";
 
 export function StatusBar(props: {
   busy: boolean;
+  /** A background shell is still running; say so instead of showing the idle drop hint. */
+  waitingShell?: boolean;
   disabled: boolean;
   text: string;
   autoApprove: boolean;
@@ -31,7 +33,9 @@ export function StatusBar(props: {
       >
         <IconFolder />
       </button>
-      <span>{props.busy && text.trim() ? t("queueHint") : t("dropFilesHint")}</span>
+      <span class={props.waitingShell ? "drop-hint-waiting" : undefined} role={props.waitingShell ? "status" : undefined}>
+        {props.waitingShell ? t("waitingForShellHint") : props.busy && text.trim() ? t("queueHint") : t("dropFilesHint")}
+      </span>
       <div class="drop-hint-tools">
         <button
           type="button"

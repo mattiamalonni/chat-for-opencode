@@ -1,4 +1,5 @@
 import type { SessionInfo, SessionMessage } from "../api";
+import { parseBackgroundResult } from "../backgroundResult";
 import type { SessionSummary } from "../protocol";
 
 export function isIncomplete(m: SessionMessage): boolean {
@@ -73,6 +74,37 @@ export function sessionLooksBusy(time: SessionInfo["time"]): boolean {
 }
 
 /**
+ * Whether a session has a shell command still running in the background. The turn that started it
+ * is already idle, so the busy timestamp is settled: the only trace is a `shell` tool called with
+ * `background: true` whose shell id has no matching `<background-result>` in the history yet.
+ */
+export function sessionWaitingShell(messages?: SessionMessage[]): boolean {
+  if (!messages) return false;
+  const settled = new Set<string>();
+  for (const m of messages) {
+    if (m.type !== "synthetic") continue;
+    const parsed = parseBackgroundResult(m.text, m.description);
+    if (parsed?.id) settled.add(parsed.id);
+  }
+  for (const m of messages) {
+    if (m.type !== "assistant") continue;
+    for (const c of m.content) {
+      if (c.type !== "tool" || c.name !== "shell") continue;
+      const state = c.state;
+      if (state.status === "streaming") continue;
+      const content = "content" in state ? (state.content ?? []) : [];
+      const backgrounded =
+        state.input?.background === true ||
+        content.some((c: { type: string; text?: string }) => c.type === "text" && /moved to the background/i.test(c.text ?? ""));
+      if (!backgrounded) continue;
+      const id = state.metadata?.shellID;
+      if (typeof id === "string" && id && !settled.has(id)) return true;
+    }
+  }
+  return false;
+}
+
+/**
  * Builds the list entry for a session. When a history is available, the last turn message is
  * authoritative: the timestamps alone can stay stale after an interrupt, which would otherwise
  * leave the session marked as running in the list even though the chat itself is idle.
@@ -86,6 +118,7 @@ export function toSessionSummary(info: SessionInfo, messages?: SessionMessage[],
     title: info.title ?? "",
     updated: info.time.updated,
     busy: status === "running",
+    waiting: sessionWaitingShell(messages),
     needsInput,
     ...(status === "failed" || status === "interrupted" ? { error: status } : {}),
   };

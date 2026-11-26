@@ -142,5 +142,14 @@ screen readers and multi-window process management.
     and the child finishes its report. Repeat with the subagent modal open: the approval panel must
     be visible inside the modal and the reply must still unblock the child. With auto-approve on,
     neither the card nor the indicator should appear at all.
+    19d. **Background shell**: ask the agent to run a command in the background with `background:true`
+    and then close its response, e.g. `for i in $(seq 1 3); do echo "check $i: $(date +%T)"; sleep 30; done`.
+    After the tool card says the command moved to the background, the turn ends: expect a spinner
+    **Waiting for background command** card with the command at the end of the conversation, the same
+    explanation in the composer hint, and an amber dot plus that label in the session list. Do not
+    send anything — when the job finishes (~90 s), the agent resumes by itself, the card disappears
+    and a compact **Background command finished** notice shows `check 3: …` instead of raw XML. Click
+    the header's **Sync conversation from server** and confirm the notice stays compact. A command
+    backgrounded automatically after a timeout (no explicit `background:true`) must behave the same.
 20. **Screen reader** (if available): with VoiceOver/NVDA, focus the composer and confirm its label,
     the session picker and the permission cards announce their role and state.

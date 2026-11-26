@@ -1,6 +1,14 @@
 import { useEffect, useLayoutEffect, useMemo, useReducer, useRef, useState } from "preact/hooks";
 import type { AgentInfo, CommandSuggestion, FileDiff, InboxItem, ModelInfo, ModelRef, ServerEvent, SkillSuggestion } from "../shared/api";
-import { chatReducer, initialChatState, mergeChangedFiles, selectTodos, sessionTimeline, type UiUserMessage } from "../shared/chatReducer";
+import {
+  chatReducer,
+  initialChatState,
+  mergeChangedFiles,
+  selectPendingShells,
+  selectTodos,
+  sessionTimeline,
+  type UiUserMessage,
+} from "../shared/chatReducer";
 import { type Compatibility } from "../shared/compatibility";
 import { estimateDataUrlTokens, formatTokens } from "../shared/format";
 import { isFindKey, isNewSessionKey, isOpenModelsKey, isOpenSessionsKey, isSyncKey, isTimelineKey } from "../shared/keys";
@@ -499,6 +507,7 @@ export function App() {
   }, [chat.forms.length]);
 
   const todos = useMemo(() => selectTodos(chat), [chat.messages]);
+  const pendingShells = useMemo(() => selectPendingShells(chat), [chat.messages]);
   // GET /session/{id}/diff is empty outside git repos, so fall back to patches in tool metadata.
   // `chat.messages` is a new array on every streamed token, but file diffs only change when a tool
   // completes. Keep the previous array when its content is identical so the expensive patch
@@ -843,6 +852,7 @@ export function App() {
                 draftToken={draftToken}
                 restoredDraft={restoredDraft}
                 busy={chat.busy}
+                waitingShell={pendingShells.length > 0}
                 contextTokens={chat.contextTokens === undefined ? undefined : chat.contextTokens + attachmentTokens}
                 contextEstimated={attachmentTokens > 0}
                 disabled={!connected}

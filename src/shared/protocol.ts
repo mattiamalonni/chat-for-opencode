@@ -84,6 +84,8 @@ export interface SessionSummary {
   title: string;
   updated: number;
   busy: boolean;
+  /** A background shell is still running; the turn is idle but the session will resume on completion. */
+  waiting?: boolean;
   /** A permission request or a question is waiting for the user to answer. */
   needsInput: boolean;
   /** Last turn ended in a failure or was interrupted; derived from the session history. */

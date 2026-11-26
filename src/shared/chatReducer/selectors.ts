@@ -5,6 +5,42 @@ import type { ChangedFile, ChatState, Todo, ToolPart, UiAssistantMessage } from 
 
 const TODO_TOOL_RE = /todo/i;
 
+export interface PendingShell {
+  id: string;
+  command?: string;
+  started: number;
+}
+
+/**
+ * Background shell jobs whose completion notification has not arrived yet.
+ *
+ * The tool call itself completes as soon as the job moves to the background, so `status` cannot
+ * tell us whether the shell is still running: the marker is `input.background` plus
+ * `metadata.shellID`, settled by the `backgroundResult` notice produced from `<background-result>`.
+ */
+export function selectPendingShells(state: ChatState): PendingShell[] {
+  const settled = new Set<string>();
+  for (const m of state.messages) {
+    if (m.kind === "notice" && m.code === "backgroundResult" && m.shellId) settled.add(m.shellId);
+  }
+  const pending = new Map<string, PendingShell>();
+  for (const m of state.messages) {
+    if (m.kind !== "assistant") continue;
+    for (const p of m.parts) {
+      if (p.kind !== "tool" || p.name !== "shell") continue;
+      const backgrounded =
+        p.input?.background === true || p.output.some((o) => o.type === "text" && /moved to the background/i.test(o.text));
+      if (!backgrounded) continue;
+      const id = p.metadata?.shellID;
+      if (typeof id !== "string" || !id || settled.has(id)) continue;
+      const input = p.input;
+      const command = typeof input?.command === "string" ? input.command : undefined;
+      pending.set(id, { id, command, started: m.created });
+    }
+  }
+  return [...pending.values()];
+}
+
 /** Latest todo list written by the `todowrite` tool (experimental in OpenCode 2.2). */
 export function selectTodos(state: ChatState): Todo[] | undefined {
   for (let i = state.messages.length - 1; i >= 0; i--) {

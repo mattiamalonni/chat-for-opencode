@@ -61,7 +61,8 @@ The short version — full behaviour in [docs/FEATURES.md](docs/FEATURES.md):
 
 - [Chat and sessions](docs/FEATURES.md#chat-and-sessions) — streaming Markdown, collapsible
   reasoning and tool cards, per-turn step folds, turn stats, a searchable session timeline, queued
-  messages, subagents with a child-focused composer in the modal, `todowrite` lists.
+  messages, subagents with a child-focused composer in the modal, visible background shell jobs,
+  `todowrite` lists.
 - [Context and files](docs/FEATURES.md#context-and-files) — editor/selection chips, `@` file search,
   external files sent inline, clickable file references, prompt library, skills.
 - [Diffs and permissions](docs/FEATURES.md#diffs-and-permissions) — Apply to file with a reviewable

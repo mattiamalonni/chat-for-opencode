@@ -84,6 +84,28 @@ describe("ChatEventRouter", () => {
     expect(hooks.scheduleChanges).toHaveBeenCalledTimes(1);
   });
 
+  it("refreshes sessions when a shell moves to the background and when its result arrives", () => {
+    const { router, hooks } = setup();
+    router.route(
+      event("session.tool.success", {
+        sessionID: "s1",
+        input: { command: "sleep 60", background: true },
+        content: [{ type: "text", text: "Command moved to the background (shell ID: sh_1)" }],
+      }),
+    );
+    expect(hooks.scheduleSessions).toHaveBeenCalledTimes(1);
+    router.route(
+      event("session.inbox.enqueued", {
+        sessionID: "s1",
+        item: {
+          type: "synthetic",
+          payload: { text: '<background-result kind="shell" id="sh_1" state="completed" command="sleep 60">done</background-result>' },
+        },
+      }),
+    );
+    expect(hooks.scheduleSessions).toHaveBeenCalledTimes(2);
+  });
+
   it("publishes terminal status through the single execution owner", () => {
     const { router, hooks } = setup();
     router.route(event("session.execution.started", { sessionID: "s1" }));

@@ -4,6 +4,18 @@ Legend: **`User — …`** entries change something you can see or use. **`Inter
 build, CI or architecture work, condensed to one line; the reasoning lives in
 [DECISIONS.md](docs/DECISIONS.md) and [SPEC.md](SPEC.md).
 
+## Unreleased
+
+- **User — Visible background jobs:** a session whose last turn ended while a shell command was moved
+  to the background is now labelled _Waiting for background command_ in the session list, in the
+  composer and with a spinner card in the conversation, instead of looking finished. When the job
+  completes, the `<background-result>` notification is rendered as a compact card with the command
+  and its last output line instead of raw XML.
+- **Internal — Background result parser:** `src/shared/backgroundResult.ts` decodes the shell job
+  wrapper (including unescaped quotes in the `command` attribute); `selectPendingShells` and
+  `sessionWaitingShell` settle a job by matching its shell id against the result notice. The session
+  picker refreshes when a shell goes to the background and when its result arrives.
+
 ## 0.4.2 — 2026-11-25
 
 - **User — File steps open the diff:** clicking the file name in an `edit`/`write` step now opens the same native per-file diff as its `+N / -N` button, instead of the plain file. Steps without a patch (e.g. `read`) still open the file normally.

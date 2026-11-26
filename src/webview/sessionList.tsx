@@ -229,9 +229,9 @@ export function SessionList(props: {
                     props.onSelect?.();
                   }}
                 >
-                  {(s.busy || s.needsInput || s.error) && (
+                  {(s.busy || s.waiting || s.needsInput || s.error) && (
                     <span
-                      class={`status-dot session-busy ${s.needsInput ? "waiting" : s.error ? "error" : "running"}`}
+                      class={`status-dot session-busy ${s.needsInput || s.waiting ? "waiting" : s.error ? "error" : "running"}`}
                       aria-hidden="true"
                     />
                   )}
@@ -246,7 +246,9 @@ export function SessionList(props: {
                         ? t(s.error === "interrupted" ? "interrupted" : "failed")
                         : s.busy
                           ? t("running")
-                          : relativeTime(s.updated)}
+                          : s.waiting
+                            ? t("waitingForShell")
+                            : relativeTime(s.updated)}
                   </span>
                 </button>
                 <button

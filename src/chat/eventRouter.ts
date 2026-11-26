@@ -9,6 +9,7 @@
 import * as vscode from "vscode";
 import type { ServerEvent } from "../shared/api";
 import { normalizeServerEvent } from "../shared/adapter";
+import { parseBackgroundResult } from "../shared/backgroundResult";
 import { eventSessionId } from "../shared/chatReducer";
 import type { SubagentCreated } from "./subagentTracker";
 import type { BoundedSet } from "../shared/boundedSet";
@@ -115,6 +116,16 @@ export class ChatEventRouter {
       }
     }
 
+    if (sid === h.getSessionId() && event.type === "session.tool.success") {
+      // The turn ends as soon as a shell moves to the background, so neither the execution events
+      // nor the busy timestamp change. Refresh the picker explicitly to show the "waiting" badge.
+      const data = event.data as { input?: { background?: unknown }; content?: { type?: string; text?: string }[] };
+      const backgrounded =
+        data.input?.background === true ||
+        (data.content ?? []).some((c) => c.type === "text" && /moved to the background/i.test(c.text ?? ""));
+      if (backgrounded) h.scheduleSessions();
+    }
+
     if (sid === h.getSessionId() && event.type === "session.inbox.enqueued") {
       // A background child announces its report after the parent turn ended: re-read its history
       // now, when the steps and report are actually complete.
@@ -126,6 +137,8 @@ export class ChatEventRouter {
         if (h.subagents.hasChild(parsed.sessionId)) void h.subagents.snapshot(parsed.sessionId);
         else h.subagents.track(parsed.sessionId);
       }
+      // A background result settles the waiting badge; `inbox.enqueued` is not a turn event.
+      if (item?.type === "synthetic" && parseBackgroundResult(item.payload?.text)) h.scheduleSessions();
     }
 
     if (

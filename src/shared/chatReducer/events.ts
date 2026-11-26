@@ -1,11 +1,12 @@
 import type { ServerEvent, StructuredError, TokenUsage, ToolContent } from "../api";
+import { parseBackgroundResult } from "../backgroundResult";
 import { parseSubagentReport } from "../subagentReport";
 import type { ChatState, TextPart, ToolPart, UiAssistantMessage, UiMessage, UiPart, UiUserMessage } from "./types";
 import { asForm, asModelRef, asPermission, contextTokensOf, eventSessionId, str, usableModel, type Data } from "./helpers";
 import { addTokens, closeOpenTurns, endTurn, openTurn, withLiveFileChanges, withOpenTurn } from "./turns";
 import { applyPendingSubagentLinks } from "./subagentLinks";
 import { withTouchedFiles } from "./selectors";
-import { notice } from "./history";
+import { backgroundNotice, notice } from "./history";
 
 function updateAssistant(
   state: ChatState,
@@ -96,12 +97,21 @@ export function applyEvent(state: ChatState, event: ServerEvent): ChatState {
       const item = d.item as {
         type?: string;
         delivery?: string;
-        payload?: { text?: string; files?: { uri?: string; name?: string; source?: { uri?: string } }[] };
+        payload?: { text?: string; description?: string; files?: { uri?: string; name?: string; source?: { uri?: string } }[] };
       };
       if (item?.type === "synthetic") {
         const parsed = parseSubagentReport(item.payload?.text);
         if (parsed) {
           return { ...state, subagentReports: { ...(state.subagentReports ?? {}), [parsed.sessionId]: parsed.report } };
+        }
+        // A background shell/script result wakes the session after its turn ended. Render it live
+        // instead of dropping it, so the chat shows what the notification was about.
+        const background = parseBackgroundResult(item.payload?.text, item.payload?.description);
+        if (background) {
+          return {
+            ...state,
+            messages: insertSorted(state.messages, backgroundNotice(event.id ?? `bg-${created}`, created, background)),
+          };
         }
         return state;
       }

@@ -1994,6 +1994,71 @@ button:disabled {
   color: var(--vscode-editorWarning-foreground, var(--vscode-descriptionForeground));
 }
 
+.notice-detail {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  min-width: 0;
+}
+
+.notice-detail code {
+  font-family: var(--vscode-editor-font-family);
+  font-size: 0.92em;
+  padding: 1px 5px;
+  border-radius: 3px;
+  background: var(--vscode-textCodeBlock-background, var(--vscode-editorWidget-background));
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* A background shell keeps the turn idle, so the waiting card is explicit in the transcript. */
+.waiting-shell {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin: 8px 0;
+  padding: 8px 10px;
+  border: 1px solid var(--opencode-border);
+  border-radius: 6px;
+  background: var(--vscode-editorWidget-background, transparent);
+  color: var(--vscode-descriptionForeground);
+  font-size: 0.92em;
+}
+
+.waiting-shell-spinner {
+  width: 12px;
+  height: 12px;
+  margin-top: 3px;
+  flex: none;
+  border: 2px solid var(--vscode-focusBorder, var(--vscode-charts-blue, #007fd4));
+  border-top-color: transparent;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+.waiting-shell-body {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.waiting-shell-body strong {
+  color: var(--vscode-foreground);
+  font-weight: 600;
+}
+
+.waiting-shell-body code {
+  font-family: var(--vscode-editor-font-family);
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .typing {
   display: flex;
   gap: 4px;
@@ -2208,6 +2273,10 @@ button:disabled {
 
 .drop-hint .icon-button {
   flex: none;
+}
+
+.drop-hint .drop-hint-waiting {
+  color: var(--vscode-editorWarning-foreground, var(--vscode-charts-yellow, #cca700));
 }
 
 /* Compact and context meter share the file-picker row instead of crowding the toolbar. */

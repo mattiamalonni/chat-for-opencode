@@ -27,6 +27,12 @@ settings, see [REFERENCE.md](REFERENCE.md).
   in a modal with the same chat view; breadcrumbs navigate nested subagents and `Esc` or a backdrop
   click closes it. Its compact composer replies to the child (`Enter` queues while it works,
   `Ctrl/Cmd+Enter` sends now) and **Stop** interrupts that child without leaving the modal.
+- **Background shells**: when the agent starts a long shell command in the background and ends its
+  turn, the chat does not look finished. A spinner card with the command stays at the end of the
+  conversation, the composer explains that the chat resumes automatically, and the session row gets
+  an amber _Waiting for background command_ dot. When OpenCode delivers the `<background-result>`
+  notification, the card is replaced by a compact notice with the command and its last output line
+  (never the raw XML), the badge clears and the agent continues on its own.
 - **Turn stats**: when the agent finishes, one badge summarises start/end clock times, steps, time to
   the last step, tokens, cost and insertions/deletions. Click **+N / -N** to open all that turn's
   changes in one read-only diff. **Stop** a response and **compact** a long session from the
@@ -44,9 +50,10 @@ settings, see [REFERENCE.md](REFERENCE.md).
   and an "N of M" counter. `Cmd/Ctrl+L` opens the session list (with its own title filter) while the chat has focus: `↑`/`↓`
   walk the sessions, `Enter` selects one and puts focus back in the composer. A dot marks the state of
   each row: green _Running_ for a turn in progress, amber _Needs your input_ for a pending approval or
-  question, and red _Failed_ / _Interrupted_ when the last turn ended badly. The three states come from
-  the session history (except the pending request, which only exists in the server's live state), and
-  the red one clears when you send the next prompt. Clear **error states** with the action buttons
+  question, amber _Waiting for background command_ for an idle turn with a shell still running, and
+  red _Failed_ / _Interrupted_ when the last turn ended badly. These states come from the session
+  history (except the pending request, which only exists in the server's live state), and the red one
+  clears when you send the next prompt. Clear **error states** with the action buttons
   (OpenCode missing, no provider, connection lost, interrupted response…).
 
 ## Context and files

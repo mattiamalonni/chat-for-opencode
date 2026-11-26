@@ -136,6 +136,7 @@ const isSessionRow: Check = shape({
   title: str(MAX_TEXT),
   updated: (value) => typeof value === "number" && Number.isFinite(value),
   busy: bool,
+  waiting: opt(bool),
   needsInput: bool,
   error: opt(oneOf(["failed", "interrupted"] as const)),
   folder: opt(str(MAX_LABEL)),

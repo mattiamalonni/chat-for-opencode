@@ -1,4 +1,5 @@
 import type { AssistantMessage, ServerEvent, SessionMessage } from "../api";
+import { backgroundFailed, parseBackgroundResult, type BackgroundResult } from "../backgroundResult";
 import type { SessionDelta } from "../protocol";
 import { parseSubagentReport } from "../subagentReport";
 import type { ChatAction, ChatState, UiAssistantMessage, UiMessage, UiNotice, UiPart } from "./types";
@@ -178,10 +179,13 @@ function fromHistory(m: SessionMessage): UiMessage | undefined {
       return notice(m.id, m.time.created, "info", "model", m.model ? `${m.model.providerID}/${m.model.id}` : "");
     case "compaction":
       return notice(m.id, m.time.created, "info", "compaction", "");
-    case "synthetic":
+    case "synthetic": {
       // A subagent completion is shown inside its tool card, not as a raw XML notice here.
       if (parseSubagentReport(m.description ?? m.text)) return undefined;
+      const background = parseBackgroundResult(m.text, m.description);
+      if (background) return backgroundNotice(m.id, m.time.created, background);
       return notice(m.id, m.time.created, "info", "synthetic", m.description ?? m.text ?? "");
+    }
     case "shell":
       return notice(m.id, m.time.created, "info", "shell", m.command ?? "");
     default:
@@ -191,6 +195,21 @@ function fromHistory(m: SessionMessage): UiMessage | undefined {
 
 export function notice(id: string, created: number, level: UiNotice["level"], code: UiNotice["code"], text: string): UiNotice {
   return { kind: "notice", id, created, level, code, text };
+}
+
+/** One-line card for a finished background job, shared by live events and history resyncs. */
+export function backgroundNotice(id: string, created: number, result: BackgroundResult): UiNotice {
+  return {
+    kind: "notice",
+    id,
+    created,
+    level: backgroundFailed(result) ? "error" : "info",
+    code: "backgroundResult",
+    text: result.summary || result.state,
+    shellId: result.id,
+    command: result.command,
+    backgroundState: result.state,
+  };
 }
 
 function fromAssistant(m: AssistantMessage): UiAssistantMessage {

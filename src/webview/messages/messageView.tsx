@@ -126,12 +126,19 @@ function NoticeView({ notice, filteredOut = false }: { notice: UiNotice; filtere
   else if (notice.code === "agent") text = t("agentSwitched", notice.text);
   else if (notice.code === "model") text = t("modelSwitched", notice.text);
   else if (notice.code === "compaction") text = t("compacted");
+  else if (notice.code === "backgroundResult") text = t(notice.level === "error" ? "backgroundResultFailed" : "backgroundResult");
   const Icon = notice.level === "error" ? IconError : notice.level === "warning" ? IconWarning : IconInfo;
   const providerHint = notice.code === "failed" && /api key|auth|credential|provider|unauthori|401/i.test(notice.text);
   return (
     <div class={`notice ${notice.level}${filteredOut ? " filtered-out" : ""}`} role={notice.level === "error" ? "alert" : "status"}>
       <Icon />
       <span>{text}</span>
+      {notice.code === "backgroundResult" && (
+        <span class="notice-detail">
+          {notice.command && <code title={notice.command}>{notice.command}</code>}
+          {notice.text && <span>{notice.text}</span>}
+        </span>
+      )}
       {notice.code === "failed" && (
         <span class="notice-actions">
           {providerHint && <ActionButton id="login" />}

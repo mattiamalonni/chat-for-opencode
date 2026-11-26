@@ -47,7 +47,7 @@ export class SessionListService {
    */
   private readonly summaryCache = new Map<
     string,
-    { updated: number; expires: number; busy: boolean; needsInput: boolean; error?: SessionSummary["error"] }
+    { updated: number; expires: number; busy: boolean; waiting: boolean; needsInput: boolean; error?: SessionSummary["error"] }
   >();
   private readonly forkInfoCache = new Map<string, { info: SessionInfo; expires: number }>();
   /**
@@ -138,7 +138,12 @@ export class SessionListService {
       const safe = normalizeSessionInfo(info) ?? info;
       const cached = this.summaryCache.get(info.id);
       if (cached && cached.updated === safe.time.updated && cached.expires > now && info.id !== this.sessionId()) {
-        const summary: SessionSummary = { ...toSessionSummary(safe), busy: cached.busy, needsInput: cached.needsInput };
+        const summary: SessionSummary = {
+          ...toSessionSummary(safe),
+          busy: cached.busy,
+          waiting: cached.waiting,
+          needsInput: cached.needsInput,
+        };
         if (cached.error) summary.error = cached.error;
         return this.withFolder(summary);
       }
@@ -162,6 +167,7 @@ export class SessionListService {
         updated: safe.time.updated,
         expires: Date.now() + 3000,
         busy: summary.busy,
+        waiting: summary.waiting ?? false,
         needsInput: summary.needsInput,
         error: summary.error,
       });

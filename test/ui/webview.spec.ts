@@ -3992,3 +3992,54 @@ test("welcome starters only offer prompts the current editor context can satisfy
   await expect(page.locator(".welcome-starter")).toHaveCount(0);
   await expect(page.locator(".welcome-starters")).toContainText(STRINGS.starterAvailabilityHint);
 });
+
+test("a background shell keeps the chat visibly waiting until its result arrives", async ({ page }) => {
+  await boot(page);
+  const shellMessage: SessionMessage = {
+    id: "msg-shell",
+    type: "assistant",
+    agent: "build",
+    model: { id: "m", providerID: "p" },
+    time: { created: 1, completed: 2 },
+    content: [
+      {
+        type: "tool",
+        id: "tool-shell",
+        name: "shell",
+        state: {
+          status: "completed",
+          input: { command: "npm run check", background: true },
+          content: [{ type: "text", text: "Command moved to the background" }],
+          metadata: { shellID: "sh_1", status: "running" },
+        },
+      },
+    ],
+  };
+  await host(page, {
+    type: "session",
+    session: { id: "ses_bg", busy: false, messages: [shellMessage], permissions: [], forms: [] },
+  });
+  await expect(page.locator(".waiting-shell")).toBeVisible();
+  await expect(page.locator(".waiting-shell")).toContainText("npm run check");
+  await expect(page.locator(".drop-hint-waiting")).toContainText(STRINGS.waitingForShellHint);
+
+  await host(page, {
+    type: "event",
+    event: {
+      type: "session.inbox.enqueued",
+      data: {
+        sessionID: "ses_bg",
+        item: {
+          id: "bg-1",
+          type: "synthetic",
+          delivery: "steer",
+          payload: {
+            text: '<background-result kind="shell" id="sh_1" state="completed" command="npm run check">all checks passed</background-result>',
+          },
+        },
+      },
+    } as ServerEvent,
+  });
+  await expect(page.locator(".waiting-shell")).toHaveCount(0);
+  await expect(page.locator(".notice").filter({ hasText: STRINGS.backgroundResult })).toContainText("all checks passed");
+});
