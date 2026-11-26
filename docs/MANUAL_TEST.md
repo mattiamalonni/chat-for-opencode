@@ -156,5 +156,10 @@ screen readers and multi-window process management.
     appear with the job's kind and title; they clear when the job ends. Ask for a goal/watch-style
     wake-up: the notice must say _OpenCode continued automatically_ (or _OpenCode notice_) with the
     original text only under _Details_, never as raw XML in the transcript.
+    19f. **Transient states**: run `/compact` and confirm the notice says _Compacting conversation…_
+    while it runs, then _Compacted_ on success (or _Compaction failed_ with the error on failure).
+    Run a shell yourself from the terminal while the chat is open: the _User shell_ card disappears
+    when it exits. Change a queued prompt to _send now_ and confirm it leaves the Queued messages
+    panel immediately. For a finished background job, open _Details_ and check the full output.
 20. **Screen reader** (if available): with VoiceOver/NVDA, focus the composer and confirm its label,
     the session picker and the permission cards announce their role and state.

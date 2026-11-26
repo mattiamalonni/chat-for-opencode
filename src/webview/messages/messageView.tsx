@@ -126,6 +126,9 @@ function NoticeView({ notice, filteredOut = false }: { notice: UiNotice; filtere
   else if (notice.code === "agent") text = t("agentSwitched", notice.text);
   else if (notice.code === "model") text = t("modelSwitched", notice.text);
   else if (notice.code === "compaction") text = t("compacted");
+  else if (notice.code === "compacting") text = t("compacting");
+  else if (notice.code === "compactionFailed") text = `${t("compactionFailed")}${notice.text ? `: ${notice.text}` : "."}`;
+  else if (notice.code === "userShell") text = `${t("userShell")}: ${notice.text}`;
   else if (notice.code === "backgroundResult") text = t(notice.level === "error" ? "backgroundResultFailed" : "backgroundResult");
   else if (notice.code === "syntheticNotice") text = t(notice.autoResume ? "syntheticAutoResume" : "syntheticNotice");
   const Icon = notice.level === "error" ? IconError : notice.level === "warning" ? IconWarning : IconInfo;
@@ -138,6 +141,12 @@ function NoticeView({ notice, filteredOut = false }: { notice: UiNotice; filtere
         <span class="notice-detail">
           {notice.command && <code title={notice.command}>{notice.command}</code>}
           {notice.text && <span>{notice.text}</span>}
+          {notice.detail && (
+            <details>
+              <summary>{t("details")}</summary>
+              <pre>{notice.detail}</pre>
+            </details>
+          )}
         </span>
       )}
       {notice.code === "syntheticNotice" && (

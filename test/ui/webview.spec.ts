@@ -3993,6 +3993,51 @@ test("welcome starters only offer prompts the current editor context can satisfy
   await expect(page.locator(".welcome-starters")).toContainText(STRINGS.starterAvailabilityHint);
 });
 
+test("compaction and user shells show their real state, background output is expandable", async ({ page }) => {
+  await boot(page);
+  await host(page, { type: "session", session: { id: "ses_states_ui", busy: false, messages: [], permissions: [], forms: [] } });
+  await host(page, {
+    type: "event",
+    event: { type: "session.compaction.started", data: { sessionID: "ses_states_ui", reason: "auto" } } as ServerEvent,
+  });
+  await expect(page.locator(".notice").filter({ hasText: STRINGS.compacting })).toBeVisible();
+  await host(page, {
+    type: "event",
+    event: {
+      type: "session.compaction.failed",
+      data: { sessionID: "ses_states_ui", error: { type: "api", message: "context too large" } },
+    } as ServerEvent,
+  });
+  await expect(page.locator(".notice.error").filter({ hasText: STRINGS.compactionFailed })).toContainText("context too large");
+
+  await host(page, {
+    type: "event",
+    event: {
+      type: "session.shell.started",
+      data: { sessionID: "ses_states_ui", shell: { id: "sh_ui", status: "running", command: "npm test" } },
+    } as ServerEvent,
+  });
+  await expect(page.locator(".notice").filter({ hasText: STRINGS.userShell })).toContainText("npm test");
+
+  await host(page, {
+    type: "event",
+    event: {
+      type: "session.inbox.enqueued",
+      data: {
+        sessionID: "ses_states_ui",
+        item: {
+          type: "synthetic",
+          payload: {
+            text: '<background-result kind="shell" id="sh_bg" state="completed" command="check">line one\nline two</background-result>',
+          },
+        },
+      },
+    } as ServerEvent,
+  });
+  const result = page.locator(".notice").filter({ hasText: STRINGS.backgroundResult });
+  await expect(result.locator("details")).toContainText("line one");
+});
+
 test("live jobs show a waiting card and synthetics show a compact notice", async ({ page }) => {
   await boot(page);
   await host(page, { type: "session", session: { id: "ses_jobs_ui", busy: false, messages: [], permissions: [], forms: [] } });

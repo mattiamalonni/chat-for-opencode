@@ -6,6 +6,10 @@ build, CI or architecture work, condensed to one line; the reasoning lives in
 
 ## Unreleased
 
+- **User — Honest transient states:** compactions now show _Compacting conversation…_ while running
+  and _Compaction failed_ with the error instead of _Compacted_; shells started by the user show a
+  _User shell_ card until they exit. Changing an inbox prompt from queue to steer removes it from the
+  queued panel immediately, and a background result keeps its full output behind _Details_.
 - **User — All background work is visible:** `experimental.job.updated` now feeds a live job registry, so
   subagent, codemode, image and video jobs get the same waiting card, session badge and composer hint
   as shell commands. Plain synthetic messages (goal/watch wake-ups, plan reminders, injected

@@ -77,6 +77,9 @@ test or a manual probe actually ran.
   started while the chat was disconnected are not known until the next update. Shell jobs are also
   recovered from the conversation history (`background: true` plus a shell id), but codemode, image
   and video jobs started before connecting stay invisible.
+- **A non-local `session.status: idle` does not settle a streaming card.** The server can emit it
+  before the terminal event with content still arriving, so only a local idle (interrupt/cancel) and
+  the real terminal event close the turn. This is intentional and covered by a unit test.
 
 - **Multi-root still has one active connection.** The chat talks to one folder's server at a time;
   files and sessions from other folders are available for context, navigation and switching, but

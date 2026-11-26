@@ -35,7 +35,11 @@ settings, see [REFERENCE.md](REFERENCE.md).
   (never the raw XML), the badge clears and the agent continues on its own. The same live registry
   covers subagent, codemode, image and video jobs (`experimental.job.updated`). Plain synthetic
   messages — goal/watch wake-ups, plan reminders, injected instructions — appear as one-line notices
-  with a _Details_ expander holding the original payload.
+  with a _Details_ expander holding the original payload, which also holds a background job's full
+  output. Shells you start yourself show a _User shell_ card until they exit, and switching an inbox
+  prompt from queue to steer removes it from the queued panel at once. A running compaction says
+  _Compacting conversation…_; a failed one says _Compaction failed_ with the error instead of
+  reporting success.
 - **Attention while hidden**: with the chat view hidden, a permission or question from this session
   or a subagent, an interrupted turn and a finished background command each raise a VS Code
   notification with an **Open chat** action. Successful turns still follow `notifyOnComplete` (off

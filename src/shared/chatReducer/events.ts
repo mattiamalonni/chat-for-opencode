@@ -414,12 +414,64 @@ export function applyEvent(state: ChatState, event: ServerEvent): ChatState {
       if (!model) return state;
       return { ...state, model };
     }
+    case "session.compaction.started": {
+      if (state.messages.some((m) => m.kind === "notice" && m.code === "compacting")) return state;
+      return {
+        ...state,
+        messages: insertSorted(state.messages, notice(event.id ?? `cmp-${created}`, created, "info", "compacting", str(d, "reason"))),
+      };
+    }
+    case "session.compaction.delta":
+      // Progress details do not change the one-line marker; the ended/failed event settles it.
+      return state;
+    case "session.compaction.failed": {
+      const error = (d.error as StructuredError | undefined)?.message ?? "";
+      return {
+        ...state,
+        messages: [
+          ...state.messages.filter((m) => !(m.kind === "notice" && m.code === "compacting")),
+          notice(event.id ?? `cmpfail-${created}`, created, "error", "compactionFailed", error),
+        ],
+      };
+    }
     case "session.compaction.ended":
       return {
         ...state,
         contextTokens: undefined,
-        messages: [...state.messages, notice(event.id ?? `cmp-${created}`, created, "info", "compaction", "")],
+        messages: [
+          ...state.messages.filter((m) => !(m.kind === "notice" && m.code === "compacting")),
+          notice(event.id ?? `cmp-${created}`, created, "info", "compaction", ""),
+        ],
       };
+    case "session.shell.started": {
+      const shell = (d.shell as { id?: unknown; command?: unknown } | undefined) ?? {};
+      const note = notice(
+        event.id ?? `shell-${created}`,
+        created,
+        "info",
+        "userShell",
+        typeof shell.command === "string" ? shell.command : "",
+      );
+      if (typeof shell.id === "string") note.shellId = shell.id;
+      return { ...state, messages: insertSorted(state.messages, note) };
+    }
+    case "session.shell.ended": {
+      const id = (d.shell as { id?: unknown } | undefined)?.id;
+      if (typeof id !== "string") return state;
+      return {
+        ...state,
+        messages: state.messages.filter((m) => !(m.kind === "notice" && m.code === "userShell" && m.shellId === id)),
+      };
+    }
+    case "session.inbox.delivery.changed": {
+      // The host refreshes the inbox panel from the server; drop the local queue entry so a prompt
+      // switched to "steer" is not shown twice once the authoritative list arrives.
+      const id = str(d, "inboxID");
+      if (!id) return state;
+      const queuedMessages = { ...(state.queuedMessages ?? {}) };
+      delete queuedMessages[id];
+      return { ...state, queuedMessages, queuedTurnIds: (state.queuedTurnIds ?? []).filter((q) => q !== id) };
+    }
     case "permission.asked": {
       const req = asPermission(d);
       if (!req || state.permissions.some((p) => p.id === req.id)) return state;

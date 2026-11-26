@@ -178,8 +178,12 @@ function fromHistory(m: SessionMessage): UiMessage | undefined {
       return notice(m.id, m.time.created, "info", "agent", m.agent ?? "");
     case "model-switched":
       return notice(m.id, m.time.created, "info", "model", m.model ? `${m.model.providerID}/${m.model.id}` : "");
-    case "compaction":
+    case "compaction": {
+      const status = (m as { status?: string }).status;
+      if (status === "running") return notice(m.id, m.time.created, "info", "compacting", "");
+      if (status === "failed") return notice(m.id, m.time.created, "error", "compactionFailed", m.description ?? m.text ?? "");
       return notice(m.id, m.time.created, "info", "compaction", "");
+    }
     case "synthetic": {
       // A subagent completion is shown inside its tool card, not as a raw XML notice here.
       if (parseSubagentReport(m.description ?? m.text)) return undefined;
@@ -187,8 +191,14 @@ function fromHistory(m: SessionMessage): UiMessage | undefined {
       if (background) return backgroundNotice(m.id, m.time.created, background);
       return syntheticNoticeMessage(m.id, m.time.created, syntheticNotice(m.text, m.description));
     }
-    case "shell":
-      return notice(m.id, m.time.created, "info", "shell", m.command ?? "");
+    case "shell": {
+      const status = (m as { status?: string }).status;
+      const running = status === "running" || status === undefined;
+      const id = (m as { shellID?: string }).shellID;
+      const note = notice(m.id, m.time.created, "info", running ? "userShell" : "shell", m.command ?? "");
+      if (running && id) note.shellId = id;
+      return note;
+    }
     default:
       return undefined;
   }
@@ -210,6 +220,7 @@ export function backgroundNotice(id: string, created: number, result: Background
     shellId: result.id,
     command: result.command,
     backgroundState: result.state,
+    detail: result.output && result.output !== result.summary ? result.output : undefined,
   };
 }
 

@@ -21,7 +21,7 @@ export interface PendingShell {
 export function selectPendingShells(state: ChatState): PendingShell[] {
   const settled = new Set<string>();
   for (const m of state.messages) {
-    if (m.kind === "notice" && m.code === "backgroundResult" && m.shellId) settled.add(m.shellId);
+    if (m.kind === "notice" && (m.code === "backgroundResult" || m.code === "userShell") && m.shellId) settled.add(m.shellId);
   }
   const pending = new Map<string, PendingShell>();
   for (const m of state.messages) {
