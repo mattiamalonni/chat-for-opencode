@@ -4,7 +4,7 @@ Legend: **`User — …`** entries change something you can see or use. **`Inter
 build, CI or architecture work, condensed to one line; the reasoning lives in
 [DECISIONS.md](docs/DECISIONS.md) and [SPEC.md](SPEC.md).
 
-## Unreleased
+## 0.4.3 — 2026-11-26
 
 - **User — Honest transient states:** compactions now show _Compacting conversation…_ while running
   and _Compaction failed_ with the error instead of _Compacted_; shells started by the user show a
