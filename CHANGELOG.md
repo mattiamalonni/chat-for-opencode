@@ -4,7 +4,7 @@ Legend: **`User — …`** entries change something you can see or use. **`Inter
 build, CI or architecture work, condensed to one line; the reasoning lives in
 [DECISIONS.md](docs/DECISIONS.md) and [SPEC.md](SPEC.md).
 
-## Unreleased
+## 0.4.4 — 2026-11-26
 
 - **User — Pending responses settle on idle:** a server `session.status: idle` now closes the streaming
   card and its turn even when no `session.execution.*` terminal event follows (for example after a
