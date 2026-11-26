@@ -138,7 +138,13 @@ export class ChatEventRouter {
         else h.subagents.track(parsed.sessionId);
       }
       // A background result settles the waiting badge; `inbox.enqueued` is not a turn event.
-      if (item?.type === "synthetic" && parseBackgroundResult(item.payload?.text)) h.scheduleSessions();
+      if (item?.type === "synthetic") {
+        const background = parseBackgroundResult(item.payload?.text);
+        if (background) {
+          h.scheduleSessions();
+          this.announceBackgroundResult(sid, background.id);
+        }
+      }
     }
 
     if (
@@ -200,7 +206,7 @@ export class ChatEventRouter {
     const key = `execution.terminal:${sid}:${h.execution.generation.current()}`;
     if (h.isVisible() || h.attention.has(key)) return;
     const cfg = vscode.workspace.getConfiguration("opencode", h.getFolderUri());
-    const enabled = status === "failed" ? cfg.get<boolean>("notifyOnFailure", true) : cfg.get<boolean>("notifyOnComplete", false);
+    const enabled = status === "succeeded" ? cfg.get<boolean>("notifyOnComplete", false) : cfg.get<boolean>("notifyOnFailure", true);
     if (!enabled) return;
     h.attention.add(key);
     const message =
@@ -212,9 +218,20 @@ export class ChatEventRouter {
     void this.showAndFocus(message);
   }
 
+  private announceBackgroundResult(sid: string | undefined, id: string | undefined): void {
+    const h = this.hooks;
+    if (!sid || h.isVisible()) return;
+    const key = `background:${sid}:${id ?? ""}`;
+    if (h.attention.has(key)) return;
+    h.attention.add(key);
+    void this.showAndFocus(vscode.l10n.t("OpenCode finished a background command."));
+  }
+
   private announcePendingRequest(event: ServerEvent, sid: string | undefined): void {
     const h = this.hooks;
-    if (!sid || !h.subagents.isTracked(sid) || h.isVisible()) return;
+    // The open session and its children are "tracked" too; they are exactly the ones whose cards
+    // the user cannot see while the view is hidden, so they must be announced as well.
+    if (!sid || h.isVisible()) return;
     if (event.type !== "permission.asked" && event.type !== "form.created") return;
     const id = event.type === "permission.asked" ? (event.data as { id?: string }).id : (event.data as { form?: { id?: string } }).form?.id;
     if (!id) return;

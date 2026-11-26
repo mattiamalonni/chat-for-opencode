@@ -33,6 +33,10 @@ settings, see [REFERENCE.md](REFERENCE.md).
   an amber _Waiting for background command_ dot. When OpenCode delivers the `<background-result>`
   notification, the card is replaced by a compact notice with the command and its last output line
   (never the raw XML), the badge clears and the agent continues on its own.
+- **Attention while hidden**: with the chat view hidden, a permission or question from this session
+  or a subagent, an interrupted turn and a finished background command each raise a VS Code
+  notification with an **Open chat** action. Successful turns still follow `notifyOnComplete` (off
+  by default); failures and interruptions follow `notifyOnFailure`.
 - **Turn stats**: when the agent finishes, one badge summarises start/end clock times, steps, time to
   the last step, tokens, cost and insertions/deletions. Click **+N / -N** to open all that turn's
   changes in one read-only diff. **Stop** a response and **compact** a long session from the

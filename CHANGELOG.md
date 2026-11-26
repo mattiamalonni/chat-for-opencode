@@ -6,6 +6,10 @@ build, CI or architecture work, condensed to one line; the reasoning lives in
 
 ## Unreleased
 
+- **User — Attention while the chat is hidden:** pending permissions/questions (including those of
+  the open session and of subagents), interrupted turns and finished background commands now raise a
+  VS Code notification with an _Open chat_ action. Interruptions follow `notifyOnFailure` like other
+  failures instead of being silenced by `notifyOnComplete`.
 - **User — Visible background jobs:** a session whose last turn ended while a shell command was moved
   to the background is now labelled _Waiting for background command_ in the session list, in the
   composer and with a spinner card in the conversation, instead of looking finished. When the job

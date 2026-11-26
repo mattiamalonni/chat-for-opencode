@@ -129,6 +129,40 @@ describe("host-side execution state", () => {
     expect(published).toEqual([]);
   });
 
+  it("announces a pending permission of the open session while hidden", () => {
+    const show = vscode.window.showInformationMessage as unknown as ReturnType<typeof vi.fn>;
+    show.mockClear();
+    routerFor().route({ type: "permission.asked", data: { sessionID: "s1", id: "perm-1" } } as never);
+    expect(show).toHaveBeenCalledWith("OpenCode is asking for permission.", "Open chat");
+  });
+
+  it("announces a finished background command once while hidden", () => {
+    const show = vscode.window.showInformationMessage as unknown as ReturnType<typeof vi.fn>;
+    show.mockClear();
+    const router = routerFor();
+    const event = {
+      type: "session.inbox.enqueued",
+      data: {
+        sessionID: "s1",
+        item: {
+          type: "synthetic",
+          payload: { text: '<background-result kind="shell" id="sh_1" state="completed" command="sleep 1">done</background-result>' },
+        },
+      },
+    } as never;
+    router.route(event);
+    router.route(event);
+    expect(show).toHaveBeenCalledTimes(1);
+    expect(show).toHaveBeenCalledWith("OpenCode finished a background command.", "Open chat");
+  });
+
+  it("announces an interrupted turn while hidden", () => {
+    const show = vscode.window.showInformationMessage as unknown as ReturnType<typeof vi.fn>;
+    show.mockClear();
+    routerFor().route({ type: "session.execution.interrupted", data: { sessionID: "s1" } } as never);
+    expect(show).toHaveBeenCalledWith("OpenCode turn was interrupted.", "Open chat");
+  });
+
   it("announces a terminal event only once per turn", () => {
     const show = vscode.window.showInformationMessage as unknown as ReturnType<typeof vi.fn>;
     show.mockClear();
