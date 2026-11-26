@@ -77,14 +77,6 @@ test or a manual probe actually ran.
   started while the chat was disconnected are not known until the next update. Shell jobs are also
   recovered from the conversation history (`background: true` plus a shell id), but codemode, image
   and video jobs started before connecting stay invisible.
-- **A non-local `session.status: idle` does not settle a streaming card.** The `local: true` marker is
-  injected by this extension and is not part of the server contract (`SessionStatus.idle` only has
-  `type`). Real turns are closed by `session.execution.succeeded/failed/interrupted`, which also write
-  the `idle` message into OpenCode's history; the reducer therefore ignores a server idle for card
-  finalisation. That behaviour is pinned by a unit test but was not observed in the recorded fixtures,
-  which contain no `session.status` events: if a server emitted idle without a terminal event, the
-  card would keep shimmering until a resync.
-
 - **Multi-root still has one active connection.** The chat talks to one folder's server at a time;
   files and sessions from other folders are available for context, navigation and switching, but
   there is no combined stream or single session spanning folders. Sessions from another folder are

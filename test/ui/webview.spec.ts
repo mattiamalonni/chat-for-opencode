@@ -4038,6 +4038,29 @@ test("compaction and user shells show their real state, background output is exp
   await expect(result.locator("details")).toContainText("line one");
 });
 
+test("a server idle settles a pending step instead of leaving three dots pulsing", async ({ page }) => {
+  await boot(page);
+  await host(page, { type: "session", session: { id: S1, busy: false, messages: [], permissions: [], forms: [] } });
+  await host(page, {
+    type: "event",
+    event: {
+      type: "session.step.started",
+      created: 1200,
+      data: { sessionID: S1, assistantMessageID: "pending-1", agent: "build" },
+    } as ServerEvent,
+  });
+  const dots = page.locator(".conversation .typing");
+  await expect(dots).toBeVisible();
+
+  // No `session.execution.*` terminal event arrives (e.g. dropped after a reconnect); only the
+  // server's idle remains. It must close the card the same way a local idle does.
+  await host(page, {
+    type: "event",
+    event: { type: "session.status", created: 1300, data: { sessionID: S1, status: { type: "idle" } } } as ServerEvent,
+  });
+  await expect(dots).toHaveCount(0);
+});
+
 test("live jobs show a waiting card and synthetics show a compact notice", async ({ page }) => {
   await boot(page);
   await host(page, { type: "session", session: { id: "ses_jobs_ui", busy: false, messages: [], permissions: [], forms: [] } });

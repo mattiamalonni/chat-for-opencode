@@ -4,6 +4,12 @@ Legend: **`User — …`** entries change something you can see or use. **`Inter
 build, CI or architecture work, condensed to one line; the reasoning lives in
 [DECISIONS.md](docs/DECISIONS.md) and [SPEC.md](SPEC.md).
 
+## Unreleased
+
+- **User — Pending responses settle on idle:** a server `session.status: idle` now closes the streaming
+  card and its turn even when no `session.execution.*` terminal event follows (for example after a
+  dropped SSE event). The three-dot indicator no longer pulses forever and the copy button is enabled.
+
 ## 0.4.3 — 2026-11-26
 
 - **User — Honest transient states:** compactions now show _Compacting conversation…_ while running

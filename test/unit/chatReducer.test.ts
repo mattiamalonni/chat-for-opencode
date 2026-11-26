@@ -1261,7 +1261,7 @@ describe("incremental resync", () => {
     expect(a.parts.map((p) => (p.kind === "text" ? p.text : ""))).toEqual(["done"]);
   });
 
-  it("finishes a streaming card and its turn on a local idle, but not on a network idle", () => {
+  it("finishes a streaming card and its turn on any idle, local or from the server", () => {
     const streaming = chatReducer(open("s"), {
       type: "event",
       event: { type: "session.step.started", data: { sessionID: "s", assistantMessageID: "a1", agent: "build" } },
@@ -1269,11 +1269,15 @@ describe("incremental resync", () => {
     expect(assistants(streaming)[0].done).toBe(false);
     expect(streaming.turns.some((t) => t.ended === undefined)).toBe(true);
 
-    const networkIdle = chatReducer(streaming, {
+    // A server idle used to unlock the composer but leave the card shimmering: a missed terminal
+    // event then left the three dots pulsing forever (and the copy button disabled).
+    const serverIdle = chatReducer(streaming, {
       type: "event",
       event: { type: "session.status", data: { sessionID: "s", status: { type: "idle" } } },
     });
-    expect(assistants(networkIdle)[0].done).toBe(false);
+    expect(assistants(serverIdle)[0].done).toBe(true);
+    expect(serverIdle.busy).toBe(false);
+    expect(serverIdle.turns.every((t) => t.ended !== undefined)).toBe(true);
 
     const localIdle = chatReducer(streaming, {
       type: "event",

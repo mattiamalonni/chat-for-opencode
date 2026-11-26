@@ -202,10 +202,12 @@ export function applyEvent(state: ChatState, event: ServerEvent): ChatState {
           retry: { attempt: status.attempt ?? 0, message: status.message ?? "", next: status.next },
         };
       }
-      if (status?.type === "idle" && status.local) {
-        // A locally-posted idle (interrupt/cancel/dismissed question) has no server terminal event.
-        // Close the partial assistant messages and the turn as well as the composer, otherwise the
-        // card keeps shimmering and its copy button stays disabled until a manual sync.
+      if (status?.type === "idle") {
+        // The turn is over: a server idle unlocks the composer (busy = false below), so leaving its
+        // partial assistant messages streaming is inconsistent — their three dots keep pulsing and
+        // the copy button stays disabled forever when no `session.execution.*` terminal event follows
+        // (e.g. a dropped SSE event after a reconnect). Locally-posted idles (interrupt/cancel/
+        // dismissed question) carry `local: true` for the host's bookkeeping; both kinds settle here.
         const finished = finishAll(state);
         return { ...finished, busy: false, retry: undefined, turns: endTurn(state, created) };
       }
