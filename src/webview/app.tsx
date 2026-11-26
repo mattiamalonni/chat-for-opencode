@@ -20,6 +20,7 @@ import type {
   ExternalAttentionItem,
   FolderInfo,
   HostMessage,
+  PendingJob,
   PromptDefinition,
   SessionSummary,
   UiError,
@@ -66,6 +67,8 @@ export function App() {
   const [subagents, subagentDispatch] = useReducer(subagentReducer, initialSubagentState);
   /** Requests from other clients on the same server; the open session's own cards live in `chat`. */
   const [externalRequests, setExternalRequests] = useState<ExternalAttentionItem[]>([]);
+  /** Live background jobs; they are not history messages and never unlock the composer. */
+  const [pendingJobs, setPendingJobs] = useState<PendingJob[]>([]);
   const [status, setStatus] = useState<{ status: ConnectionStatus; error?: UiError }>({ status: "idle" });
   const [compatibility, setCompatibility] = useState<{ status: Compatibility; version?: string; dismissed: boolean }>({
     status: "unknown",
@@ -275,6 +278,9 @@ export function App() {
             requestResync();
           }
           frame.current ??= requestAnimationFrame(flush);
+          break;
+        case "jobs":
+          setPendingJobs(msg.jobs);
           break;
         case "subagent":
           // A snapshot is authoritative for its child; drop any live events queued before it.
@@ -815,6 +821,7 @@ export function App() {
               {notice && <NoticeBanner error={notice} onDismiss={() => setNotice(undefined)} />}
               <Conversation
                 chat={chat}
+                pendingJobs={pendingJobs.filter((job) => job.sessionID === chat.sessionId)}
                 models={catalog.models}
                 status={status.status}
                 error={status.error}
@@ -852,7 +859,7 @@ export function App() {
                 draftToken={draftToken}
                 restoredDraft={restoredDraft}
                 busy={chat.busy}
-                waitingShell={pendingShells.length > 0}
+                waitingShell={pendingShells.length > 0 || pendingJobs.some((job) => job.sessionID === chat.sessionId)}
                 contextTokens={chat.contextTokens === undefined ? undefined : chat.contextTokens + attachmentTokens}
                 contextEstimated={attachmentTokens > 0}
                 disabled={!connected}

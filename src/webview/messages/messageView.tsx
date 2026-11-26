@@ -127,6 +127,7 @@ function NoticeView({ notice, filteredOut = false }: { notice: UiNotice; filtere
   else if (notice.code === "model") text = t("modelSwitched", notice.text);
   else if (notice.code === "compaction") text = t("compacted");
   else if (notice.code === "backgroundResult") text = t(notice.level === "error" ? "backgroundResultFailed" : "backgroundResult");
+  else if (notice.code === "syntheticNotice") text = t(notice.autoResume ? "syntheticAutoResume" : "syntheticNotice");
   const Icon = notice.level === "error" ? IconError : notice.level === "warning" ? IconWarning : IconInfo;
   const providerHint = notice.code === "failed" && /api key|auth|credential|provider|unauthori|401/i.test(notice.text);
   return (
@@ -137,6 +138,17 @@ function NoticeView({ notice, filteredOut = false }: { notice: UiNotice; filtere
         <span class="notice-detail">
           {notice.command && <code title={notice.command}>{notice.command}</code>}
           {notice.text && <span>{notice.text}</span>}
+        </span>
+      )}
+      {notice.code === "syntheticNotice" && (
+        <span class="notice-detail">
+          <span>{notice.text}</span>
+          {notice.detail && (
+            <details>
+              <summary>{t("details")}</summary>
+              <pre>{notice.detail}</pre>
+            </details>
+          )}
         </span>
       )}
       {notice.code === "failed" && (

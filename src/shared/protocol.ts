@@ -194,6 +194,18 @@ export interface SubagentSnapshot {
   busy: boolean;
 }
 
+/** Running background job from `experimental.job.updated`, kept out of the chat history. */
+export interface PendingJob {
+  id: string;
+  sessionID: string;
+  kind: string;
+  status: string;
+  title?: string;
+  command?: string;
+  description?: string;
+  started: number;
+}
+
 export type HostMessage =
   | {
       type: "init";
@@ -233,6 +245,8 @@ export type HostMessage =
   | { type: "session"; session: SessionPayload | null }
   | { type: "sessionDelta"; delta: SessionDelta }
   | { type: "event"; event: ServerEvent }
+  /** Running jobs (shell/subagent/image/video/codemode), refreshed on every job event. */
+  | { type: "jobs"; jobs: PendingJob[] }
   /** Initial history of a subagent's child session, so its view survives a reconnect. */
   | { type: "subagent"; snapshot: SubagentSnapshot }
   /** Live event belonging to a subagent's child session (not the one shown in the chat). */

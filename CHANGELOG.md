@@ -6,6 +6,11 @@ build, CI or architecture work, condensed to one line; the reasoning lives in
 
 ## Unreleased
 
+- **User — All background work is visible:** `experimental.job.updated` now feeds a live job registry, so
+  subagent, codemode, image and video jobs get the same waiting card, session badge and composer hint
+  as shell commands. Plain synthetic messages (goal/watch wake-ups, plan reminders, injected
+  instructions) appear as compact notices with a _Details_ expander instead of raw XML, both live and
+  after a resync.
 - **User — Attention while the chat is hidden:** pending permissions/questions (including those of
   the open session and of subagents), interrupted turns and finished background commands now raise a
   VS Code notification with an _Open chat_ action. Interruptions follow `notifyOnFailure` like other

@@ -3,7 +3,7 @@ import type { SessionInfo, SessionMessage } from "../shared/api";
 import { normalizeSessionInfo } from "../shared/adapter";
 import { sessionLooksBusy, toSessionSummary } from "../shared/chatReducer";
 import { mapWithConcurrency } from "../shared/concurrency";
-import type { HostMessage, SessionSummary } from "../shared/protocol";
+import type { HostMessage, PendingJob, SessionSummary } from "../shared/protocol";
 import { Generation } from "./generation";
 
 /** A hit in a session title or in one of its messages, opened from the palette search. */
@@ -76,11 +76,14 @@ export class SessionListService {
     private readonly folderName?: () => string | undefined,
     /** Whether a session's pending permissions would be granted automatically when it is opened. */
     private readonly autoApproves?: (sessionId: string) => boolean,
+    /** Running jobs from the live registry, used for the "waiting" badge without extra HTTP calls. */
+    private readonly pendingJobs?: () => PendingJob[],
   ) {}
 
-  private withFolder(summary: SessionSummary): SessionSummary {
+  private withExtras(summary: SessionSummary): SessionSummary {
     const folder = this.folderName?.();
-    return folder ? { ...summary, folder } : summary;
+    const hasJob = this.pendingJobs?.().some((job) => job.sessionID === summary.id) ?? false;
+    return { ...summary, ...(folder ? { folder } : {}), ...(hasJob ? { waiting: true } : {}) };
   }
 
   addFork(id: string): void {
@@ -145,9 +148,9 @@ export class SessionListService {
           needsInput: cached.needsInput,
         };
         if (cached.error) summary.error = cached.error;
-        return this.withFolder(summary);
+        return this.withExtras(summary);
       }
-      if (!client) return this.withFolder(toSessionSummary(safe));
+      if (!client) return this.withExtras(toSessionSummary(safe));
       // Busy and error come from the history, so every session needs its messages — including the
       // ones whose busy/idle timestamps look settled (a failed turn can leave them stale). The live
       // endpoints are only needed for the pending permission/question badge, which is not part of
@@ -171,7 +174,7 @@ export class SessionListService {
         needsInput: summary.needsInput,
         error: summary.error,
       });
-      return this.withFolder(summary);
+      return this.withExtras(summary);
     });
   }
 

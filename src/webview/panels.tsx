@@ -1,4 +1,5 @@
 import type { FileDiff, InboxItem } from "../shared/api";
+import { syntheticNotice } from "../shared/synthetic";
 
 import { useT } from "./i18n";
 import { IconCheck, IconChevron, IconClose, IconEdit, IconRefresh, IconSend } from "./icons";
@@ -22,7 +23,14 @@ export function InboxPanel(props: {
       </summary>
       <ul>
         {props.items.map((item) => {
-          const text = item.type === "user" ? (item.payload.text ?? "") : (item.payload.description ?? item.payload.text ?? item.type);
+          const text =
+            item.type === "user"
+              ? (item.payload.text ?? "")
+              : syntheticNotice(
+                  (item.payload.text as string | undefined) ?? (item.payload.description as string | undefined),
+                  item.payload.description as string | undefined,
+                  item.payload,
+                ).text;
           const editable = item.type === "user" && typeof item.payload.text === "string";
           return (
             <li class="inbox-item" key={item.id}>

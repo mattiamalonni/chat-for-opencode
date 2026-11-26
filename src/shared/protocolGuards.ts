@@ -131,6 +131,17 @@ const isFileIconFont: Check = shape({
   style: opt(str(MAX_LABEL)),
 });
 
+const isPendingJob: Check = shape({
+  id: str(),
+  sessionID: str(),
+  kind: str(MAX_LABEL),
+  status: str(MAX_LABEL),
+  title: opt(str(MAX_TEXT)),
+  command: opt(str(MAX_TEXT)),
+  description: opt(str(MAX_TEXT)),
+  started: (value) => typeof value === "number" && Number.isFinite(value),
+});
+
 const isSessionRow: Check = shape({
   id: str(),
   title: str(MAX_TEXT),
@@ -266,6 +277,7 @@ const HOST_VALIDATORS: Record<string, Check> = {
   session: shape({ session: (value) => value === null || isSessionPayload(value) }),
   sessionDelta: shape({ delta: isSessionDelta }),
   event: shape({ event: isEvent }),
+  jobs: shape({ jobs: arr(isPendingJob, 200) }),
   subagent: shape({ snapshot: isSubagentSnapshot }),
   subagentEvent: shape({ sessionId: str(), event: isEvent }),
   externalAttention: shape({

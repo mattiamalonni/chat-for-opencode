@@ -3993,6 +3993,32 @@ test("welcome starters only offer prompts the current editor context can satisfy
   await expect(page.locator(".welcome-starters")).toContainText(STRINGS.starterAvailabilityHint);
 });
 
+test("live jobs show a waiting card and synthetics show a compact notice", async ({ page }) => {
+  await boot(page);
+  await host(page, { type: "session", session: { id: "ses_jobs_ui", busy: false, messages: [], permissions: [], forms: [] } });
+  await host(page, {
+    type: "jobs",
+    jobs: [{ id: "job-1", sessionID: "ses_jobs_ui", kind: "codemode", status: "running", title: "Analyze project", started: 1 }],
+  });
+  const card = page.locator(".waiting-shell");
+  await expect(card).toContainText(STRINGS.jobCodemode);
+  await expect(card).toContainText("Analyze project");
+  await host(page, { type: "jobs", jobs: [] });
+  await expect(card).toHaveCount(0);
+
+  await host(page, {
+    type: "event",
+    event: {
+      type: "session.synthetic",
+      data: { sessionID: "ses_jobs_ui", text: "<goal>Keep working on the release</goal>\nsecond line", metadata: { resume: false } },
+    } as ServerEvent,
+  });
+  const note = page.locator(".notice").filter({ hasText: STRINGS.syntheticNotice });
+  await expect(note).toContainText("Keep working on the release");
+  await expect(note.locator("details")).toHaveCount(1);
+  await expect(note.locator("details")).toContainText("<goal>");
+});
+
 test("a background shell keeps the chat visibly waiting until its result arrives", async ({ page }) => {
   await boot(page);
   const shellMessage: SessionMessage = {

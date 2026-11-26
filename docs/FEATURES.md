@@ -32,7 +32,10 @@ settings, see [REFERENCE.md](REFERENCE.md).
   conversation, the composer explains that the chat resumes automatically, and the session row gets
   an amber _Waiting for background command_ dot. When OpenCode delivers the `<background-result>`
   notification, the card is replaced by a compact notice with the command and its last output line
-  (never the raw XML), the badge clears and the agent continues on its own.
+  (never the raw XML), the badge clears and the agent continues on its own. The same live registry
+  covers subagent, codemode, image and video jobs (`experimental.job.updated`). Plain synthetic
+  messages — goal/watch wake-ups, plan reminders, injected instructions — appear as one-line notices
+  with a _Details_ expander holding the original payload.
 - **Attention while hidden**: with the chat view hidden, a permission or question from this session
   or a subagent, an interrupted turn and a finished background command each raise a VS Code
   notification with an **Open chat** action. Successful turns still follow `notifyOnComplete` (off

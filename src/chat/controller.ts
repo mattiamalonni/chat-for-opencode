@@ -32,6 +32,7 @@ import { SessionOwnershipService } from "./sessionOwnership";
 import { BoundedSet } from "../shared/boundedSet";
 import { ChatEventRouter } from "./eventRouter";
 import { ExternalAttentionService } from "./externalAttention";
+import { JobTracker } from "./jobTracker";
 import { ChatCommandHandler } from "./commandHandler";
 import { ExecutionStateService, type ExecutionState } from "./executionState";
 import { createControllerState } from "./services/controllerState";
@@ -98,6 +99,8 @@ export class ChatController implements vscode.Disposable {
   private readonly subagents: SubagentTracker;
   /** Pending requests from other clients on the same server; see externalAttention.ts. */
   private readonly externalAttention: ExternalAttentionService;
+  /** Running background jobs of all kinds (shell, subagent, image, video, codemode). */
+  private readonly jobs = new JobTracker();
 
   /** Drops, picker, inline staging and the attachment path allowlist; see attachmentService.ts. */
   private readonly attachments: AttachmentService;
@@ -155,6 +158,7 @@ export class ChatController implements vscode.Disposable {
         this.connectionService.clearTimers();
         // A different server (folder switch/reconnect) cannot answer requests from the old one.
         this.externalAttention.reset();
+        this.jobs.reset();
       },
       toUiError: (err, fallback) => {
         // SDK host diagnostics are written here only, never forwarded to the webview.
@@ -192,6 +196,7 @@ export class ChatController implements vscode.Disposable {
       },
       () => (this.state.folder && (vscode.workspace.workspaceFolders?.length ?? 0) > 1 ? this.state.folder.name : undefined),
       () => this.permissions.enabled(),
+      () => this.jobs.pending(),
     );
     this.externalAttention = new ExternalAttentionService(
       (msg) => this.post(msg),
@@ -320,6 +325,7 @@ export class ChatController implements vscode.Disposable {
         },
       },
       postExternalCard: (event, sid) => this.externalAttention.observe(event, sid, false, false),
+      jobs: { observe: (event) => this.jobs.observe(event) },
       execution: this.execution,
       attention: this.announcedHiddenAttention,
       scheduleInbox: () => this.refreshActions.scheduleInbox(),
@@ -332,6 +338,12 @@ export class ChatController implements vscode.Disposable {
       autoApprove: (event, sid, onFailure) => this.permissionActions.autoApprove(event, sid, onFailure),
       newSession: () => this.connectionService.newSession(),
     });
+    this.disposables.push(
+      this.jobs.onDidChange(() => {
+        this.post({ type: "jobs", jobs: this.jobs.pending() });
+        this.refreshActions.scheduleSessions();
+      }),
+    );
     this.fileIcons = new FileIconThemeService({
       themeId: () => vscode.workspace.getConfiguration("workbench").get<string | null>("iconTheme") ?? undefined,
       variant: () => {

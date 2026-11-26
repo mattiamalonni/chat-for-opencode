@@ -151,5 +151,10 @@ screen readers and multi-window process management.
     and a compact **Background command finished** notice shows `check 3: …` instead of raw XML. Click
     the header's **Sync conversation from server** and confirm the notice stays compact. A command
     backgrounded automatically after a timeout (no explicit `background:true`) must behave the same.
+    19e. **Other background work**: ask the agent for a codemode script or an image/video generation
+    that outlives its turn, and confirm the same spinner card, amber session dot and composer hint
+    appear with the job's kind and title; they clear when the job ends. Ask for a goal/watch-style
+    wake-up: the notice must say _OpenCode continued automatically_ (or _OpenCode notice_) with the
+    original text only under _Details_, never as raw XML in the transcript.
 20. **Screen reader** (if available): with VoiceOver/NVDA, focus the composer and confirm its label,
     the session picker and the permission cards announce their role and state.

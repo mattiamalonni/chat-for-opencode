@@ -72,6 +72,12 @@ test or a manual probe actually ran.
 
 ## Behaviour limits
 
+- **Jobs are tracked from live events only.** The bundled client does not expose
+  `/api/experimental/job`, so the pending-job registry is fed by `experimental.job.updated`: jobs
+  started while the chat was disconnected are not known until the next update. Shell jobs are also
+  recovered from the conversation history (`background: true` plus a shell id), but codemode, image
+  and video jobs started before connecting stay invisible.
+
 - **Multi-root still has one active connection.** The chat talks to one folder's server at a time;
   files and sessions from other folders are available for context, navigation and switching, but
   there is no combined stream or single session spanning folders. Sessions from another folder are

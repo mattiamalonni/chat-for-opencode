@@ -44,6 +44,8 @@ export interface EventRouterHooks {
     observe(event: ServerEvent, sid: string | undefined, isCurrent: boolean, isChild: boolean): void;
     forget(sid: string): void;
   };
+  /** Pending background jobs; optional so unit tests can drive the router without the registry. */
+  jobs?: { observe(event: ServerEvent): void };
   postExternalCard(event: ServerEvent, sid: string): void;
   execution: ExecutionStateService;
   attention: BoundedSet<string>;
@@ -93,6 +95,7 @@ export class ChatEventRouter {
     const isCurrent = sid === h.getSessionId();
     const isChild = !!sid && h.subagents.isTracked(sid);
     if (sid && isCurrent) h.noteSessionEvent();
+    h.jobs?.observe(event);
 
     if (event.type === "session.created") {
       const data = event.data as { sessionID?: string; parentID?: string; title?: string; agent?: string };

@@ -2,7 +2,8 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "preact/ho
 import type { ModelInfo } from "../shared/api";
 import { chatReducer, selectPendingShells } from "../shared/chatReducer";
 
-import type { ConnectionStatus, UiError } from "../shared/protocol";
+import type { ConnectionStatus, PendingJob, UiError } from "../shared/protocol";
+import type { StringKey } from "../shared/strings";
 
 import { useT } from "./i18n";
 import { IconChevron, IconWarning } from "./icons";
@@ -13,6 +14,7 @@ import { post } from "./vscode";
 
 export function Conversation({
   chat,
+  pendingJobs = [],
   models,
   status,
   error,
@@ -26,6 +28,8 @@ export function Conversation({
   onSuggestedPrompt,
 }: {
   chat: ReturnType<typeof chatReducer>;
+  /** Running jobs reported live by the host, already filtered to this session. */
+  pendingJobs?: PendingJob[];
   models: ModelInfo[];
   status?: ConnectionStatus;
   error?: UiError;
@@ -322,6 +326,15 @@ export function Conversation({
               </div>
             </div>
           )}
+          {pendingJobs.map((job) => (
+            <div class="waiting-shell" role="status" aria-label={t(jobKey(job.kind))}>
+              <span class="waiting-shell-spinner" aria-hidden="true" />
+              <div class="waiting-shell-body">
+                <strong>{t(jobKey(job.kind))}</strong>
+                <code title={job.title ?? job.command ?? job.description}>{job.title || job.command || job.description || job.id}</code>
+              </div>
+            </div>
+          ))}
           {chat.busy && chat.messages.at(-1)?.kind !== "assistant" && (
             <div class="typing" aria-label={t("thinking")}>
               <span />
@@ -351,6 +364,23 @@ import { SetupWelcome } from "./banners";
 import { conversationItems, itemSearchText } from "./conversationModel";
 import { SETUP_ERROR_KINDS } from "./setupErrors";
 import { StepBlock, StepControlContext } from "./stepFold";
+
+function jobKey(kind: string): StringKey {
+  switch (kind) {
+    case "shell":
+      return "jobShell";
+    case "subagent":
+      return "jobSubagent";
+    case "image":
+      return "jobImage";
+    case "video":
+      return "jobVideo";
+    case "codemode":
+      return "jobCodemode";
+    default:
+      return "jobOther";
+  }
+}
 
 import type { ConversationItem } from "./conversationModel";
 import type { StepControl, StepGroup } from "./stepFold";

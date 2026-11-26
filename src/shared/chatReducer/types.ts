@@ -61,12 +61,25 @@ export interface UiNotice {
   id: string;
   created: number;
   level: "info" | "warning" | "error";
-  code: "interrupted" | "failed" | "agent" | "model" | "compaction" | "synthetic" | "shell" | "backgroundResult" | "other";
+  code:
+    | "interrupted"
+    | "failed"
+    | "agent"
+    | "model"
+    | "compaction"
+    | "synthetic"
+    | "syntheticNotice"
+    | "shell"
+    | "backgroundResult"
+    | "other";
   text: string;
   /** Shell job id from a `<background-result>`, used to settle its "waiting" card. */
   shellId?: string;
   command?: string;
   backgroundState?: string;
+  /** Full synthetic payload, shown behind a details expander instead of in the notice itself. */
+  detail?: string;
+  autoResume?: boolean;
 }
 
 export type UiMessage = UiUserMessage | UiAssistantMessage | UiNotice;

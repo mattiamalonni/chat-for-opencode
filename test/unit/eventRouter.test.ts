@@ -84,6 +84,13 @@ describe("ChatEventRouter", () => {
     expect(hooks.scheduleChanges).toHaveBeenCalledTimes(1);
   });
 
+  it("forwards job events to the job registry", () => {
+    const observe = vi.fn();
+    const { router } = setup({ jobs: { observe } });
+    router.route(event("experimental.job.updated", { sessionID: "s1", info: { id: "job-1", status: "running" } }));
+    expect(observe).toHaveBeenCalledTimes(1);
+  });
+
   it("refreshes sessions when a shell moves to the background and when its result arrives", () => {
     const { router, hooks } = setup();
     router.route(

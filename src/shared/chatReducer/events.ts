@@ -1,12 +1,13 @@
 import type { ServerEvent, StructuredError, TokenUsage, ToolContent } from "../api";
 import { parseBackgroundResult } from "../backgroundResult";
 import { parseSubagentReport } from "../subagentReport";
+import { syntheticNotice } from "../synthetic";
 import type { ChatState, TextPart, ToolPart, UiAssistantMessage, UiMessage, UiPart, UiUserMessage } from "./types";
 import { asForm, asModelRef, asPermission, contextTokensOf, eventSessionId, str, usableModel, type Data } from "./helpers";
 import { addTokens, closeOpenTurns, endTurn, openTurn, withLiveFileChanges, withOpenTurn } from "./turns";
 import { applyPendingSubagentLinks } from "./subagentLinks";
 import { withTouchedFiles } from "./selectors";
-import { backgroundNotice, notice } from "./history";
+import { backgroundNotice, notice, syntheticNoticeMessage } from "./history";
 
 function updateAssistant(
   state: ChatState,
@@ -113,7 +114,15 @@ export function applyEvent(state: ChatState, event: ServerEvent): ChatState {
             messages: insertSorted(state.messages, backgroundNotice(event.id ?? `bg-${created}`, created, background)),
           };
         }
-        return state;
+        const note = syntheticNotice(
+          item.payload?.text || item.payload?.description,
+          item.payload?.description,
+          item.payload as Record<string, unknown> | undefined,
+        );
+        return {
+          ...state,
+          messages: insertSorted(state.messages, syntheticNoticeMessage(event.id ?? `syn-${created}`, created, note)),
+        };
       }
       if (item?.type !== "user") return state;
       const id = str(d, "inboxID");
@@ -153,6 +162,17 @@ export function applyEvent(state: ChatState, event: ServerEvent): ChatState {
         turns: state.turns.filter((t) => t.id !== id),
         queuedMessages,
         queuedTurnIds: (state.queuedTurnIds ?? []).filter((queued) => queued !== id),
+      };
+    }
+    case "session.synthetic": {
+      const note = syntheticNotice(
+        str(d, "text") || str(d, "description"),
+        str(d, "description"),
+        d.metadata as Record<string, unknown> | undefined,
+      );
+      return {
+        ...state,
+        messages: insertSorted(state.messages, syntheticNoticeMessage(event.id ?? `syn-${created}`, created, note)),
       };
     }
     case "session.execution.started": {

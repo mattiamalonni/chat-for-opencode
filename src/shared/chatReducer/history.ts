@@ -2,6 +2,7 @@ import type { AssistantMessage, ServerEvent, SessionMessage } from "../api";
 import { backgroundFailed, parseBackgroundResult, type BackgroundResult } from "../backgroundResult";
 import type { SessionDelta } from "../protocol";
 import { parseSubagentReport } from "../subagentReport";
+import { syntheticNotice, type SyntheticNotice } from "../synthetic";
 import type { ChatAction, ChatState, UiAssistantMessage, UiMessage, UiNotice, UiPart } from "./types";
 import { contextTokensOf, eventSessionId, str, type Data } from "./helpers";
 import { cmp, mergeTurns, turnsFromHistory } from "./turns";
@@ -184,7 +185,7 @@ function fromHistory(m: SessionMessage): UiMessage | undefined {
       if (parseSubagentReport(m.description ?? m.text)) return undefined;
       const background = parseBackgroundResult(m.text, m.description);
       if (background) return backgroundNotice(m.id, m.time.created, background);
-      return notice(m.id, m.time.created, "info", "synthetic", m.description ?? m.text ?? "");
+      return syntheticNoticeMessage(m.id, m.time.created, syntheticNotice(m.text, m.description));
     }
     case "shell":
       return notice(m.id, m.time.created, "info", "shell", m.command ?? "");
@@ -209,6 +210,20 @@ export function backgroundNotice(id: string, created: number, result: Background
     shellId: result.id,
     command: result.command,
     backgroundState: result.state,
+  };
+}
+
+/** Compact card for a plain synthetic message; the full payload stays behind a details expander. */
+export function syntheticNoticeMessage(id: string, created: number, note: SyntheticNotice): UiNotice {
+  return {
+    kind: "notice",
+    id,
+    created,
+    level: "info",
+    code: "syntheticNotice",
+    text: note.text,
+    detail: note.detail,
+    autoResume: note.autoResume,
   };
 }
 
