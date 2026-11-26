@@ -109,21 +109,9 @@ build, CI or architecture work, condensed to one line; the reasoning lives in
 - **Internal — Packaging:** the generated `.vscodeignore` allow-list now covers every platform variant
   declared by the SDK's optional dependencies, so the release gate passes on macOS, Linux and Windows.
 
-## 0.3.26 — 2026-11-24
-
-- **User — Session timeline:** `Cmd/Ctrl+G` opens a searchable timeline of the current session's turns (newest first, with steps, tokens and change counts). Selecting one scrolls to its prompt, highlights it and returns focus to the composer — the in-chat equivalent of the TUI's `session.timeline`.
-- **User — Fix:** a session interrupted by a server or location shutdown no longer stays marked as
-  running. When OpenCode ends a turn without writing its `idle` marker (only a completed assistant
-  message with an `aborted` error), the session list and the chat treat it as idle instead of trusting
-  the stale busy/idle timestamps.
-- **User — Fix:** a session no longer shows the amber "Needs your input" dot in the list for a
-  permission that auto-approval will grant when you open it. Background sessions kept that dot until
-  opened, even though the request was granted automatically and the agent carried on. Questions still
-  show it, because they always need an answer.
-
 ## Older releases
 
-Releases before 0.3.26 are documented in [GitHub Releases](https://github.com/mattiamalonni/chat-for-opencode/releases).
+Releases before 0.4.0 are documented in [GitHub Releases](https://github.com/mattiamalonni/chat-for-opencode/releases).
 At tag time each release's notes were generated from this file, so no history was lost when the
 older sections were retired. The release workflow still needs the `## X.Y.Z — date` section of the
 version being published; see [docs/RELEASING.md](docs/RELEASING.md).
