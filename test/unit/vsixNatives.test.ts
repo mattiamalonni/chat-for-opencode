@@ -71,6 +71,18 @@ describe("check-vsix-natives", () => {
     expect(errors).toContain("@parcel/watcher-*: ships foreign @parcel/watcher-darwin-arm64");
   });
 
+  it("requires the musl variant for Alpine and accepts a libc-neutral one", async () => {
+    const { checkVsix, platformFamilies } = await load();
+    const families = platformFamilies(lock);
+    const glibcOnly = [
+      "extension/node_modules/@lydell/node-pty-linux-x64/x.node",
+      "extension/node_modules/@parcel/watcher-linux-x64-glibc/w.node",
+    ];
+    expect(checkVsix(glibcOnly, families, "alpine-x64").errors).toEqual(["@parcel/watcher-*: missing @parcel/watcher-linux-x64-musl"]);
+    const both = [...glibcOnly, "extension/node_modules/@parcel/watcher-linux-x64-musl/w.node"];
+    expect(checkVsix(both, families, "alpine-x64").errors).toEqual([]);
+  });
+
   it("ignores dev-only platform packages and warns when a target has no variant", async () => {
     const { checkVsix, platformFamilies } = await load();
     const families = platformFamilies(lock);

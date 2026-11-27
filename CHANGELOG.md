@@ -10,12 +10,17 @@ build, CI or architecture work, condensed to one line; the reasoning lives in
   providers. Without it the OpenCode gateway treated the extension as an anonymous client and answered
   "Free usage limit reached" for free models such as `hy4-flash-free`, even with a signed-in account.
 - **User — Native binaries on every platform:** the extension now ships one package per platform
-  (Linux, macOS and Windows on x64 and arm64), each with its own native modules. Previously the single
+  (Linux, Alpine, macOS and Windows on x64 and arm64), each with its own native modules. Previously the single
   package carried only the binaries of the machine that built it, and never the terminal (pty) one.
 - **User — Calmer reconnects:** with an unreachable external server the event stream now backs off up
   to 10 s instead of retrying every half second.
 - **User — Safer restricted mode:** prompts using `$diff` no longer run git before the workspace is
   trusted, and `opencode.autoApprovePermissions` / `opencode.sessionPermissions` are restricted settings.
+- **User — Alpine support:** `alpine-x64` and `alpine-arm64` packages, for example for dev containers.
+  OpenCode now loads the musl variant of its file watcher there instead of the glibc one.
+- **User — Cancelled requests stop:** closing the Connect panel, switching folders or reconnecting now
+  cancels the requests still in flight, and links, files and diffs open at once even while a
+  connection or a session load is running.
 - **User — Faster startup:** the ~20 MB OpenCode SDK is a separate bundle loaded on the first
   connection, so VS Code no longer parses it at startup in windows that never open the chat.
 - **User — Shortcut no longer hides Replace:** _Search All Session Conversations_ moved to

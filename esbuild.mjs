@@ -32,6 +32,10 @@ const builds = [
   {
     // The OpenCode SDK and its dependencies, imported lazily by src/sdk/loader.ts on first connect.
     entryPoints: { sdk: "src/sdk/bridge.ts" },
+    // OpenCode reads its libc from a build-time constant and falls back to glibc, which loads the
+    // wrong file-watcher binary on Alpine. Resolve it at runtime instead (see the banner below), so
+    // one Linux build serves both the glibc and the musl (alpine-*) packages.
+    define: { OPENCODE_LIBC: "__ocLibc" },
     bundle: true,
     format: "esm",
     platform: "node",
@@ -41,7 +45,12 @@ const builds = [
     mainFields: ["module", "main"],
     external: ["vscode", ...EXTERNAL_MODULES],
     banner: {
-      js: 'import { createRequire as __ocCreateRequire } from "node:module"; const require = __ocCreateRequire(import.meta.url);',
+      js: [
+        'import { createRequire as __ocCreateRequire } from "node:module";',
+        "const require = __ocCreateRequire(import.meta.url);",
+        // glibc reports its version in the process report header; musl does not.
+        'const __ocLibc = process.platform !== "linux" ? undefined : (() => { try { return process.report.getReport().header.glibcVersionRuntime ? "glibc" : "musl"; } catch { return undefined; } })();',
+      ].join(" "),
     },
     sourcemap: false,
     charset: "utf8",

@@ -158,6 +158,13 @@ jobs:
       # release.yml packages every target on its own runner.
       - run: npx vsce package --target linux-x64 --out chat-for-opencode-linux-x64.vsix
       - run: npm run verify:vsix -- chat-for-opencode-linux-x64.vsix linux-x64
+      - name: Embedded host starts from the package
+        run: node scripts/smoke-host.mjs chat-for-opencode-linux-x64.vsix
+      - name: Same build serves Alpine (musl)
+        run: |
+          npx vsce package --target alpine-x64 --out chat-for-opencode-alpine-x64.vsix
+          npm run verify:vsix -- chat-for-opencode-alpine-x64.vsix alpine-x64
+          docker run --rm -v "$PWD:/w" -w /w node:24-alpine node scripts/smoke-host.mjs chat-for-opencode-alpine-x64.vsix --no-pty
       - uses: actions/upload-artifact@v7
         with:
           name: vsix

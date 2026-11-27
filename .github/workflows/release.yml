@@ -74,13 +74,17 @@ jobs:
     strategy:
       fail-fast: true
       matrix:
+        # `host` is the runner's own platform. Alpine packages reuse the Linux build: npm installs
+        # both the glibc and the musl variants there, and the SDK picks its libc at runtime.
         include:
-          - { target: linux-x64, os: ubuntu-latest }
-          - { target: linux-arm64, os: ubuntu-24.04-arm }
-          - { target: darwin-arm64, os: macos-latest }
-          - { target: darwin-x64, os: macos-15-intel }
-          - { target: win32-x64, os: windows-latest }
-          - { target: win32-arm64, os: windows-11-arm }
+          - { target: linux-x64, os: ubuntu-latest, host: linux-x64 }
+          - { target: alpine-x64, os: ubuntu-latest, host: linux-x64, container: "node:24-alpine" }
+          - { target: linux-arm64, os: ubuntu-24.04-arm, host: linux-arm64 }
+          - { target: alpine-arm64, os: ubuntu-24.04-arm, host: linux-arm64, container: "node:24-alpine" }
+          - { target: darwin-arm64, os: macos-latest, host: darwin-arm64 }
+          - { target: darwin-x64, os: macos-15-intel, host: darwin-x64 }
+          - { target: win32-x64, os: windows-latest, host: win32-x64 }
+          - { target: win32-arm64, os: windows-11-arm, host: win32-arm64 }
     runs-on: ${{ matrix.os }}
     defaults:
       run:
@@ -95,8 +99,8 @@ jobs:
       - name: Runner matches the target
         run: |
           host=$(node -p "process.platform + '-' + process.arch")
-          if [ "$host" != "${{ matrix.target }}" ]; then
-            echo "::error::Runner ${{ matrix.os }} is $host, not ${{ matrix.target }}"
+          if [ "$host" != "${{ matrix.host }}" ]; then
+            echo "::error::Runner ${{ matrix.os }} is $host, not ${{ matrix.host }}"
             exit 1
           fi
       - name: Package
@@ -107,6 +111,13 @@ jobs:
           echo "file=$file" >> "$GITHUB_OUTPUT"
       - name: Native binaries match the target
         run: npm run verify:vsix -- "${{ steps.package.outputs.file }}" "${{ matrix.target }}"
+      - name: Embedded host starts from the package
+        if: ${{ !matrix.container }}
+        run: node scripts/smoke-host.mjs "${{ steps.package.outputs.file }}"
+      - name: Embedded host starts from the package (${{ matrix.container }})
+        if: ${{ matrix.container }}
+        # node-pty publishes no musl binary, so the terminal check is skipped (see KNOWN_LIMITS).
+        run: docker run --rm -v "$PWD:/w" -w /w "${{ matrix.container }}" node scripts/smoke-host.mjs "${{ steps.package.outputs.file }}" --no-pty
       - uses: actions/upload-artifact@v7
         with:
           name: vsix-${{ matrix.target }}
@@ -132,7 +143,7 @@ jobs:
       - name: All targets were packaged
         run: |
           ls -l vsix
-          test "$(ls vsix/*.vsix | wc -l)" -eq 6
+          test "$(ls vsix/*.vsix | wc -l)" -eq 8
 
       - name: Release notes from CHANGELOG.md
         run: |

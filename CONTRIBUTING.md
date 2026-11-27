@@ -79,6 +79,7 @@ human.
 | `npm run verify:vscodeignore` | Fails if that allow-list is stale                                                                |
 | `npm run verify:links`        | Fails on broken links, unknown npm scripts and `opencode.*` settings/commands in prose           |
 | `npm run verify:vsix`         | `<file.vsix> [target]`: fails if a VSIX lacks its target's native binaries or ships foreign ones |
+| `npm run smoke:host`          | `<file.vsix> [--no-pty]`: starts the embedded OpenCode host and a pty from the package           |
 
 Add a test next to the code you change. A bug fix without a regression test is not a fix. Tests for
 protocol changes must cover both valid messages and malformed ones — the runtime guards are a

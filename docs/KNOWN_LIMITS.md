@@ -173,8 +173,9 @@ test or a manual probe actually ran.
   _Native CLI binary for … not found_. Other providers are unaffected. To use it, run an OpenCode
   server yourself from an installed CLI and point `opencode.endpoint` at it.
 - **Platform coverage.** Native modules ship per platform (see
-  [RELEASING.md](RELEASING.md#platform-packages)): Linux, macOS and Windows on x64 and arm64.
-  Alpine (musl), 32-bit ARM and VS Code for the Web have no package and cannot install the extension.
+  [RELEASING.md](RELEASING.md#platform-packages)): Linux, Alpine, macOS and Windows on x64 and
+  arm64. 32-bit ARM and VS Code for the Web have no package and cannot install the extension. On
+  Alpine, node-pty has no musl binary: OpenCode's terminal features need the `gcompat` package.
   OpenCode publishes no `@number0/iroh` binary for macOS Intel, so iroh-backed features are missing
   on `darwin-x64`.
 - **Status bar usage is the same estimate** as the composer's context meter (see API_NOTES). It is

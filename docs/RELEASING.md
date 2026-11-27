@@ -52,15 +52,21 @@ per target on a native runner and the Marketplace serves each user the matching 
 | Target         | Runner             |
 | -------------- | ------------------ |
 | `linux-x64`    | `ubuntu-latest`    |
+| `alpine-x64`   | `ubuntu-latest`    |
 | `linux-arm64`  | `ubuntu-24.04-arm` |
+| `alpine-arm64` | `ubuntu-24.04-arm` |
 | `darwin-arm64` | `macos-latest`     |
 | `darwin-x64`   | `macos-15-intel`   |
 | `win32-x64`    | `windows-latest`   |
 | `win32-arm64`  | `windows-11-arm`   |
 
+Alpine packages reuse the Linux build of the same architecture: npm installs both the glibc and the
+musl variants of each native module there, and the SDK bundle detects its libc at runtime.
+
 Each package must pass `npm run verify:vsix`, which fails when a native module lacks the target's
-binary or ships another platform's. Alpine (musl), 32-bit ARM and VS Code for the Web have no package
-and cannot install the extension. To build the package for your own machine:
+binary or ships another platform's, and `npm run smoke:host`, which starts the embedded OpenCode host
+(and a pty) from the unpacked package; Alpine packages run it inside `node:24-alpine`. 32-bit ARM and
+VS Code for the Web have no package and cannot install the extension. To build the package for your own machine:
 
 ```sh
 npx vsce package --target "$(node -p "process.platform + '-' + process.arch")"
