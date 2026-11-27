@@ -4,7 +4,7 @@ Legend: **`User — …`** entries change something you can see or use. **`Inter
 build, CI or architecture work, condensed to one line; the reasoning lives in
 [DECISIONS.md](docs/DECISIONS.md) and [SPEC.md](SPEC.md).
 
-## Unreleased
+## 0.5.0 — 2026-11-27
 
 - **User — Free OpenCode models work again:** the embedded host now reports its OpenCode version to
   providers. Without it the OpenCode gateway treated the extension as an anonymous client and answered
