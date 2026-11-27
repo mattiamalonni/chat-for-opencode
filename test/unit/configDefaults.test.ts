@@ -12,6 +12,13 @@ describe("shared runtime defaults", () => {
     }
   });
 
+  it("lets only user or remote settings loosen permissions, never a workspace", () => {
+    const properties = manifest.contributes.configuration.properties as Record<string, { scope?: string }>;
+    for (const key of ["opencode.autoApprovePermissions", "opencode.sessionPermissions"]) {
+      expect(properties[key].scope).toBe("machine");
+    }
+  });
+
   it("keeps the supported version in sync with the generated OpenAPI snapshot", () => {
     expect(SUPPORTED_SERVER_VERSION).toBe(OPENAPI_SNAPSHOT_VERSION);
   });

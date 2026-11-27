@@ -22,8 +22,17 @@ async function main(): Promise<void> {
   // as the embedded SDK) and lets tests drive scenarios through the mock's `__mock/*` routes.
   let mockServer: Awaited<ReturnType<(typeof import("../mock/mockServer"))["startMockServer"]>> | undefined;
   let settings: Record<string, unknown>;
+  let userDataDir: string | undefined;
   if (real) {
-    settings = { "opencode.sessionPermissions": [{ action: "edit", resource: "*", effect: "ask" }] };
+    settings = {};
+    // Permission settings are machine-scoped (a workspace cannot set them), so they go into the
+    // user settings of an isolated profile.
+    userDataDir = mkdtempSync(join(tmpdir(), "oc-it-user-"));
+    mkdirSync(join(userDataDir, "User"));
+    writeFileSync(
+      join(userDataDir, "User", "settings.json"),
+      JSON.stringify({ "opencode.sessionPermissions": [{ action: "edit", resource: "*", effect: "ask" }] }, null, 2),
+    );
   } else {
     process.env.MOCK_LATE_CATALOG = "1";
     const { startMockServer } = await import("../mock/mockServer");
@@ -63,6 +72,7 @@ async function main(): Promise<void> {
         "--disable-workspace-trust",
         "--skip-welcome",
         "--skip-release-notes",
+        ...(userDataDir ? [`--user-data-dir=${userDataDir}`] : []),
         ...(e2e ? [`--remote-debugging-port=${cdpPort}`] : []),
       ],
       extensionTestsEnv: {

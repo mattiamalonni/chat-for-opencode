@@ -282,6 +282,7 @@
         },
         "opencode.sessionPermissions": {
           "type": "array",
+          "scope": "machine",
           "default": [
             {
               "action": "edit",
@@ -327,6 +328,7 @@
         },
         "opencode.autoApprovePermissions": {
           "type": "boolean",
+          "scope": "machine",
           "default": false,
           "markdownDescription": "%config.autoApprovePermissions%"
         },

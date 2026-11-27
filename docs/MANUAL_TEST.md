@@ -24,7 +24,7 @@ screen readers and multi-window process management.
    mkdir /tmp/oc-manual && cd /tmp/oc-manual && git init && echo a > a.txt && git add . && git commit -m init
    code /tmp/oc-manual
    ```
-   In _Settings (Workspace)_ set
+   In _Settings (User)_ set (permission settings are machine-scoped: workspace values are ignored)
    `"opencode.sessionPermissions": [{"action":"edit","resource":"*","effect":"ask"}]`
    so edits require approval.
 3. **Open the sidebar**: click the OpenCode icon. Expect "Starting OpenCode…" then the welcome text.

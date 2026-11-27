@@ -124,7 +124,8 @@ matching rule wins) or set it to `[]` and rely on your OpenCode config only.
 `opencode.autoApprovePermissions`, or the **Auto-approve** toggle at the bottom of the composer,
 bypasses the panel: every request is granted once, so saved rules are untouched. The toggle is
 per workspace and remembered across reloads; the setting is the default for workspaces where it
-was never changed. Auto-approval is off by default — only enable it when you trust unattended edits
+was never changed. Both permission settings are read from User or Remote settings only, so a
+repository's `.vscode/settings.json` cannot loosen them. Auto-approval is off by default — only enable it when you trust unattended edits
 and shell commands. Questions still always require your answer.
 
 When several windows share one `opencode.endpoint`, each chat receives the server's whole event

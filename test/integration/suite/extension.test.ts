@@ -228,14 +228,15 @@ describe("chat-for-opencode extension", () => {
   it("auto-approves permission requests when the setting is enabled", async () => {
     const config = vscode.workspace.getConfiguration("opencode");
     const mark = posted.length;
-    await config.update("autoApprovePermissions", true, vscode.ConfigurationTarget.Workspace);
+    // Machine-scoped: only user (or remote) settings can enable it, never a workspace's own.
+    await config.update("autoApprovePermissions", true, vscode.ConfigurationTarget.Global);
     try {
       await waitFor(() => lastPosted("autoApprove", mark)?.enabled === true, "setting reflected in the composer");
       await controller.receive({ type: "send", text: "[permission] unattended edit", attachments: [], context: [] });
       await waitFor(() => eventPosted("session.execution.succeeded", mark), "execution succeeded without a reply");
       assert.equal(eventPosted("permission.asked", mark), undefined, "no inline card is shown");
     } finally {
-      await config.update("autoApprovePermissions", false, vscode.ConfigurationTarget.Workspace);
+      await config.update("autoApprovePermissions", undefined, vscode.ConfigurationTarget.Global);
     }
   });
 
