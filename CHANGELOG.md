@@ -4,7 +4,7 @@ Legend: **`User — …`** entries change something you can see or use. **`Inter
 build, CI or architecture work, condensed to one line; the reasoning lives in
 [DECISIONS.md](docs/DECISIONS.md) and [SPEC.md](SPEC.md).
 
-## Unreleased
+## 0.5.1 — 2026-11-27
 
 - **User — Tidier chat UI:** one agent picker instead of two "Build" menus when custom agents exist; a
   permission card lists each file once, next to its diff; the 1/2/3 shortcut hint shows only while the
