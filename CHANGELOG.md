@@ -93,60 +93,9 @@ build, CI or architecture work, condensed to one line; the reasoning lives in
   reply is never appended to `AGENTS.md` or another Markdown file in the workspace. The target picker,
   dated-note formatting, message type and related tests/docs were removed too.
 
-## 0.4.0 — 2026-11-25
-
-- **User — Session list error indicator:** sessions whose last turn failed or was interrupted now show a
-  red dot (labelled _Failed_ or _Interrupted_) in the session list, next to the existing green _Running_
-  and amber _Needs your input_ indicators. The red dot comes from the session history and clears as soon
-  as a new prompt starts a turn. Amber still takes precedence when a request is pending.
-- **Internal — Session status from history:** `sessionTurnStatus` classifies the last turn from the last
-  `user`/`assistant`/`idle` message (`idle.outcome`, or an `error` on a completed assistant), ignoring
-  bookkeeping messages; `SessionListService` now fetches history for every listed session, so busy and
-  error states no longer depend on stale `busy`/`idle` timestamps. Pending permissions and forms remain
-  live because they are not messages.
-- **User — Questions stay in the chat:** a `question` tool call and its answer now remain visible in
-  the conversation as a read-only card, like the assistant's prose, instead of being hidden inside a
-  folded step. The data comes from the server's session history, so the card survives a VS Code reload
-  and is shown when the session is opened from another workspace. While pending it keeps its usual
-  tool card with the attention marker; the actionable card still lives only in the panel above the composer.
-- **User — Per-workspace auto-approve:** the **Auto-approve** toggle now applies to the whole
-  workspace instead of a single chat. Every permission raised by a session of that folder is granted
-  once without a card, including background subagents and sessions started by another client. Turning
-  it on grants requests that were already pending. Existing per-chat choices are migrated: if any
-  chat in the workspace had it on, the workspace starts with it on.
-- **User — Fix:** when two VS Code windows connect to the same `opencode.endpoint`, each chat now
-  handles only sessions owned by its own workspace. Approval cards and turn notifications from
-  another project no longer appear in the wrong editor. `opencode.autoApprovePermissions` remains the
-  default for workspaces that never changed the toggle.
-- **Internal — Workspace ownership:** a bounded session→directory map (fed by session lists,
-  `session.created` and `parentID`) gates the shared event stream before it reaches permission cards,
-  the attention overlay or turn state. Unknown ids are resolved once through `session.get`.
-- **User — No external software required:** OpenCode now runs inside the extension through the
-  bundled `@opencode/sdk` (2.4.1). There is no CLI to install, no `opencode serve` process, no port
-  and no password for the local host. Requires VS Code 1.134+ (Node 24 in the extension host).
-  `opencode.endpoint` still lets you connect to a server you run yourself.
-- **Internal — SDK adapter:** `OpenCodeClient` now delegates to OpenCode's generated client instead
-  of hand-written fetch/SSE; events arrive from `events.subscribe()` and a resync follows a
-  reconnect. The extension entry and the bundled SDK are a single ESM file; only native/optional modules ship
-  in `node_modules` (VSIX ~15 MB). A compile-time contract checks the webview's wire types against
-  the SDK's generated types, and a dedicated integration suite exercises the embedded-host path.
-- **Internal — Version policy:** the OpenCode version is pinned by the extension instead of the
-  user's CLI, so there is no runtime version drift. Upgrading OpenCode now requires a new extension
-  release. The old `executablePath` / `startupTimeout` / `autoRestart` settings are kept but ignored.
-- **User — Fix:** sessions persist across VS Code reloads again. `OpenCode.create()` defaults to an
-  in-memory database; the embedded host now points at OpenCode's real global database, so history is
-  kept and remains visible to the CLI/TUI. Covered by a new e2e test that closes and recreates a host.
-- **Internal — Tooling:** ESLint and Prettier were replaced by Oxlint and Oxfmt (`oxlint.config.ts`,
-  `oxfmt.config.ts`); the `lint`, `format` and `format:check` scripts keep their names and the docs
-  generator now formats through Oxfmt's API instead of Prettier's.
-- **Internal — Bundle:** esbuild now emits UTF-8 characters directly instead of `\uXXXX` escapes in
-  the extension and both webview bundles, saving ~260 KB from the minified `extension.mjs`.
-- **Internal — Packaging:** the generated `.vscodeignore` allow-list now covers every platform variant
-  declared by the SDK's optional dependencies, so the release gate passes on macOS, Linux and Windows.
-
 ## Older releases
 
-Releases before 0.4.0 are documented in [GitHub Releases](https://github.com/mattiamalonni/chat-for-opencode/releases).
+Releases before 0.4.1 are documented in [GitHub Releases](https://github.com/mattiamalonni/chat-for-opencode/releases).
 At tag time each release's notes were generated from this file, so no history was lost when the
 older sections were retired. The release workflow still needs the `## X.Y.Z — date` section of the
 version being published; see [docs/RELEASING.md](docs/RELEASING.md).
