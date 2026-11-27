@@ -34,6 +34,7 @@ import { ChatEventRouter } from "./eventRouter";
 import { ExternalAttentionService } from "./externalAttention";
 import { JobTracker } from "./jobTracker";
 import { ChatCommandHandler } from "./commandHandler";
+import { WebviewMessageQueue } from "./messageQueue";
 import { ExecutionStateService, type ExecutionState } from "./executionState";
 import { createControllerState } from "./services/controllerState";
 import { isWithinWorkspace, resolveWithinWorkspace } from "./workspacePath";
@@ -623,8 +624,11 @@ export class ChatController implements vscode.Disposable {
     this.post({ type: "prefillDraft", sessionId: this.state.sessionId ?? undefined, text, attachments });
   }
 
-  /** Serializes webview messages: a late `ready`/loadAll must not race a prompt and drop its events. */
-  private messageQueue: Promise<unknown> = Promise.resolve();
+  /**
+   * Serializes webview messages: a late `ready`/loadAll must not race a prompt and drop its events.
+   * Open/copy actions skip it; see messageQueue.ts.
+   */
+  private readonly messageQueue = new WebviewMessageQueue();
 
   /** Dedicated token: ordinary session refreshes must not cancel a bulk delete. */
   private readonly deleteGeneration = new Generation();
@@ -643,11 +647,8 @@ export class ChatController implements vscode.Disposable {
       this.output.warn(`[chat] ignored an invalid webview message (type: ${String(type)})`);
       return;
     }
-    const run = this.messageQueue.then(() => this.handle(msg));
-    // Keep the chain alive after a failed message so later ones are still processed.
-    this.messageQueue = run.catch(() => undefined);
     try {
-      await run;
+      await this.messageQueue.run(msg, (m) => this.handle(m));
     } catch (err) {
       this.output.error(`[chat] ${msg.type} failed: ${String(err)}`);
       if (err instanceof ServerError && err.logDetail) this.output.warn(`[server] ${err.logDetail}`);
