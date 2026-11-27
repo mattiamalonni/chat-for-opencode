@@ -1,9 +1,8 @@
-import * as path from "node:path";
 import * as vscode from "vscode";
 import { OpenCodeClient } from "../client/http";
 import { CatalogService } from "./catalogService";
 import { ConnectionSupervisor } from "./connectionSupervisor";
-import { FileIconThemeService, type LanguageContribution } from "./fileIconTheme";
+import type { FileIconThemeService } from "./fileIconTheme";
 import { ChatLifecycle } from "./lifecycle";
 import { Generation } from "./generation";
 import { describeServerError, ServerError, type ServerHandle, type ServerState } from "../server/server";
@@ -19,10 +18,9 @@ import { AttachmentService } from "./attachmentService";
 import { SessionListService, type SessionSearchResult } from "./sessionListService";
 import { SubagentTracker } from "./subagentTracker";
 import { ContextTracker, FileIndex } from "./context";
-import { PromptLibraryService } from "./promptLibrary";
-import { formatPromptDiff, formatPromptDiagnostics } from "./promptContext";
-import { ApplyCodeService } from "./applyCode";
-import { workingDiff } from "./gitDiff";
+import type { PromptLibraryService } from "./promptLibrary";
+import type { ApplyCodeService } from "./applyCode";
+import { createApplyCodeService, createFileIconThemeService, createPromptLibraryService } from "./services/hostAdapters";
 import { ChatViews, type ChatWebview } from "./views";
 import { DiffService } from "./diff";
 
@@ -205,88 +203,15 @@ export class ChatController implements vscode.Disposable {
     );
     this.context = new ContextTracker((items) => this.post({ type: "context", items }));
 
-    const readUri = async (uri: vscode.Uri): Promise<string | undefined> => {
-      try {
-        return new TextDecoder().decode(await vscode.workspace.fs.readFile(uri));
-      } catch {
-        return undefined;
-      }
-    };
-    const writeUri = async (uri: vscode.Uri, content: string): Promise<void> => {
-      const edit = new vscode.WorkspaceEdit();
-      let document: vscode.TextDocument | undefined;
-      try {
-        document = await vscode.workspace.openTextDocument(uri);
-      } catch {
-        document = undefined;
-      }
-      if (document) {
-        edit.set(uri, [new vscode.TextEdit(new vscode.Range(0, 0, document.lineCount, 0), content)]);
-      } else {
-        edit.createFile(uri);
-        edit.insert(uri, new vscode.Position(0, 0), content);
-      }
-      await vscode.workspace.applyEdit(edit);
-    };
-    const warn = (message: string) => this.output.warn(message);
-    const info = (message: string) => void vscode.window.showInformationMessage(message);
-    this.applyCode = new ApplyCodeService<vscode.Uri>({
-      t: (message, ...args) => vscode.l10n.t(message, ...args),
-      folder: () => this.state.folder?.uri.fsPath,
-      activePath: () => {
-        const editor = vscode.window.activeTextEditor;
-        return editor?.document.uri.scheme === "file" ? editor.document.uri.fsPath : undefined;
-      },
+    this.applyCode = createApplyCodeService({
+      getFolder: () => this.state.folder,
       resolve: (targetPath) => this.resolveWorkspacePath(targetPath),
-      pickPath: async (candidates) => {
-        const files = await vscode.workspace.findFiles("**/*", "**/node_modules/**", 200);
-        const items = [...new Set([...candidates, ...files.map((uri) => vscode.workspace.asRelativePath(uri, false))])];
-        return vscode.window.showQuickPick(items, { placeHolder: vscode.l10n.t("Choose a file to apply this code to") });
-      },
-      read: readUri,
-      preview: (uri, current, proposed) => this.diffs.openProposal(uri, current, proposed),
-      confirm: async () => {
-        const accept = vscode.l10n.t("Accept");
-        const choice = await vscode.window.showInformationMessage(vscode.l10n.t("Apply this change?"), accept, vscode.l10n.t("Reject"));
-        return choice === accept;
-      },
-      write: writeUri,
-      warn,
-      info,
+      diffs: this.diffs,
+      warn: (message) => this.output.warn(message),
     });
-    this.prompts = new PromptLibraryService({
-      t: (text) => vscode.l10n.t(text),
-      userPrompts: () =>
-        vscode.workspace
-          .getConfiguration("opencode", this.state.folder?.uri)
-          .get<Array<{ id?: unknown; title?: unknown; description?: unknown; text?: unknown }>>("promptLibrary", []),
-      selection: () => {
-        const editor = vscode.window.activeTextEditor;
-        return editor && !editor.selection.isEmpty ? editor.document.getText(editor.selection) : "";
-      },
-      filePath: () => {
-        const editor = vscode.window.activeTextEditor;
-        return editor?.document.uri.scheme === "file" ? vscode.workspace.asRelativePath(editor.document.uri, false) : undefined;
-      },
-      diff: async () => {
-        const cwd = this.state.folder?.uri.fsPath;
-        // The prompt catalog is posted before the trust check, and git honours repository config
-        // (e.g. `core.fsmonitor`) that can run arbitrary commands: never spawn it untrusted.
-        if (!cwd || this.trustBlocked()) return "";
-        const diff = await workingDiff(cwd);
-        return diff ? formatPromptDiff(diff) : "";
-      },
-      problems: async () => {
-        const file = vscode.window.activeTextEditor?.document.uri.toString();
-        const items = vscode.languages
-          .getDiagnostics()
-          .flatMap(([uri, list]) =>
-            file && uri.toString() !== file
-              ? []
-              : list.map((d) => ({ uri: uri.path, startLine: d.range.start.line, message: d.message, severity: d.severity })),
-          );
-        return formatPromptDiagnostics(items);
-      },
+    this.prompts = createPromptLibraryService({
+      getFolder: () => this.state.folder,
+      trustBlocked: () => this.trustBlocked(),
     });
     this.permissions = new PermissionService(
       ctx,
@@ -347,32 +272,7 @@ export class ChatController implements vscode.Disposable {
         this.refreshActions.scheduleSessions();
       }),
     );
-    this.fileIcons = new FileIconThemeService({
-      themeId: () => vscode.workspace.getConfiguration("workbench").get<string | null>("iconTheme") ?? undefined,
-      variant: () => {
-        const kind = vscode.window.activeColorTheme.kind;
-        if (kind === vscode.ColorThemeKind.HighContrast || kind === vscode.ColorThemeKind.HighContrastLight) return "highContrast";
-        return kind === vscode.ColorThemeKind.Light ? "light" : "dark";
-      },
-      associations: () =>
-        vscode.workspace.getConfiguration("files", this.state.folder?.uri).get<Record<string, string>>("associations", {}),
-      languages: () =>
-        vscode.extensions.all.flatMap((ext) => {
-          const contributed = ext.packageJSON?.contributes?.languages as LanguageContribution[] | undefined;
-          return contributed ?? [];
-        }),
-      locate: (id) => {
-        for (const ext of vscode.extensions.all) {
-          const themes = ext.packageJSON?.contributes?.iconThemes as Array<{ id: string; path: string }> | undefined;
-          const theme = themes?.find((t) => t.id === id);
-          if (!theme || ext.extensionUri.scheme !== "file") continue;
-          const jsonPath = path.join(ext.extensionUri.fsPath, theme.path.replace(/^\.\//, ""));
-          return { jsonPath, baseDir: path.dirname(jsonPath) };
-        }
-        return undefined;
-      },
-      readFile: (file) => vscode.workspace.fs.readFile(vscode.Uri.file(file)),
-    });
+    this.fileIcons = createFileIconThemeService(() => this.state.folder);
     this.commandHandler = new ChatCommandHandler({
       getClient: () => this.client,
       getSessionId: () => this.state.sessionId,
