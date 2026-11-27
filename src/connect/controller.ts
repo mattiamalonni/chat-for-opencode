@@ -1,7 +1,7 @@
 import * as vscode from "vscode";
 import type { OpenCodeClient } from "../client/http";
 import { loadBundle } from "../chat/viewProvider";
-import { quoteForShell } from "../chat/shell";
+import { commandLine, shellSyntax } from "../chat/shell";
 import { describeServerError } from "../server/server";
 import { isConnectWebviewMessage } from "../shared/protocolGuards";
 import type { ConnectAttemptView, ConnectHostMessage, ConnectWebviewMessage } from "../shared/protocol";
@@ -237,9 +237,16 @@ export class ConnectController implements vscode.Disposable {
       this.post({ type: "notice", kind: "error", message: this.localStrings().connectNoMethods });
       return;
     }
-    const command = method.command.map((part) => quoteForShell(part)).join(" ");
     const terminal = vscode.window.createTerminal({ name: `OpenCode: ${integration.name}`, cwd: this.d.getFolder() });
     terminal.show();
+    let command: string;
+    try {
+      // Quote for the shell the terminal really runs (PowerShell, cmd.exe or POSIX).
+      command = commandLine(method.command, shellSyntax(await detectShell(terminal)));
+    } catch (err) {
+      terminal.dispose();
+      throw err;
+    }
     terminal.sendText(command);
   }
 
@@ -397,4 +404,27 @@ export class ConnectController implements vscode.Disposable {
     this.panel?.dispose();
     this.panel = undefined;
   }
+}
+
+/**
+ * Waits briefly for VS Code to detect the terminal's shell. `undefined` (not detected in time, or
+ * an unsupported shell) makes the caller fall back to the platform's default terminal syntax.
+ */
+function detectShell(terminal: vscode.Terminal, timeoutMs = 3000): Promise<string | undefined> {
+  if (terminal.state.shell) return Promise.resolve(terminal.state.shell);
+  return new Promise((resolve) => {
+    const done = () => {
+      clearTimeout(timer);
+      sub.dispose();
+      close.dispose();
+      resolve(terminal.state.shell);
+    };
+    const timer = setTimeout(done, timeoutMs);
+    const sub = vscode.window.onDidChangeTerminalState((changed) => {
+      if (changed === terminal && changed.state.shell) done();
+    });
+    const close = vscode.window.onDidCloseTerminal((closed) => {
+      if (closed === terminal) done();
+    });
+  });
 }
