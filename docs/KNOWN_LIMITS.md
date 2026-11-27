@@ -167,6 +167,16 @@ test or a manual probe actually ran.
   version banner and `src/shared/adapter.ts` normalisers apply to a server reached through
   `opencode.endpoint` and provide a safety net for the webview. Supporting a different SDK means
   bumping the dependency, regenerating types if needed, and re-running the full suite.
+- **The Claude Agent provider does not work in the embedded host.** OpenCode's provider drives
+  `@anthropic-ai/claude-agent-sdk`, whose JavaScript is bundled but whose native CLI binary is not:
+  it is about 240 MB per platform, too large to ship in every VSIX. Choosing that provider fails with
+  _Native CLI binary for … not found_. Other providers are unaffected. To use it, run an OpenCode
+  server yourself from an installed CLI and point `opencode.endpoint` at it.
+- **Platform coverage.** Native modules ship per platform (see
+  [RELEASING.md](RELEASING.md#platform-packages)): Linux, macOS and Windows on x64 and arm64.
+  Alpine (musl), 32-bit ARM and VS Code for the Web have no package and cannot install the extension.
+  OpenCode publishes no `@number0/iroh` binary for macOS Intel, so iroh-backed features are missing
+  on `darwin-x64`.
 - **Status bar usage is the same estimate** as the composer's context meter (see API_NOTES). It is
   unknown until the first reply (and after a compaction), so the item stays hidden until OpenCode
   reports numbers. It mirrors the **open session** only and is cleared when that session closes;
