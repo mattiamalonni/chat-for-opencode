@@ -22,7 +22,8 @@
       window.addEventListener("keydown", (e) =>
         window.__windowKeys.push((e.ctrlKey ? "Ctrl+" : "") + (e.metaKey ? "Meta+" : "") + (e.altKey ? "Alt+" : "") + e.key),
       );
-      let state;
+      // Tests may seed the state a rebuilt webview gets back from VS Code (`window.__initialState`).
+      let state = window.__initialState;
       window.acquireVsCodeApi = () => ({
         postMessage: (m) => {
           window.__posted.push(JSON.parse(JSON.stringify(m)));
@@ -40,6 +41,7 @@
         getState: () => state,
         setState: (s) => {
           state = s;
+          window.__lastState = s;
         },
       });
     </script>

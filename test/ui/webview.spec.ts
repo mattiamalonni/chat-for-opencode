@@ -784,6 +784,49 @@ test("a queued prompt does not show the running turn's summary early", async ({ 
   await expect(page.locator(".conversation")).toContainText("queued next");
 });
 
+test("a rebuilt chat returns to the message the user was reading, not the end", async ({ page }) => {
+  const messages = Array.from({ length: 30 }, (_, i) => ({
+    id: `msg_${String(i).padStart(2, "0")}`,
+    type: "user" as const,
+    text: `prompt number ${i}\n\nwith a second paragraph so each card has some height`,
+    time: { created: 1000 + i },
+  }));
+  const load = () => host(page, { type: "session", session: { id: S1, busy: false, permissions: [], forms: [], messages } });
+  const anchor = () =>
+    page.evaluate(() => (window as unknown as { __lastState?: { scroll?: { messageId: string } } }).__lastState?.scroll?.messageId ?? null);
+
+  // First view: the user scrolls up with the wheel; the anchor is saved once scrolling stops.
+  await boot(page);
+  await load();
+  await expect(page.locator("[data-message-id='msg_29']")).toBeInViewport();
+  const box = (await page.locator(".conversation").boundingBox())!;
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  await page.mouse.wheel(0, -1200);
+  await expect.poll(anchor).not.toBeNull();
+  const reading = (await anchor())!;
+  expect(reading).not.toBe("msg_29");
+  const saved = await page.evaluate(() => (window as unknown as { __lastState: unknown }).__lastState);
+
+  // Rebuilt view (window reload, or a hidden view shown again): VS Code hands that state back.
+  await page.addInitScript((state) => ((window as unknown as { __initialState: unknown }).__initialState = state), saved);
+  await boot(page);
+  await load();
+  await expect(page.locator(`[data-message-id='${reading}']`)).toBeInViewport();
+  await expect(page.locator("[data-message-id='msg_29']")).not.toBeInViewport();
+  await expect(page.getByRole("button", { name: STRINGS.jumpToLatest })).toBeVisible();
+
+  // Back to the end through "Jump to latest", the anchor is cleared: the next rebuild follows the latest.
+  await page.getByRole("button", { name: STRINGS.jumpToLatest }).click();
+  await expect.poll(anchor).toBeNull();
+
+  // ... and through the wheel as well.
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  await page.mouse.wheel(0, -1200);
+  await expect.poll(anchor).not.toBeNull();
+  await page.mouse.wheel(0, 5000);
+  await expect.poll(anchor).toBeNull();
+});
+
 test("a thought emitted after a sentence stays below it, also once tools arrive", async ({ page }) => {
   await boot(page);
   const sid = "ses_late_thought";

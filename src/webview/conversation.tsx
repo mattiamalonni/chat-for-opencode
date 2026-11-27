@@ -10,7 +10,7 @@ import { IconCheck, IconChevron, IconFileDoc, IconOpenCode, IconTool, IconWarnin
 import { fileRefToPath } from "../shared/fileRef";
 
 import { AssistantStatus, MessageView, QuestionTurnCard, ToolCard, ToolGroup, TurnStatsRow } from "./messages";
-import { post } from "./vscode";
+import { getScrollAnchor, post, setScrollAnchor } from "./vscode";
 
 export function Conversation({
   chat,
@@ -94,12 +94,26 @@ export function Conversation({
       }),
   };
 
+  // True once the saved scroll position (if any) has been applied for this view.
+  const restoredScroll = useRef(false);
+  // Set while the code itself moves the view: the scroll events that follow are not the user's
+  // reading position and must not overwrite the saved anchor.
+  const programmaticScroll = useRef(false);
+  const markProgrammaticScroll = () => {
+    programmaticScroll.current = true;
+    requestAnimationFrame(() => requestAnimationFrame(() => (programmaticScroll.current = false)));
+  };
+
   const scrollToEnd = () => {
     const el = ref.current;
     if (!el) return;
+    markProgrammaticScroll();
     el.scrollTop = el.scrollHeight;
     stick.current = true;
     setAtBottom(true);
+    // Following the latest message again (Jump to latest, a new prompt, a session switch) forgets
+    // the saved position; the first load keeps it until the restore below has used it.
+    if (restoredScroll.current) setScrollAnchor(undefined);
   };
 
   // A new prompt always brings the conversation back to the latest message, even if the user had
@@ -118,6 +132,48 @@ export function Conversation({
   useEffect(() => {
     scrollToEnd();
   }, [scrollToken]);
+
+  // The webview is rebuilt on a window reload and whenever a hidden view is shown again: return to
+  // the message the user was reading instead of jumping to the end. Declared after the effects that
+  // scroll to the end, so it runs last in the commit that first renders the saved session.
+  useEffect(() => {
+    if (restoredScroll.current) return;
+    const anchor = getScrollAnchor();
+    const container = ref.current;
+    if (!anchor || !container || anchor.sessionId !== chat.sessionId) {
+      if (chat.sessionId) restoredScroll.current = true;
+      return;
+    }
+    if (chat.messages.length === 0) return; // history still loading
+    restoredScroll.current = true;
+    const el = Array.from(container.querySelectorAll<HTMLElement>("[data-message-id]")).find(
+      (candidate) => candidate.dataset.messageId === anchor.messageId,
+    );
+    if (!el) return;
+    const top = el.getBoundingClientRect().top - container.getBoundingClientRect().top;
+    markProgrammaticScroll();
+    container.scrollTop += top - anchor.offset;
+    stick.current = false;
+    setAtBottom(false);
+  }, [chat.sessionId, chat.messages]);
+
+  const saveScrollTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  useEffect(() => () => clearTimeout(saveScrollTimer.current), []);
+  const saveScroll = (bottom: boolean) => {
+    if (programmaticScroll.current) return;
+    clearTimeout(saveScrollTimer.current);
+    saveScrollTimer.current = setTimeout(() => {
+      const container = ref.current;
+      if (!container || !chat.sessionId) return;
+      if (bottom) return setScrollAnchor(undefined);
+      const top = container.getBoundingClientRect().top;
+      const first = Array.from(container.querySelectorAll<HTMLElement>("[data-message-id]")).find(
+        (el) => el.getBoundingClientRect().bottom > top,
+      );
+      if (first?.dataset.messageId)
+        setScrollAnchor({ sessionId: chat.sessionId, messageId: first.dataset.messageId, offset: first.getBoundingClientRect().top - top });
+    }, 200);
+  };
 
   // A reveal is a one-shot command, not persistent state. Previously the id stayed set, so every
   // streamed token re-ran this effect, scrolled the user back to the old hit and fought auto-scroll.
@@ -278,6 +334,7 @@ export function Conversation({
             const bottom = el.scrollHeight - el.scrollTop - el.clientHeight < 40;
             stick.current = bottom;
             setAtBottom((prev) => (prev === bottom ? prev : bottom));
+            saveScroll(bottom);
           }}
           onClick={onClick}
         >

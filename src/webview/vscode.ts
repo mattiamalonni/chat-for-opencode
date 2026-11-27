@@ -34,11 +34,20 @@ export function onHostMessage(handler: (msg: HostMessage) => void): () => void {
   return () => window.removeEventListener("message", listener);
 }
 
+/** Where the user had scrolled to: the first visible message and its offset from the top. */
+export interface ScrollAnchor {
+  sessionId: string;
+  messageId: string;
+  offset: number;
+}
+
 interface PersistedState {
   /** Global draft for the "no session" case and saved state without a session id. */
   draft?: string;
   /** Drafts keyed by session id. */
   drafts?: Record<string, string>;
+  /** Absent while the view follows the latest message. */
+  scroll?: ScrollAnchor;
 }
 
 function getPersisted(): PersistedState {
@@ -60,6 +69,17 @@ export function setDraft(text: string, sessionId?: string): void {
   const state = getPersisted();
   if (sessionId === undefined) setPersisted({ ...state, draft: text });
   else setPersisted({ ...state, drafts: { ...state.drafts, [sessionId]: text } });
+}
+
+/** The scroll position saved before the webview was rebuilt (reload, or a hidden view shown again). */
+export function getScrollAnchor(): ScrollAnchor | undefined {
+  return getPersisted().scroll;
+}
+
+export function setScrollAnchor(anchor: ScrollAnchor | undefined): void {
+  const state = getPersisted();
+  if (state.scroll?.messageId === anchor?.messageId && state.scroll?.offset === anchor?.offset) return;
+  setPersisted({ ...state, scroll: anchor });
 }
 
 /** Merge drafts restored by the host into the fast local state (kept across view rebuilds). */
