@@ -15,6 +15,9 @@ build, CI or architecture work, condensed to one line; the reasoning lives in
   starters with icons; Auto-approve, when on, keeps its label and the theme's warning colour even in a
   narrow side bar; the turn footer keeps the cost visible by dropping the start time in typical side
   bars; the export button uses a download icon.
+- **Internal — README demo:** an animated hero shows a real turn (question, edit approval, applied fix);
+  `npm run demo:record` re-records it from the chat webview, so it stays in sync with the UI. The
+  welcome tile gets a border in high-contrast themes.
 - **User — No sideways scrolling in a narrow side bar:** hidden tooltips no longer widen the view, and
   tooltips pick their side again after the bar is resized.
 

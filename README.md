@@ -3,12 +3,14 @@
 [![CI](https://github.com/mattiamalonni/chat-for-opencode/actions/workflows/ci.yml/badge.svg)](https://github.com/mattiamalonni/chat-for-opencode/actions/workflows/ci.yml)
 [![Release](https://img.shields.io/github/v/release/mattiamalonni/chat-for-opencode)](https://github.com/mattiamalonni/chat-for-opencode/releases/latest)
 [![License: MIT](https://img.shields.io/github/license/mattiamalonni/chat-for-opencode)](LICENSE)
-[![VS Code 1.130+](https://img.shields.io/badge/VS_Code-1.134%2B-007ACC?logo=visualstudiocode)](https://marketplace.visualstudio.com/items?itemName=mattiamalonni.chat-for-opencode)
+[![VS Code 1.134+](https://img.shields.io/badge/VS_Code-1.134%2B-007ACC?logo=visualstudiocode)](https://marketplace.visualstudio.com/items?itemName=mattiamalonni.chat-for-opencode)
 [![Last commit](https://img.shields.io/github/last-commit/mattiamalonni/chat-for-opencode)](https://github.com/mattiamalonni/chat-for-opencode/commits/main)
 [![Release date](https://img.shields.io/github/release-date/mattiamalonni/chat-for-opencode)](https://github.com/mattiamalonni/chat-for-opencode/releases/latest)
 [![OpenCode SDK 2.4.1](https://img.shields.io/badge/OpenCode_SDK-2.4.1-blueviolet)](https://opencode.ai/docs/sdk/)
 [![Telemetry: none](https://img.shields.io/badge/telemetry-none-brightgreen)](#privacy--security)
 [![TypeScript](https://img.shields.io/github/languages/top/mattiamalonni/chat-for-opencode)](https://www.typescriptlang.org/)
+
+![Chat for OpenCode: ask about the selected code, approve the proposed edit, see the fix applied](docs/images/demo.gif)
 
 > **Unofficial.** This extension is a vibe-coded community project and is not affiliated with or endorsed by the OpenCode team.
 
