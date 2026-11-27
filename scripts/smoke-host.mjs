@@ -101,7 +101,13 @@ try {
   console.error(`smoke test failed: ${err instanceof Error ? (err.stack ?? err.message) : String(err)}`);
   process.exitCode = 1;
 } finally {
-  rmSync(scratch, { recursive: true, force: true });
+  try {
+    rmSync(scratch, { recursive: true, force: true });
+  } catch (err) {
+    // Windows keeps the loaded .node binaries locked until this process exits; the folder is a
+    // temporary one, so a failed cleanup must not turn a passed check into a failure.
+    console.warn(`warning: could not remove ${scratch}: ${err instanceof Error ? err.message : String(err)}`);
+  }
 }
 // The host may leave timers or watchers behind after close(); the result is already decided.
 process.exit(process.exitCode ?? 0);
