@@ -1,7 +1,10 @@
 import type { ServerEvent } from "../shared/api";
 import { isPendingJob, parseJobInfo, type JobInfo } from "../shared/jobs";
 
-/** Host-side registry of running background jobs, fed by `experimental.job.updated`. */
+/**
+ * Host-side registry of running background jobs, fed live by `experimental.job.updated` and seeded
+ * from `experimental.job.list` on connect and after a stream reconnect (see `replace`).
+ */
 export class JobTracker {
   private readonly byId = new Map<string, JobInfo>();
   private readonly listeners = new Set<() => void>();
@@ -43,6 +46,20 @@ export class JobTracker {
     }
     if (changed) this.emit();
     return changed;
+  }
+
+  /**
+   * Replaces the registry with the server's list of running jobs: jobs that started while the stream
+   * was down appear, and jobs whose final update was missed disappear. Returns true when it changed.
+   */
+  replace(jobs: readonly JobInfo[]): boolean {
+    const next = new Map(jobs.filter(isPendingJob).map((job) => [job.id, job] as const));
+    const same = next.size === this.byId.size && [...next.keys()].every((id) => this.byId.has(id));
+    this.byId.clear();
+    for (const [id, job] of next) this.byId.set(id, job);
+    if (same) return false;
+    this.emit();
+    return true;
   }
 
   /** Folder switch / reconnect: jobs belong to the old server and cannot be tracked here. */

@@ -12,6 +12,14 @@ function group(...methods: string[]): Record<string, ReturnType<typeof vi.fn>> {
 }
 
 describe("OpenCodeClient adapter over the SDK", () => {
+  it("lists the server's running jobs through the experimental job group", async () => {
+    const api = { experimental: { job: group("list") } };
+    api.experimental.job.list.mockResolvedValue([{ id: "job-1", sessionID: "ses", status: "running" }]);
+    const client = OpenCodeClient.create(connection(api));
+    expect(await client.runningJobs()).toEqual([{ id: "job-1", sessionID: "ses", status: "running" }]);
+    expect(api.experimental.job.list).toHaveBeenCalledWith({ status: "running" }, undefined);
+  });
+
   it("forwards an abort signal to the generated client", async () => {
     const api = { server: group("info"), session: group("get"), credential: group("list") };
     api.server.info.mockResolvedValue({ version: "2.4.1" });

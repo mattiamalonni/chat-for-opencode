@@ -31,6 +31,7 @@ import { BoundedSet } from "../shared/boundedSet";
 import { ChatEventRouter } from "./eventRouter";
 import { ExternalAttentionService } from "./externalAttention";
 import { JobTracker } from "./jobTracker";
+import { parseJobInfo, type JobInfo } from "../shared/jobs";
 import { ChatCommandHandler } from "./commandHandler";
 import { WebviewMessageQueue } from "./messageQueue";
 import { ExecutionStateService, type ExecutionState } from "./executionState";
@@ -144,12 +145,15 @@ export class ChatController implements vscode.Disposable {
       setStatus: (status, error) => this.setStatus(status, error),
       getStatus: () => this.state.status,
       generation: this.lifecycle.generations.connect,
-      onReady: (conn, version, stale) => {
+      onReady: async (conn, version, stale) => {
         this.state.version = version;
-        return this.connectionService.useConnection(conn, stale);
+        await this.connectionService.useConnection(conn, stale);
+        if (!stale()) void this.recoverJobs();
       },
       onStreamReconnect: () => {
         void this.sessionService.resync();
+        // Jobs that started or ended while the stream was down never sent us their update.
+        void this.recoverJobs();
       },
       onDetached: () => {
         this.state.lastKnownMessage = undefined;
@@ -661,6 +665,24 @@ export class ChatController implements vscode.Disposable {
     const folders = vscode.workspace.workspaceFolders ?? [];
     const active = vscode.window.activeTextEditor?.document.uri;
     return (active && vscode.workspace.getWorkspaceFolder(active)) ?? folders[0];
+  }
+
+  /**
+   * Seeds the job registry from the server, keeping only this workspace's sessions (the same rule
+   * the event router applies to live updates). Older external servers without the endpoint keep the
+   * live-events-only behaviour.
+   */
+  private async recoverJobs(): Promise<void> {
+    const client = this.client;
+    if (!client) return;
+    try {
+      const raw = await client.runningJobs(this.state.connectionAbort?.signal);
+      if (client !== this.client) return;
+      const jobs = raw.map(parseJobInfo).filter((job): job is JobInfo => !!job && this.ownership.owns(job.sessionID));
+      this.jobs.replace(jobs);
+    } catch (err) {
+      this.output.info(`[chat] job list unavailable, relying on live updates: ${String(err)}`);
+    }
   }
 
   private postInit(): void {

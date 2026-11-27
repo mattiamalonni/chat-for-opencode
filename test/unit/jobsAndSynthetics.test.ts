@@ -50,6 +50,23 @@ describe("JobTracker", () => {
     tracker.reset();
     expect(tracker.pending()).toEqual([]);
   });
+
+  it("replaces the registry with the server's running jobs after a reconnect", () => {
+    const tracker = new JobTracker();
+    const changed = vi.fn();
+    tracker.onDidChange(changed);
+    tracker.observe(jobEvent("running"));
+    changed.mockClear();
+    const missed = parseJobInfo({ id: "job-2", sessionID: SID, kind: "shell", status: "running", time: { started: 20 } })!;
+    const done = parseJobInfo({ id: "job-3", sessionID: SID, kind: "image", status: "completed", time: { started: 5 } })!;
+    // job-1 finished while the stream was down; job-2 started meanwhile; job-3 is not pending.
+    expect(tracker.replace([missed, done])).toBe(true);
+    expect(tracker.pending().map((job) => job.id)).toEqual(["job-2"]);
+    expect(changed).toHaveBeenCalledTimes(1);
+    // The same list again changes nothing and notifies nobody.
+    expect(tracker.replace([missed])).toBe(false);
+    expect(changed).toHaveBeenCalledTimes(1);
+  });
 });
 
 describe("synthetic notices", () => {

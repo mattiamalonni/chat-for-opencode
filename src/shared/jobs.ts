@@ -1,8 +1,7 @@
 /**
- * Pending server jobs from `experimental.job.updated` (OpenCode 2.4.0). The generated client does
- * not expose the job endpoint, so the live event is the only source; a reconnect may therefore miss
- * jobs that started while disconnected. Job ids are stable across updates, which makes the event
- * safe to apply repeatedly after a resubscribe.
+ * Pending server jobs from `experimental.job.updated` (OpenCode 2.4.0), seeded on connect and after a
+ * reconnect from `experimental.job.list` (exposed by the 2.4.1 client). Job ids are stable across
+ * updates, which makes the event safe to apply repeatedly after a resubscribe.
  */
 
 export interface JobInfo {

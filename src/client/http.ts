@@ -268,6 +268,11 @@ export class OpenCodeClient {
     await this.call(() => this.api.session.form.cancel({ sessionID: sessionId, formID: formId }));
   }
 
+  /** Jobs still running on the server (all sessions); raw shapes, parsed by `parseJobInfo`. */
+  async runningJobs(signal?: AbortSignal): Promise<unknown[]> {
+    return await this.call(() => this.api.experimental.job.list({ status: "running" }, this.req(signal)));
+  }
+
   async diff(id: string): Promise<FileDiff[]> {
     return await this.call(() => this.api.session.diff({ sessionID: id }));
   }
