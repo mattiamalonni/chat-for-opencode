@@ -107,24 +107,9 @@ build, CI or architecture work, condensed to one line; the reasoning lives in
   `sessionWaitingShell` settle a job by matching its shell id against the result notice. The session
   picker refreshes when a shell goes to the background and when its result arrives.
 
-## 0.4.2 — 2026-11-25
-
-- **User — File steps open the diff:** clicking the file name in an `edit`/`write` step now opens the same native per-file diff as its `+N / -N` button, instead of the plain file. Steps without a patch (e.g. `read`) still open the file normally.
-- **User — One account-focused status bar item:** the two previous items (turn state and session usage)
-  are replaced by a single `$(account) OpenCode` item with a fixed icon and label. Hovering it opens a
-  compact, Copilot-style panel that lists **only the connected accounts**, each on a themed rounded row
-  with the active one highlighted; no auth type, integration id or session numbers. Clicking the item
-  pins that same hover open, so it stays until Escape. The old click actions (stop turn, account picker,
-  focus chat) and the `opencode.showUsageInStatusBar` setting are gone; `_OpenCode: Account_` remains in
-  the palette as a Quick Pick.
-- **Internal — Status bar presenters:** `src/status/account.ts` and `src/status/usage.ts` are replaced by
-  `src/status/bar.ts` and `src/status/tooltip.ts`; the unused `src/chat/usageStatus.ts` and its tests are
-  removed. A CDP/e2e test drives the real status bar hover and checks it stays pinned after the mouse
-  moves away.
-
 ## Older releases
 
-Releases before 0.4.2 are documented in [GitHub Releases](https://github.com/mattiamalonni/chat-for-opencode/releases).
+Releases before 0.4.3 are documented in [GitHub Releases](https://github.com/mattiamalonni/chat-for-opencode/releases).
 At tag time each release's notes were generated from this file, so no history was lost when the
 older sections were retired. The release workflow still needs the `## X.Y.Z — date` section of the
 version being published; see [docs/RELEASING.md](docs/RELEASING.md).
