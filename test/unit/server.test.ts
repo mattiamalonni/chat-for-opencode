@@ -40,6 +40,33 @@ describe("ManagedServer (embedded SDK)", () => {
     expect(server.state.status).toBe("stopped");
   });
 
+  it("closes a host whose startup was still running when stop() was called", async () => {
+    const api = host();
+    let resolveHost!: (value: SdkHost) => void;
+    setSdkBridge({
+      createHost: vi.fn(() => new Promise<SdkHost>((resolve) => (resolveHost = resolve))),
+      makeNetworkApi: vi.fn(),
+    });
+    const server = new ManagedServer({ folder: "/work", log: () => {} });
+    const starting = server.ensure();
+    await Promise.resolve();
+    const stopping = server.stop();
+    resolveHost(api);
+    await starting;
+    await stopping;
+    expect(api.close).toHaveBeenCalledTimes(1);
+    expect(server.state.status).toBe("stopped");
+  });
+
+  it("closes the host when its first info() call fails", async () => {
+    const api = host();
+    (api.server.info as ReturnType<typeof vi.fn>).mockRejectedValue(new Error("boom"));
+    setSdkBridge(bridge(api));
+    const server = new ManagedServer({ folder: "/work", log: () => {} });
+    await expect(server.ensure()).rejects.toMatchObject({ kind: "startFailed" });
+    expect(api.close).toHaveBeenCalledTimes(1);
+  });
+
   it("reports a host startup failure as startFailed", async () => {
     setSdkBridge(bridge(host(), new Error("boom")));
     const server = new ManagedServer({ folder: "/work", log: () => {} });

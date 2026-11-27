@@ -139,12 +139,22 @@ export class ManagedServer extends BaseServer {
       return conn;
     } catch (err) {
       const error = err instanceof ServerError ? err : new ServerError("startFailed", String(err), describeServerError(err));
-      this.host = undefined;
+      // A host that was created but failed its first `info()` still holds the database and
+      // watchers: close it instead of dropping the only reference to it.
+      await this.closeHost();
       throw error;
     }
   }
 
   async stop(): Promise<void> {
+    // A stop during startup must wait for it: otherwise the host created afterwards is assigned
+    // after this method cleared it, the state flips back to "running" and the host is never closed.
+    if (this.pending) await this.pending.catch(() => {});
+    await this.closeHost();
+    this.setState({ status: "stopped" });
+  }
+
+  private async closeHost(): Promise<void> {
     const host = this.host;
     this.host = undefined;
     if (host) {
@@ -154,7 +164,6 @@ export class ManagedServer extends BaseServer {
         this.opts.log(`[sdk] close failed: ${String(err)}`);
       }
     }
-    this.setState({ status: "stopped" });
   }
 }
 
