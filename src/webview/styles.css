@@ -7,6 +7,9 @@ body {
   height: 100%;
   margin: 0;
   padding: 0;
+  /* The app lays itself out in the viewport and scrolls inside .conversation: the page itself must
+     never scroll, or a hidden tooltip near the right edge adds a sideways scrollbar in a narrow bar. */
+  overflow: hidden;
 }
 
 /* One border token for every surface, so high-contrast themes never lose a boundary. */
@@ -944,7 +947,13 @@ details[open] > summary > .chevron,
   color: var(--vscode-descriptionForeground);
 }
 
+.msg.user .turn-actions .icon-button {
+  opacity: 0;
+  transition: opacity 120ms ease;
+}
+
 .msg.user:hover .turn-actions .icon-button,
+.msg.user:focus-within .turn-actions .icon-button,
 .msg.assistant:hover .turn-actions .icon-button,
 .turn-actions .icon-button:focus-visible {
   opacity: 1;
@@ -1830,6 +1839,12 @@ details[open] > summary > .chevron,
   white-space: nowrap;
   font-size: 0.8em;
   color: var(--vscode-descriptionForeground);
+  /* 1/2/3 only answer while the card has focus: say so only then. */
+  visibility: hidden;
+}
+
+.card.permission:focus-within .shortcut-hint {
+  visibility: visible;
 }
 
 button.primary,

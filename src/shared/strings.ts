@@ -5,7 +5,7 @@
  */
 export const STRINGS = {
   appName: "OpenCode",
-  inputPlaceholder: "Ask OpenCode… (@ for files, / for skills, Enter to send, Shift+Enter for newline)",
+  inputPlaceholder: "Ask OpenCode… @ for files, / for skills",
   inputLabel: "Message to OpenCode",
   send: "Send",
   stop: "Stop",
@@ -218,6 +218,7 @@ export const STRINGS = {
   assistant: "OpenCode",
   tokens: "{0} tokens",
   stepCount: "{0} steps",
+  stepCountOne: "1 step",
   turnDuration: "{0}s",
   turnDurationMinutes: "{0}m {1}s",
   turnStatsStarted: "Start: {0}",

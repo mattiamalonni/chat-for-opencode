@@ -1,6 +1,6 @@
 import { useEffect, useState } from "preact/hooks";
 import type { FormField, FormRequest, FormValue, PermissionRequest } from "../../shared/api";
-import { fileRefToOpenPath, isFileRef } from "../../shared/fileRef";
+import { fileRefToOpenPath, fileRefToPath, isFileRef } from "../../shared/fileRef";
 
 import { isImeKey } from "../../shared/keys";
 
@@ -19,6 +19,10 @@ export function PermissionCard({ request }: { request: PermissionRequest }) {
   // A resync re-posts the same pending request as a fresh object: re-enable its buttons.
   useEffect(() => setBusy(false), [request]);
   const files = request.metadata?.files ?? [];
+  // A file shown below with its +/- diff does not need a second line as a bare resource link.
+  const resources = request.resources.filter(
+    (r) => !(isFileRef(r) && files.some((f) => f.file === fileRefToPath(r) || f.file.endsWith(`/${fileRefToPath(r)}`))),
+  );
   const reply = (decision: "once" | "always" | "reject") => {
     clearReplyFailure({ kind: "permission", id: request.id });
     setBusy(true);
@@ -49,9 +53,9 @@ export function PermissionCard({ request }: { request: PermissionRequest }) {
         <IconWarning /> {t("permissionTitle")}: <code>{request.action}</code>
       </div>
       {request.message && <p class="card-text">{request.message}</p>}
-      {request.resources.length > 0 && (
+      {resources.length > 0 && (
         <ul class="resources" aria-label={t("permissionResources")}>
-          {request.resources.map((r) => (
+          {resources.map((r) => (
             <li key={r}>
               {isFileRef(r) ? (
                 <button

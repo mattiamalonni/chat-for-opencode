@@ -35,7 +35,9 @@ export function Toolbar(props: {
   const t = useT();
   return (
     <div class="toolbar">
-      <ModePicker selectedAgent={props.selectedAgent} onSelect={(agent) => post({ type: "setAgent", agent })} />
+      {/* Both pickers set the agent: with custom agents the full list already has Build and Plan,
+          so showing the Build/Plan toggle too printed "Build ▾ Build ▾" side by side. */}
+      {!hasExtraAgents && <ModePicker selectedAgent={props.selectedAgent} onSelect={(agent) => post({ type: "setAgent", agent })} />}
       {hasExtraAgents && (
         <Picker
           label={t("agent")}

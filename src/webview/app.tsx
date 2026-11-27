@@ -160,6 +160,8 @@ export function App() {
   const childResyncPending = useRef(new Set<string>());
   const frame = useRef<number | undefined>(undefined);
   const tooltipFrame = useRef<number | undefined>(undefined);
+  // Bumped on resize so the tooltip-direction effect below runs again at the new width.
+  const [, setTooltipEpoch] = useState(0);
   // Conversation-scoped state must be dropped when the loaded session changes (new session,
   // folder switch, switching/deleting a session) but not on a same-session resync.
   const lastSessionId = useRef<string | null | undefined>(undefined);
@@ -443,12 +445,19 @@ export function App() {
       for (const { el, dir } of updates) el.dataset.tipDir = dir;
     });
   });
-  useEffect(
-    () => () => {
+  useEffect(() => {
+    // A side bar dragged narrower (or wider) changes which side has room: measure every tooltip
+    // again on the next frame instead of keeping the direction picked at the old width.
+    const onResize = () => {
+      for (const el of document.querySelectorAll<HTMLElement>(".tooltip-host[data-tip-dir]")) delete el.dataset.tipDir;
+      setTooltipEpoch((n) => n + 1);
+    };
+    window.addEventListener("resize", onResize);
+    return () => {
+      window.removeEventListener("resize", onResize);
       if (tooltipFrame.current !== undefined) cancelAnimationFrame(tooltipFrame.current);
-    },
-    [],
-  );
+    };
+  }, []);
 
   // Cmd/Ctrl+N creates a new session, Cmd/Ctrl+F opens the message search, Cmd/Ctrl+R re-syncs,
   // Cmd/Ctrl+L toggles the session list and Cmd/Ctrl+M opens the model picker while the chat has

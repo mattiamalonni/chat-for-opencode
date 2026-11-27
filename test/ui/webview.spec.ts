@@ -800,9 +800,8 @@ test("a thought emitted after a sentence stays below it, also once tools arrive"
     (await page
       .locator(".conversation")
       .evaluate((el) => [...(el as HTMLElement).children].map((c) => (c.textContent ?? "").trim().replace(/\s+/g, " ")))) as string[];
-  let blocks = await order();
-  expect(blocks[1]).toContain("ANSWER_ONE");
-  expect(blocks[2]).toContain("LATE_THOUGHT");
+  // Events are applied on the next render: poll instead of reading the DOM once.
+  await expect.poll(async () => (await order()).slice(1, 3).join(" | ")).toMatch(/ANSWER_ONE.* \| .*LATE_THOUGHT/);
 
   // The tool joins the same step: the answer must stay above its thought/tool fold.
   await host(page, {
@@ -817,9 +816,8 @@ test("a thought emitted after a sentence stays below it, also once tools arrive"
       data: { ...base, assistantMessageID: "m1", id: "t1", content: [], metadata: {} },
     },
   });
-  blocks = await order();
-  expect(blocks[1]).toContain("ANSWER_ONE");
-  expect(blocks[2]).toContain("LATE_THOUGHT");
+  await expect(page.locator(".conversation .tool")).not.toHaveCount(0);
+  await expect.poll(async () => (await order()).slice(1, 3).join(" | ")).toMatch(/ANSWER_ONE.* \| .*LATE_THOUGHT/);
 });
 
 test("folds past steps while streaming and keeps the accordion open as new steps arrive", async ({ page }) => {
@@ -1239,8 +1237,10 @@ test("permission and compact file links open the file; changed files offer diffs
   await openSession(page, S2, events.slice(0, asked + 1));
   const card = page.getByRole("group", { name: new RegExp(STRINGS.permissionTitle) });
 
-  await card.locator(".resources .resource-link").first().click();
-  expect(await lastPosted(page, "openFile")).toEqual({ type: "openFile", path: "a.txt" });
+  // a.txt comes with its proposed diff: the card lists it once, in the file list, not again as a
+  // bare resource link.
+  await expect(card.locator(".file-list .file-row")).toHaveCount(1);
+  await expect(card.locator(".resources")).toHaveCount(0);
 
   // The pending edit keeps its action and file on one row: the file name itself opens the file.
   await expect(page.locator(".tool.attention .tool-name")).toHaveText("edit");
@@ -1987,6 +1987,21 @@ test("keyboard navigation keeps the active suggestion scrolled into view", async
 
 test("build/plan mode picker defaults to build and switches agents", async ({ page }) => {
   await boot(page);
+  // With custom agents the agent picker lists Build and Plan itself: one control, never two "Build".
+  await expect(page.getByRole("button", { name: `${STRINGS.mode}: ${STRINGS.build}` })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: `${STRINGS.agent}: Build` })).toBeVisible();
+
+  const BUILTIN = AGENTS.filter((a) => a.id === "build" || a.id === "plan");
+  const catalog = (selectedAgent: string) =>
+    host(page, {
+      type: "catalog",
+      models: MODELS as never,
+      agents: BUILTIN as never,
+      skills: [],
+      selectedModel: { id: "hy4-flash-free", providerID: "opencode" },
+      selectedAgent,
+    });
+  await catalog("build");
   const trigger = page.getByRole("button", { name: `${STRINGS.mode}: ${STRINGS.build}` });
   await expect(trigger).toBeVisible();
 
@@ -1999,27 +2014,13 @@ test("build/plan mode picker defaults to build and switches agents", async ({ pa
   // The host echoes the new selection; until then the trigger still shows Build.
   await expect(page.getByRole("button", { name: `${STRINGS.mode}: ${STRINGS.build}` })).toBeVisible();
 
-  await host(page, {
-    type: "catalog",
-    models: MODELS as never,
-    agents: AGENTS as never,
-    skills: [],
-    selectedModel: { id: "hy4-flash-free", providerID: "opencode" },
-    selectedAgent: "plan",
-  });
+  await catalog("plan");
   await expect(page.getByRole("button", { name: `${STRINGS.mode}: ${STRINGS.plan}` })).toBeVisible();
 
   await page.getByRole("button", { name: `${STRINGS.mode}: ${STRINGS.plan}` }).click();
   await page.getByRole("listbox", { name: STRINGS.mode }).getByRole("option", { name: /Build/ }).click();
   expect(await lastPosted(page, "setAgent")).toEqual({ type: "setAgent", agent: "build" });
-  await host(page, {
-    type: "catalog",
-    models: MODELS as never,
-    agents: AGENTS as never,
-    skills: [],
-    selectedModel: { id: "hy4-flash-free", providerID: "opencode" },
-    selectedAgent: "build",
-  });
+  await catalog("build");
   await expect(page.getByRole("button", { name: `${STRINGS.mode}: ${STRINGS.build}` })).toBeVisible();
 
   // Servers without /api/agent have no agent picker, but the built-in mode picker must still work.

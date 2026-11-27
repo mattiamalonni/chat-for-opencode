@@ -4,6 +4,16 @@ Legend: **`User — …`** entries change something you can see or use. **`Inter
 build, CI or architecture work, condensed to one line; the reasoning lives in
 [DECISIONS.md](docs/DECISIONS.md) and [SPEC.md](SPEC.md).
 
+## Unreleased
+
+- **User — Tidier chat UI:** one agent picker instead of two "Build" menus when custom agents exist; a
+  permission card lists each file once, next to its diff; the 1/2/3 shortcut hint shows only while the
+  card has focus (when the keys work); rollback/regenerate on your prompts appear on hover or focus;
+  the composer hint fits one line; the setup screen no longer repeats the error three times and only
+  mentions Retry when the banner offers it; "1 step" instead of "1 steps".
+- **User — No sideways scrolling in a narrow side bar:** hidden tooltips no longer widen the view, and
+  tooltips pick their side again after the bar is resized.
+
 ## 0.5.0 — 2026-11-27
 
 - **User — Free OpenCode models work again:** the embedded host now reports its OpenCode version to

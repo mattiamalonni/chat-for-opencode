@@ -108,8 +108,8 @@ export function SetupWelcome({ error }: { error: UiError }) {
           </li>
         ))}
       </ol>
-      <p class="welcome-hint">{error.message}</p>
-      <p class="welcome-hint">{t("setupHint")}</p>
+      {/* The banner above already states the error; point at Retry only when it offers one. */}
+      {error.actions.includes("reconnect") && <p class="welcome-hint">{t("setupHint")}</p>}
     </div>
   );
 }
