@@ -95,7 +95,7 @@ Every command, default key and setting: [docs/REFERENCE.md](docs/REFERENCE.md).
 
 - One embedded SDK host, created lazily and closed on deactivation; every workspace folder is a
   `location`. It uses OpenCode's own SQLite database under ~/.local/share/opencode (or
-  $XDG_DATA_HOME), so sessions survive window reloads and are shared with the CLI/TUI. Optionally
+  $XDG_DATA_HOME, or $OPENCODE_DB) on every OS, Windows included, so sessions survive window reloads and are shared with the CLI/TUI. Optionally
   connect to your own `opencode.endpoint` with its password in the OS keychain.
 - All calls go through OpenCode's generated client. Live events come from `events.subscribe()`;
   because that stream is live-only without replay, a resync follows every reconnect, and a
