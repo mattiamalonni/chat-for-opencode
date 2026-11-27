@@ -105,8 +105,21 @@ describe("OpenCodeClient adapter over the SDK", () => {
     const second = await client.listSessionsPage("/w", 2, first.next);
     expect(second.items.map((s) => s.id)).toEqual(["c"]);
     expect(api.session.list.mock.calls[1][0]).toMatchObject({ cursor: "cur", order: undefined });
-    expect((await client.messages("ses")).map((m) => m.id)).toEqual(["m1", "m2"]);
+    // Pages arrive newest first; the result is chronological.
+    expect((await client.messages("ses")).map((m) => m.id)).toEqual(["m1", "m2"].reverse());
+    expect(api.message.list.mock.calls[0][0]).toMatchObject({ order: "desc" });
     expect(api.message.list.mock.calls[1][0]).toMatchObject({ cursor: "mcur", order: undefined });
+  });
+
+  it("keeps the newest messages when history exceeds the cap", async () => {
+    const api = { message: group("list") };
+    api.message.list
+      .mockResolvedValueOnce({ data: [{ id: "m5" }, { id: "m4" }], cursor: { next: "c1" } })
+      .mockResolvedValueOnce({ data: [{ id: "m3" }], cursor: { next: "c2" } });
+    const client = OpenCodeClient.create(connection(api));
+    expect((await client.messages("ses", 3)).map((m) => m.id)).toEqual(["m3", "m4", "m5"]);
+    expect(api.message.list).toHaveBeenCalledTimes(2);
+    expect(api.message.list.mock.calls[1][0]).toMatchObject({ limit: 1 });
   });
 
   it("maps prompt, command and delivery modes", async () => {

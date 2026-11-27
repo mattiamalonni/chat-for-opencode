@@ -105,6 +105,29 @@ function linkifyFileRefs(root: HTMLElement): void {
 }
 
 /**
+ * The webview CSP only loads images from the extension and `data:` URLs, so a remote image in a
+ * reply rendered as a broken icon. Show it as a link to the image instead (which also keeps model
+ * output from pinging a URL when the reply is displayed); anything else becomes its alt text.
+ */
+function replaceBlockedImages(root: HTMLElement): void {
+  for (const img of root.querySelectorAll("img")) {
+    const src = img.getAttribute("src") ?? "";
+    if (/^data:image\//i.test(src)) continue;
+    const label = img.getAttribute("alt")?.trim() || src;
+    if (/^https?:\/\//i.test(src)) {
+      const link = document.createElement("a");
+      link.href = src;
+      link.className = "md-image-link";
+      link.title = src;
+      link.textContent = label;
+      img.replaceWith(link);
+    } else {
+      img.replaceWith(document.createTextNode(img.getAttribute("alt") ?? ""));
+    }
+  }
+}
+
+/**
  * Wraps query matches in `<mark>` inside already-sanitised HTML. Walking text nodes (instead of
  * string-replacing the HTML) keeps Markdown formatting, links and code structure intact and never
  * re-parses model-controlled markup a second time.
@@ -165,6 +188,7 @@ export function renderMarkdown(source: string, query = ""): string {
   for (const button of dom.body.querySelectorAll<HTMLElement>(`.code-block .code-header .code-apply.${applyMarker}`)) {
     button.dataset.action = "apply-code";
   }
+  replaceBlockedImages(dom.body);
   linkifyFileRefs(dom.body);
   highlightTextNodes(dom.body, search);
   const html = dom.body.innerHTML;

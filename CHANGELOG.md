@@ -18,6 +18,15 @@ build, CI or architecture work, condensed to one line; the reasoning lives in
   disconnected are picked up from the server's job list on connect and after every reconnect.
 - **Internal — Known limits refreshed:** entries made obsolete by OpenCode 2.4.1 and VS Code 1.134
   were removed or rewritten.
+- **User — Long sessions open at the end:** a session with more than 2000 messages now shows its
+  newest messages instead of its oldest, and the live poll no longer reloads the whole chat every two
+  seconds; search and session-list badges also read the newest messages.
+- **User — Apply to file saves and no longer blocks the chat:** the accepted change is saved, so the
+  agent sees it on disk, a refused edit is reported instead of "Change applied", and sending, stopping
+  or answering a permission works while the review is open.
+- **User — Smaller fixes:** `file.ts:0` opens the file instead of failing; a failed auto-approval shows
+  the request as waiting and notifies like a manual one; an unreachable server no longer flaps between
+  connected and reconnecting; remote images in a reply appear as links instead of broken icons.
 
 ## 0.5.1 — 2026-11-27
 

@@ -96,6 +96,34 @@ describe("EventStream over SDK subscriptions", () => {
     expect(statuses.slice(0, 3)).toEqual(["connected", "reconnecting", "connected"]);
   });
 
+  it("does not report connected for retries that never deliver an event", async () => {
+    let connections = 0;
+    const statuses: string[] = [];
+    const subscribe: EventSubscriber = (_onEvent, onClose) => {
+      connections++;
+      queueMicrotask(() => onClose(new Error("unreachable")));
+    };
+    stream = new EventStream({ subscribe, onEvent: () => {}, onStatus: (s) => statuses.push(s), minBackoffMs: 5, maxBackoffMs: 5 });
+    stream.start();
+    await waitUntil(() => connections >= 3, 2000);
+    expect(statuses).not.toContain("connected");
+  });
+
+  it("ignores events from a subscription that already closed", async () => {
+    const events: ServerEvent[] = [];
+    let late: ((event: ServerEvent) => void) | undefined;
+    const subscribe: EventSubscriber = (onEvent, onClose) => {
+      if (late) return;
+      late = onEvent;
+      onEvent({ type: "server.connected", data: {} } as ServerEvent);
+      onClose();
+    };
+    stream = new EventStream({ subscribe, onEvent: (e) => events.push(e), minBackoffMs: 5 });
+    stream.start();
+    late?.({ type: "session.idle", data: { sessionID: "ses" } } as ServerEvent);
+    expect(events.map((e) => e.type)).toEqual(["server.connected"]);
+  });
+
   it("backs off exponentially while subscriptions fail without delivering events", async () => {
     vi.useFakeTimers();
     // Neutral jitter (factor 1.0) so the doubling sequence is exact.

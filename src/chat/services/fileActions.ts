@@ -48,7 +48,8 @@ export class ChatFileActions {
     if (!folder) return undefined;
     const m = /^(.*?)(?::(\d+)(?::(\d+))?)?$/.exec(p);
     const file = m?.[1] ?? p;
-    const line = m?.[2] ? Number(m[2]) - 1 : undefined;
+    // References are 1-based; `file.ts:0` from a reply must not become an invalid line -1.
+    const line = m?.[2] ? Math.max(0, Number(m[2]) - 1) : undefined;
     const uri = file.startsWith("file:")
       ? vscode.Uri.parse(file)
       : /^([a-zA-Z]:[\\/]|\/)/.test(file)

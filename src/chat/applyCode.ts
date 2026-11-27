@@ -41,7 +41,8 @@ export interface ApplyCodeHooks<TUri = unknown> {
   /** Opens a native diff between the real file and the proposed content. */
   preview(uri: TUri, current: string, proposed: string): Promise<void>;
   confirm(): Promise<boolean>;
-  write(uri: TUri, content: string): Promise<void>;
+  /** Applies and saves the content; `false` when the edit was refused or could not be saved. */
+  write(uri: TUri, content: string): Promise<boolean>;
   warn(message: string): void;
   info(message: string): void;
 }
@@ -71,7 +72,11 @@ export class ApplyCodeService<TUri = unknown> {
     }
     await h.preview(target.uri, current, proposal.content);
     if (!(await h.confirm())) return;
-    await h.write(target.uri, proposal.content);
+    // OpenCode reads files from disk: an edit left unsaved in the editor is invisible to the agent.
+    if (!(await h.write(target.uri, proposal.content))) {
+      h.warn(h.t("The change could not be applied to {0}", target.path));
+      return;
+    }
     h.info(h.t("Change applied to {0}", target.path));
   }
 

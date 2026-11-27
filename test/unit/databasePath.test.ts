@@ -28,8 +28,6 @@ describe("OpenCode database path", () => {
   });
 
   it("lets the extension's OPENCODE_DATABASE_PATH override everything", () => {
-    expect(defaultDatabasePath({ OPENCODE_DATABASE_PATH: "/x.db", OPENCODE_DB: "/y.db", XDG_DATA_HOME: "/z" }, home)).toBe(
-      "/x.db",
-    );
+    expect(defaultDatabasePath({ OPENCODE_DATABASE_PATH: "/x.db", OPENCODE_DB: "/y.db", XDG_DATA_HOME: "/z" }, home)).toBe("/x.db");
   });
 });

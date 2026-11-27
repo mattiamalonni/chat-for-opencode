@@ -23,7 +23,7 @@ function hooks(overrides: Partial<ApplyCodeHooks<FakeUri>> = {}): SpiedHooks {
     read: async () => "old\n",
     preview: vi.fn(async () => undefined),
     confirm: vi.fn(async () => true),
-    write: vi.fn(async () => undefined),
+    write: vi.fn(async () => true),
     warn: vi.fn(),
     info: vi.fn(),
     ...overrides,
@@ -56,6 +56,13 @@ describe("ApplyCodeService", () => {
     await new ApplyCodeService(h).apply("new content", "src/a.ts");
     expect(h.write).toHaveBeenCalledWith({ path: "src/a.ts" }, "new content");
     expect(h.info).toHaveBeenCalledWith("Change applied to src/a.ts");
+  });
+
+  it("warns instead of reporting success when the edit is refused", async () => {
+    const h = hooks({ write: vi.fn(async () => false) });
+    await new ApplyCodeService(h).apply("new content", "src/a.ts");
+    expect(h.info).not.toHaveBeenCalled();
+    expect(h.warn).toHaveBeenCalledWith("The change could not be applied to src/a.ts");
   });
 
   it("never writes outside the workspace and warns when no folder is open", async () => {

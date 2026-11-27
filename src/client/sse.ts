@@ -174,7 +174,10 @@ export class EventStream {
     if (this.closed || generation !== this.generation) return;
     const controller = new AbortController();
     this.controller = controller;
-    this.setStatus("connected");
+    // "connected" waits for the first event (the SDK always opens with `server.connected`): marking
+    // every retry connected made an unreachable server flap connected/reconnecting, and each flap
+    // triggered a full resync against a server that was not there.
+    let delivered = false;
     let ended = false;
     const onClose = (error?: unknown) => {
       if (ended || this.closed || generation !== this.generation) return;
@@ -192,7 +195,12 @@ export class EventStream {
     const onEvent = (event: ServerEvent) => {
       // Only a subscription that actually delivers proves the server healthy. Resetting the
       // backoff on every (re)subscribe kept an unreachable server on a fixed ~500 ms retry loop.
-      if (generation === this.generation) this.attempt = 0;
+      if (ended || generation !== this.generation) return;
+      this.attempt = 0;
+      if (!delivered) {
+        delivered = true;
+        this.setStatus("connected");
+      }
       this.opts.onEvent(event);
     };
     try {

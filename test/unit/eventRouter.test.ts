@@ -157,4 +157,18 @@ describe("ChatEventRouter", () => {
     onFailure?.();
     expect(hooks.postExternalCard).toHaveBeenCalledTimes(1);
   });
+
+  it("treats a failed auto-approval like a manual request", () => {
+    const { router, hooks } = setup({ isVisible: () => false });
+    vi.mocked(hooks.permissions.enabled).mockReturnValue(true);
+    hooks.execution.observe("session.execution.started", "s1", "s1");
+    router.route(event("permission.asked", { sessionID: "s1", id: "req" }));
+    expect(hooks.execution.state.status).toBe("running");
+    const onFailure = vi.mocked(hooks.autoApprove).mock.calls[0][2];
+    onFailure?.();
+    expect(hooks.postSessionEvent).toHaveBeenCalledTimes(1);
+    expect(hooks.execution.state.status).toBe("needsInput");
+    expect(hooks.scheduleSessions).toHaveBeenCalled();
+    expect(hooks.attention.has("permission.asked:req")).toBe(true);
+  });
 });

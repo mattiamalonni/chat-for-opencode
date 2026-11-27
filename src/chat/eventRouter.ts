@@ -182,6 +182,11 @@ export class ChatEventRouter {
       void h.autoApprove(event, sid, () => {
         if (isCurrent || isChild) h.postSessionEvent(sid, event);
         else h.postExternalCard(event, sid);
+        // The request now waits on the user after all: give it the side effects a manual request
+        // gets (waiting status, list badge, hidden-view notification) instead of a silent card.
+        h.execution.observe(event.type, sid, h.getSessionId());
+        h.scheduleSessions();
+        this.announcePendingRequest(event, sid);
       });
       return;
     }

@@ -1149,8 +1149,9 @@ test("renders markdown with highlighted code and copies code via the host", asyn
     { type: "session.step.ended", data: { sessionID: "ses_md", assistantMessageID: "m1", finish: "stop" } },
   ]);
   await expect(page.locator(".hljs-keyword").first()).toHaveText("const");
-  // DOMPurify strips the event handler.
-  expect(await page.locator(".md img").getAttribute("onerror")).toBeNull();
+  // DOMPurify strips the event handler, and an image the CSP cannot load is not rendered at all.
+  await expect(page.locator(".md img")).toHaveCount(0);
+  await expect(page.locator(".md [onerror]")).toHaveCount(0);
   await page.getByRole("button", { name: STRINGS.copy, exact: true }).click();
   expect(await lastPosted(page, "copy")).toEqual({ type: "copy", text: "const answer: number = 42;" });
   await page.getByRole("link", { name: "docs" }).click();
@@ -1219,6 +1220,25 @@ test("sanitises crafted HTML without smuggling fake actions or file links", asyn
   await expect(page.locator(".md img[onerror]")).toHaveCount(0);
   // A genuine prose file reference is still linkified after sanitisation.
   await expect(page.locator(".md a[data-file='legit.ts:12']")).toHaveCount(1);
+});
+
+test("remote images in a reply become links instead of broken icons", async ({ page }) => {
+  await boot(page);
+  const sid = "ses_img";
+  const md = "![diagram](https://example.com/a.png)\n\n![local](./pic.png)";
+  await openSession(page, sid, [
+    { type: "session.step.started", data: { sessionID: sid, assistantMessageID: "m1", agent: "build" } },
+    { type: "session.text.started", data: { sessionID: sid, assistantMessageID: "m1", ordinal: 0 } },
+    { type: "session.text.delta", data: { sessionID: sid, assistantMessageID: "m1", ordinal: 0, delta: md } },
+    { type: "session.step.ended", data: { sessionID: sid, assistantMessageID: "m1", finish: "stop" } },
+  ]);
+  const body = page.locator(".msg.assistant .md").first();
+  await expect(body.locator("img")).toHaveCount(0);
+  const link = body.locator("a.md-image-link");
+  await expect(link).toHaveText("diagram");
+  await link.click();
+  expect(await lastPosted(page, "openLink")).toEqual({ type: "openLink", href: "https://example.com/a.png" });
+  await expect(body).toContainText("local");
 });
 
 test("plain-text file references open at the exact line", async ({ page }) => {

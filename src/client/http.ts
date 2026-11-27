@@ -167,18 +167,25 @@ export class OpenCodeClient {
     await this.call(() => this.api.session.update({ sessionID: id, title }));
   }
 
-  /** Full history in chronological order (follows pagination up to `max` messages). */
+  /**
+   * The newest `max` messages of a session, in chronological order. Pages are read newest first:
+   * reading in ascending order kept the *oldest* `max` messages, so a long session showed its
+   * beginning and the live poll's "last known message" was never the real tail.
+   */
   async messages(id: string, max = 2000, signal?: AbortSignal): Promise<SessionMessage[]> {
     const out: SessionMessage[] = [];
     let cursor: string | undefined;
     do {
       const res = await this.call(() =>
-        this.api.message.list({ sessionID: id, limit: 200, order: cursor ? undefined : "asc", cursor }, this.req(signal)),
+        this.api.message.list(
+          { sessionID: id, limit: Math.min(200, max - out.length), order: cursor ? undefined : "desc", cursor },
+          this.req(signal),
+        ),
       );
       out.push(...res.data);
       cursor = res.data.length > 0 ? (res.cursor?.next ?? undefined) : undefined;
     } while (cursor && out.length < max);
-    return out;
+    return out.slice(0, max).reverse();
   }
 
   /** Messages added after `lastId`; `undefined` means the overlap was compacted away. */

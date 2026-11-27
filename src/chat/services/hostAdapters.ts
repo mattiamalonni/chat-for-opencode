@@ -22,8 +22,11 @@ async function readUri(uri: vscode.Uri): Promise<string | undefined> {
   }
 }
 
-/** Replaces the whole document (or creates the file) through an undoable WorkspaceEdit. */
-async function writeUri(uri: vscode.Uri, content: string): Promise<void> {
+/**
+ * Replaces the whole document (or creates the file) through an undoable WorkspaceEdit, then saves
+ * it. Returns `false` when VS Code refused the edit or the save.
+ */
+async function writeUri(uri: vscode.Uri, content: string): Promise<boolean> {
   const edit = new vscode.WorkspaceEdit();
   let document: vscode.TextDocument | undefined;
   try {
@@ -37,7 +40,8 @@ async function writeUri(uri: vscode.Uri, content: string): Promise<void> {
     edit.createFile(uri);
     edit.insert(uri, new vscode.Position(0, 0), content);
   }
-  await vscode.workspace.applyEdit(edit);
+  if (!(await vscode.workspace.applyEdit(edit))) return false;
+  return (await vscode.workspace.save(uri)) !== undefined;
 }
 
 export interface ApplyCodeAdapterDeps {

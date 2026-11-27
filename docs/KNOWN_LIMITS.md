@@ -34,7 +34,7 @@ test or a manual probe actually ran.
   by pressing real keys in a real VS Code webview.
 - **Screen readers.** ARIA roles/labels and live regions are present, and the UI suite checks
   the accessibility tree of the composer and permission cards; no test with NVDA/VoiceOver.
-- **Long sessions / performance.** History pagination is capped at 2000 messages; markdown is
+- **Long sessions / performance.** History shows the newest 2000 messages (older ones are not loaded); markdown is
   re-rendered per streaming frame (cached, batched with `requestAnimationFrame`). Reconnects fetch
   only the tail and merge it via `sessionDelta`. Every top-level conversation card (messages, tools,
   steps and turn summaries) is laid out: `content-visibility: auto` was removed because its intrinsic

@@ -11,6 +11,9 @@ import type { WebviewMessage } from "../shared/protocol";
  * the latest one it received.
  */
 export const CONCURRENT_MESSAGE_TYPES: ReadonlySet<WebviewMessage["type"]> = new Set<WebviewMessage["type"]>([
+  // Waits on a diff review and an Accept/Reject notification for as long as the user takes. Queued,
+  // it held back every later send, stop and permission reply until that notification was answered.
+  "applyCode",
   "copy",
   "fileIcons",
   "openAttachment",

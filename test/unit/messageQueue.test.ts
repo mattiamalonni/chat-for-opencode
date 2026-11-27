@@ -44,6 +44,23 @@ describe("WebviewMessageQueue", () => {
     expect(order).toEqual(["openLink", "ready"]);
   });
 
+  it("does not hold back a stop while an Apply to file review is open", async () => {
+    const queue = new WebviewMessageQueue();
+    const order: string[] = [];
+    const review = deferred();
+    const apply = queue.run({ type: "applyCode", text: "x" }, async () => {
+      await review.promise;
+      order.push("apply");
+    });
+    await queue.run({ type: "abort" }, async () => {
+      order.push("abort");
+    });
+    expect(order).toEqual(["abort"]);
+    review.resolve();
+    await apply;
+    expect(order).toEqual(["abort", "apply"]);
+  });
+
   it("keeps file searches ordered so the latest answer arrives last", async () => {
     const queue = new WebviewMessageQueue();
     const order: string[] = [];
