@@ -55,7 +55,7 @@ settings, see [REFERENCE.md](REFERENCE.md).
   turn scrolls to its prompt, highlights it and puts the focus back in the composer; `Esc` closes the
   picker. The list is built from the same turn data as the per-turn stats, so it also follows live
   turns, and only real prompts are shown (not the synthetic turns used while a reply streams).
-- **Search and export**: `Cmd/Ctrl+Alt+F` searches titles and message bodies across every session, opens the
+- **Search and export**: `Cmd/Ctrl+Alt+Shift+F` searches titles and message bodies across every session, opens the
   hit and highlights its message, and the header exports the conversation as Markdown. In-chat search
   (`Cmd/Ctrl+F`) highlights matches in prompts, replies and tool cards with `F3`/`Shift+F3` navigation
   and an "N of M" counter. `Cmd/Ctrl+L` opens the session list (with its own title filter) while the chat has focus: `↑`/`↓`

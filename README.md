@@ -79,7 +79,7 @@ The short version — full behaviour in [docs/FEATURES.md](docs/FEATURES.md):
 
 | Action                      | Key                         |
 | --------------------------- | --------------------------- |
-| Search all conversations    | `Cmd/Ctrl+Alt+F`            |
+| Search all conversations    | `Cmd/Ctrl+Alt+Shift+F`      |
 | New session (chat focused)  | `Cmd/Ctrl+N`                |
 | Session list (chat focused) | `Cmd/Ctrl+L`                |
 | Model picker (chat focused) | `Cmd/Ctrl+M`                |

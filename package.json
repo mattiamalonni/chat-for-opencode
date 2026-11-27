@@ -257,8 +257,8 @@
     "keybindings": [
       {
         "command": "opencode.searchSessions",
-        "key": "ctrl+alt+f",
-        "mac": "cmd+alt+f"
+        "key": "ctrl+alt+shift+f",
+        "mac": "cmd+alt+shift+f"
       }
     ],
     "configuration": {

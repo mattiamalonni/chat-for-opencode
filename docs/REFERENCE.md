@@ -7,22 +7,22 @@ Do not edit the generated blocks by hand; change the manifest and regenerate.
 
 <!-- BEGIN GENERATED: commands -->
 
-| Command                                                | Default key    | Notes                                                                        |
-| ------------------------------------------------------ | -------------- | ---------------------------------------------------------------------------- |
-| OpenCode: New Session                                  | –              |                                                                              |
-| OpenCode: Open Extension Settings                      | –              | toolbar gear icon                                                            |
-| OpenCode: Restart Server…                              | –              | toolbar, with confirmation                                                   |
-| OpenCode: Compact Conversation                         | –              |                                                                              |
-| OpenCode: Search All Session Conversations             | Cmd/Ctrl+Alt+F | searches titles and message bodies across every session                      |
-| OpenCode: Stop current response                        | –              | also available from the command palette                                      |
-| OpenCode: Open Chat in Editor                          | –              |                                                                              |
-| OpenCode: Account                                      | –              | view saved logins or sign in                                                 |
-| OpenCode: Connect Provider…                            | –              |                                                                              |
-| OpenCode: Show Logs                                    | –              | toolbar overflow menu                                                        |
-| OpenCode: Set Server Password…                         | –              | external server only                                                         |
-| OpenCode: Stop Server                                  | –              |                                                                              |
-| OpenCode: Move Chat View… (left/right side bar, panel) | –              | left/right side bar or panel                                                 |
-| OpenCode: Check setup…                                 | –              | show the bundled-SDK setup help, open settings or logs, retry the connection |
+| Command                                                | Default key          | Notes                                                                        |
+| ------------------------------------------------------ | -------------------- | ---------------------------------------------------------------------------- |
+| OpenCode: New Session                                  | –                    |                                                                              |
+| OpenCode: Open Extension Settings                      | –                    | toolbar gear icon                                                            |
+| OpenCode: Restart Server…                              | –                    | toolbar, with confirmation                                                   |
+| OpenCode: Compact Conversation                         | –                    |                                                                              |
+| OpenCode: Search All Session Conversations             | Cmd/Ctrl+Alt+Shift+F | searches titles and message bodies across every session                      |
+| OpenCode: Stop current response                        | –                    | also available from the command palette                                      |
+| OpenCode: Open Chat in Editor                          | –                    |                                                                              |
+| OpenCode: Account                                      | –                    | view saved logins or sign in                                                 |
+| OpenCode: Connect Provider…                            | –                    |                                                                              |
+| OpenCode: Show Logs                                    | –                    | toolbar overflow menu                                                        |
+| OpenCode: Set Server Password…                         | –                    | external server only                                                         |
+| OpenCode: Stop Server                                  | –                    |                                                                              |
+| OpenCode: Move Chat View… (left/right side bar, panel) | –                    | left/right side bar or panel                                                 |
+| OpenCode: Check setup…                                 | –                    | show the bundled-SDK setup help, open settings or logs, retry the connection |
 
 <!-- END GENERATED: commands -->
 
