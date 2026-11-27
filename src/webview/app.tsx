@@ -27,6 +27,7 @@ import type {
 } from "../shared/protocol";
 import { initialSubagentState, pushSubagentSession, subagentReducer, truncateSubagentStack, type SubagentEvent } from "../shared/subagents";
 import { STRINGS, type Strings } from "../shared/strings";
+import { hasPromptVariables } from "../shared/promptVariables";
 import { AttentionOverlay } from "./attentionOverlay";
 import { Composer } from "./composer";
 import { collectDroppedFiles, hasFiles, readFileAsBase64, type DragData } from "./dropFiles";
@@ -69,6 +70,14 @@ export function App() {
   const [externalRequests, setExternalRequests] = useState<ExternalAttentionItem[]>([]);
   /** Live background jobs; they are not history messages and never unlock the composer. */
   const [pendingJobs, setPendingJobs] = useState<PendingJob[]>([]);
+  // The composer holds a library prompt whose `$variables` the host fills on send.
+  const [templatePending, setTemplatePending] = useState(false);
+  // Another session has its own draft: a pending template does not follow it there.
+  const templateSession = useRef(chat.sessionId);
+  useEffect(() => {
+    if (templateSession.current !== chat.sessionId) setTemplatePending(false);
+    templateSession.current = chat.sessionId;
+  }, [chat.sessionId]);
   const [status, setStatus] = useState<{ status: ConnectionStatus; error?: UiError }>({ status: "idle" });
   const [compatibility, setCompatibility] = useState<{ status: Compatibility; version?: string; dismissed: boolean }>({
     status: "unknown",
@@ -377,6 +386,7 @@ export function App() {
           setRevealMessageId(msg.messageId);
           break;
         case "prefillDraft":
+          setTemplatePending(!!msg.template);
           setDraft(msg.text, msg.sessionId);
           post({ type: "saveDraft", sessionId: msg.sessionId, text: msg.text });
           setDraftToken((n) => n + 1);
@@ -597,7 +607,11 @@ export function App() {
       skillCommand && skill
         ? `${text.slice(0, skillCommand.index)}${skillCommand[1]}@${skill.id}${text.slice(skillCommand.index + skillCommand[0].length)}`
         : text;
-    post({ type: "send", text: prompt, attachments, context: ctx, delivery });
+    // Only a library prompt's variables are filled: `$diff` typed by hand (say, in a shell snippet)
+    // is sent as written.
+    const resolveVariables = templatePending && hasPromptVariables(prompt);
+    post({ type: "send", text: prompt, attachments, context: ctx, delivery, ...(resolveVariables ? { resolveVariables } : {}) });
+    setTemplatePending(false);
     setAttachments([]);
     setNotice(undefined);
     // Follow the new prompt even if the user had scrolled up to read older messages.
@@ -865,6 +879,7 @@ export function App() {
               {inbox.length > 0 && <InboxPanel items={inbox} onSendNow={sendQueuedNow} onEdit={editQueued} onRemove={removeQueued} />}
               <Composer
                 sessionId={chat.sessionId ?? undefined}
+                variablesActive={templatePending}
                 draftToken={draftToken}
                 restoredDraft={restoredDraft}
                 busy={chat.busy}

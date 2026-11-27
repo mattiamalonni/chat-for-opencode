@@ -1,19 +1,18 @@
 import type { PromptDefinition } from "../shared/protocol";
+import { PROMPT_VARIABLE_RE, type PromptVariable } from "../shared/promptVariables";
 
 /**
  * A small, reusable prompt library: curated prompts ship with the extension and users can add their
- * own in `opencode.promptLibrary`. Selecting one prefills the composer with `$variables` resolved
- * from the current editor, working-tree diff and diagnostics — it never sends on its own.
+ * own in `opencode.promptLibrary`. Selecting one prefills the composer with the prompt as written;
+ * its `$variables` are filled from the current editor, working-tree diff and diagnostics when the
+ * message is sent (see `fill`) — it never sends on its own.
  */
 
-export const PROMPT_VARIABLES = ["selection", "file", "diff", "problems"] as const;
-export type PromptVariable = (typeof PROMPT_VARIABLES)[number];
-
-const VARIABLE_RE = /\$(selection|file|diff|problems)\b/g;
+export { PROMPT_VARIABLES, type PromptVariable } from "../shared/promptVariables";
 
 /** Pure and deterministic: an unknown or empty variable resolves to an empty string. */
 export function resolvePromptVariables(text: string, values: Partial<Record<PromptVariable, string>>): string {
-  return text.replace(VARIABLE_RE, (_match, name: PromptVariable) => values[name] ?? "");
+  return text.replace(PROMPT_VARIABLE_RE, (_match, name: PromptVariable) => values[name] ?? "");
 }
 
 /** English source strings; the host runs each through `vscode.l10n.t`. */
@@ -115,12 +114,21 @@ export class PromptLibraryService {
     ];
   }
 
+  /** The prompt as written, with its `$variables` still in place. */
+  template(id: string): string | undefined {
+    return this.catalog().find((item) => item.id === id)?.text;
+  }
+
   async resolve(id: string): Promise<string | undefined> {
-    const prompt = this.catalog().find((item) => item.id === id);
-    if (!prompt) return undefined;
+    const text = this.template(id);
+    return text === undefined ? undefined : this.fill(text);
+  }
+
+  /** Fills `$variables` from the editor and workspace as they are right now. */
+  async fill(text: string): Promise<string> {
     const h = this.hooks;
     const [diff, problems] = await Promise.all([h.diff(), h.problems()]);
-    return resolvePromptVariables(prompt.text, {
+    return resolvePromptVariables(text, {
       selection: h.selection(),
       file: h.filePath() ?? "",
       diff,

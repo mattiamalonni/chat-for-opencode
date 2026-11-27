@@ -284,7 +284,8 @@ export type HostMessage =
   /** Scroll a message into view after a cross-session search jumped to it. */
   | { type: "revealMessage"; messageId: string; sessionId?: string }
   /** Editor context actions: fill the composer with an intent and attach the current selection. */
-  | { type: "prefillDraft"; sessionId?: string; text: string; attachments: Attachment[] }
+  /** `template`: a library prompt whose `$variables` the host fills when it is sent. */
+  | { type: "prefillDraft"; sessionId?: string; text: string; attachments: Attachment[]; template?: boolean }
   /** A turn was rolled back; its prompt goes back into the composer so it can be edited and resent. */
   | { type: "reverted"; sessionId: string; text: string }
   /** Sent after a manual sync completes, so the header button can leave its busy state. */
@@ -297,7 +298,16 @@ export type WebviewMessage =
    * `sessionId` addresses a different session than the open one: a subagent typed into from its
    * conversation modal. Omitted means the current chat, so existing callers are unchanged.
    */
-  | { type: "send"; text: string; attachments: Attachment[]; context: ContextItem[]; delivery?: "steer" | "queue"; sessionId?: string }
+  /** `resolveVariables`: the text came from a library prompt; fill its `$variables` before sending. */
+  | {
+      type: "send";
+      text: string;
+      attachments: Attachment[];
+      context: ContextItem[];
+      delivery?: "steer" | "queue";
+      sessionId?: string;
+      resolveVariables?: boolean;
+    }
   | { type: "abort"; sessionId?: string }
   | { type: "compact" }
   /** Roll the conversation back to the turn opened by `messageID` and restore its prompt. */

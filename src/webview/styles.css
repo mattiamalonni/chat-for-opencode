@@ -2601,6 +2601,13 @@ button:disabled {
   text-decoration: underline;
 }
 
+/* A library prompt's `$variables`: filled from the editor and workspace when the message is sent. */
+.input-highlight .variable-token {
+  color: var(--vscode-textPreformat-foreground, var(--vscode-textLink-foreground, #3794ff));
+  background: var(--vscode-textCodeBlock-background, transparent);
+  border-radius: 3px;
+}
+
 .mention-popup {
   position: absolute;
   bottom: calc(100% + 6px);

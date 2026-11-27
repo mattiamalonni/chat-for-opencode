@@ -14,6 +14,8 @@ import { getDraft, post, setDraft } from "../vscode";
 export interface ComposerProps {
   /** Id of the session the composer belongs to; drafts are stored per session. */
   sessionId?: string;
+  /** The text came from a library prompt: its `$variables` are filled on send, so mark them. */
+  variablesActive?: boolean;
   /** Bumped when the host restores drafts from workspaceState, so the input reloads them. */
   draftToken?: number;
   /** Prompt returned by a rollback; unlike `draftToken` this replaces even non-empty input. */
@@ -58,6 +60,7 @@ export interface ComposerProps {
 }
 
 import { Chips } from "./chips";
+import { promptVariableRanges } from "../../shared/promptVariables";
 import { commandTokenRanges, FILE_MENTION_RE, SKILL_COMMAND_RE, type Mention, type MentionItem } from "./mention";
 import { MentionPopup } from "./mentionPopup";
 import { StatusBar } from "./statusBar";
@@ -214,7 +217,12 @@ export function Composer(props: ComposerProps) {
     () => new Set([...props.commands.map((c) => c.name), ...props.skills.map((s) => s.id)]),
     [props.commands, props.skills],
   );
-  const tokenRanges = useMemo(() => commandTokenRanges(text, commandNames), [text, commandNames]);
+  const tokenRanges = useMemo(() => {
+    const commands = commandTokenRanges(text, commandNames).map((r) => ({ ...r, kind: "command" as const }));
+    if (!props.variablesActive) return commands;
+    const variables = promptVariableRanges(text).map((r) => ({ ...r, kind: "variable" as const }));
+    return [...commands, ...variables].sort((a, b) => a.start - b.start);
+  }, [text, commandNames, props.variablesActive]);
 
   // Keep the highlighted row inside the scrollable popup when walking a long list with the keys.
   useLayoutEffect(() => {
@@ -381,7 +389,7 @@ export function Composer(props: ComposerProps) {
     tokenRanges.forEach((r, i) => {
       nodes.push(<span key={`before-${i}`}>{text.slice(cursor, r.start)}</span>);
       nodes.push(
-        <span class="command-token" key={`token-${i}`}>
+        <span class={r.kind === "variable" ? "variable-token" : "command-token"} key={`token-${i}`}>
           {text.slice(r.start, r.end)}
         </span>,
       );

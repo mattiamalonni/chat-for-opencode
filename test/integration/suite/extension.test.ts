@@ -1058,7 +1058,7 @@ describe("chat-for-opencode extension", () => {
     }
   });
 
-  it("publishes the prompt library and prefills a prompt with the active file", async () => {
+  it("publishes the prompt library and fills a prompt's variables when it is sent", async () => {
     const document = await vscode.workspace.openTextDocument(path.join(workspace, "src", "app.ts"));
     await vscode.window.showTextDocument(document);
     const catalog = await waitFor(
@@ -1070,8 +1070,19 @@ describe("chat-for-opencode extension", () => {
     const mark = posted.length;
     await controller.receive({ type: "usePrompt", id: "explain" });
     const prefill = await waitFor(() => lastPosted("prefillDraft", mark), "prefilled prompt from the library");
+    // The composer gets the prompt as written, marked as a template ...
     assert.match(prefill.text, /Explain/);
-    assert.match(prefill.text, /src[\\/]app\.ts/);
+    assert.match(prefill.text, /\$file/);
+    assert.equal(prefill.template, true);
+
+    // ... and the host fills `$file` from the editor that is active when it is sent.
+    const sent = posted.length;
+    await controller.receive({ type: "send", text: prefill.text, attachments: [], context: [], resolveVariables: true });
+    await waitFor(
+      () => (/src[\\/]app\.ts/.test(JSON.stringify(posted.slice(sent))) ? true : undefined),
+      "prompt sent with the file filled in",
+    );
+    assert.doesNotMatch(JSON.stringify(posted.slice(sent)), /\$file/);
     await vscode.commands.executeCommand("workbench.action.closeAllEditors");
   });
 

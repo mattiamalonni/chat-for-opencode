@@ -297,6 +297,7 @@ export class ChatController implements vscode.Disposable {
         return this.sessionService.loadSession(info, stale);
       },
       send: (text, attachments, context, delivery, sessionId) => this.promptActions.send(text, attachments, context, delivery, sessionId),
+      fillPromptVariables: (text) => this.prompts.fill(text),
       newSession: () => this.connectionService.newSession(),
       saveDraft: (sid, text) => this.draftActions.save(sid, text),
       refreshSessions: () => this.refreshSessions(),
@@ -421,7 +422,7 @@ export class ChatController implements vscode.Disposable {
       getClient: () => this.client,
       getServer: () => this.server,
       connect: () => this.connectionService.connect(),
-      prefillDraft: (text, attachments) => this.prefillDraft(text, attachments),
+      prefillDraft: (text, attachments, template) => this.prefillDraft(text, attachments, template),
       post: (msg) => this.post(msg),
     });
     this.connectionService = new ChatConnectionService({
@@ -524,8 +525,8 @@ export class ChatController implements vscode.Disposable {
   }
 
   /** Fills the composer from an editor context action, attaching the selection it came from. */
-  prefillDraft(text: string, attachments: Attachment[]): void {
-    this.post({ type: "prefillDraft", sessionId: this.state.sessionId ?? undefined, text, attachments });
+  prefillDraft(text: string, attachments: Attachment[], template?: boolean): void {
+    this.post({ type: "prefillDraft", sessionId: this.state.sessionId ?? undefined, text, attachments, ...(template ? { template } : {}) });
   }
 
   /**

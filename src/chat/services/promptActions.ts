@@ -1,3 +1,4 @@
+import { hasPromptVariables } from "../../shared/promptVariables";
 import * as vscode from "vscode";
 import type { OpenCodeClient, PermissionRule } from "../../client/http";
 import { ExternalServer } from "../../server/server";
@@ -33,7 +34,7 @@ export interface PromptActionDeps {
   getClient(): OpenCodeClient | undefined;
   getServer(): ServerHandle | undefined;
   connect(): Promise<void>;
-  prefillDraft(text: string, attachments: Attachment[]): void;
+  prefillDraft(text: string, attachments: Attachment[], template?: boolean): void;
   post(msg: HostMessage): void;
 }
 
@@ -43,12 +44,13 @@ export class ChatPromptActions {
 
   async usePrompt(id: string): Promise<void> {
     if (!id) return;
-    const text = await this.d.prompts.resolve(id);
+    // The composer gets the prompt as written; its variables are filled when it is sent.
+    const text = this.d.prompts.template(id);
     if (text === undefined) {
       this.d.output.warn(`[chat] unknown prompt: ${id}`);
       return;
     }
-    this.d.prefillDraft(text, []);
+    this.d.prefillDraft(text, [], hasPromptVariables(text));
   }
 
   /** Compact the open session; returns false when it was refused or the server rejected it. */

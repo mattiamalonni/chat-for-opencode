@@ -1688,6 +1688,25 @@ test("a reply leaves out questions whose when rule no longer holds", async ({ pa
   expect((reply as { answer: Record<string, unknown> }).answer).not.toHaveProperty("env");
 });
 
+test("a library prompt keeps its variables in the composer and asks the host to fill them on send", async ({ page }) => {
+  await boot(page);
+  const input = page.getByRole("textbox", { name: STRINGS.inputLabel });
+
+  await host(page, { type: "prefillDraft", text: "Review these changes:\n\n$diff", attachments: [], template: true });
+  await expect(input).toHaveValue("Review these changes:\n\n$diff");
+  await expect(page.locator(".input-highlight .variable-token")).toHaveText("$diff");
+  await input.press("Enter");
+  expect(await lastPosted(page, "send")).toMatchObject({ text: "Review these changes:\n\n$diff", resolveVariables: true });
+
+  // The same token typed by hand (say, in a shell snippet) is neither marked nor filled.
+  await input.fill("echo $diff");
+  await expect(page.locator(".input-highlight .variable-token")).toHaveCount(0);
+  await input.press("Enter");
+  const typed = await lastPosted(page, "send");
+  expect(typed).toMatchObject({ text: "echo $diff" });
+  expect(typed).not.toHaveProperty("resolveVariables");
+});
+
 test("cancelling a question unlocks the composer", async ({ page }) => {
   await boot(page);
   const events = fixture("real-sse4.jsonl");

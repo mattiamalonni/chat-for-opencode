@@ -29,6 +29,7 @@ function setup(overrides: Partial<CommandHandlerHooks> = {}) {
     loadAll: vi.fn(async () => undefined),
     loadSession: vi.fn(async () => undefined),
     send: vi.fn(async () => true),
+    fillPromptVariables: vi.fn(async (text: string) => text.replace("$diff", "DIFF@SEND")),
     newSession: vi.fn(async () => undefined),
     saveDraft: vi.fn(async () => undefined),
     refreshSessions: vi.fn(async () => undefined),
@@ -106,6 +107,16 @@ describe("ChatCommandHandler", () => {
       sessionId: "child",
       event: { type: "session.status", data: { sessionID: "child", status: { type: "idle", local: true } } },
     });
+  });
+
+  it("fills a library prompt's variables at send time, and only when asked to", async () => {
+    const { handler, hooks } = setup();
+    await handler.handle({ type: "send", text: "Review $diff", attachments: [], context: [], resolveVariables: true });
+    expect(hooks.send).toHaveBeenLastCalledWith("Review DIFF@SEND", [], [], undefined, undefined);
+    // Typed by hand (e.g. a shell snippet): `$diff` is left alone.
+    await handler.handle({ type: "send", text: "echo $diff", attachments: [], context: [] });
+    expect(hooks.send).toHaveBeenLastCalledWith("echo $diff", [], [], undefined, undefined);
+    expect(hooks.fillPromptVariables).toHaveBeenCalledTimes(1);
   });
 
   it("forks the current session without a message id", async () => {

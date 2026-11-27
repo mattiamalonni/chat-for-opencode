@@ -32,6 +32,8 @@ export interface CommandHandlerHooks {
   loadAll(): Promise<void>;
   loadSession(info: SessionInfo, stale?: () => boolean): Promise<void>;
   send(text: string, attachments: Attachment[], context: ContextItem[], delivery?: "steer" | "queue", sessionId?: string): Promise<boolean>;
+  /** Fills a library prompt's `$variables` from the editor and workspace as they are now. */
+  fillPromptVariables(text: string): Promise<string>;
   newSession(): Promise<void>;
   saveDraft(sid: string | undefined, text: string): Promise<void>;
   refreshSessions(): Promise<void>;
@@ -95,7 +97,13 @@ export class ChatCommandHandler {
         else await h.connect();
         return;
       case "send":
-        await h.send(msg.text, msg.attachments, msg.context, msg.delivery, msg.sessionId);
+        await h.send(
+          msg.resolveVariables ? await h.fillPromptVariables(msg.text) : msg.text,
+          msg.attachments,
+          msg.context,
+          msg.delivery,
+          msg.sessionId,
+        );
         return;
       case "abort": {
         // A child session can be stopped from its conversation modal. It has no main composer to
