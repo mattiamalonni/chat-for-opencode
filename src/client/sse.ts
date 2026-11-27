@@ -174,23 +174,33 @@ export class EventStream {
     if (this.closed || generation !== this.generation) return;
     const controller = new AbortController();
     this.controller = controller;
-    this.attempt = 0;
     this.setStatus("connected");
-    this.opts.subscribe(
-      this.opts.onEvent,
-      (error) => {
-        if (this.closed || generation !== this.generation) return;
-        this.setStatus("reconnecting", error);
-        const min = this.opts.minBackoffMs ?? 500;
-        const max = this.opts.maxBackoffMs ?? 10_000;
-        const delay = jitteredDelay(Math.min(max, min * 2 ** this.attempt));
-        this.attempt++;
-        this.retryTimer = setTimeout(() => {
-          this.retryTimer = undefined;
-          this.connect(generation);
-        }, delay);
-      },
-      controller.signal,
-    );
+    let ended = false;
+    const onClose = (error?: unknown) => {
+      if (ended || this.closed || generation !== this.generation) return;
+      ended = true;
+      this.setStatus("reconnecting", error);
+      const min = this.opts.minBackoffMs ?? 500;
+      const max = this.opts.maxBackoffMs ?? 10_000;
+      const delay = jitteredDelay(Math.min(max, min * 2 ** this.attempt));
+      this.attempt++;
+      this.retryTimer = setTimeout(() => {
+        this.retryTimer = undefined;
+        this.connect(generation);
+      }, delay);
+    };
+    const onEvent = (event: ServerEvent) => {
+      // Only a subscription that actually delivers proves the server healthy. Resetting the
+      // backoff on every (re)subscribe kept an unreachable server on a fixed ~500 ms retry loop.
+      if (generation === this.generation) this.attempt = 0;
+      this.opts.onEvent(event);
+    };
+    try {
+      this.opts.subscribe(onEvent, onClose, controller.signal);
+    } catch (err) {
+      // A subscriber that throws synchronously (e.g. a disposed client) would otherwise escape
+      // from the retry timer as an uncaught exception and stop the reconnect loop for good.
+      onClose(err);
+    }
   }
 }

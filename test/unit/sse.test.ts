@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { EventStream, SseOverflowError, SseParser, parseServerEvent, type EventSubscriber, type SseMessage } from "../../src/client/sse";
 import type { ServerEvent } from "../../src/shared/api";
 
@@ -94,6 +94,41 @@ describe("EventStream over SDK subscriptions", () => {
     await waitUntil(() => connections >= 2, 2000);
     expect(events[0].type).toBe("session.idle");
     expect(statuses.slice(0, 3)).toEqual(["connected", "reconnecting", "connected"]);
+  });
+
+  it("backs off exponentially while subscriptions fail without delivering events", async () => {
+    vi.useFakeTimers();
+    // Neutral jitter (factor 1.0) so the doubling sequence is exact.
+    const random = vi.spyOn(Math, "random").mockReturnValue(0.5);
+    try {
+      const times: number[] = [];
+      const subscribe: EventSubscriber = (_onEvent, onClose) => {
+        times.push(Date.now());
+        onClose(new Error("unreachable"));
+      };
+      stream = new EventStream({ subscribe, onEvent: () => {}, minBackoffMs: 100, maxBackoffMs: 10_000 });
+      stream.start();
+      await vi.advanceTimersByTimeAsync(5_000);
+      const gaps = times.slice(1).map((t, i) => t - times[i]);
+      expect(gaps.length).toBeGreaterThanOrEqual(3);
+      expect(gaps.slice(0, 4)).toEqual([100, 200, 400, 800]);
+    } finally {
+      stream?.close();
+      random.mockRestore();
+      vi.useRealTimers();
+    }
+  });
+
+  it("retries when the subscriber throws synchronously", async () => {
+    let connections = 0;
+    const subscribe: EventSubscriber = () => {
+      connections++;
+      throw new Error("client disposed");
+    };
+    stream = new EventStream({ subscribe, onEvent: () => {}, minBackoffMs: 5 });
+    stream.start();
+    await waitUntil(() => connections >= 2, 2000);
+    expect(connections).toBeGreaterThanOrEqual(2);
   });
 
   it("reports an error that ends a subscription", async () => {
