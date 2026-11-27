@@ -3029,6 +3029,12 @@ body.vscode-high-contrast .tooltip-host::after {
   border-color: var(--vscode-contrastBorder);
 }
 
+/* The welcome tile is only a tint elsewhere; high-contrast themes draw shapes with borders. */
+body.vscode-high-contrast .welcome-mark {
+  background: transparent;
+  border: 1px solid var(--opencode-border);
+}
+
 body.vscode-high-contrast .file-icon {
   color: var(--vscode-foreground);
 }

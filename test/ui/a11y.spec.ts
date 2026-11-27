@@ -70,7 +70,7 @@ test.describe("accessibility tree", () => {
       document.documentElement.style.setProperty("--vscode-contrastBorder", "rgb(255, 0, 0)");
       document.body.classList.add("vscode-high-contrast");
     });
-    for (const selector of [".composer-box", ".banner", ".welcome-starter"]) {
+    for (const selector of [".composer-box", ".banner", ".welcome-starter", ".welcome-mark"]) {
       if ((await page.locator(selector).count()) === 0) continue;
       // `.composer-box` transitions border-color, so poll until the high-contrast value settles.
       await expect
