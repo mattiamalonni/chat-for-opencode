@@ -4,7 +4,7 @@ Legend: **`User — …`** entries change something you can see or use. **`Inter
 build, CI or architecture work, condensed to one line; the reasoning lives in
 [DECISIONS.md](docs/DECISIONS.md) and [SPEC.md](SPEC.md).
 
-## Unreleased
+## 0.5.2 — 2026-11-27
 
 - **User — Prompt variables filled when you send:** a library prompt goes into the composer as written,
   with `$selection`, `$file`, `$diff` and `$problems` marked, and they are filled from the editor and
