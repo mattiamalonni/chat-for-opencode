@@ -3,7 +3,7 @@
  * dependency to the SDK therefore needs no manual .vscodeignore edit: new JavaScript is bundled,
  * and any new native/platform package is discovered here from the installed dependency graph.
  */
-import { readFileSync, readdirSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { fileURLToPath } from "node:url";
 import { dirname, join, relative, resolve, sep } from "node:path";
@@ -44,13 +44,24 @@ function declaredOptionalPackages(installed) {
   const names = new Set();
   for (const name of installed) {
     try {
-      const manifest = JSON.parse(readFileSync(require.resolve(`${name}/package.json`), "utf8"));
+      const manifest = JSON.parse(readFileSync(resolveManifest(name), "utf8"));
       for (const dep of Object.keys(manifest.optionalDependencies ?? {})) names.add(dep);
     } catch {
       // A package without a readable manifest cannot declare anything.
     }
   }
   return [...names];
+}
+
+/**
+ * `require.resolve("<pkg>/package.json")` fails for packages whose `exports` map hides it (e.g.
+ * @lydell/node-pty), which made an installed package look absent and skipped its dependencies.
+ * Prefer the hoisted manifest on disk and fall back to resolution for nested installs.
+ */
+function resolveManifest(name) {
+  const hoisted = join(root, "node_modules", name, "package.json");
+  if (existsSync(hoisted)) return hoisted;
+  return require.resolve(`${name}/package.json`);
 }
 
 const installed = installedPackages();
@@ -63,7 +74,7 @@ function visit(name, fromRoot = false) {
   if (seen.has(name)) return;
   let manifest;
   try {
-    manifest = require.resolve(`${name}/package.json`);
+    manifest = resolveManifest(name);
   } catch {
     // An external platform package that npm did not install here: still allow it when present.
     if (fromRoot) dirs.add(name);
@@ -77,6 +88,10 @@ function visit(name, fromRoot = false) {
   }
   const pkg = JSON.parse(readFileSync(manifest, "utf8"));
   for (const dep of Object.keys(pkg.dependencies ?? {})) visit(dep);
+  // Wrappers such as @lydell/node-pty load their binary from a per-platform optional dependency
+  // that npm installs only on matching hosts. Allow every declared variant, installed or not:
+  // skipping them shipped the wrapper without any binary.
+  for (const dep of Object.keys(pkg.optionalDependencies ?? {})) visit(dep, true);
 }
 
 roots.forEach((name) => visit(name, true));

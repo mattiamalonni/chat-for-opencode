@@ -25,6 +25,12 @@
 !node_modules/@ff-labs/fff-bin-win32-arm64/**
 !node_modules/@ff-labs/fff-bin-win32-x64/**
 !node_modules/@lydell/node-pty/**
+!node_modules/@lydell/node-pty-darwin-arm64/**
+!node_modules/@lydell/node-pty-darwin-x64/**
+!node_modules/@lydell/node-pty-linux-arm64/**
+!node_modules/@lydell/node-pty-linux-x64/**
+!node_modules/@lydell/node-pty-win32-arm64/**
+!node_modules/@lydell/node-pty-win32-x64/**
 !node_modules/@number0/iroh-android-arm-eabi/**
 !node_modules/@number0/iroh-android-arm64/**
 !node_modules/@number0/iroh-darwin-arm64/**
