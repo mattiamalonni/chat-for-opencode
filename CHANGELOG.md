@@ -96,23 +96,9 @@ build, CI or architecture work, condensed to one line; the reasoning lives in
   removed. A CDP/e2e test drives the real status bar hover and checks it stays pinned after the mouse
   moves away.
 
-## 0.4.1 — 2026-11-25
-
-- **User — `/compact` command:** typing `/compact` in the composer now asks the current session to compact, just like the toolbar button and the command palette; it is listed in slash suggestions and shadows a server command with the same name. `/compact [prompt]` compacts first, then sends the optional prompt in the same conversation (with its attachments and context). A turn in progress is refused and the typed text stays in the composer.
-- **User — Fork from the composer:** the per-turn fork icon is replaced by a single _Fork conversation_
-  action beside _Compact_. It is available only for a loaded, idle session and copies the **full**
-  history into a new branch. `/fork [prompt]` forks and immediately sends the optional prompt in the
-  new branch (the composer's attachments and context go with it).
-- **User — Clean fork inbox:** OpenCode's `opencode.fork-notice` plugin leaves a synthetic notice in
-  each fork's inbox with `resume: false`, so it never leaves the queue. It is now hidden from the
-  **Queued messages** panel while still reaching the model as context.
-- **User — Removed "Save as project instruction":** the action beside _Copy response_ is gone, so a
-  reply is never appended to `AGENTS.md` or another Markdown file in the workspace. The target picker,
-  dated-note formatting, message type and related tests/docs were removed too.
-
 ## Older releases
 
-Releases before 0.4.1 are documented in [GitHub Releases](https://github.com/mattiamalonni/chat-for-opencode/releases).
+Releases before 0.4.2 are documented in [GitHub Releases](https://github.com/mattiamalonni/chat-for-opencode/releases).
 At tag time each release's notes were generated from this file, so no history was lost when the
 older sections were retired. The release workflow still needs the `## X.Y.Z — date` section of the
 version being published; see [docs/RELEASING.md](docs/RELEASING.md).
