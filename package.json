@@ -42,7 +42,9 @@
       "supported": "limited",
       "description": "%workspaceTrust.description%",
       "restrictedConfigurations": [
-        "opencode.endpoint"
+        "opencode.endpoint",
+        "opencode.autoApprovePermissions",
+        "opencode.sessionPermissions"
       ]
     }
   },
