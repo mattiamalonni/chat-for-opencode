@@ -1,4 +1,4 @@
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { checkCompatibility, compatibilityKey, SUPPORTED_SERVER_VERSION } from "../../src/shared/compatibility";
@@ -34,5 +34,17 @@ describe("checkCompatibility", () => {
 
   it("matches the OpenAPI snapshot the client types were taken from", () => {
     expect(existsSync(join(__dirname, "../../docs", `openapi-${SUPPORTED_SERVER_VERSION}.json`))).toBe(true);
+  });
+});
+
+describe("embedded host version", () => {
+  // src/sdk/bridge.ts reports the pinned `@opencode/sdk` spec as the host's version: the OpenCode
+  // gateway refuses free models to a client whose version is `unknown`, so the spec must be the
+  // exact installed version, not a range.
+  it("pins @opencode/sdk to the exact installed version", () => {
+    const root = join(__dirname, "../..");
+    const spec = JSON.parse(readFileSync(join(root, "package.json"), "utf8")).dependencies["@opencode/sdk"];
+    const installed = JSON.parse(readFileSync(join(root, "node_modules/@opencode/sdk/package.json"), "utf8")).version;
+    expect(spec).toBe(installed);
   });
 });

@@ -6,6 +6,9 @@ build, CI or architecture work, condensed to one line; the reasoning lives in
 
 ## Unreleased
 
+- **User — Free OpenCode models work again:** the embedded host now reports its OpenCode version to
+  providers. Without it the OpenCode gateway treated the extension as an anonymous client and answered
+  "Free usage limit reached" for free models such as `hy4-flash-free`, even with a signed-in account.
 - **User — Native binaries on every platform:** the extension now ships one package per platform
   (Linux, macOS and Windows on x64 and arm64), each with its own native modules. Previously the single
   package carried only the binaries of the machine that built it, and never the terminal (pty) one.

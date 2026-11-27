@@ -9,6 +9,7 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 import { OpenCode } from "@opencode/sdk";
 import { OpenCode as NetworkClient } from "@opencode/client";
+import { dependencies } from "../../package.json";
 
 type EmbeddedHost = Awaited<ReturnType<typeof OpenCode.create>>;
 /** The generated client groups shared by the embedded host and a remote endpoint client. */
@@ -29,11 +30,22 @@ export function defaultDatabasePath(): string {
 }
 
 /**
+ * The OpenCode version the embedded host reports to providers, taken from the pinned SDK
+ * dependency. Without it the SDK sends `unknown` (`User-Agent: opencode/unknown/unknown/sdk`), and
+ * the OpenCode gateway treats such clients as anonymous: free models answer "Free usage limit
+ * reached" even with a signed-in account, and an older version gets HTTP 426.
+ */
+export const SDK_VERSION = dependencies["@opencode/sdk"].replace(/^[^\d]*/, "");
+
+/**
  * Creates the embedded OpenCode host. One host serves every workspace location. An explicit
  * database path keeps sessions available after the host closes.
  */
 export function createHost(options: CreateHostOptions = {}): Promise<SdkHost> {
-  return OpenCode.create({ database: { path: options.databasePath ?? defaultDatabasePath() } });
+  return OpenCode.create({
+    app: { version: SDK_VERSION },
+    database: { path: options.databasePath ?? defaultDatabasePath() },
+  });
 }
 
 /**
