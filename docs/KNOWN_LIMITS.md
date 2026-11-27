@@ -51,7 +51,7 @@ test or a manual probe actually ran.
   CI jobs also have explicit timeouts. The deterministic half is
   a blocking gate in release CI: `test:unit` checks that all 989 recorded 2.2.7 SSE events
   normalize and that the OpenAPI snapshot lists every endpoint the client calls.
-- **Untrusting a workspace mid-session.** The 1.99 API exposes only `onDidGrantWorkspaceTrust`;
+- **Untrusting a workspace mid-session.** The VS Code API (still in 1.134) exposes only `onDidGrantWorkspaceTrust`;
   removing trust takes effect in VS Code after a window reload. The extension re-checks `isTrusted`
   on every connect/reconnect, so no process is started or secret read in the meantime.
 
@@ -72,20 +72,19 @@ test or a manual probe actually ran.
 
 ## Behaviour limits
 
-- **Jobs are tracked from live events only.** The bundled client does not expose
-  `/api/experimental/job`, so the pending-job registry is fed by `experimental.job.updated`: jobs
-  started while the chat was disconnected are not known until the next update. Shell jobs are also
-  recovered from the conversation history (`background: true` plus a shell id), but codemode, image
-  and video jobs started before connecting stay invisible.
+- **Jobs are recovered on connect, then followed live.** The registry is seeded from
+  `experimental.job.list` when the chat connects and after every stream reconnect, then kept current by
+  `experimental.job.updated`. An external server older than 2.4.1 without that endpoint falls back to
+  live updates only, so jobs started while disconnected appear with their next update.
 - **Multi-root still has one active connection.** The chat talks to one folder's server at a time;
   files and sessions from other folders are available for context, navigation and switching, but
   there is no combined stream or single session spanning folders. Sessions from another folder are
   not shown until you switch to it — the folder label on a row tells you where it lives. Adding a
   folder rebuilds the file index; very large monorepos still share the 20 000-file scan cap.
-- **Prompt variables are snapshots.** `$diff` and `$problems` reflect the workspace when you pick the
-  prompt, not when you finally press Enter; `$file` and `$selection` come from the editor active at
-  pick time. A prompt whose id matches a skill or command wins in the `/` picker; use a distinct id for
-  custom prompts.
+- **Prompt variables are filled only for library prompts.** They are resolved when you send, from the
+  editor active at that moment, so switching files before pressing Enter changes `$file` and
+  `$selection`. A `$diff` typed by hand is never expanded. A prompt whose id matches a skill or command
+  wins in the `/` picker; use a distinct id for custom prompts.
 - **Applying a code block needs a target file.** The webview guesses the one referenced just above
   the block; when the guess is missing or wrong, a QuickPick of workspace files takes over. A
   full-file block replaces the entire file, so it is only appropriate when the reply really contains
@@ -119,12 +118,10 @@ test or a manual probe actually ran.
   be answered here; a client using only the on-disk storage has no event stream to forward, so its
   requests still have to be answered where the turn was started.
 
-- **VS Code 1.99–1.103** cannot contribute to the Secondary Side Bar: the chat opens in the Explorer
-  there (move it with _OpenCode: Move Chat View…_). VS Code remembers a view moved by the user, so
-  users upgrading from such a setup keep their custom location.
 - **Open Chat in Editor** is a second view of the same session, not an independent conversation:
-  switching sessions in either view switches both. The tab is restored after a window reload via a
-  webview panel serializer, but its scroll position and any unsubmitted text are not.
+  switching sessions in either view switches both. After a window reload (or when a hidden view is
+  shown again) the chat returns to the message you were reading and keeps your unsent draft; text
+  selection and expanded/collapsed cards are not restored.
 
 - **OpenCode's base policy** allows every action without asking (observed with 2.2.7). Sessions
   created by the extension start with `edit`, `shell` and `external_directory` set to `ask` (the
@@ -198,8 +195,9 @@ test or a manual probe actually ran.
 - **Auto context** shows the whole active file as a chip, but the file is attached only when you add
   it to the message. Selections are attached automatically. For very large files this costs tokens
   once added; disable `opencode.autoContext` to hide both chips.
-- **Forms** support the field types seen in 2.2.7's schema (string with/without options, number,
-  integer, boolean, multiselect, external). `when` conditions on fields are ignored.
+- **Forms** support the field types of OpenCode's form schema (string with/without options, number,
+  integer, boolean, multiselect, external) and their `when` conditions (`eq`/`neq` on earlier answers),
+  both in the chat's question cards and in the Connect panel.
 - **Phase 5 (`@opencode` chat participant) skipped**: the official docs mark the Chat Participant API as
   deprecated and "not supported in the Copilot harness"
   (https://code.visualstudio.com/api/extension-guides/ai/chat, checked 2026-11-16), and the native

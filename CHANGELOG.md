@@ -4,6 +4,21 @@ Legend: **`User — …`** entries change something you can see or use. **`Inter
 build, CI or architecture work, condensed to one line; the reasoning lives in
 [DECISIONS.md](docs/DECISIONS.md) and [SPEC.md](SPEC.md).
 
+## Unreleased
+
+- **User — Prompt variables filled when you send:** a library prompt goes into the composer as written,
+  with `$selection`, `$file`, `$diff` and `$problems` marked, and they are filled from the editor and
+  working tree at the moment you press Enter — no stale snapshot, no huge diff in the input box. A
+  `$diff` typed by hand is sent as written.
+- **User — The chat remembers where you were:** after a window reload, or when a hidden chat view is
+  shown again, it returns to the message you were reading instead of jumping to the end.
+- **User — Conditional questions:** questions whose `when` rules depend on an earlier answer appear
+  only when that answer calls for them, and are left out of the reply otherwise.
+- **User — Background jobs after a reconnect:** jobs that started or finished while the chat was
+  disconnected are picked up from the server's job list on connect and after every reconnect.
+- **Internal — Known limits refreshed:** entries made obsolete by OpenCode 2.4.1 and VS Code 1.134
+  were removed or rewritten.
+
 ## 0.5.1 — 2026-11-27
 
 - **User — Tidier chat UI:** one agent picker instead of two "Build" menus when custom agents exist; a

@@ -79,8 +79,10 @@ settings, see [REFERENCE.md](REFERENCE.md).
 - **Clickable file references**: `src/app.ts:42` in a reply, a tool's input path, a permission
   resource or a changed-file row opens the file at that line.
 - **Reusable prompt library**: `/` offers eight curated prompts (explain, tests, bugs, optimize,
-  document, review, problems, commit) plus your `opencode.promptLibrary` entries. Picking one fills
-  the composer with `$selection`, `$file`, `$diff` and `$problems` resolved — never sent automatically.
+  document, review, problems, commit) plus your `opencode.promptLibrary` entries. Picking one puts the
+  prompt in the composer with its `$selection`, `$file`, `$diff` and `$problems` variables marked;
+  they are filled from the editor and working tree **when you send**, so they are never stale. Only
+  library prompts are filled: `$diff` typed by hand is sent as written. Nothing is sent automatically.
   This is the single entry point for diagnostics, git diffs and editor selections: everything is
   attached inside the chat, and nothing is sent until you press Enter.
 

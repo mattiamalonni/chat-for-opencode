@@ -164,10 +164,13 @@ unit-tested behind injected hooks (`ApplyCodeService`) rather than driving nativ
 
 A `/` prompt can refer to the selection, the active file, the working-tree diff or the editor
 diagnostics. The webview has no access to git or to diagnostics, so selecting a prompt posts only its
-`id`; the host resolves `$selection` / `$file` from the active editor, formats the working-tree diff
-and the diagnostics into the prompt text, then posts the existing `prefillDraft` message. This also
-keeps user-defined prompts (from `opencode.promptLibrary`) on the same path as the curated ones and
-makes the resolution a pure `resolvePromptVariables` function with unit tests.
+`id` and the host answers with the prompt text as written (`prefillDraft` with `template: true`). The
+variables are filled when the message is sent: the webview flags that `send` (`resolveVariables`) and
+the host resolves `$selection` / `$file` from the active editor and formats the working-tree diff and
+diagnostics at that moment. Filling at send time keeps the values current and the composer short;
+filling only flagged sends keeps a `$diff` typed by hand (e.g. in a shell snippet) untouched. User
+prompts (`opencode.promptLibrary`) follow the same path, and the resolution is a pure, unit-tested
+`resolvePromptVariables` function.
 
 ## D21 — Multi-root is a scope widening, not a second connection
 
