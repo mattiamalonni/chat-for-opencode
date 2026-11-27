@@ -50,7 +50,7 @@ describe("integration discovery", () => {
     const list = vi.fn().mockResolvedValue({ location: { directory: "/work" }, data: [] });
     const client = OpenCodeClient.create(connection({ integration: { list } }));
     expect(await client.integrations("/work")).toEqual([]);
-    expect(list).toHaveBeenCalledWith({ location: { directory: "/work" } });
+    expect(list).toHaveBeenCalledWith({ location: { directory: "/work" } }, undefined);
   });
 });
 

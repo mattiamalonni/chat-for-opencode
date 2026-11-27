@@ -96,6 +96,11 @@ export class OpenCodeClient {
     return dir ? { directory: dir } : undefined;
   }
 
+  /** Request options for the generated client: cancels the call when `signal` aborts. */
+  private req(signal?: AbortSignal): { signal: AbortSignal } | undefined {
+    return signal ? { signal } : undefined;
+  }
+
   private async call<T>(fn: () => Promise<T>): Promise<T> {
     try {
       return await fn();
@@ -104,24 +109,27 @@ export class OpenCodeClient {
     }
   }
 
-  async info(_signal?: AbortSignal): Promise<ServerInfo> {
-    return await this.call(() => this.api.server.info());
+  async info(signal?: AbortSignal): Promise<ServerInfo> {
+    return await this.call(() => this.api.server.info(this.req(signal)));
   }
 
   async listSessionsPage(
     directory?: string,
     limit = 50,
     cursor?: string,
-    _signal?: AbortSignal,
+    signal?: AbortSignal,
   ): Promise<{ items: SessionInfo[]; next?: string }> {
     const res = await this.call(() =>
-      this.api.session.list({
-        directory,
-        limit,
-        cursor,
-        order: cursor ? undefined : "desc",
-        parentID: cursor ? undefined : null,
-      }),
+      this.api.session.list(
+        {
+          directory,
+          limit,
+          cursor,
+          order: cursor ? undefined : "desc",
+          parentID: cursor ? undefined : null,
+        },
+        this.req(signal),
+      ),
     );
     return { items: res.data, next: res.cursor?.next ?? undefined };
   }
@@ -147,8 +155,8 @@ export class OpenCodeClient {
     );
   }
 
-  async getSession(id: string, _signal?: AbortSignal): Promise<SessionInfo> {
-    return await this.call(() => this.api.session.get({ sessionID: id }));
+  async getSession(id: string, signal?: AbortSignal): Promise<SessionInfo> {
+    return await this.call(() => this.api.session.get({ sessionID: id }, this.req(signal)));
   }
 
   async deleteSession(id: string): Promise<void> {
@@ -160,11 +168,13 @@ export class OpenCodeClient {
   }
 
   /** Full history in chronological order (follows pagination up to `max` messages). */
-  async messages(id: string, max = 2000, _signal?: AbortSignal): Promise<SessionMessage[]> {
+  async messages(id: string, max = 2000, signal?: AbortSignal): Promise<SessionMessage[]> {
     const out: SessionMessage[] = [];
     let cursor: string | undefined;
     do {
-      const res = await this.call(() => this.api.message.list({ sessionID: id, limit: 200, order: cursor ? undefined : "asc", cursor }));
+      const res = await this.call(() =>
+        this.api.message.list({ sessionID: id, limit: 200, order: cursor ? undefined : "asc", cursor }, this.req(signal)),
+      );
       out.push(...res.data);
       cursor = res.data.length > 0 ? (res.cursor?.next ?? undefined) : undefined;
     } while (cursor && out.length < max);
@@ -172,8 +182,8 @@ export class OpenCodeClient {
   }
 
   /** Messages added after `lastId`; `undefined` means the overlap was compacted away. */
-  async messagesNewerThan(id: string, lastId: string, limit = 200, _signal?: AbortSignal): Promise<SessionMessage[] | undefined> {
-    const res = await this.call(() => this.api.message.list({ sessionID: id, order: "desc", limit }));
+  async messagesNewerThan(id: string, lastId: string, limit = 200, signal?: AbortSignal): Promise<SessionMessage[] | undefined> {
+    const res = await this.call(() => this.api.message.list({ sessionID: id, order: "desc", limit }, this.req(signal)));
     const page = res.data;
     const index = page.findIndex((m) => !!m && typeof m === "object" && m.id === lastId);
     return index < 0 ? undefined : page.slice(0, index).reverse();
@@ -193,8 +203,8 @@ export class OpenCodeClient {
     return await this.call(() => this.api.session.fork({ sessionID: id, ...(before ? { before } : {}) }));
   }
 
-  async inbox(id: string, _signal?: AbortSignal): Promise<InboxItem[]> {
-    return await this.call(() => this.api.session.inbox.list({ sessionID: id }));
+  async inbox(id: string, signal?: AbortSignal): Promise<InboxItem[]> {
+    return await this.call(() => this.api.session.inbox.list({ sessionID: id }, this.req(signal)));
   }
 
   async setInboxDelivery(id: string, inboxId: string, delivery: InboxDelivery): Promise<void> {
@@ -238,16 +248,16 @@ export class OpenCodeClient {
     await this.call(() => this.api.session.switchModel({ sessionID: id, model }));
   }
 
-  async permissions(id: string, _signal?: AbortSignal): Promise<PermissionRequest[]> {
-    return await this.call(() => this.api.permission.list({ sessionID: id }));
+  async permissions(id: string, signal?: AbortSignal): Promise<PermissionRequest[]> {
+    return await this.call(() => this.api.permission.list({ sessionID: id }, this.req(signal)));
   }
 
   async replyPermission(sessionId: string, requestId: string, decision: PermissionDecision): Promise<void> {
     await this.call(() => this.api.permission.reply({ sessionID: sessionId, requestID: requestId, decision }));
   }
 
-  async forms(id: string, _signal?: AbortSignal): Promise<FormRequest[]> {
-    return await this.call(() => this.api.session.form.list({ sessionID: id }));
+  async forms(id: string, signal?: AbortSignal): Promise<FormRequest[]> {
+    return await this.call(() => this.api.session.form.list({ sessionID: id }, this.req(signal)));
   }
 
   async replyForm(sessionId: string, formId: string, answer: Record<string, FormValue>): Promise<void> {
@@ -262,18 +272,18 @@ export class OpenCodeClient {
     return await this.call(() => this.api.session.diff({ sessionID: id }));
   }
 
-  async models(_signal?: AbortSignal): Promise<ModelInfo[]> {
-    const res = await this.call(() => this.api.model.list({ types: ["chat"], location: this.location() }));
+  async models(signal?: AbortSignal): Promise<ModelInfo[]> {
+    const res = await this.call(() => this.api.model.list({ types: ["chat"], location: this.location() }, this.req(signal)));
     return res.data;
   }
 
-  async defaultModel(_signal?: AbortSignal): Promise<ModelInfo | null> {
-    const res = await this.call(() => this.api.model.default({ location: this.location() }));
+  async defaultModel(signal?: AbortSignal): Promise<ModelInfo | null> {
+    const res = await this.call(() => this.api.model.default({ location: this.location() }, this.req(signal)));
     return res.data;
   }
 
-  async agents(_signal?: AbortSignal): Promise<AgentInfo[]> {
-    const res = await this.call(() => this.api.agent.list({ location: this.location() }));
+  async agents(signal?: AbortSignal): Promise<AgentInfo[]> {
+    const res = await this.call(() => this.api.agent.list({ location: this.location() }, this.req(signal)));
     return res.data;
   }
 
@@ -289,13 +299,15 @@ export class OpenCodeClient {
 
   // ---- integrations / credentials (Connect panel) -----------------------------------------
 
-  async integrations(directory?: string, _signal?: AbortSignal): Promise<IntegrationInfo[]> {
-    const res = await this.call(() => this.api.integration.list({ location: this.location(directory) }));
+  async integrations(directory?: string, signal?: AbortSignal): Promise<IntegrationInfo[]> {
+    const res = await this.call(() => this.api.integration.list({ location: this.location(directory) }, this.req(signal)));
     return res.data;
   }
 
-  async integration(id: string, directory?: string, _signal?: AbortSignal): Promise<IntegrationInfo> {
-    const res = await this.call(() => this.api.integration.get({ integrationID: id, location: this.location(directory) }));
+  async integration(id: string, directory?: string, signal?: AbortSignal): Promise<IntegrationInfo> {
+    const res = await this.call(() =>
+      this.api.integration.get({ integrationID: id, location: this.location(directory) }, this.req(signal)),
+    );
     return res.data;
   }
 
@@ -306,9 +318,11 @@ export class OpenCodeClient {
     answer?: Record<string, FormValue>,
     label?: string,
     directory?: string,
-    _signal?: AbortSignal,
+    signal?: AbortSignal,
   ): Promise<void> {
-    await this.call(() => this.api.integration.connect.key({ integrationID: id, location: this.location(directory), key, answer, label }));
+    await this.call(() =>
+      this.api.integration.connect.key({ integrationID: id, location: this.location(directory), key, answer, label }, this.req(signal)),
+    );
   }
 
   async connectExternal(
@@ -317,16 +331,19 @@ export class OpenCodeClient {
     answer?: Record<string, FormValue>,
     label?: string,
     directory?: string,
-    _signal?: AbortSignal,
+    signal?: AbortSignal,
   ): Promise<void> {
     await this.call(() =>
-      this.api.integration.connect.external({
-        integrationID: id,
-        location: this.location(directory),
-        methodID,
-        answer,
-        label,
-      }),
+      this.api.integration.connect.external(
+        {
+          integrationID: id,
+          location: this.location(directory),
+          methodID,
+          answer,
+          label,
+        },
+        this.req(signal),
+      ),
     );
   }
 
@@ -336,50 +353,59 @@ export class OpenCodeClient {
     answer?: Record<string, FormValue>,
     label?: string,
     directory?: string,
-    _signal?: AbortSignal,
+    signal?: AbortSignal,
   ): Promise<ConnectAttempt> {
     const res = await this.call(() =>
-      this.api.integration.oauth.connect({ integrationID: id, location: this.location(directory), methodID, answer, label }),
+      this.api.integration.oauth.connect(
+        { integrationID: id, location: this.location(directory), methodID, answer, label },
+        this.req(signal),
+      ),
     );
     return res.data;
   }
 
-  async oauthStatus(id: string, attemptID: string, directory?: string, _signal?: AbortSignal): Promise<AttemptStatus> {
+  async oauthStatus(id: string, attemptID: string, directory?: string, signal?: AbortSignal): Promise<AttemptStatus> {
     const res = await this.call(() =>
-      this.api.integration.oauth.status({ integrationID: id, attemptID, location: this.location(directory) }),
+      this.api.integration.oauth.status({ integrationID: id, attemptID, location: this.location(directory) }, this.req(signal)),
     );
     return res.data;
   }
 
-  async completeOAuth(id: string, attemptID: string, code: string, directory?: string, _signal?: AbortSignal): Promise<void> {
-    await this.call(() => this.api.integration.oauth.complete({ integrationID: id, attemptID, code, location: this.location(directory) }));
+  async completeOAuth(id: string, attemptID: string, code: string, directory?: string, signal?: AbortSignal): Promise<void> {
+    await this.call(() =>
+      this.api.integration.oauth.complete({ integrationID: id, attemptID, code, location: this.location(directory) }, this.req(signal)),
+    );
   }
 
-  async cancelOAuth(id: string, attemptID: string, directory?: string, _signal?: AbortSignal): Promise<void> {
-    await this.call(() => this.api.integration.oauth.cancel({ integrationID: id, attemptID, location: this.location(directory) }));
+  async cancelOAuth(id: string, attemptID: string, directory?: string, signal?: AbortSignal): Promise<void> {
+    await this.call(() =>
+      this.api.integration.oauth.cancel({ integrationID: id, attemptID, location: this.location(directory) }, this.req(signal)),
+    );
   }
 
-  async startCommand(id: string, methodID: string, label?: string, directory?: string, _signal?: AbortSignal): Promise<ConnectAttempt> {
+  async startCommand(id: string, methodID: string, label?: string, directory?: string, signal?: AbortSignal): Promise<ConnectAttempt> {
     const res = await this.call(() =>
-      this.api.integration.command.connect({ integrationID: id, location: this.location(directory), methodID, label }),
+      this.api.integration.command.connect({ integrationID: id, location: this.location(directory), methodID, label }, this.req(signal)),
     );
     return res.data;
   }
 
-  async commandStatus(id: string, attemptID: string, directory?: string, _signal?: AbortSignal): Promise<AttemptStatus> {
+  async commandStatus(id: string, attemptID: string, directory?: string, signal?: AbortSignal): Promise<AttemptStatus> {
     const res = await this.call(() =>
-      this.api.integration.command.status({ integrationID: id, attemptID, location: this.location(directory) }),
+      this.api.integration.command.status({ integrationID: id, attemptID, location: this.location(directory) }, this.req(signal)),
     );
     return res.data;
   }
 
-  async cancelCommand(id: string, attemptID: string, directory?: string, _signal?: AbortSignal): Promise<void> {
-    await this.call(() => this.api.integration.command.cancel({ integrationID: id, attemptID, location: this.location(directory) }));
+  async cancelCommand(id: string, attemptID: string, directory?: string, signal?: AbortSignal): Promise<void> {
+    await this.call(() =>
+      this.api.integration.command.cancel({ integrationID: id, attemptID, location: this.location(directory) }, this.req(signal)),
+    );
   }
 
   /** Raw credentials include secrets; callers must project them before crossing the webview boundary. */
-  async credentials(_signal?: AbortSignal): Promise<CredentialSummary[]> {
-    const raw = await this.call(() => this.api.credential.list());
+  async credentials(signal?: AbortSignal): Promise<CredentialSummary[]> {
+    const raw = await this.call(() => this.api.credential.list(this.req(signal)));
     return raw.flatMap((item): CredentialSummary[] => {
       const type = item.value.type;
       if (type !== "key" && type !== "oauth" && type !== "external") return [];
@@ -387,16 +413,16 @@ export class OpenCodeClient {
     });
   }
 
-  async renameCredential(id: string, label: string, _signal?: AbortSignal): Promise<void> {
-    await this.call(() => this.api.credential.update({ credentialID: id, label }));
+  async renameCredential(id: string, label: string, signal?: AbortSignal): Promise<void> {
+    await this.call(() => this.api.credential.update({ credentialID: id, label }, this.req(signal)));
   }
 
-  async deleteCredential(id: string, _signal?: AbortSignal): Promise<void> {
-    await this.call(() => this.api.credential.remove({ credentialID: id }));
+  async deleteCredential(id: string, signal?: AbortSignal): Promise<void> {
+    await this.call(() => this.api.credential.remove({ credentialID: id }, this.req(signal)));
   }
 
-  async activateCredential(id: string, _signal?: AbortSignal): Promise<void> {
-    await this.call(() => this.api.credential.activate({ credentialID: id }));
+  async activateCredential(id: string, signal?: AbortSignal): Promise<void> {
+    await this.call(() => this.api.credential.activate({ credentialID: id }, this.req(signal)));
   }
 
   /** Live events from the SDK: typed objects, still live-only. */

@@ -71,7 +71,8 @@ export class ChatSessionService {
     ]);
     // The contract report still observes the raw values: an adapter that silently drops malformed
     // entries must not hide a server version we cannot really support.
-    if (stale()) return;
+    // An aborted connection turns every fetch above into an empty fallback: never publish those.
+    if (stale() || signal?.aborted) return;
     this.d.catalog.setModelsAndAgents(models, defaultModel, agents);
     const sessionId = this.d.state.sessionId ?? this.d.ctx.workspaceState.get<string>(SESSION_KEY(this.d.state.folder.uri.toString()));
     let session: SessionInfo | undefined;
@@ -186,7 +187,7 @@ export class ChatSessionService {
       client.permissions(sid, signal).catch(() => [] as PermissionRequest[]),
       client.forms(sid, signal).catch(() => [] as FormRequest[]),
     ]);
-    if (stale()) return true;
+    if (stale() || signal?.aborted) return true;
     const info = normalizeSessionInfo(rawInfo) ?? rawInfo;
     const newer = normalizeList(rawNewer, normalizeSessionMessage);
     const pending = await this.d.permissions.filterPending(client, sid, normalizeList(rawPermissions, normalizePermission));
@@ -379,8 +380,9 @@ export class ChatSessionService {
       client.forms(rawInfo.id, signal).catch(() => []),
       client.inbox(rawInfo.id, signal).catch(() => [] as InboxItem[]),
     ]);
-    // A newer prompt may have started while history was loading; its events are fresher.
-    if (stale?.()) return;
+    // A newer prompt may have started while history was loading; its events are fresher. An aborted
+    // connection degraded every fetch to an empty list, which must not replace the transcript.
+    if (stale?.() || signal?.aborted) return;
     this.d.observeContract({ messages: rawMessages, inbox: rawInbox });
     const info = normalizeSessionInfo(rawInfo) ?? rawInfo;
     const messages = normalizeList(rawMessages, normalizeSessionMessage);

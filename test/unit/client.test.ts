@@ -12,6 +12,21 @@ function group(...methods: string[]): Record<string, ReturnType<typeof vi.fn>> {
 }
 
 describe("OpenCodeClient adapter over the SDK", () => {
+  it("forwards an abort signal to the generated client", async () => {
+    const api = { server: group("info"), session: group("get"), credential: group("list") };
+    api.server.info.mockResolvedValue({ version: "2.4.1" });
+    api.session.get.mockResolvedValue({ id: "ses_1" });
+    api.credential.list.mockResolvedValue([]);
+    const client = OpenCodeClient.create(connection(api));
+    const abort = new AbortController();
+    await client.info(abort.signal);
+    await client.getSession("ses_1", abort.signal);
+    await client.credentials(abort.signal);
+    expect(api.server.info).toHaveBeenCalledWith({ signal: abort.signal });
+    expect(api.session.get).toHaveBeenCalledWith({ sessionID: "ses_1" }, { signal: abort.signal });
+    expect(api.credential.list).toHaveBeenCalledWith({ signal: abort.signal });
+  });
+
   it("maps info and session CRUD to the generated groups", async () => {
     const api = {
       server: group("info"),
@@ -32,13 +47,16 @@ describe("OpenCodeClient adapter over the SDK", () => {
       permissions: undefined,
     });
     expect((await client.listSessions("/work")).map((s) => s.id)).toEqual(["ses_1"]);
-    expect(api.session.list).toHaveBeenCalledWith({
-      directory: "/work",
-      limit: 50,
-      cursor: undefined,
-      order: "desc",
-      parentID: null,
-    });
+    expect(api.session.list).toHaveBeenCalledWith(
+      {
+        directory: "/work",
+        limit: 50,
+        cursor: undefined,
+        order: "desc",
+        parentID: null,
+      },
+      undefined,
+    );
     await client.renameSession("ses_1", "Renamed");
     expect(api.session.update).toHaveBeenCalledWith({ sessionID: "ses_1", title: "Renamed" });
     expect((await client.getSession("ses_1")).title).toBe("Renamed");
@@ -108,7 +126,7 @@ describe("OpenCodeClient adapter over the SDK", () => {
     api.command.list.mockResolvedValue({ location: {}, data: [{ name: "init" }] });
     const client = OpenCodeClient.create(connection(api));
     expect((await client.models()).map((m) => m.id)).toEqual(["fast"]);
-    expect(api.model.list).toHaveBeenCalledWith({ types: ["chat"], location: undefined });
+    expect(api.model.list).toHaveBeenCalledWith({ types: ["chat"], location: undefined }, undefined);
     expect((await client.defaultModel())?.id).toBe("fast");
     expect((await client.agents()).map((a) => a.id)).toEqual(["build"]);
     expect((await client.skills()).map((s) => s.id)).toEqual(["review"]);
