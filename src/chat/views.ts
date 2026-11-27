@@ -1,6 +1,6 @@
 import * as vscode from "vscode";
 import type { HostMessage, WebviewMessage } from "../shared/protocol";
-import { renderHtml } from "./viewProvider";
+import { loadBundle } from "./viewProvider";
 
 export type ChatWebview = vscode.WebviewView | vscode.WebviewPanel;
 
@@ -96,16 +96,7 @@ export class ChatViews implements vscode.Disposable {
   /** Used by the serializer when VS Code restores an editor tab after a reload. */
   attachPanel(panel: vscode.WebviewPanel): void {
     this.panel = panel;
-    const dist = vscode.Uri.joinPath(this.extensionUri, "dist");
-    panel.webview.options = { enableScripts: true, localResourceRoots: [dist] };
-    panel.webview.html = renderHtml({
-      cspSource: panel.webview.cspSource,
-      scriptUri: panel.webview.asWebviewUri(vscode.Uri.joinPath(dist, "webview.js")).toString(),
-      styleUri: panel.webview.asWebviewUri(vscode.Uri.joinPath(dist, "webview.css")).toString(),
-      lang: vscode.env.language,
-      title: vscode.l10n.t("OpenCode chat"),
-      e2e: process.env.OC_IT_E2E === "1",
-    });
+    loadBundle(panel.webview, this.extensionUri, "webview", vscode.l10n.t("OpenCode chat"));
     this.attachView(panel);
     // Serialized tabs go through here too, so the dispose cleanup must not live only in
     // `openChatInEditor()`; otherwise a closed tab leaves `panel` pointing at a disposed panel.

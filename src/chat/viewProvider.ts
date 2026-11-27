@@ -11,19 +11,28 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
   ) {}
 
   resolveWebviewView(view: vscode.WebviewView): void {
-    const dist = vscode.Uri.joinPath(this.extensionUri, "dist");
-    view.webview.options = { enableScripts: true, localResourceRoots: [dist] };
-    view.webview.html = renderHtml({
-      cspSource: view.webview.cspSource,
-      scriptUri: view.webview.asWebviewUri(vscode.Uri.joinPath(dist, "webview.js")).toString(),
-      styleUri: view.webview.asWebviewUri(vscode.Uri.joinPath(dist, "webview.css")).toString(),
-      lang: vscode.env.language,
-      title: vscode.l10n.t("OpenCode chat"),
-      // Set by the integration suite so a CDP client can find the real webview among VS Code's frames.
-      e2e: process.env.OC_IT_E2E === "1",
-    });
+    loadBundle(view.webview, this.extensionUri, "webview", vscode.l10n.t("OpenCode chat"));
     this.controller.attachView(view);
   }
+}
+
+/**
+ * Points a webview at one of the bundles in `dist/` (`webview` for the chat, `connect` for the
+ * provider panel) with the shared CSP. Every chat/connect surface, restored or new, goes through
+ * here so their options and HTML cannot drift apart.
+ */
+export function loadBundle(webview: vscode.Webview, extensionUri: vscode.Uri, bundle: "webview" | "connect", title: string): void {
+  const dist = vscode.Uri.joinPath(extensionUri, "dist");
+  webview.options = { enableScripts: true, localResourceRoots: [dist] };
+  webview.html = renderHtml({
+    cspSource: webview.cspSource,
+    scriptUri: webview.asWebviewUri(vscode.Uri.joinPath(dist, `${bundle}.js`)).toString(),
+    styleUri: webview.asWebviewUri(vscode.Uri.joinPath(dist, `${bundle}.css`)).toString(),
+    lang: vscode.env.language,
+    title,
+    // Set by the integration suite so a CDP client can find the real chat webview among VS Code's frames.
+    e2e: bundle === "webview" && process.env.OC_IT_E2E === "1",
+  });
 }
 
 export function renderHtml(opts: {

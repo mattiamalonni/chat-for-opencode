@@ -1,6 +1,6 @@
 import * as vscode from "vscode";
 import type { OpenCodeClient } from "../client/http";
-import { renderHtml } from "../chat/viewProvider";
+import { loadBundle } from "../chat/viewProvider";
 import { quoteForShell } from "../chat/shell";
 import { describeServerError } from "../server/server";
 import { isConnectWebviewMessage } from "../shared/protocolGuards";
@@ -47,7 +47,6 @@ export class ConnectController implements vscode.Disposable {
       this.panel.reveal();
       return;
     }
-    this.resetAbort();
     const dist = vscode.Uri.joinPath(this.extensionUri, "dist");
     const panel = vscode.window.createWebviewPanel(
       "opencode.connect",
@@ -59,44 +58,19 @@ export class ConnectController implements vscode.Disposable {
         retainContextWhenHidden: false,
       },
     );
-    panel.webview.options = { enableScripts: true, localResourceRoots: [dist] };
-    panel.webview.html = renderHtml({
-      cspSource: panel.webview.cspSource,
-      scriptUri: panel.webview.asWebviewUri(vscode.Uri.joinPath(dist, "connect.js")).toString(),
-      styleUri: panel.webview.asWebviewUri(vscode.Uri.joinPath(dist, "connect.css")).toString(),
-      lang: vscode.env.language,
-      title: vscode.l10n.t("OpenCode – Connect provider"),
-    });
-    this.panel = panel;
-    this.subscriptions = [
-      panel.webview.onDidReceiveMessage((msg: unknown) => {
-        if (isConnectWebviewMessage(msg)) void this.handle(msg);
-        else this.d.output.warn("[connect] ignored an invalid webview message");
-      }),
-      panel.onDidDispose(() => {
-        if (this.panel === panel) this.panel = undefined;
-        this.onPanelClosed();
-      }),
-    ];
+    this.attachPanel(panel);
   }
 
-  /** Restores a tab after a VS Code reload; same HTML and listeners as `open()`. */
+  /** Wires a new panel, or a tab restored after a VS Code reload, to this controller. */
   attachPanel(panel: vscode.WebviewPanel): void {
     this.resetAbort();
     this.panel = panel;
-    const dist = vscode.Uri.joinPath(this.extensionUri, "dist");
-    panel.webview.options = { enableScripts: true, localResourceRoots: [dist] };
-    panel.webview.html = renderHtml({
-      cspSource: panel.webview.cspSource,
-      scriptUri: panel.webview.asWebviewUri(vscode.Uri.joinPath(dist, "connect.js")).toString(),
-      styleUri: panel.webview.asWebviewUri(vscode.Uri.joinPath(dist, "connect.css")).toString(),
-      lang: vscode.env.language,
-      title: vscode.l10n.t("OpenCode – Connect provider"),
-    });
+    loadBundle(panel.webview, this.extensionUri, "connect", vscode.l10n.t("OpenCode – Connect provider"));
     for (const sub of this.subscriptions) sub.dispose();
     this.subscriptions = [
       panel.webview.onDidReceiveMessage((msg: unknown) => {
         if (isConnectWebviewMessage(msg)) void this.handle(msg);
+        else this.d.output.warn("[connect] ignored an invalid webview message");
       }),
       panel.onDidDispose(() => {
         if (this.panel === panel) this.panel = undefined;
