@@ -142,11 +142,6 @@ jobs:
         run: npm run test:integration:embedded
         env:
           VSCODE_TEST_VERSION: ${{ matrix.vscode }}
-      - name: Embedded-host integration (Linux)
-        if: runner.os == 'Linux'
-        run: xvfb-run -a npm run test:integration:embedded
-        env:
-          VSCODE_TEST_VERSION: ${{ matrix.vscode }}
 
   package:
     name: Package .vsix (linux-x64)
