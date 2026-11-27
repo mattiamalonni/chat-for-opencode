@@ -116,6 +116,17 @@ describe("ExternalServer", () => {
     expect(sdk.makeNetworkApi).toHaveBeenCalledWith("http://127.0.0.1:9", "pw");
   });
 
+  it("keys the connection by a password digest, never the password itself", async () => {
+    setSdkBridge(bridge());
+    const make = (password: string) =>
+      new ExternalServer({ folder: "/work", endpoint: "http://h:1", getPassword: async () => password, log: () => {} });
+    const a = await make("s3cret").ensure();
+    const b = await make("other").ensure();
+    expect(a.key).not.toContain("s3cret");
+    expect(a.key).not.toBe(b.key);
+    expect((await make("s3cret").ensure()).key).toBe(a.key);
+  });
+
   it("maps 401 to unauthorized and other failures to unreachable", async () => {
     setSdkBridge(bridge({ server: { info: vi.fn().mockRejectedValue(new ApiError("no", 401)) } } as unknown as SdkHost));
     const bad = new ExternalServer({ folder: "/", endpoint: "http://127.0.0.1:9", getPassword: async () => "pw", log: () => {} });

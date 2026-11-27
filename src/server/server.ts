@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { EventEmitter } from "node:events";
 import { ApiError, OpenCodeClient, type Connection } from "../client/http";
 import type { SdkHost } from "../sdk/bridge";
@@ -186,7 +187,8 @@ export class ExternalServer extends BaseServer {
     const password = await this.opts.getPassword();
     const bridge = await loadSdkBridge();
     const conn: Connection = {
-      key: `external:${this.opts.endpoint}:${password ?? ""}`,
+      // The key only has to change when the password does; never keep the secret itself in it.
+      key: `external:${this.opts.endpoint}:${password ? createHash("sha256").update(password).digest("hex") : ""}`,
       embedded: false,
       baseUrl: this.opts.endpoint,
       password,
