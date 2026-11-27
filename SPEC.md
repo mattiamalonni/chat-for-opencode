@@ -55,7 +55,7 @@ prevents a stale stream or a late `stop()` from overwriting a newer connection. 
 embedded host has no child process, port, password or orphaned-server record to manage.
 
 Raw server payloads are normalised by `src/shared/adapter.ts` before reaching the reducer. The raw
-wire shapes for the 2.4.0 snapshot are generated from `docs/openapi-2.4.0.json` by
+wire shapes for the 2.4.1 snapshot are generated from `docs/openapi-2.4.1.json` by
 `npm run gen:types` (CI checks that the generated file is current) and serve as the reference for
 those normalisers. The contract smoke test observes the **raw** values, so an adapter that
 drops malformed entries cannot hide an unsupported server.

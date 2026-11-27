@@ -2993,7 +2993,7 @@ test("untested OpenCode version shows a dismissible warning", async ({ page }) =
   await host(page, { type: "connection", status: "connected", version: "2.9.0", compatibility: "untested" });
   const banner = page.locator(".banner.warning");
   await expect(banner).toContainText("2.9.0");
-  await expect(banner).toContainText("2.4.0");
+  await expect(banner).toContainText("2.4.1");
 
   await banner.getByRole("button", { name: STRINGS.dismiss }).click();
   await expect(page.locator(".banner.warning")).toHaveCount(0);
@@ -3012,7 +3012,7 @@ test("unsupported OpenCode version shows an error banner with a report link", as
   await boot(page);
   await host(page, { type: "connection", status: "connected", version: "3.0.0", compatibility: "unsupported" });
   const banner = page.getByRole("alert").filter({ hasText: "3.0.0" });
-  await expect(banner).toContainText("2.4.0");
+  await expect(banner).toContainText("2.4.1");
   await banner.getByRole("button", { name: STRINGS.reportIssue }).click();
   expect(await lastPosted(page, "openLink")).toEqual({
     type: "openLink",

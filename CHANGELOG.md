@@ -27,6 +27,8 @@ build, CI or architecture work, condensed to one line; the reasoning lives in
 - **User — Smaller fixes:** `file.ts:0` opens the file instead of failing; a failed auto-approval shows
   the request as waiting and notifies like a manual one; an unreachable server no longer flaps between
   connected and reconnecting; remote images in a reply appear as links instead of broken icons.
+- **Internal — OpenAPI snapshot 2.4.1:** the contract snapshot now matches the bundled SDK; the unused
+  2.2.7 and 2.3.0 snapshots were removed.
 
 ## 0.5.1 — 2026-11-27
 

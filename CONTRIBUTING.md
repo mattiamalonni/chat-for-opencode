@@ -71,7 +71,7 @@ human.
 
 | Command                       | Checks                                                                                               |
 | ----------------------------- | ---------------------------------------------------------------------------------------------------- |
-| `npm run gen:types`           | Regenerates `src/shared/openapi.generated.ts` from `docs/openapi-2.4.0.json`                         |
+| `npm run gen:types`           | Regenerates `src/shared/openapi.generated.ts` from `docs/openapi-2.4.1.json`                         |
 | `npm run verify:types`        | Fails if that generated file is stale                                                                |
 | `npm run gen:docs`            | Regenerates the tables in `docs/REFERENCE.md` from `package.json` + `package.nls.json`               |
 | `npm run verify:docs`         | Fails if those tables are stale                                                                      |
@@ -90,11 +90,11 @@ security boundary, not an implementation detail.
 
 Three layers, one owner each. Do not copy a fact into a second layer; link to it.
 
-| Layer             | Files                                                                                         | Owns                                                                 |
-| ----------------- | --------------------------------------------------------------------------------------------- | -------------------------------------------------------------------- |
-| Product           | `README.md`, `media/walkthrough-*.md`                                                         | Positioning, install, quick start, feature index, onboarding         |
-| Contributor       | `docs/FEATURES.md`, `SPEC.md`, `CONTRIBUTING.md`, other `docs/` pages                         | Detailed behaviour, protocol, API facts, decisions, limits, releases |
-| Generated/history | `docs/REFERENCE.md`, `CHANGELOG.md`, `docs/openapi-*.json`, `src/shared/openapi.generated.ts` | Reference tables and release history — never hand-edit               |
+| Layer             | Files                                                                                             | Owns                                                                 |
+| ----------------- | ------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------- |
+| Product           | `README.md`, `media/walkthrough-*.md`                                                             | Positioning, install, quick start, feature index, onboarding         |
+| Contributor       | `docs/FEATURES.md`, `SPEC.md`, `CONTRIBUTING.md`, other `docs/` pages                             | Detailed behaviour, protocol, API facts, decisions, limits, releases |
+| Generated/history | `docs/REFERENCE.md`, `CHANGELOG.md`, `docs/openapi-2.4.1.json`, `src/shared/openapi.generated.ts` | Reference tables and release history — never hand-edit               |
 
 Keep `README.md` short: a feature becomes a one-line pointer to the relevant section of
 [docs/FEATURES.md](docs/FEATURES.md), with the explanation living there. `docs/REFERENCE.md` contains

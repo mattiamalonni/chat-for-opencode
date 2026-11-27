@@ -109,7 +109,7 @@ settings, see [REFERENCE.md](REFERENCE.md).
   so its pending permissions and questions are collected in the **same panel** when it belongs to this
   workspace, labelled with the session title; answering one targets that session, not the open chat.
 
-- A **contract smoke test** on connect names the features a non-2.4.0 server cannot support, instead
+- A **contract smoke test** on connect names the features a non-2.4.1 server cannot support, instead
   of only warning about the version number. A single **status bar item**, "$(account) OpenCode",
   keeps the account reachable from anywhere. Hovering it opens a compact panel listing only the
   connected accounts, with provider, type and active state; clicking pins that same panel open and

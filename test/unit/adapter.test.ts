@@ -12,7 +12,7 @@ import {
 
 describe("OpenCode wire adapter", () => {
   it("is pinned to the checked-in OpenAPI snapshot", () => {
-    expect(OPENAPI_SNAPSHOT_VERSION).toBe("2.4.0");
+    expect(OPENAPI_SNAPSHOT_VERSION).toBe("2.4.1");
   });
 
   it("drops malformed messages instead of sending them to the reducer", () => {

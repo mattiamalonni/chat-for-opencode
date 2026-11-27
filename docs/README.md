@@ -40,8 +40,7 @@ repository keeps only `.gitkeep`.
   Generated from `package.json` + `package.nls.json` by `npm run gen:docs` and checked by
   `npm run verify:docs`.
 
-The supported OpenAPI snapshot is [`openapi-2.4.0.json`](openapi-2.4.0.json); the TypeScript types
+The supported OpenAPI snapshot is [`openapi-2.4.1.json`](openapi-2.4.1.json); the TypeScript types
 derived from it (`src/shared/openapi.generated.ts`) are checked in and verified in CI by
-`npm run gen:types`. [`openapi-2.3.0.json`](openapi-2.3.0.json) is the previous supported contract and
-[`openapi-2.2.7.json`](openapi-2.2.7.json) is kept as the snapshot the recorded SSE fixtures were
-captured against.
+`npm run gen:types`. Older snapshots live in git history only; the recorded 2.2.7 SSE fixtures are
+checked against the 2.4.1 schema.
