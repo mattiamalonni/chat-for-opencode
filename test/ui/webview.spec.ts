@@ -1596,6 +1596,98 @@ test("multi-question forms are asked one at a time and answered with a single re
   expect(await lastPosted(page, "formReply")).toMatchObject({ formId: "frm_multi", answer: { q0: "a", q1: "y" } });
 });
 
+test("a question with a when rule appears only when an earlier answer calls for it", async ({ page }) => {
+  await boot(page);
+  const form = {
+    id: "frm_when",
+    sessionID: "ses_when",
+    title: "Questions",
+    metadata: { kind: "question" },
+    fields: [
+      {
+        key: "deploy",
+        type: "string" as const,
+        title: "Deploy now?",
+        options: [
+          { value: "yes", label: "Yes" },
+          { value: "no", label: "No" },
+        ],
+      },
+      {
+        key: "env",
+        type: "string" as const,
+        title: "Which environment?",
+        options: [
+          { value: "staging", label: "Staging" },
+          { value: "prod", label: "Production" },
+        ],
+        when: [{ key: "deploy", op: "eq" as const, value: "yes" }],
+      },
+    ],
+  };
+  await host(page, { type: "session", session: { id: "ses_when", busy: true, messages: [], permissions: [], forms: [form] } });
+  const overlay = page.locator(".attention-overlay");
+
+  // Nothing answered yet: the conditional question is not part of the flow, so this one submits.
+  await expect(overlay.locator(".attention-count")).toHaveText("1 of 1");
+  await overlay.getByLabel("No").check();
+  await expect(overlay.getByRole("button", { name: STRINGS.submit })).toBeVisible();
+
+  // "Yes" brings the follow-up in, and the first card turns into a Next step.
+  await overlay.getByLabel("Yes").check();
+  await expect(overlay.locator(".attention-count")).toHaveText("1 of 2");
+  await overlay.getByRole("button", { name: STRINGS.nextQuestion }).click();
+  await expect(overlay.getByText("Which environment?")).toBeVisible();
+  await overlay.getByLabel("Staging").check();
+  await overlay.getByRole("button", { name: STRINGS.submit }).click();
+  expect(await lastPosted(page, "formReply")).toMatchObject({ formId: "frm_when", answer: { deploy: "yes", env: "staging" } });
+});
+
+test("a reply leaves out questions whose when rule no longer holds", async ({ page }) => {
+  await boot(page);
+  await host(page, {
+    type: "session",
+    session: {
+      id: "ses_when2",
+      busy: true,
+      messages: [],
+      permissions: [],
+      forms: [
+        {
+          id: "frm_when2",
+          sessionID: "ses_when2",
+          title: "Questions",
+          metadata: { kind: "question" },
+          fields: [
+            {
+              key: "deploy",
+              type: "string",
+              title: "Deploy now?",
+              options: [
+                { value: "yes", label: "Yes" },
+                { value: "no", label: "No" },
+              ],
+            },
+            {
+              key: "env",
+              type: "string",
+              title: "Which environment?",
+              default: "staging",
+              when: [{ key: "deploy", op: "eq", value: "yes" }],
+            },
+          ],
+        },
+      ],
+    },
+  });
+  const overlay = page.locator(".attention-overlay");
+  await overlay.getByLabel("No").check();
+  await overlay.getByRole("button", { name: STRINGS.submit }).click();
+  const reply = await lastPosted(page, "formReply");
+  expect(reply).toMatchObject({ formId: "frm_when2", answer: { deploy: "no" } });
+  expect((reply as { answer: Record<string, unknown> }).answer).not.toHaveProperty("env");
+});
+
 test("cancelling a question unlocks the composer", async ({ page }) => {
   await boot(page);
   const events = fixture("real-sse4.jsonl");

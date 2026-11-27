@@ -1,6 +1,7 @@
 import { useEffect, useState } from "preact/hooks";
 import type { FormField, FormRequest, FormValue, PermissionRequest } from "../../shared/api";
 import { fileRefToOpenPath, fileRefToPath, isFileRef } from "../../shared/fileRef";
+import { fieldApplies } from "../../shared/formWhen";
 
 import { isImeKey } from "../../shared/keys";
 
@@ -143,6 +144,8 @@ export function buildFormAnswer(
 ): Record<string, FormValue> {
   const answer: Record<string, FormValue> = {};
   for (const f of form.fields) {
+    // A visible field whose `when` rules do not hold was never shown: it carries no answer.
+    if (!f.hidden && !fieldApplies(f, values)) continue;
     let v = values[f.key];
     // Only rewrite our sentinel when it is not a legitimate option value.
     if (v === "__custom__" && !f.options?.some((o) => o.value === "__custom__")) v = custom[f.key] ?? "";

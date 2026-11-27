@@ -1,6 +1,7 @@
 import { useEffect, useState } from "preact/hooks";
 import type { CredentialSummary, FormField, FormValue, IntegrationInfo, IntegrationMethod } from "../../shared/api";
 import type { ConnectAttemptView, ConnectHostMessage } from "../../shared/protocol";
+import { fieldApplies as matches } from "../../shared/formWhen";
 import { STRINGS, type StringKey, type Strings } from "../../shared/strings";
 import { StringsContext, useT } from "../i18n";
 import { onHostMessage, post } from "./vscode";
@@ -35,13 +36,6 @@ function methodLabel(type: IntegrationMethod["type"], t: (key: StringKey) => str
     case "env":
       return t("connectMethodEnv");
   }
-}
-
-function matches(field: FormField, values: Record<string, FormValue>): boolean {
-  return (field.when ?? []).every((rule) => {
-    const actual = values[rule.key] ?? "";
-    return rule.op === "eq" ? actual === rule.value : actual !== rule.value;
-  });
 }
 
 function initialValues(fields: FormField[]): Record<string, FormValue> {

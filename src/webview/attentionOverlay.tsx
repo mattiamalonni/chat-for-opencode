@@ -3,6 +3,7 @@ import type { FormField, FormRequest, FormValue, PermissionRequest } from "../sh
 import type { ChatState } from "../shared/chatReducer";
 import type { ExternalAttentionItem } from "../shared/protocol";
 import type { SubagentState } from "../shared/subagents";
+import { fieldApplies } from "../shared/formWhen";
 import { isImeKey } from "../shared/keys";
 import { useT } from "./i18n";
 import { IconChevron, IconWarning } from "./icons";
@@ -113,76 +114,6 @@ export function AttentionOverlay({
     return [...byId.values()];
   }, [items]);
 
-  // Live events append requests and a resync re-posts the same objects. Keep the arrival order by
-  // request id so a new request becomes current even when another one is already pending.
-  const requestIds = useMemo(() => [...new Set(items.map((i) => i.requestId))], [items]);
-  const signature = requestIds.join("\u0001");
-  const [order, setOrder] = useState<string[]>(() => requestIds);
-  useEffect(() => {
-    const ids = signature === "" ? [] : signature.split("\u0001");
-    setOrder((prev) => {
-      const kept = prev.filter((id) => ids.includes(id));
-      const added = ids.filter((id) => !kept.includes(id));
-      const next = [...kept, ...added];
-      return next.length === prev.length && next.every((id, i) => id === prev[i]) ? prev : next;
-    });
-  }, [signature]);
-
-  // Newest request first, but the questions of one form stay in the order the tool asked them.
-  const ordered = useMemo(() => {
-    const groups = new Map<string, AttentionItem[]>();
-    for (const item of items) {
-      const group = groups.get(item.requestId) ?? [];
-      group.push(item);
-      groups.set(item.requestId, group);
-    }
-    return [...order].reverse().flatMap((id) => (groups.get(id) ?? []).sort((a, b) => a.index - b.index));
-  }, [items, order]);
-
-  const sectionRef = useRef<HTMLElement | null>(null);
-  const [index, setIndex] = useState(0);
-  const shownRequests = useRef<string[]>([]);
-  useEffect(() => {
-    const ids = [...new Set(ordered.map((i) => i.requestId))];
-    const added = ids.some((id) => !shownRequests.current.includes(id));
-    shownRequests.current = ids;
-    // A new request takes the spotlight; answering one just shifts the queue.
-    setIndex((prev) => (added ? 0 : Math.min(prev, Math.max(0, ordered.length - 1))));
-  }, [ordered]);
-
-  // Keyboard users should land on the request instead of tabbing through the whole transcript while
-  // the turn is blocked. Focus moves only when a *new* card takes the spotlight (or after answering
-  // one), never on every streamed token that re-renders the same card.
-  const activeIndex = ordered.length > 0 ? Math.min(index, ordered.length - 1) : -1;
-  const active = ordered[activeIndex];
-  useEffect(() => {
-    if (active?.id) sectionRef.current?.focus();
-  }, [active?.id]);
-
-  // 1/2/3 also work when focus is on the overlay container (not on the card itself). The card's own
-  // handler stops propagation for its shortcuts, so this listener cannot double-reply.
-  const activePermission = active?.kind === "permission" ? active.permission : undefined;
-  useEffect(() => {
-    if (!activePermission) return;
-    const onKeyDown = (e: KeyboardEvent) => {
-      if (e.defaultPrevented || e.isComposing || isImeKey(e) || e.ctrlKey || e.metaKey || e.altKey || e.shiftKey || e.repeat) return;
-      const target = e.target as HTMLElement | null;
-      if (target?.closest("button, input, a, textarea, select")) return;
-      const hasAlways = (activePermission.save?.length ?? 0) > 0;
-      const decision = e.key === "1" ? "once" : e.key === "2" && hasAlways ? "always" : e.key === "3" ? "reject" : undefined;
-      if (!decision) return;
-      e.preventDefault();
-      post({
-        type: "permissionReply",
-        sessionId: activePermission.sessionID,
-        requestId: activePermission.id,
-        decision,
-      });
-    };
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
-  }, [activePermission]);
-
   // Answers belong to the form, not to the field card: navigating between questions must not lose
   // them, and a single reply carries every field (including hidden ones with their defaults).
   const [answers, setAnswers] = useState<Record<string, Answers>>(() => Object.fromEntries(allForms.map((f) => [f.id, initialAnswers(f)])));
@@ -228,6 +159,82 @@ export function AttentionOverlay({
       setBusyForms((prev) => ({ ...prev, ...Object.fromEntries(resets.map((id) => [id, false])) }));
     }
   }, [allForms]);
+
+  // Live events append requests and a resync re-posts the same objects. Keep the arrival order by
+  // request id so a new request becomes current even when another one is already pending.
+  const requestIds = useMemo(() => [...new Set(items.map((i) => i.requestId))], [items]);
+  const signature = requestIds.join("\u0001");
+  const [order, setOrder] = useState<string[]>(() => requestIds);
+  useEffect(() => {
+    const ids = signature === "" ? [] : signature.split("\u0001");
+    setOrder((prev) => {
+      const kept = prev.filter((id) => ids.includes(id));
+      const added = ids.filter((id) => !kept.includes(id));
+      const next = [...kept, ...added];
+      return next.length === prev.length && next.every((id, i) => id === prev[i]) ? prev : next;
+    });
+  }, [signature]);
+
+  // Newest request first, but the questions of one form stay in the order the tool asked them.
+  const allOrdered = useMemo(() => {
+    const groups = new Map<string, AttentionItem[]>();
+    for (const item of items) {
+      const group = groups.get(item.requestId) ?? [];
+      group.push(item);
+      groups.set(item.requestId, group);
+    }
+    return [...order].reverse().flatMap((id) => (groups.get(id) ?? []).sort((a, b) => a.index - b.index));
+  }, [items, order]);
+  // A question whose `when` rules do not hold for the answers given so far is skipped, and comes
+  // back as soon as an earlier answer makes it relevant.
+  const ordered = useMemo(
+    () => allOrdered.filter((item) => item.kind !== "question" || !item.field || fieldApplies(item.field, answers[item.form.id] ?? {})),
+    [allOrdered, answers],
+  );
+
+  const sectionRef = useRef<HTMLElement | null>(null);
+  const [index, setIndex] = useState(0);
+  const shownRequests = useRef<string[]>([]);
+  useEffect(() => {
+    const ids = [...new Set(ordered.map((i) => i.requestId))];
+    const added = ids.some((id) => !shownRequests.current.includes(id));
+    shownRequests.current = ids;
+    // A new request takes the spotlight; answering one just shifts the queue.
+    setIndex((prev) => (added ? 0 : Math.min(prev, Math.max(0, ordered.length - 1))));
+  }, [ordered]);
+
+  // Keyboard users should land on the request instead of tabbing through the whole transcript while
+  // the turn is blocked. Focus moves only when a *new* card takes the spotlight (or after answering
+  // one), never on every streamed token that re-renders the same card.
+  const activeIndex = ordered.length > 0 ? Math.min(index, ordered.length - 1) : -1;
+  const active = ordered[activeIndex];
+  useEffect(() => {
+    if (active?.id) sectionRef.current?.focus();
+  }, [active?.id]);
+
+  // 1/2/3 also work when focus is on the overlay container (not on the card itself). The card's own
+  // handler stops propagation for its shortcuts, so this listener cannot double-reply.
+  const activePermission = active?.kind === "permission" ? active.permission : undefined;
+  useEffect(() => {
+    if (!activePermission) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.defaultPrevented || e.isComposing || isImeKey(e) || e.ctrlKey || e.metaKey || e.altKey || e.shiftKey || e.repeat) return;
+      const target = e.target as HTMLElement | null;
+      if (target?.closest("button, input, a, textarea, select")) return;
+      const hasAlways = (activePermission.save?.length ?? 0) > 0;
+      const decision = e.key === "1" ? "once" : e.key === "2" && hasAlways ? "always" : e.key === "3" ? "reject" : undefined;
+      if (!decision) return;
+      e.preventDefault();
+      post({
+        type: "permissionReply",
+        sessionId: activePermission.sessionID,
+        requestId: activePermission.id,
+        decision,
+      });
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [activePermission]);
 
   const setAnswer = (formId: string, key: string, value: FormValue | undefined) =>
     setAnswers((prev) => ({ ...prev, [formId]: { ...(prev[formId] ?? {}), [key]: value } }));
@@ -295,7 +302,7 @@ export function AttentionOverlay({
             value={answers[current.form.id]?.[current.field?.key ?? ""]}
             custom={customs[current.form.id]?.[current.field?.key ?? ""] ?? ""}
             busy={busyForms[current.form.id] ?? false}
-            last={current.last}
+            last={!ordered.slice(currentIndex + 1).some((item) => item.requestId === current.requestId)}
             onChange={(value) => current.field && setAnswer(current.form.id, current.field.key, value)}
             onCustom={(value) => current.field && setCustom(current.form.id, current.field.key, value)}
             onNext={() => setIndex(currentIndex + 1)}
