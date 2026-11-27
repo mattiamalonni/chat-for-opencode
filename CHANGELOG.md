@@ -4,6 +4,18 @@ Legend: **`User — …`** entries change something you can see or use. **`Inter
 build, CI or architecture work, condensed to one line; the reasoning lives in
 [DECISIONS.md](docs/DECISIONS.md) and [SPEC.md](SPEC.md).
 
+## Unreleased
+
+- **User — Native binaries on every platform:** the extension now ships one package per platform
+  (Linux, macOS and Windows on x64 and arm64), each with its own native modules. Previously the single
+  package carried only the binaries of the machine that built it, and never the terminal (pty) one.
+- **User — Calmer reconnects:** with an unreachable external server the event stream now backs off up
+  to 10 s instead of retrying every half second.
+- **User — Safer restricted mode:** prompts using `$diff` no longer run git before the workspace is
+  trusted, and `opencode.autoApprovePermissions` / `opencode.sessionPermissions` are restricted settings.
+- **Internal — Lifecycle and packaging:** the embedded host is closed when a stop races its startup or
+  its first request fails; webview HTML comes from one helper; `npm run verify:vsix` gates every package.
+
 ## 0.4.4 — 2026-11-26
 
 - **User — Pending responses settle on idle:** a server `session.status: idle` now closes the streaming

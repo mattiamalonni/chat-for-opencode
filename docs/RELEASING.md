@@ -26,7 +26,7 @@ when a tag `vX.Y.Z` matching `package.json` `version` is pushed.
 npm version X.Y.Z --no-git-tag-version   # replace X.Y.Z with the version you are releasing
 git commit -am "Release X.Y.Z"
 git push
-# 2. tag → CI runs, then the .vsix is published and a GitHub release is created
+# 2. tag → CI runs, then one .vsix per platform is published and a GitHub release is created
 git tag vX.Y.Z
 git push origin vX.Y.Z
 # 3. ONLY AFTER the Release workflow finishes: drop the oldest section from CHANGELOG.md
@@ -35,12 +35,36 @@ git push origin vX.Y.Z
 
 Do step 3 only after the workflow completes: it extracts the release notes from this file at tag time.
 
-`Actions → Release → Run workflow` with _dry-run_ checked builds and uploads the `.vsix` artifact
-without publishing. To publish manually (without a tag), uncheck _dry-run_ and set **version** to the
+`Actions → Release → Run workflow` with _dry-run_ checked builds and uploads the `.vsix` artifacts
+(one per platform) without publishing. To publish manually (without a tag), uncheck _dry-run_ and set **version** to the
 exact `package.json` version: the workflow refuses to publish when it is missing or mismatched.
 Every publish path is verified, and the `ci` job blocks on generated docs and links, lint, build,
 unit tests, coverage thresholds, a high-severity production `npm audit`, VS Code integration and
 `.vsix` packaging.
+
+## Platform packages
+
+OpenCode loads native modules (pty, file watcher, file finder, iroh, ffi) from per-platform optional
+npm packages, and `npm ci` installs only the variant of the machine it runs on. A single universal
+VSIX would therefore carry the binaries of the CI runner only. The release workflow packages one VSIX
+per target on a native runner and the Marketplace serves each user the matching one:
+
+| Target         | Runner             |
+| -------------- | ------------------ |
+| `linux-x64`    | `ubuntu-latest`    |
+| `linux-arm64`  | `ubuntu-24.04-arm` |
+| `darwin-arm64` | `macos-latest`     |
+| `darwin-x64`   | `macos-15-intel`   |
+| `win32-x64`    | `windows-latest`   |
+| `win32-arm64`  | `windows-11-arm`   |
+
+Each package must pass `npm run verify:vsix`, which fails when a native module lacks the target's
+binary or ships another platform's. Alpine (musl), 32-bit ARM and VS Code for the Web have no package
+and cannot install the extension. To build the package for your own machine:
+
+```sh
+npx vsce package --target "$(node -p "process.platform + '-' + process.arch")"
+```
 
 ## Notes
 

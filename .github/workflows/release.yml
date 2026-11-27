@@ -31,19 +31,15 @@ jobs:
       contents: read
       issues: write
 
-  release:
-    needs: ci
+  prepare:
     runs-on: ubuntu-latest
-    environment: marketplace
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      publish: ${{ steps.version.outputs.publish }}
     steps:
       - uses: actions/checkout@v7
-      - uses: actions/setup-node@v7
-        with:
-          node-version-file: .nvmrc
-          cache: npm
-      - run: npm ci
-
       - name: Verify the version to publish
+        id: version
         # Applies to every path: a tag must match package.json, and a manual publish must confirm
         # the exact version through the input instead of silently shipping whatever is on main.
         env:
@@ -66,24 +62,81 @@ jobs:
             echo "::error::A manual publish requires the 'version' input to confirm $version"
             exit 1
           fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "publish=$publish" >> "$GITHUB_OUTPUT"
 
+  package:
+    # OpenCode loads native modules (pty, file watcher, file finder, iroh, ffi) from per-platform
+    # optional packages, and npm installs only the variant of the machine it runs on. One VSIX per
+    # target, each packaged on a native runner, is the only way every platform gets its binaries.
+    needs: [ci, prepare]
+    name: Package ${{ matrix.target }}
+    strategy:
+      fail-fast: true
+      matrix:
+        include:
+          - { target: linux-x64, os: ubuntu-latest }
+          - { target: linux-arm64, os: ubuntu-24.04-arm }
+          - { target: darwin-arm64, os: macos-latest }
+          - { target: darwin-x64, os: macos-15-intel }
+          - { target: win32-x64, os: windows-latest }
+          - { target: win32-arm64, os: windows-11-arm }
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      - name: Runner matches the target
+        run: |
+          host=$(node -p "process.platform + '-' + process.arch")
+          if [ "$host" != "${{ matrix.target }}" ]; then
+            echo "::error::Runner ${{ matrix.os }} is $host, not ${{ matrix.target }}"
+            exit 1
+          fi
       - name: Package
         id: package
         run: |
-          version=$(node -p "require('./package.json').version")
-          file="chat-for-opencode-$version.vsix"
-          npx vsce package --out "$file"
+          file="chat-for-opencode-${{ needs.prepare.outputs.version }}-${{ matrix.target }}.vsix"
+          npx vsce package --target "${{ matrix.target }}" --out "$file"
           echo "file=$file" >> "$GITHUB_OUTPUT"
-          echo "version=$version" >> "$GITHUB_OUTPUT"
-
+      - name: Native binaries match the target
+        run: npm run verify:vsix -- "${{ steps.package.outputs.file }}" "${{ matrix.target }}"
       - uses: actions/upload-artifact@v7
         with:
-          name: vsix
+          name: vsix-${{ matrix.target }}
           path: ${{ steps.package.outputs.file }}
+          if-no-files-found: error
+
+  publish:
+    needs: [prepare, package]
+    runs-on: ubuntu-latest
+    environment: marketplace
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      - uses: actions/download-artifact@v7
+        with:
+          pattern: vsix-*
+          path: vsix
+          merge-multiple: true
+      - name: All targets were packaged
+        run: |
+          ls -l vsix
+          test "$(ls vsix/*.vsix | wc -l)" -eq 6
 
       - name: Release notes from CHANGELOG.md
         run: |
-          awk -v v="${{ steps.package.outputs.version }}" '
+          awk -v v="${{ needs.prepare.outputs.version }}" '
             $0 ~ "^## " v "( |$)" { found=1; next }
             found && /^## / { exit }
             found { print }
@@ -92,13 +145,14 @@ jobs:
           cat release-notes.md
 
       - name: Publish to Visual Studio Marketplace
-        if: github.ref_type == 'tag' || (!inputs.dry-run && inputs.version != '')
-        run: npx vsce publish --packagePath "${{ steps.package.outputs.file }}"
+        if: needs.prepare.outputs.publish == 'true'
+        # One call publishes every platform package of this version together.
+        run: npx vsce publish --packagePath vsix/*.vsix
         env:
           VSCE_PAT: ${{ secrets.VSCE_PAT }}
 
       - name: Create GitHub release
         if: github.ref_type == 'tag'
-        run: gh release create "$GITHUB_REF_NAME" "${{ steps.package.outputs.file }}" --title "$GITHUB_REF_NAME" --notes-file release-notes.md --verify-tag
+        run: gh release create "$GITHUB_REF_NAME" vsix/*.vsix --title "$GITHUB_REF_NAME" --notes-file release-notes.md --verify-tag
         env:
           GH_TOKEN: ${{ github.token }}

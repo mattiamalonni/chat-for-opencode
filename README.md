@@ -31,11 +31,13 @@ store) and sends **no telemetry**.
   on a machine that has the CLI).
 
 ```sh
-code --install-extension chat-for-opencode-<version>.vsix
+code --install-extension chat-for-opencode-<version>-<platform>.vsix
 ```
 
-From source: `npm ci && npm run compile && npx @vscode/vsce package`, or press **F5** in this
-repository to launch an Extension Development Host.
+Pick the `.vsix` of your platform (for example `darwin-arm64` or `win32-x64`): each one carries only
+that platform's native binaries. From source: `npm ci && npx @vscode/vsce package --target <platform>`
+on the platform itself (see [RELEASING.md](docs/RELEASING.md#platform-packages)), or press **F5** in
+this repository to launch an Extension Development Host.
 
 ## First conversation
 
