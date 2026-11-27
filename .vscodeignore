@@ -1,8 +1,9 @@
 **
 # vsce applies `!` patterns after all ignore patterns: a broad `!dist/**` would also re-include
-# source maps and any stale build artifact. List the single extension-host bundle and the two
-# webview bundles.
+# source maps and any stale build artifact. List the extension-host bundle, the lazily loaded SDK
+# bundle and the two webview bundles.
 !dist/extension.mjs
+!dist/sdk.mjs
 !dist/webview.js
 !dist/webview.css
 !dist/connect.js

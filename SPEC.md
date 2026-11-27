@@ -68,7 +68,7 @@ src/
   commands.ts             command/palette registration
   auth/                   `opencode auth list` parsing
   status/                 usage and account status-bar presenters
-  sdk/                    bridge to the bundled SDK
+  sdk/                    bridge to the bundled SDK (own `dist/sdk.mjs`, imported on first connect)
   server/                 embedded-host lifecycle / external endpoint
   client/                 generated-client facade + event stream, API types
   chat/                   ChatController, ViewProvider, diff, context, feature services in services/

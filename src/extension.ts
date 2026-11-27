@@ -3,8 +3,7 @@ import { registerCommands } from "./commands";
 import { ChatController, ServerRegistry } from "./chat/controller";
 import { DIFF_SCHEME, DiffService } from "./chat/diff";
 import { ChatViewProvider } from "./chat/viewProvider";
-import { createHost, makeNetworkApi } from "./sdk/bridge";
-import { setSdkBridge } from "./sdk/loader";
+import { setSdkBridgeModule } from "./sdk/loader";
 import { ConnectController } from "./connect/controller";
 import { createStatusBar } from "./status/bar";
 
@@ -16,7 +15,8 @@ export interface ExtensionApi {
 }
 
 export function activate(context: vscode.ExtensionContext): ExtensionApi {
-  if (!process.env.OC_SDK_BRIDGE_MODULE) setSdkBridge({ createHost, makeNetworkApi });
+  // The SDK lives in its own bundle and is imported on first connect, not at activation.
+  setSdkBridgeModule(context.asAbsolutePath("dist/sdk.mjs"));
   const output = vscode.window.createOutputChannel("OpenCode", { log: true });
   const log = (line: string) => output.info(line);
   const logError = (line: string) => output.error(line);

@@ -13,6 +13,15 @@ build, CI or architecture work, condensed to one line; the reasoning lives in
   to 10 s instead of retrying every half second.
 - **User — Safer restricted mode:** prompts using `$diff` no longer run git before the workspace is
   trusted, and `opencode.autoApprovePermissions` / `opencode.sessionPermissions` are restricted settings.
+- **User — Faster startup:** the ~20 MB OpenCode SDK is a separate bundle loaded on the first
+  connection, so VS Code no longer parses it at startup in windows that never open the chat.
+- **User — Shortcut no longer hides Replace:** _Search All Session Conversations_ moved to
+  `Cmd/Ctrl+Alt+Shift+F`; `Cmd+Alt+F` (Replace on macOS) and list find work again.
+- **User — Permission settings are user-level:** `opencode.autoApprovePermissions` and
+  `opencode.sessionPermissions` are read from User or Remote settings only, so a repository cannot
+  loosen them. The per-workspace Auto-approve toggle is unchanged.
+- **User — Sign-in commands on Windows:** provider commands are quoted for the shell the terminal
+  really runs (PowerShell by default), so they start there and cannot expand `$(…)`.
 - **Internal — Lifecycle and packaging:** the embedded host is closed when a stop races its startup or
   its first request fails; webview HTML comes from one helper; `npm run verify:vsix` gates every package.
 

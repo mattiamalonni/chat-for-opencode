@@ -16,8 +16,28 @@ const builds = [
     platform: "node",
     target: "node24",
     outfile: "dist/extension.mjs",
-    // The OpenCode SDK is bundled into this single file. Native/optional modules stay external so
-    // their platform binaries ship unchanged; their dependency closure is generated at package time.
+    // Extension host code only: the OpenCode SDK is the separate `dist/sdk.mjs` below. Native/optional
+    // modules stay external so their platform binaries ship unchanged; their dependency closure is
+    // generated at package time.
+    mainFields: ["module", "main"],
+    external: ["vscode", ...EXTERNAL_MODULES],
+    banner: {
+      js: 'import { createRequire as __ocCreateRequire } from "node:module"; const require = __ocCreateRequire(import.meta.url);',
+    },
+    sourcemap: false,
+    charset: "utf8",
+    minify: production,
+    logLevel: "warning",
+  },
+  {
+    // The OpenCode SDK and its dependencies, imported lazily by src/sdk/loader.ts on first connect.
+    entryPoints: { sdk: "src/sdk/bridge.ts" },
+    bundle: true,
+    format: "esm",
+    platform: "node",
+    target: "node24",
+    outdir: "dist",
+    outExtension: { ".js": ".mjs" },
     mainFields: ["module", "main"],
     external: ["vscode", ...EXTERNAL_MODULES],
     banner: {
