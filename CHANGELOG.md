@@ -11,6 +11,10 @@ build, CI or architecture work, condensed to one line; the reasoning lives in
   card has focus (when the keys work); rollback/regenerate on your prompts appear on hover or focus;
   the composer hint fits one line; the setup screen no longer repeats the error three times and only
   mentions Retry when the banner offers it; "1 step" instead of "1 steps".
+- **User — Friendlier first screen and clearer state:** the empty chat shows the OpenCode mark and
+  starters with icons; Auto-approve, when on, keeps its label and the theme's warning colour even in a
+  narrow side bar; the turn footer keeps the cost visible by dropping the start time in typical side
+  bars; the export button uses a download icon.
 - **User — No sideways scrolling in a narrow side bar:** hidden tooltips no longer widen the view, and
   tooltips pick their side again after the bar is resized.
 

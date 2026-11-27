@@ -135,4 +135,29 @@ export const IconHistory = svg(
   "M8 1a7 7 0 1 1-6.6 9.3l1.3-.4A5.6 5.6 0 1 0 3 5H5v1.3H1V2.3h1.3v1.5A7 7 0 0 1 8 1zm-.7 3h1.4v3.7l2.8 1.7-.7 1.2-3.5-2.1z",
 );
 /** Diagonal arrow out of a box: "open this in its own view". */
+/** The OpenCode mark (media/opencode.svg): a chat bubble holding a code bracket pair. */
+export function IconOpenCode(props: P) {
+  return (
+    <svg
+      width="24"
+      height="24"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      stroke-width="1.6"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+      aria-hidden="true"
+      focusable="false"
+      {...props}
+    >
+      <path d="M4 5h16v11H10l-4 3.5V16H4z" />
+      <path d="M10 8.5 7.5 10.5 10 12.5" />
+      <path d="M14 8.5l2.5 2-2.5 2" />
+    </svg>
+  );
+}
+
+/** Arrow into a tray: "save a copy", for the conversation export. */
+export const IconDownload = svg("M7.25 1.5h1.5v7.4l2.6-2.6 1.06 1.06L8 11.8 3.6 7.36l1.06-1.06 2.6 2.6zM2 11.5h1.5V13h9v-1.5H14v3H2z");
 export const IconOpen = svg("M9 2h5v5h-1.5V4.6L9.2 8 8.1 6.9l3.4-3.4H9zM3 3h4.5v1.5H4.5v8h8V8.5H14V13H3z");

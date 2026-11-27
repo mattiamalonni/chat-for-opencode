@@ -840,9 +840,35 @@ details[open] > summary > .chevron,
   text-align: center;
   color: var(--vscode-descriptionForeground);
   padding: 16px;
+  line-height: 1.45;
+}
+
+.welcome > p {
+  max-width: 340px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+/* The product mark on a soft tile tinted with the theme's link colour: a quiet anchor for the
+   empty state that follows light, dark and high-contrast themes. */
+.welcome-mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px;
+  height: 48px;
+  border-radius: 12px;
+  color: var(--vscode-textLink-foreground, var(--vscode-focusBorder));
+  background: color-mix(in srgb, var(--vscode-textLink-foreground, var(--vscode-focusBorder)) 14%, transparent);
+}
+
+.welcome-mark svg {
+  width: 28px;
+  height: 28px;
 }
 
 .welcome h2 {
+  margin: 12px 0 6px;
   color: var(--vscode-foreground);
   font-size: 1.2em;
   font-weight: 600;
@@ -913,8 +939,11 @@ details[open] > summary > .chevron,
 }
 
 .welcome-starter {
-  width: min(100%, 280px);
-  padding: 6px 10px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: min(100%, 300px);
+  padding: 7px 10px;
   text-align: left;
   color: var(--vscode-foreground);
   background: var(--vscode-button-secondaryBackground, var(--vscode-input-background));
@@ -926,6 +955,31 @@ details[open] > summary > .chevron,
 .welcome-starter:hover,
 .welcome-starter:focus-visible {
   background: var(--vscode-button-secondaryHoverBackground, var(--vscode-input-background));
+}
+
+.welcome-starter-icon {
+  flex: none;
+  color: var(--vscode-textLink-foreground, var(--vscode-descriptionForeground));
+}
+
+.welcome-starter-text {
+  flex: 1;
+  min-width: 0;
+}
+
+/* The arrow appears on hover/focus: the starter is an action, not a static list item. */
+.welcome-starter-chevron {
+  flex: none;
+  width: 12px;
+  height: 12px;
+  color: var(--vscode-descriptionForeground);
+  opacity: 0;
+  transition: opacity 120ms ease;
+}
+
+.welcome-starter:hover .welcome-starter-chevron,
+.welcome-starter:focus-visible .welcome-starter-chevron {
+  opacity: 1;
 }
 
 .msg.user {
@@ -1048,7 +1102,15 @@ details[open] > summary > .chevron,
   color: var(--vscode-descriptionForeground);
 }
 
-/* In a very narrow sidebar the clock times eat the room the totals need. */
+/* In a typical side bar the start time costs the room the cost figure needs: keep only the end time
+   (both stay in the accessible label). Very narrow bars drop the clocks entirely. */
+@media (max-width: 440px) {
+  .turn-stats-time:first-child,
+  .turn-stats-time:first-child + .turn-stats-line {
+    display: none;
+  }
+}
+
 @media (max-width: 180px) {
   .turn-stats-time {
     display: none;
@@ -2628,10 +2690,12 @@ button:disabled {
   color: var(--vscode-foreground);
 }
 
+/* On means edits and shell commands run without asking: show it in the theme's warning colour so the
+   state is obvious at a glance, not only from the toggle's pressed look. */
 .auto-approve.on {
-  background: var(--vscode-inputOption-activeBackground, var(--vscode-toolbar-hoverBackground));
-  border-color: var(--vscode-inputOption-activeBorder, var(--vscode-focusBorder));
-  color: var(--vscode-inputOption-activeForeground, var(--vscode-foreground));
+  background: var(--vscode-inputValidation-warningBackground, var(--vscode-inputOption-activeBackground));
+  border-color: var(--vscode-editorWarning-foreground, var(--vscode-inputOption-activeBorder, var(--vscode-focusBorder)));
+  color: var(--vscode-editorWarning-foreground, var(--vscode-inputOption-activeForeground, var(--vscode-foreground)));
 }
 
 .auto-approve.on:hover {
@@ -2641,7 +2705,7 @@ button:disabled {
 /* A resized side bar is tight well before 380px: drop the toggle's label to an icon to make room
    for the model picker and the other controls. The tooltip and aria-label keep it discoverable. */
 @media (max-width: 400px) {
-  .auto-approve span,
+  .auto-approve:not(.on) span,
   .drop-hint > span {
     display: none;
   }

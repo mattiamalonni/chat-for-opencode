@@ -4,7 +4,7 @@ import type { FolderInfo } from "../shared/protocol";
 
 import { isolateKeys } from "./env";
 import { useT } from "./i18n";
-import { IconChevron, IconClose, IconFileMarkdown, IconHistory, IconPlus, IconRefresh } from "./icons";
+import { IconChevron, IconClose, IconDownload, IconHistory, IconPlus, IconRefresh } from "./icons";
 
 import { Picker } from "./picker";
 import { post } from "./vscode";
@@ -114,7 +114,7 @@ export function Header(props: {
         aria-label={t("exportConversation")}
         onClick={props.onExport}
       >
-        <IconFileMarkdown />
+        <IconDownload />
       </button>
       <button
         type="button"

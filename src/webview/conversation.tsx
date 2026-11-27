@@ -6,7 +6,7 @@ import type { ConnectionStatus, PendingJob, UiError } from "../shared/protocol";
 import type { StringKey } from "../shared/strings";
 
 import { useT } from "./i18n";
-import { IconChevron, IconWarning } from "./icons";
+import { IconCheck, IconChevron, IconFileDoc, IconOpenCode, IconTool, IconWarning } from "./icons";
 import { fileRefToPath } from "../shared/fileRef";
 
 import { AssistantStatus, MessageView, QuestionTurnCard, ToolCard, ToolGroup, TurnStatsRow } from "./messages";
@@ -286,6 +286,9 @@ export function Conversation({
               <SetupWelcome error={error} />
             ) : (
               <div class="welcome">
+                <span class="welcome-mark" aria-hidden="true">
+                  <IconOpenCode />
+                </span>
                 <h2>{t("welcomeTitle")}</h2>
                 <p>{t("welcomeBody")}</p>
                 {(status === "error" || status === "reconnecting") && <p class="welcome-hint">{t("setupHint")}</p>}
@@ -295,15 +298,17 @@ export function Conversation({
                     <div class="welcome-starters" aria-label={t("welcomeStarters")}>
                       <span class="welcome-starters-label">{t("welcomeStarters")}</span>
                       {[
-                        { text: t("starterExplain"), enabled: !!hasActiveFile },
-                        { text: t("starterBugs"), enabled: !!hasSelection },
-                        { text: t("starterTests"), enabled: !!hasActiveFile },
-                        { text: t("starterPlan"), enabled: !!hasActiveFile },
+                        { text: t("starterExplain"), enabled: !!hasActiveFile, Icon: IconFileDoc },
+                        { text: t("starterBugs"), enabled: !!hasSelection, Icon: IconWarning },
+                        { text: t("starterTests"), enabled: !!hasActiveFile, Icon: IconCheck },
+                        { text: t("starterPlan"), enabled: !!hasActiveFile, Icon: IconTool },
                       ]
                         .filter((starter) => starter.enabled)
                         .map((starter) => (
                           <button type="button" class="welcome-starter" key={starter.text} onClick={() => onSuggestedPrompt(starter.text)}>
-                            {starter.text}
+                            <starter.Icon class="welcome-starter-icon" />
+                            <span class="welcome-starter-text">{starter.text}</span>
+                            <IconChevron class="welcome-starter-chevron" />
                           </button>
                         ))}
                       {!hasActiveFile && !hasSelection && <p class="welcome-hint">{t("starterAvailabilityHint")}</p>}
