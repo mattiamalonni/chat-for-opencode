@@ -69,15 +69,16 @@ human.
 
 ### Generated artefacts and documentation
 
-| Command                       | Checks                                                                                 |
-| ----------------------------- | -------------------------------------------------------------------------------------- |
-| `npm run gen:types`           | Regenerates `src/shared/openapi.generated.ts` from `docs/openapi-2.4.0.json`           |
-| `npm run verify:types`        | Fails if that generated file is stale                                                  |
-| `npm run gen:docs`            | Regenerates the tables in `docs/REFERENCE.md` from `package.json` + `package.nls.json` |
-| `npm run verify:docs`         | Fails if those tables are stale                                                        |
-| `npm run gen:vscodeignore`    | Regenerates the VSIX native-module allow-list from `scripts/external-modules.mjs`      |
-| `npm run verify:vscodeignore` | Fails if that allow-list is stale                                                      |
-| `npm run verify:links`        | Fails on broken links, unknown npm scripts and `opencode.*` settings/commands in prose |
+| Command                       | Checks                                                                                           |
+| ----------------------------- | ------------------------------------------------------------------------------------------------ |
+| `npm run gen:types`           | Regenerates `src/shared/openapi.generated.ts` from `docs/openapi-2.4.0.json`                     |
+| `npm run verify:types`        | Fails if that generated file is stale                                                            |
+| `npm run gen:docs`            | Regenerates the tables in `docs/REFERENCE.md` from `package.json` + `package.nls.json`           |
+| `npm run verify:docs`         | Fails if those tables are stale                                                                  |
+| `npm run gen:vscodeignore`    | Regenerates the VSIX native-module allow-list from `scripts/external-modules.mjs`                |
+| `npm run verify:vscodeignore` | Fails if that allow-list is stale                                                                |
+| `npm run verify:links`        | Fails on broken links, unknown npm scripts and `opencode.*` settings/commands in prose           |
+| `npm run verify:vsix`         | `<file.vsix> [target]`: fails if a VSIX lacks its target's native binaries or ships foreign ones |
 
 Add a test next to the code you change. A bug fix without a regression test is not a fix. Tests for
 protocol changes must cover both valid messages and malformed ones — the runtime guards are a
