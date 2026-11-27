@@ -269,7 +269,9 @@ export class ChatController implements vscode.Disposable {
       },
       diff: async () => {
         const cwd = this.state.folder?.uri.fsPath;
-        if (!cwd) return "";
+        // The prompt catalog is posted before the trust check, and git honours repository config
+        // (e.g. `core.fsmonitor`) that can run arbitrary commands: never spawn it untrusted.
+        if (!cwd || this.trustBlocked()) return "";
         const diff = await workingDiff(cwd);
         return diff ? formatPromptDiff(diff) : "";
       },
